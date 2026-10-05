@@ -8,6 +8,7 @@
   import Setup from './routes/Setup.svelte';
   import Run from './routes/Run.svelte';
   import Machine from './routes/Machine.svelte';
+  import Sketch from './routes/Sketch.svelte';
   import { api } from './api/client';
   import { server } from './stores/server.svelte';
   import { ui, type Tab } from './stores/ui.svelte';
@@ -72,6 +73,7 @@
 
     <div class="topbar-actions">
       {#if pending.count > 0}<button class="btn btn-ghost page-btn pending-btn" onclick={() => (ui.modal = 'pending')}>Pending changes<span class="badge">{pending.count}</span></button>{/if}
+      <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === 'sketch'} onclick={() => togglePage('sketch')} title="Sketch a part"><svg class="ic-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16zM14 7l3 3" /></svg><span>Sketch</span></button>
       <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === 'materials'} onclick={() => togglePage('materials')} title="Material library"><i class="ic ic-layers"></i><span>Materials</span></button>
       <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === SETTINGS.id} onclick={() => togglePage(SETTINGS.id)} title={SETTINGS.label}><i class="ic ic-gear"></i><span>{SETTINGS.label}</span></button>
       <button class="btn btn-ghost icon-btn alarm" onclick={() => (ui.modal = 'alarms')} title="Alarms"><i class="ic ic-bell"></i><span>Alarms</span>{#if alarms > 0}<span class="badge">{alarms}</span>{/if}</button>
@@ -82,13 +84,15 @@
 
   {#if doc?.persistence_error || recipeEdits.storageError || settingsEdits.error}<div class="persistence-error" role="alert">{doc?.persistence_error ?? recipeEdits.storageError ?? settingsEdits.error}</div>{/if}
 
-  <main class="workspace" class:materials={ui.tab === 'materials'}>
+  <main class="workspace" class:materials={ui.tab === 'materials'} class:sketch={ui.tab === 'sketch'}>
     {#if !doc}
       <section class="panel main"><div class="empty"><h2>Waiting for the server</h2>Start <span class="mono">openlaser</span> and this page connects on its own.</div></section>
     {:else if ui.tab === 'parts'}
       <Parts />
     {:else if ui.tab === 'materials'}
       <Materials />
+    {:else if ui.tab === 'sketch'}
+      <Sketch />
     {:else if ui.tab === 'setup'}
       <Setup />
     {:else if ui.tab === 'run'}
@@ -106,4 +110,6 @@
   .pending-btn .badge { margin-left: 8px; background: var(--accent); }
   .app:has(.persistence-error) { grid-template-rows:68px auto minmax(0,1fr); }
   .persistence-error { padding: 8px 20px; background: var(--warn-soft); color: var(--warn); }
+  .ic-svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
+  .workspace.sketch { grid-template-columns: minmax(0, 1fr) clamp(260px, 20vw, 320px); }
 </style>

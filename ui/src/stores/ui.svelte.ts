@@ -2,7 +2,7 @@
 import type { Features, NestLive, Pick, Preview } from '../api';
 import { SETTINGS_PAGES } from '../lib/navigation';
 
-export type Tab = 'parts' | 'setup' | 'run' | 'materials' | 'machine';
+export type Tab = 'parts' | 'setup' | 'run' | 'materials' | 'machine' | 'sketch';
 /** A question before a destructive or machine-changing action (DESIGN.md, Touch rules). */
 export type ConfirmRequest = {
   title: string;
@@ -63,7 +63,7 @@ function returningTab(): Tab {
   try {
     const tab = sessionStorage.getItem('ol-tab-return');
     sessionStorage.removeItem('ol-tab-return');
-    if (tab === 'parts' || tab === 'setup' || tab === 'run' || tab === 'materials' || tab === 'machine') return tab;
+    if (tab === 'parts' || tab === 'setup' || tab === 'run' || tab === 'materials' || tab === 'machine' || tab === 'sketch') return tab;
   } catch { /* Opening a layout does not require browser storage. */ }
   return 'parts';
 }
