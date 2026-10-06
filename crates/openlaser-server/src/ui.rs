@@ -81,6 +81,8 @@ fn content_type(path: &Path) -> &'static str {
         Some("json") => "application/json",
         Some("txt" | "md") => "text/plain; charset=utf-8",
         Some("png") => "image/png",
+        // The sketch's constraint solver; browsers compile it only as wasm.
+        Some("wasm") => "application/wasm",
         _ => "application/octet-stream",
     }
 }
@@ -97,6 +99,7 @@ mod tests {
         assert_eq!(safe_relative("/../secret"), None);
         assert_eq!(safe_relative("/a/../../b"), None);
         assert_eq!(content_type(Path::new("x.woff2")), "font/woff2");
+        assert_eq!(content_type(Path::new("planegcs.wasm")), "application/wasm");
     }
 
     #[cfg(feature = "embedded-ui")]

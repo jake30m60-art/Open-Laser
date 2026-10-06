@@ -12,6 +12,16 @@ runtime packages **esm-env** and **clsx**. Their source and original notices are
 included under `vendor-ui/` in the source bundle. License copies are embedded in
 the application and included with the binary packages.
 
+## Sketch constraint solver
+
+**planegcs 1.3.0** by Salusoft89, a WebAssembly build of FreeCAD's PlaneGCS
+geometric constraint solver, solves the sketch's constraints and dimensions.
+GNU LGPL 2.1 or later (the package declares LGPL-2.0-or-later); FreeCAD's
+PlaneGCS sources are LGPL as well. It is loaded as a separate module, so it can
+be replaced with a modified build.
+[Source](https://github.com/Salusoft89/planegcs) and
+[FreeCAD PlaneGCS](https://github.com/FreeCAD/FreeCAD/tree/main/src/Mod/Sketcher/App/planegcs).
+
 ## Desktop window
 
 **Wry 0.57.0**, **Tao 0.37.0**, and the macOS menu helper **Muda 0.20.0**, from

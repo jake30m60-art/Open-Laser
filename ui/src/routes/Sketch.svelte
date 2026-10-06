@@ -1,8 +1,11 @@
 <script lang="ts">
-  // A 2D sketch drawn as in Fusion: pick a tool, click points, type a
-  // value to lock it (Tab moves on, Enter places), and Escape steps back.
+  // A 2D sketch drawn as in Fusion: create, modify, constrain and dimension.
+  // Draw with a tool, type a value to lock it (Tab moves on, Enter places);
+  // constraints and dimensions are solved by FreeCAD's PlaneGCS, blue
+  // geometry can still move and black is fully defined. Escape steps back.
   // The finished sketch becomes a library part through the DXF importer.
   import { onMount } from 'svelte';
+  import wasmUrl from '@salusoft89/planegcs/dist/planegcs_dist/planegcs.wasm?url';
   import { api } from '../api/client';
   import { server } from '../stores/server.svelte';
   import { ui } from '../stores/ui.svelte';
@@ -10,16 +13,19 @@
   import { explain } from '../lib/format';
   import { displayNumber, toSource, unitLabel } from '../lib/units.svelte';
   import { sketchStore as store } from '../sketch/store.svelte';
-  import { clone, merge, point, type Id, type Sketch } from '../sketch/model';
+  import { clone, isDimension, merge, point, type Constraint, type Dimension, type Id, type Sketch } from '../sketch/model';
   import { angleOf, dist, polar, shapeOf, sketchBounds, sweep, insideBox, touchesBox, type Shape, type Vec } from '../sketch/geometry';
   import { gridStep, snap, type Snap } from '../sketch/snap';
   import { type Field, type Locked, type ToolId } from '../sketch/tools';
+  import { type ActionId, type Hit, type Step } from '../sketch/actions';
   import { chain, hit, hitPoint, originsOf, repairArcs, translate } from '../sketch/edit';
+  import { initSolver, solve, solverReady, defined, type Pull } from '../sketch/solver';
+  import { draw as drawDimension, glyphs, label as dimensionLabel } from '../sketch/annotations';
   import { hasCut, toDxf } from '../sketch/dxf';
   import { evaluate } from '../sketch/expression';
 
-  type ToolButton = { id: ToolId | null; label: string; key?: string; icon: string };
-  const TOOLS: ToolButton[] = [
+  type Button<T> = { id: T; label: string; key?: string; icon?: string; glyph?: string };
+  const CREATE: Button<ToolId | null>[] = [
     { id: null, label: 'Select', key: 'Esc', icon: 'M6 3l12 9-5.5 1.2L16 20l-2.6 1.2-2.9-6.7L6 18z' },
     { id: 'line', label: 'Line', key: 'L', icon: 'M5 19L19 5M5 19m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M19 5m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0' },
     { id: 'rect2', label: '2-point rectangle', key: 'R', icon: 'M4 6h16v12H4zM4 18m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M20 6m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0' },
@@ -31,7 +37,32 @@
     { id: 'polygon', label: 'Inscribed polygon', key: 'P', icon: 'M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z' },
     { id: 'slot', label: 'Center to center slot', icon: 'M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7M8 12h8' },
   ];
-  const SHORTCUTS: Record<string, ToolId> = { l: 'line', r: 'rect2', c: 'circle', a: 'arc3', p: 'polygon' };
+  const MODIFY: Button<ActionId>[] = [
+    { id: 'fillet', label: 'Fillet', icon: 'M4 20V12a8 8 0 0 1 8-8h8' },
+    { id: 'chamfer', label: 'Chamfer', icon: 'M4 20v-9l7-7h9' },
+    { id: 'trim', label: 'Trim', key: 'T', icon: 'M3 12h7M14 12h7M12 3v18M10 9l4 6M14 9l-4 6' },
+    { id: 'extend', label: 'Extend', icon: 'M3 12h12M15 9l4 3-4 3M20 4v16' },
+    { id: 'break', label: 'Break', icon: 'M3 12h7M14 12h7M12 5v14' },
+    { id: 'offset', label: 'Offset', key: 'O', icon: 'M5 19V9a4 4 0 0 1 4-4h10M9 19v-8a2 2 0 0 1 2-2h8' },
+    { id: 'mirror', label: 'Mirror', icon: 'M12 3v18M9 7L4 17h5zM15 7l5 10h-5z' },
+    { id: 'rpattern', label: 'Rectangular pattern', icon: 'M4 4h5v5H4zM15 4h5v5h-5zM4 15h5v5H4zM15 15h5v5h-5z' },
+    { id: 'cpattern', label: 'Circular pattern', icon: 'M12 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4M19 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4M12 17a2 2 0 1 0 0 4a2 2 0 1 0 0-4M5 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4' },
+  ];
+  const RELATE: Button<ActionId>[] = [
+    { id: 'coincident', label: 'Coincident', glyph: '•' },
+    { id: 'collinear', label: 'Collinear', glyph: '≡' },
+    { id: 'concentric', label: 'Concentric', glyph: '◎' },
+    { id: 'midpoint', label: 'Midpoint', glyph: 'Δ' },
+    { id: 'fix', label: 'Fix / unfix', glyph: '⚓' },
+    { id: 'parallel', label: 'Parallel', glyph: '∥' },
+    { id: 'perpendicular', label: 'Perpendicular', glyph: '⊥' },
+    { id: 'hv', label: 'Horizontal / vertical', glyph: 'H|V' },
+    { id: 'tangent', label: 'Tangent', glyph: 'T' },
+    { id: 'equal', label: 'Equal', glyph: '=' },
+    { id: 'symmetric', label: 'Symmetric', glyph: '⇔' },
+  ];
+  const TOOL_KEYS: Record<string, ToolId> = { l: 'line', r: 'rect2', c: 'circle', a: 'arc3', p: 'polygon' };
+  const ACTION_KEYS: Record<string, ActionId> = { d: 'dimension', t: 'trim', o: 'offset' };
 
   // ---- View: millimetres with Y up, drawn in screen pixels -------------------------------------
   let w = $state(800);
@@ -42,8 +73,9 @@
   const toScreen = (p: Vec): Vec => ({ x: (p.x - view.cx) * view.s + w / 2, y: h / 2 - (p.y - view.cy) * view.s });
   const toModel = (x: number, y: number): Vec => ({ x: view.cx + (x - w / 2) / view.s, y: view.cy - (y - h / 2) / view.s });
 
-  // ---- Cursor, snapping and the tool's heads-up fields -------------------------------------------
+  // ---- Cursor, snapping and the heads-up fields ----------------------------------------------------
   let cursor = $state.raw<Vec | null>(null);
+  let hover = $state.raw<Hit | null>(null);
   let touch = $state(false);
   let locked = $state<Locked>({});
   let editing = $state<{ key: string; text: string } | null>(null);
@@ -51,28 +83,42 @@
   let dragSnap = $state.raw<Snap | null>(null);
 
   const reach = $derived((touch ? 16 : 9) / view.s);
-  const minor = $derived(gridStep(1 / view.s, 10));
-  const major = $derived(minor * (String(minor).replace(/[0.]/g, '').startsWith('2') ? 5 : String(minor).replace(/[0.]/g, '').startsWith('5') ? 2 : 5));
+  /** The grid: the fixed step when one is set, else one that suits the zoom. */
+  const minor = $derived(store.gridStep ?? gridStep(1 / view.s, 10));
+  const drawnStep = $derived.by(() => { let s = minor; while (s * view.s < 6) s *= 5; return s; });
+  const major = $derived(drawnStep * 5);
   const tool = $derived(store.tool);
+  const action = $derived(store.action);
+  /** What the modify tools work on: the selected curves, not constraints or dimensions. */
+  const ctx = $derived({
+    sketch: store.sketch,
+    selection: new Set([...store.selection].filter((id) => store.sketch.entities.some((e) => e.id === id))) as ReadonlySet<Id>,
+  });
   const snapped = $derived.by((): Snap | null => {
     void store.toolRevision;
     if (!cursor || !tool) return null;
     return snap(store.sketch, cursor, { reach, grid: store.gridSnap ? minor : 0, anchor: tool.anchor() });
   });
-  const resolved = $derived.by((): Snap | null => {
-    void store.toolRevision;
-    return tool && snapped ? tool.resolve(snapped, locked) : null;
-  });
+  const resolved = $derived.by((): Snap | null => { void store.toolRevision; return tool && snapped ? tool.resolve(snapped, locked) : null; });
   const fields = $derived.by((): Field[] => {
     void store.toolRevision;
-    return tool && resolved ? tool.fields(resolved) : [];
+    if (tool) return resolved ? tool.fields(resolved) : [];
+    if (action && cursor) return action.fields(ctx, cursor);
+    return [];
   });
-  const ghost = $derived.by(() => {
+  const ghost = $derived.by(() => { void store.toolRevision; return tool && resolved ? tool.ghost(resolved, locked) : null; });
+  const preview = $derived.by(() => {
     void store.toolRevision;
-    return tool && resolved ? tool.ghost(resolved, locked) : null;
+    if (!action || !cursor) return null;
+    try { return action.preview(ctx, cursor, hover ?? { point: null, entity: null, at: cursor }, locked); } catch { return null; }
   });
   const anchor = $derived.by(() => { void store.toolRevision; return tool?.anchor() ?? null; });
-  const hint = $derived.by(() => { void store.toolRevision; return tool ? tool.hint() : 'Click to select · drag a box · double click selects a connected profile'; });
+  const hint = $derived.by(() => {
+    void store.toolRevision;
+    if (tool) return tool.hint();
+    if (action) return action.hint(ctx);
+    return 'Click to select · drag a box · double click a profile or a dimension to edit it';
+  });
 
   // ---- Rendering -------------------------------------------------------------------------------
   function pathOf(shape: Shape): string {
@@ -93,22 +139,52 @@
   const gridLines = $derived.by(() => {
     const lines: Array<{ d: string; major: boolean }> = [];
     const tl = toModel(0, 0), br = toModel(w, h);
-    if ((br.x - tl.x) / minor > 400) return lines;
-    for (let x = Math.ceil(tl.x / minor) * minor; x <= br.x; x += minor) {
-      const X = toScreen({ x, y: 0 }).x;
-      lines.push({ d: `M${X} 0V${h}`, major: Math.abs(x / major - Math.round(x / major)) < 1e-6 });
-    }
-    for (let y = Math.ceil(br.y / minor) * minor; y <= tl.y; y += minor) {
-      const Y = toScreen({ x: 0, y }).y;
-      lines.push({ d: `M0 ${Y}H${w}`, major: Math.abs(y / major - Math.round(y / major)) < 1e-6 });
-    }
+    const step = drawnStep;
+    if ((br.x - tl.x) / step > 400) return lines;
+    const isMajor = (v: number) => Math.abs(v / major - Math.round(v / major)) < 1e-6;
+    for (let x = Math.ceil(tl.x / step) * step; x <= br.x; x += step) lines.push({ d: `M${toScreen({ x, y: 0 }).x} 0V${h}`, major: isMajor(x) });
+    for (let y = Math.ceil(br.y / step) * step; y <= tl.y; y += step) lines.push({ d: `M0 ${toScreen({ x: 0, y }).y}H${w}`, major: isMajor(y) });
     return lines;
   });
   const origin = $derived(toScreen({ x: 0, y: 0 }));
 
-  const drawn = $derived(store.sketch.entities.map((e) => ({ id: e.id, construction: !!e.construction, d: pathOf(shapeOf(store.sketch, e)) })));
+  const free = $derived(store.free);
+  const drawn = $derived(store.sketch.entities.map((e) => ({
+    id: e.id, construction: !!e.construction, d: pathOf(shapeOf(store.sketch, e)),
+    defined: !!free && defined(e, free),
+  })));
   const centers = $derived(new Set(store.sketch.entities.flatMap((e) => (e.kind === 'line' ? [] : [e.c]))));
-  const handles = $derived(store.sketch.points.map((p) => ({ id: p.id, center: centers.has(p.id), ...toScreen(p) })));
+  const fixed = $derived(new Set(store.sketch.constraints.flatMap((c) => (c.kind === 'fix' ? [c.point] : []))));
+  const handles = $derived(store.sketch.points.map((p) => ({ id: p.id, center: centers.has(p.id), defined: !!free && !free.points.has(p.id), fixed: fixed.has(p.id), ...toScreen(p) })));
+
+  const mm = (v: number) => displayNumber(v, 'mm').replace(/\.?0+$/, '');
+  function arrowHead(at: Vec, toward: Vec): string {
+    const a = toScreen(at), b = toScreen(toward);
+    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }, n = { x: -u.y, y: u.x };
+    return `M${a.x} ${a.y}L${a.x + u.x * 9 + n.x * 3.5} ${a.y + u.y * 9 + n.y * 3.5}L${a.x + u.x * 9 - n.x * 3.5} ${a.y + u.y * 9 - n.y * 3.5}Z`;
+  }
+  type DrawnDim = { id: Id; d: string; arrows: string[]; text: Vec; label: string };
+  function render(s: Sketch, dim: Dimension): DrawnDim | null {
+    const g = drawDimension(s, dim);
+    if (!g) return null;
+    let d = g.lines.map(([a, b]) => { const p = toScreen(a), q = toScreen(b); return `M${p.x} ${p.y}L${q.x} ${q.y}`; }).join('');
+    if (g.arc) d += pathOf({ kind: 'arc', c: g.arc.c, r: g.arc.r, start: g.arc.start, end: g.arc.end });
+    return { id: dim.id, d, arrows: g.arrows.map((a) => arrowHead(a.at, a.toward)), text: toScreen(g.text), label: dimensionLabel(dim, mm) };
+  }
+  const dims = $derived(store.showDimensions ? store.sketch.constraints.filter(isDimension).map((c) => render(store.sketch, c)).filter((x): x is DrawnDim => !!x) : []);
+  const pendingDim = $derived(preview?.dimension ? render(store.sketch, { ...preview.dimension, value: locked.value ?? preview.dimension.value }) : null);
+  const marks = $derived.by(() => {
+    if (!store.showConstraints) return [];
+    const seen = new Map<string, number>();
+    return glyphs(store.sketch).map((g) => {
+      const q = toScreen(g.at);
+      const key = `${Math.round(q.x / 6)},${Math.round(q.y / 6)}`;
+      const n = seen.get(key) ?? 0;
+      seen.set(key, n + 1);
+      return { ...g, x: q.x + 10 + n * 18, y: q.y - 22 };
+    });
+  });
 
   // ---- Fitting the view ----------------------------------------------------------------------
   function fit(): void {
@@ -117,20 +193,38 @@
     const bw = Math.max(b.maxX - b.minX, 10), bh = Math.max(b.maxY - b.minY, 10);
     view = { cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2, s: Math.min(w / (bw * 1.25), h / (bh * 1.25)) };
   }
-  onMount(() => { if (!store.view) requestAnimationFrame(fit); });
+  onMount(() => {
+    if (!store.view) requestAnimationFrame(fit);
+    initSolver(wasmUrl)
+      .then(() => { store.solverRevision++; store.refreshFreedom(); })
+      .catch((e) => ui.say(`The constraint solver did not load: ${explain(e)}`, true));
+  });
 
   // ---- Pointer input ---------------------------------------------------------------------------
   type Drag =
     | { kind: 'pan'; x: number; y: number; cx: number; cy: number }
-    | { kind: 'press'; x: number; y: number; start: Vec; moved: boolean; mode: 'tool' | 'point' | 'move' | 'radius' | 'box'; target: Id | null; original: Sketch; origins: Map<Id, Vec>; shift: boolean }
+    | { kind: 'press'; x: number; y: number; start: Vec; moved: boolean; mode: 'tool' | 'action' | 'point' | 'move' | 'radius' | 'box' | 'label'; target: Id | null; original: Sketch; origins: Map<Id, Vec>; shift: boolean }
     | { kind: 'pinch'; d: number; mid: Vec; view: { cx: number; cy: number; s: number }; model: Vec };
   let drag: Drag | null = null;
+  /** The last click on a dimension's value, for telling a double click:
+   *  the canvas holds the pointer, so the browser's own never reaches it. */
+  let lastLabel: { id: Id; at: number } | null = null;
   let box = $state<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const pointers = new Map<number, { x: number; y: number }>();
 
   function local(e: PointerEvent | WheelEvent | MouseEvent): { x: number; y: number } {
     const r = svg!.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function hitAt(m: Vec): Hit {
+    return { point: hitPoint(store.sketch, m, reach), entity: hit(store.sketch, m, reach), at: m };
+  }
+
+  /** The constraint or dimension whose glyph or text is under the pointer. */
+  function annotationAt(e: Event): Id | null {
+    const el = (e.target as Element | null)?.closest('[data-constraint]');
+    return el ? Number(el.getAttribute('data-constraint')) : null;
   }
 
   function pinchStart(): void {
@@ -154,14 +248,30 @@
     const original = store.sketch;
     const base = { kind: 'press' as const, x: at.x, y: at.y, start: m, moved: false, original, origins: new Map<Id, Vec>(), shift: e.shiftKey || e.ctrlKey || e.metaKey };
     if (tool) { drag = { ...base, mode: 'tool', target: null }; return; }
+    if (action) { drag = { ...base, mode: 'action', target: null }; return; }
+    const note = annotationAt(e);
+    if (note !== null) { drag = { ...base, mode: 'label', target: note }; return; }
     const p = hitPoint(original, m, reach);
     if (p !== null) { drag = { ...base, mode: 'point', target: p, origins: originsOf(original, []).set(p, { ...point(original, p) }) }; return; }
     const id = hit(original, m, reach);
     if (id === null) { drag = { ...base, mode: 'box', target: null }; return; }
     const entity = original.entities.find((x) => x.id === id)!;
     if (entity.kind === 'circle' && !store.selection.has(id)) { drag = { ...base, mode: 'radius', target: id }; return; }
-    const moving = store.selection.has(id) ? [...store.selection] : [id];
+    const moving = store.selection.has(id) ? [...store.selection].filter((x) => original.entities.some((en) => en.id === x)) : [id];
     drag = { ...base, mode: 'move', target: id, origins: originsOf(original, moving) };
+  }
+
+  /** The sketch with its points pulled, solved when the solver is there. */
+  function dragged(original: Sketch, pulls: Pull[], radii: Map<Id, number>): Sketch | null {
+    if (solverReady()) {
+      const solved = solve(original, pulls, radii);
+      return solved.ok ? solved.sketch : null;
+    }
+    const next = clone(original);
+    for (const pull of pulls) { const p = point(next, pull.point); p.x = pull.x; p.y = pull.y; }
+    radii.forEach((r, id) => { const c = next.entities.find((x) => x.id === id); if (c?.kind === 'circle') c.r = r; });
+    repairArcs(next, original);
+    return next;
   }
 
   function move(e: PointerEvent): void {
@@ -183,18 +293,27 @@
     const m = toModel(at.x, at.y);
     if (tool) { tool.move(m); store.toolRevision++; }
     cursor = m;
+    if (action && !drag) hover = hitAt(m);
     if (drag?.kind !== 'press') return;
     const threshold = touch ? 12 : 4;
     if (!drag.moved && Math.hypot(at.x - drag.x, at.y - drag.y) < threshold) return;
     drag.moved = true;
-    if (drag.mode === 'tool') return;
+    if (drag.mode === 'tool' || drag.mode === 'action') return;
     if (drag.mode === 'box') { box = { x0: drag.x, y0: drag.y, x1: at.x, y1: at.y }; return; }
-    const next = clone(drag.original);
-    if (drag.mode === 'radius') {
+    if (drag.mode === 'label') {
+      const next = clone(drag.original);
       const target = drag.target;
-      const e2 = next.entities.find((x) => x.id === target);
-      if (e2?.kind === 'circle') e2.r = Math.max(1e-3, dist(point(next, e2.c), store.gridSnap ? snap(next, m, { reach, grid: minor }) : m));
-      store.preview(next);
+      const c = next.constraints.find((x) => x.id === target);
+      if (c && isDimension(c)) { c.at = [c.at[0] + m.x - drag.start.x, c.at[1] + m.y - drag.start.y]; store.preview(next); }
+      return;
+    }
+    if (drag.mode === 'radius') {
+      const target = drag.target!;
+      const c = drag.original.entities.find((x) => x.id === target);
+      if (c?.kind !== 'circle') return;
+      const to = store.gridSnap ? snap(drag.original, m, { reach, grid: minor }) : m;
+      const next = dragged(drag.original, [], new Map([[target, Math.max(1e-3, dist(point(drag.original, c.c), to))]]));
+      if (next) store.preview(next);
       return;
     }
     let delta = { x: m.x - drag.start.x, y: m.y - drag.start.y };
@@ -205,9 +324,16 @@
     } else if (store.gridSnap) {
       delta = { x: Math.round(delta.x / minor) * minor, y: Math.round(delta.y / minor) * minor };
     }
-    translate(next, drag.origins, delta);
-    repairArcs(next, drag.original);
-    store.preview(next);
+    if (!solverReady()) {
+      const next = clone(drag.original);
+      translate(next, drag.origins, delta);
+      repairArcs(next, drag.original);
+      store.preview(next);
+      return;
+    }
+    const pulls: Pull[] = [...drag.origins].map(([id, from]) => ({ point: id, x: from.x + delta.x, y: from.y + delta.y }));
+    const next = dragged(drag.original, pulls, new Map());
+    if (next) store.preview(next);
   }
 
   function up(e: PointerEvent): void {
@@ -217,8 +343,14 @@
     drag = null;
     if (!d || d.kind !== 'press') { dragSnap = null; return; }
     if (d.mode === 'tool') { if (!d.moved || touch) place(); return; }
+    if (d.mode === 'action') { if (!d.moved || touch) act(hitAt(d.start), d.shift); return; }
     if (!d.moved) {
       if (d.mode === 'box') { if (!d.shift) store.select([]); return; }
+      if (d.mode === 'label' && d.target !== null) {
+        const now = performance.now();
+        if (lastLabel?.id === d.target && now - lastLabel.at < 450) { lastLabel = null; editDimension(d.target); return; }
+        lastLabel = { id: d.target, at: now };
+      }
       const id = d.mode === 'point' ? hit(store.sketch, d.start, reach) : d.target;
       if (id !== null) store.select([id], d.shift ? 'toggle' : 'replace');
       return;
@@ -236,12 +368,13 @@
     const finished = clone(store.sketch);
     if (d.mode === 'point' && d.target !== null && dragSnap?.point !== undefined) merge(finished, d.target, dragSnap.point);
     dragSnap = null;
-    store.commit(finished, d.original);
+    const problem = store.settle(finished, d.original);
+    if (problem) { store.preview(d.original); ui.say(problem, true); }
   }
 
   function cancelPointer(e: PointerEvent): void {
     pointers.delete(e.pointerId);
-    if (drag?.kind === 'press' && drag.moved && drag.mode !== 'tool' && drag.mode !== 'box') store.preview(drag.original);
+    if (drag?.kind === 'press' && drag.moved && !['tool', 'action', 'box'].includes(drag.mode)) store.preview(drag.original);
     drag = null;
     box = null;
     dragSnap = null;
@@ -256,13 +389,29 @@
   }
 
   function doubleClick(e: MouseEvent): void {
-    if (tool) return;
+    if (tool || action) return;
+    const note = annotationAt(e);
+    if (note !== null) { editDimension(note); return; }
     const at = local(e);
     const id = hit(store.sketch, toModel(at.x, at.y), reach);
     if (id !== null) store.select(chain(store.sketch, id), e.shiftKey ? 'add' : 'replace');
   }
 
-  // ---- Placing points and the heads-up fields ----------------------------------------------------
+  /** A dimension's new value, typed on the keypad, solved before it is kept. */
+  function editDimension(id: Id): void {
+    const c = store.sketch.constraints.find((x) => x.id === id);
+    if (!c || !isDimension(c)) return;
+    const angle = c.kind === 'angle';
+    osk.number(angle ? 'Angle' : c.kind === 'diameter' ? 'Diameter' : c.kind === 'radius' ? 'Radius' : 'Distance', c.value, angle ? '°' : 'mm', (v) => {
+      if (!(v > 0)) { ui.say('A dimension must be above zero.', true); return; }
+      const problem = store.change((s) => { const x = s.constraints.find((k) => k.id === id); if (x && isDimension(x)) x.value = v; });
+      if (problem) ui.say(problem, true);
+    });
+  }
+
+  // ---- Placing points, acting, and the heads-up fields --------------------------------------------
+  function resetEntry(): void { locked = {}; editing = null; active = 0; store.toolRevision++; }
+
   function place(): void {
     if (!tool) return;
     commitEditing();
@@ -271,18 +420,53 @@
     const draft = clone(store.sketch);
     const outcome = tool.click(draft, at, locked);
     if (outcome === 'ignored') return;
-    if (draft.next !== store.sketch.next) store.commit(draft);
-    locked = {};
-    editing = null;
-    active = 0;
-    store.toolRevision++;
+    if (draft.next !== store.sketch.next) {
+      const problem = store.settle(draft);
+      if (problem) ui.say(problem, true);
+    }
+    resetEntry();
+  }
+
+  function apply(step: Step): void {
+    if (step.kind === 'select') { store.select(step.ids); resetEntry(); return; }
+    if (step.kind === 'error') { ui.say(step.message, true); resetEntry(); return; }
+    if (step.kind === 'apply') {
+      // A constraint or dimension that only repeats what holds already is refused, as Fusion does.
+      const strict = !!action && !MODIFY.some((m) => m.id === action.id);
+      const problem = store.settle(step.sketch, store.sketch, strict);
+      if (problem) ui.say(problem, true);
+      else {
+        if (step.select) store.select(step.select);
+        if (step.done) store.act(null);
+      }
+    }
+    resetEntry();
+  }
+
+  /** A click in a modify, constraint or dimension tool. Shift-click picks
+   *  what the selection tools work on. */
+  function act(at: Hit, shift: boolean): void {
+    if (!action) return;
+    commitEditing();
+    if (shift && at.entity !== null && ['offset', 'mirror', 'rpattern', 'cpattern'].includes(action.id)) {
+      store.select([at.entity], 'toggle');
+      resetEntry();
+      return;
+    }
+    apply(action.click(ctx, at, locked));
+  }
+
+  function enter(): void {
+    commitEditing();
+    if (tool) place();
+    else if (action && cursor) apply(action.enter(ctx, cursor, locked));
   }
 
   function parsed(field: Field, text: string): number | null {
     const v = evaluate(text);
     if (v === null) return null;
     if (field.kind === 'length') return v > 0 ? toSource(v, 'mm') : null;
-    if (field.kind === 'count') return v >= 3 ? Math.round(v) : null;
+    if (field.kind === 'count') return v >= 1 ? Math.round(v) : null;
     return v;
   }
 
@@ -308,10 +492,11 @@
     const value = locked[field.key] ?? field.value;
     const unit = field.kind === 'length' ? 'mm' : field.kind === 'angle' ? '°' : '';
     osk.number(field.label, field.kind === 'count' ? Math.round(value) : value, unit, (v) => {
-      const ok = field.kind === 'length' ? v > 0 : field.kind === 'count' ? v >= 3 : true;
+      const ok = field.kind === 'length' ? v > 0 : field.kind === 'count' ? v >= 1 : true;
       if (ok) locked = { ...locked, [field.key]: field.kind === 'count' ? Math.round(v) : v };
     });
   }
+  const hudAt = $derived(resolved ?? cursor);
 
   // ---- Keyboard ---------------------------------------------------------------------------------
   let spaceHeld = false;
@@ -320,7 +505,8 @@
     if (editing) { editing = null; return; }
     if (Object.keys(locked).length) { locked = {}; return; }
     if (tool?.busy) { tool.reset(); store.toolRevision++; return; }
-    if (tool) { store.use(null); return; }
+    if (action?.busy) { action.reset(); store.toolRevision++; return; }
+    if (tool || action) { choose(null); return; }
     store.select([]);
   }
 
@@ -341,18 +527,19 @@
       editing = { key: field.key, text: e.key === 'Backspace' ? text.slice(0, -1) : text + e.key };
       return;
     }
-    if (e.key === 'Tab' && tool) {
+    if (e.key === 'Tab' && (tool || action)) {
       e.preventDefault();
       if (!fields.length) return;
       commitEditing();
       active = (Math.min(active, fields.length - 1) + (e.shiftKey ? fields.length - 1 : 1)) % fields.length;
       return;
     }
-    if (e.key === 'Enter' && tool) { e.preventDefault(); place(); return; }
+    if (e.key === 'Enter' && (tool || action)) { e.preventDefault(); enter(); return; }
     if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); store.deleteSelection(); return; }
     const k = e.key.toLowerCase();
-    if (SHORTCUTS[k]) { store.use(SHORTCUTS[k]!); locked = {}; editing = null; active = 0; return; }
-    if (k === 'x') { store.toggleConstruction(); return; }
+    if (TOOL_KEYS[k]) { choose(TOOL_KEYS[k]!); return; }
+    if (ACTION_KEYS[k]) { chooseAction(ACTION_KEYS[k]!); return; }
+    if (k === 'x') { const problem = store.toggleConstruction(); if (problem) ui.say(problem, true); return; }
     if (k === 'f') { fit(); return; }
     if (k === 'g') { store.gridSnap = !store.gridSnap; }
   }
@@ -360,9 +547,14 @@
 
   function choose(id: ToolId | null): void {
     store.use(id);
-    locked = {};
-    editing = null;
-    active = 0;
+    hover = null;
+    resetEntry();
+  }
+  function chooseAction(id: ActionId): void {
+    if (action?.id === id) { choose(null); return; }
+    store.act(id);
+    hover = null;
+    resetEntry();
   }
 
   // ---- Leaving the sketch ------------------------------------------------------------------------
@@ -396,8 +588,14 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  // ---- What the side panel reports about the selection --------------------------------------------
+  // ---- What the side panel reports ---------------------------------------------------------------
   const selected = $derived(store.sketch.entities.filter((e) => store.selection.has(e.id)));
+  const selectedNotes = $derived(store.sketch.constraints.filter((c) => store.selection.has(c.id)));
+  const NOTE_NAME: Record<Constraint['kind'], string> = {
+    horizontal: 'Horizontal', vertical: 'Vertical', parallel: 'Parallel', perpendicular: 'Perpendicular', equal: 'Equal', collinear: 'Collinear',
+    tangent: 'Tangent', concentric: 'Concentric', midpoint: 'Midpoint', on: 'Coincident', symmetric: 'Symmetric', fix: 'Fixed',
+    distance: 'Distance', offset: 'Distance to line', diameter: 'Diameter', radius: 'Radius', angle: 'Angle',
+  };
   const facts = $derived.by(() => {
     if (selected.length !== 1) return [] as Array<[string, string]>;
     const e = selected[0]!;
@@ -413,71 +611,145 @@
     const sw = sweep(angleOf(c, a), angleOf(c, b));
     return [['Arc', ''], ['Radius', `${displayNumber(r, 'mm')} ${unitLabel('mm')}`], ['Sweep', `${(sw * 180 / Math.PI).toFixed(2)}°`], ['Length', `${displayNumber(r * sw, 'mm')} ${unitLabel('mm')}`]] as Array<[string, string]>;
   });
+  const status = $derived.by(() => {
+    void store.solverRevision;
+    if (!solverReady()) return 'Loading the constraint solver…';
+    if (!store.sketch.entities.length) return 'Empty sketch';
+    if (!free) return 'Checking…';
+    const loose = store.sketch.entities.filter((e) => !defined(e, free)).length;
+    return loose ? `${loose} of ${store.sketch.entities.length} curves can still move (blue)` : 'Fully defined';
+  });
 
   const snapLabel: Record<string, string> = { end: 'Endpoint', center: 'Center', mid: 'Midpoint', intersection: 'Intersection', on: 'On curve', horizontal: 'Horizontal', vertical: 'Vertical', grid: 'Grid', free: '' };
   const marker = $derived(dragSnap ?? resolved);
   const coords = $derived(resolved ?? cursor);
+  const fixedGrid = $derived(store.gridStep !== null);
+  function setGrid(step: number | null): void { store.gridStep = step && step > 0 ? step : null; }
 </script>
 
 <svelte:window onkeydown={key} onkeyup={keyUp} />
 
 <section class="panel main sketch-main">
   <div class="sketch-bar" role="toolbar" aria-label="Sketch tools">
-    {#each TOOLS as t (t.label)}
-      <button class="sk-tool" class:on={(tool?.id ?? null) === t.id} title={t.key ? `${t.label} (${t.key})` : t.label} aria-label={t.label} onclick={() => choose(t.id)}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} /></svg>
-      </button>
-    {/each}
-    <span class="sk-sep"></span>
-    <button class="sk-tool" title="Construction (X)" aria-label="Toggle construction" disabled={!store.selection.size} onclick={() => store.toggleConstruction()}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L20 4" stroke-dasharray="3 3" /></svg>
-    </button>
-    <button class="sk-tool" title="Delete (Del)" aria-label="Delete" disabled={!store.selection.size} onclick={() => store.deleteSelection()}><i class="ic ic-trash"></i></button>
-    <span class="sk-sep"></span>
-    <button class="sk-tool" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!store.canUndo} onclick={() => store.undo()}><i class="ic ic-undo"></i></button>
-    <button class="sk-tool" title="Redo (Ctrl+Y)" aria-label="Redo" disabled={!store.canRedo} onclick={() => store.redo()}><i class="ic ic-redo"></i></button>
-    <span class="sk-sep"></span>
-    <button class="sk-tool" title="Fit (F)" aria-label="Fit" onclick={fit}><i class="ic ic-fit"></i></button>
-    <button class="sk-tool wide" class:on={store.gridSnap} title="Snap to grid (G)" onclick={() => (store.gridSnap = !store.gridSnap)}>Grid snap</button>
+    <div class="sk-group">
+      <span class="sk-title">Create</span>
+      <div class="sk-tools">
+        {#each CREATE as t (t.label)}
+          <button class="sk-tool" class:on={!action && (tool?.id ?? null) === t.id} title={t.key ? `${t.label} (${t.key})` : t.label} aria-label={t.label} onclick={() => choose(t.id)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} /></svg>
+          </button>
+        {/each}
+      </div>
+    </div>
+    <div class="sk-group">
+      <span class="sk-title">Modify</span>
+      <div class="sk-tools">
+        {#each MODIFY as t (t.id)}
+          <button class="sk-tool" class:on={action?.id === t.id} title={t.key ? `${t.label} (${t.key})` : t.label} aria-label={t.label} onclick={() => chooseAction(t.id)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} /></svg>
+          </button>
+        {/each}
+        <button class="sk-tool" title="Construction (X)" aria-label="Toggle construction" disabled={!selected.length} onclick={() => { const p = store.toggleConstruction(); if (p) ui.say(p, true); }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L20 4" stroke-dasharray="3 3" /></svg>
+        </button>
+      </div>
+    </div>
+    <div class="sk-group">
+      <span class="sk-title">Constraints</span>
+      <div class="sk-tools">
+        {#each RELATE as t (t.id)}
+          <button class="sk-tool glyph" class:on={action?.id === t.id} title={t.label} aria-label={t.label} onclick={() => chooseAction(t.id)}>{t.glyph}</button>
+        {/each}
+      </div>
+    </div>
+    <div class="sk-group">
+      <span class="sk-title">Dimension</span>
+      <div class="sk-tools">
+        <button class="sk-tool" class:on={action?.id === 'dimension'} title="Sketch dimension (D)" aria-label="Sketch dimension" onclick={() => chooseAction('dimension')}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8v10M20 8v10M4 13h16M4 13l3-2M4 13l3 2M20 13l-3-2M20 13l-3 2" /></svg>
+        </button>
+      </div>
+    </div>
+    <div class="sk-group">
+      <span class="sk-title">Edit</span>
+      <div class="sk-tools">
+        <button class="sk-tool" title="Delete (Del)" aria-label="Delete" disabled={!store.selection.size} onclick={() => store.deleteSelection()}><i class="ic ic-trash"></i></button>
+        <button class="sk-tool" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!store.canUndo} onclick={() => store.undo()}><i class="ic ic-undo"></i></button>
+        <button class="sk-tool" title="Redo (Ctrl+Y)" aria-label="Redo" disabled={!store.canRedo} onclick={() => store.redo()}><i class="ic ic-redo"></i></button>
+        <button class="sk-tool" title="Fit (F)" aria-label="Fit" onclick={fit}><i class="ic ic-fit"></i></button>
+      </div>
+    </div>
   </div>
 
   <div class="sketch-canvas" bind:clientWidth={w} bind:clientHeight={h}>
-    <svg bind:this={svg} width={w} height={h} class:drawing={!!tool} role="application" aria-label="Sketch canvas"
+    <svg bind:this={svg} width={w} height={h} class:drawing={!!tool || !!action} role="application" aria-label="Sketch canvas"
       onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={cancelPointer}
-      onpointerleave={() => { if (!drag) cursor = null; }} onwheel={wheel} ondblclick={doubleClick}
+      onpointerleave={() => { if (!drag) { cursor = null; hover = null; } }} onwheel={wheel} ondblclick={doubleClick}
       oncontextmenu={(e) => { e.preventDefault(); escape(); }}>
       <g class="grid">{#each gridLines as g, i (i)}<path d={g.d} class:major={g.major} />{/each}</g>
       <path class="axis-x" d={`M0 ${origin.y}H${w}`} />
       <path class="axis-y" d={`M${origin.x} 0V${h}`} />
       {#each drawn as e (e.id)}
-        <path d={e.d} class="curve" class:construction={e.construction} class:selected={store.selection.has(e.id)} />
+        <path d={e.d} class="curve" class:defined={e.defined} class:construction={e.construction} class:selected={store.selection.has(e.id)}
+          class:hovered={!!action && hover?.entity === e.id} />
       {/each}
       {#each handles as p (p.id)}
-        {#if p.center}<path class="handle center" d={`M${p.x - 3} ${p.y}h6M${p.x} ${p.y - 3}v6`} />{:else}<rect class="handle" x={p.x - 2.5} y={p.y - 2.5} width="5" height="5" />{/if}
+        {#if p.center}<path class="handle center" class:defined={p.defined} d={`M${p.x - 3} ${p.y}h6M${p.x} ${p.y - 3}v6`} />
+        {:else}<rect class="handle" class:defined={p.defined} class:fixed={p.fixed} class:hovered={!!action && hover?.point === p.id} x={p.x - 2.5} y={p.y - 2.5} width="5" height="5" />{/if}
       {/each}
+
+      {#each dims as d (d.id)}
+        <g class="dim" class:selected={store.selection.has(d.id)}>
+          <path class="dim-line" d={d.d} />
+          {#each d.arrows as a, i (i)}<path class="dim-arrow" d={a} />{/each}
+          <g data-constraint={d.id} class="dim-label">
+            <rect x={d.text.x - 4 * d.label.length - 6} y={d.text.y - 11} width={8 * d.label.length + 12} height="22" rx="5" />
+            <text x={d.text.x} y={d.text.y + 4} text-anchor="middle">{d.label}</text>
+          </g>
+        </g>
+      {/each}
+      {#each marks as m (`${m.id}-${m.x}-${m.y}`)}
+        <g class="glyph" class:selected={store.selection.has(m.id)} data-constraint={m.id}>
+          <rect x={m.x - 8} y={m.y - 8} width="16" height="16" rx="4" />
+          <text x={m.x} y={m.y + 4} text-anchor="middle">{m.text}</text>
+        </g>
+      {/each}
+
       {#if ghost}
         {#each ghost.construction as s, i (i)}<path d={pathOf(s)} class="ghost construction" />{/each}
         {#each ghost.shapes as s, i (i)}<path d={pathOf(s)} class="ghost" />{/each}
         {#each ghost.points as p, i (i)}{@const q = toScreen(p)}<circle cx={q.x} cy={q.y} r="2.5" class="ghost-point" />{/each}
       {/if}
+      {#if preview}
+        {#each preview.shapes as s, i (i)}<path d={pathOf(s)} class="ghost" />{/each}
+        {#each preview.removed as s, i (i)}<path d={pathOf(s)} class="removed" />{/each}
+      {/if}
+      {#if pendingDim}
+        <g class="dim pending">
+          <path class="dim-line" d={pendingDim.d} />
+          {#each pendingDim.arrows as a, i (i)}<path class="dim-arrow" d={a} />{/each}
+          <text x={pendingDim.text.x} y={pendingDim.text.y + 4} text-anchor="middle">{pendingDim.label}</text>
+        </g>
+      {/if}
       {#if anchor && resolved && (resolved.kind === 'horizontal' || resolved.kind === 'vertical')}
         {@const a = toScreen(anchor)}{@const b = toScreen(resolved)}<path class="inference" d={`M${a.x} ${a.y}L${b.x} ${b.y}`} />
       {/if}
-      {#if marker && marker.kind !== 'free' && marker.kind !== 'grid'}
+      {#if marker && marker.kind !== 'free'}
         {@const q = toScreen(marker)}
         {#if marker.kind === 'end'}<rect class="snap" x={q.x - 6} y={q.y - 6} width="12" height="12" />
         {:else if marker.kind === 'center'}<circle class="snap" cx={q.x} cy={q.y} r="7" />
         {:else if marker.kind === 'mid'}<path class="snap" d={`M${q.x} ${q.y - 7}L${q.x + 7} ${q.y + 5}H${q.x - 7}Z`} />
         {:else if marker.kind === 'intersection'}<path class="snap" d={`M${q.x - 6} ${q.y - 6}L${q.x + 6} ${q.y + 6}M${q.x + 6} ${q.y - 6}L${q.x - 6} ${q.y + 6}`} />
-        {:else if marker.kind === 'on'}<path class="snap" d={`M${q.x} ${q.y - 7}L${q.x + 7} ${q.y}L${q.x} ${q.y + 7}L${q.x - 7} ${q.y}Z`} />{/if}
+        {:else if marker.kind === 'on'}<path class="snap" d={`M${q.x} ${q.y - 7}L${q.x + 7} ${q.y}L${q.x} ${q.y + 7}L${q.x - 7} ${q.y}Z`} />
+        {:else if marker.kind === 'grid' || marker.kind === 'horizontal' || marker.kind === 'vertical'}<path class="snap grid-snap" d={`M${q.x - 5} ${q.y}H${q.x + 5}M${q.x} ${q.y - 5}V${q.y + 5}`} /><rect class="snap grid-snap" x={q.x - 3} y={q.y - 3} width="6" height="6" />{/if}
       {/if}
       {#if box}
         <rect class="box" class:crossing={box.x1 < box.x0} x={Math.min(box.x0, box.x1)} y={Math.min(box.y0, box.y1)} width={Math.abs(box.x1 - box.x0)} height={Math.abs(box.y1 - box.y0)} />
       {/if}
     </svg>
 
-    {#if fields.length && resolved}
-      {@const q = toScreen(resolved)}
+    {#if fields.length && hudAt}
+      {@const q = toScreen(hudAt)}
       <div class="hud" style:left={`${Math.min(q.x + 18, w - 170)}px`} style:top={`${Math.max(8, Math.min(q.y + 18, h - 44 * fields.length - 40))}px`}>
         {#each fields as f, i (f.key)}
           <button class="hud-field" class:active={i === Math.min(active, fields.length - 1)} class:locked={f.key in locked || editing?.key === f.key} data-numpad onclick={() => tapField(f, i)}>
@@ -498,24 +770,54 @@
   <div class="sk-name"><span>Name</span><button class="sk-name-field" onclick={() => osk.text('Sketch name', store.name, (v) => store.rename(v))}>{store.name}</button></div>
 
   <div class="sk-facts">
-    <h3>Selection</h3>
-    {#if !selected.length}<p class="muted">{store.sketch.entities.length} curves. Nothing selected.</p>
-    {:else if facts.length}
-      <dl>{#each facts as [k, v] (k)}{#if v}<dt>{k}</dt><dd>{v}</dd>{:else}<dt class="kind">{k}</dt><dd></dd>{/if}{/each}</dl>
-    {:else}<p>{selected.length} curves selected</p>{/if}
+    <h3>Sketch</h3>
+    <p class="sk-status" class:done={status === 'Fully defined'}>{status}</p>
   </div>
 
+  <div class="sk-facts">
+    <h3>Selection</h3>
+    {#if selectedNotes.length === 1 && !selected.length}
+      {@const n = selectedNotes[0]!}
+      <dl><dt class="kind">{NOTE_NAME[n.kind]}</dt><dd>{#if isDimension(n)}{dimensionLabel(n, mm)}{/if}</dd></dl>
+      {#if isDimension(n)}<button class="btn btn-ghost block sk-small" onclick={() => editDimension(n.id)}>Change value</button>{/if}
+      <p class="muted">Del removes it.</p>
+    {:else if !selected.length && !selectedNotes.length}<p class="muted">{store.sketch.entities.length} curves. Nothing selected.</p>
+    {:else if facts.length && !selectedNotes.length}
+      <dl>{#each facts as [k, v] (k)}{#if v}<dt>{k}</dt><dd>{v}</dd>{:else}<dt class="kind">{k}</dt><dd></dd>{/if}{/each}</dl>
+    {:else}<p>{selected.length} curves{selectedNotes.length ? `, ${selectedNotes.length} constraints` : ''} selected</p>{/if}
+  </div>
+
+  <div class="sk-facts">
+    <h3>Grid and display</h3>
+    <div class="sk-row">
+      <span>Grid</span>
+      <div class="seg" role="group" aria-label="Grid">
+        <button class:on={!fixedGrid} onclick={() => setGrid(null)}>Adaptive</button>
+        <button class:on={fixedGrid} onclick={() => setGrid(store.gridStep ?? minor)}>Fixed</button>
+      </div>
+    </div>
+    {#if fixedGrid}
+      <div class="sk-row">
+        <span>Spacing</span>
+        <button class="sk-value" data-numpad onclick={() => osk.number('Grid spacing', store.gridStep ?? minor, 'mm', (v) => setGrid(v))}>{displayNumber(store.gridStep ?? minor, 'mm')} {unitLabel('mm')}</button>
+      </div>
+    {:else}<p class="muted">Now {displayNumber(minor, 'mm')} {unitLabel('mm')}, following the zoom.</p>{/if}
+    <label class="sk-check"><input type="checkbox" bind:checked={store.gridSnap} /> Snap to grid (G)</label>
+    <label class="sk-check"><input type="checkbox" bind:checked={store.showConstraints} /> Show constraints</label>
+    <label class="sk-check"><input type="checkbox" bind:checked={store.showDimensions} /> Show dimensions</label>
+  </div>
 
   <details class="sk-keys">
     <summary>Keyboard</summary>
     <dl>
       <dt>L R C A P</dt><dd>Line, rectangle, circle, arc, polygon</dd>
+      <dt>D T O</dt><dd>Dimension, trim, offset</dd>
       <dt>Type a number</dt><dd>Locks the highlighted value; 50/2 works</dd>
-      <dt>Tab</dt><dd>Next value</dd>
-      <dt>Enter</dt><dd>Place the point</dd>
-      <dt>Esc · right click</dt><dd>Clear values, end the shape, then Select</dd>
-      <dt>X</dt><dd>Construction on or off</dd>
-      <dt>Del</dt><dd>Delete selection</dd>
+      <dt>Tab · Enter</dt><dd>Next value · place or apply</dd>
+      <dt>Esc · right click</dt><dd>Clear values, end the tool, then Select</dd>
+      <dt>Double click</dt><dd>A dimension: change it. A curve: its profile</dd>
+      <dt>Shift+click</dt><dd>In offset, mirror and patterns: add to the selection</dd>
+      <dt>X · Del</dt><dd>Construction · delete curves, constraints, dimensions</dd>
       <dt>F · G</dt><dd>Fit · grid snap</dd>
       <dt>Wheel · middle drag</dt><dd>Zoom · pan (also Space+drag, two fingers)</dd>
     </dl>
@@ -530,14 +832,16 @@
 
 <style>
   .sketch-main { position: relative; }
-  .sketch-bar { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
-  .sk-tool { min-width: 44px; height: 44px; border-radius: 10px; border: 1px solid transparent; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-2); }
-  .sk-tool.wide { padding: 0 12px; font-weight: 600; font-size: var(--t-sm); }
+  .sketch-bar { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  .sk-group { display: flex; flex-direction: column; gap: 2px; }
+  .sk-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
+  .sk-tools { display: flex; flex-wrap: wrap; gap: 2px; }
+  .sk-tool { min-width: 40px; height: 40px; border-radius: 9px; border: 1px solid transparent; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-2); }
+  .sk-tool.glyph { font-weight: 700; font-size: 15px; padding: 0 6px; }
   .sk-tool:hover:not(:disabled) { background: var(--panel); border-color: var(--line); }
   .sk-tool.on { background: var(--accent-soft); color: var(--accent-2); border-color: transparent; }
   .sk-tool:disabled { opacity: .35; cursor: not-allowed; }
-  .sk-tool svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-  .sk-sep { width: 1px; margin: 6px 4px; background: var(--line-2); }
+  .sk-tool svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   .sketch-canvas { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--panel); }
   .sketch-canvas svg { display: block; touch-action: none; cursor: default; }
   .sketch-canvas svg.drawing { cursor: crosshair; }
@@ -546,19 +850,41 @@
   .axis-x { stroke: #d9534f; stroke-width: 1; opacity: .7; }
   .axis-y { stroke: #3f9a5a; stroke-width: 1; opacity: .7; }
   .curve { fill: none; stroke: var(--sketch); stroke-width: 1.8; stroke-linecap: round; }
+  .curve.defined { stroke: var(--ink); }
   .curve.construction { stroke: var(--sketch-construction); stroke-dasharray: 6 4; stroke-width: 1.3; }
+  .curve.hovered { stroke-width: 3.2; }
   .curve.selected { stroke: var(--accent); stroke-width: 3; }
   .handle { fill: var(--panel); stroke: var(--sketch); stroke-width: 1.2; }
+  .handle.defined { stroke: var(--ink); }
+  .handle.fixed { fill: var(--ink); }
+  .handle.hovered { stroke: var(--accent); stroke-width: 2.4; }
   .handle.center { fill: none; }
+  .dim-line { fill: none; stroke: var(--ink-2); stroke-width: 1; }
+  .dim-arrow { fill: var(--ink-2); }
+  .dim-label { cursor: pointer; }
+  .dim-label rect { fill: var(--panel); stroke: var(--line-2); }
+  .dim text { font-size: 13px; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
+  .dim.selected .dim-line { stroke: var(--accent); }
+  .dim.selected .dim-arrow { fill: var(--accent); }
+  .dim.selected .dim-label rect { stroke: var(--accent); }
+  .dim.pending .dim-line { stroke: var(--accent); stroke-dasharray: 4 3; }
+  .dim.pending .dim-arrow, .dim.pending text { fill: var(--accent-2); }
+  .glyph { cursor: pointer; }
+  .glyph rect { fill: color-mix(in srgb, var(--panel) 90%, transparent); stroke: var(--line-2); }
+  .glyph text { font-size: 11px; font-weight: 700; fill: var(--ink-2); }
+  .glyph.selected rect { stroke: var(--accent); fill: var(--accent-soft); }
+  .glyph.selected text { fill: var(--accent-2); }
   .ghost { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 5 3; }
   .ghost.construction { stroke: var(--sketch-construction); stroke-width: 1; }
   .ghost-point { fill: var(--accent); }
+  .removed { fill: none; stroke: var(--danger); stroke-width: 3; stroke-dasharray: 4 3; }
   .inference { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 2 4; }
   .snap { fill: none; stroke: var(--ok); stroke-width: 2; }
+  .snap.grid-snap { stroke-width: 1.5; }
   .box { fill: var(--sketch-soft); stroke: var(--sketch); stroke-width: 1; }
   .box.crossing { fill: rgba(47, 143, 91, .08); stroke: var(--ok); stroke-dasharray: 5 3; }
   .hud { position: absolute; display: flex; flex-direction: column; gap: 4px; pointer-events: auto; }
-  .hud-field { display: grid; grid-template-columns: 64px 70px 22px; align-items: center; min-height: 40px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow); font-size: var(--t-sm); cursor: pointer; text-align: left; }
+  .hud-field { display: grid; grid-template-columns: 72px 70px 22px; align-items: center; min-height: 40px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow); font-size: var(--t-sm); cursor: pointer; text-align: left; }
   .hud-field.active { border-color: var(--sketch); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sketch) 30%, transparent); }
   .hud-field.locked .hud-value { color: var(--accent-2); }
   .hud-label { color: var(--ink-3); }
@@ -569,13 +895,20 @@
   .sketch-status { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; gap: 12px; padding: 6px 12px; font-size: var(--t-sm); color: var(--ink-2); background: color-mix(in srgb, var(--panel) 85%, transparent); border-top: 1px solid var(--line); pointer-events: none; }
   .sketch-coords { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .sketch-coords b { color: var(--ok); margin-right: 10px; }
-  .sketch-side { gap: 16px; }
+  .sketch-side { gap: 14px; }
   .sk-name { display: flex; flex-direction: column; gap: 6px; font-size: var(--t-sm); color: var(--ink-3); font-weight: 600; }
   .sk-name-field { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 600; color: var(--ink); text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sk-status { margin: 6px 0 0; font-size: var(--t-sm); color: var(--sketch); font-weight: 600; }
+  .sk-status.done { color: var(--ok); }
   .sk-facts dl, .sk-keys dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 8px 0 0; font-size: var(--t-sm); }
   .sk-facts dt { color: var(--ink-3); }
   .sk-facts dt.kind { color: var(--ink); font-weight: 700; }
   .sk-facts dd, .sk-keys dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .sk-small { min-height: 40px; margin-top: 6px; }
+  .sk-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: var(--t-sm); }
+  .sk-row .seg button { min-height: 36px; padding: 0 10px; font-size: var(--t-sm); }
+  .sk-value { min-height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); font-weight: 600; cursor: pointer; }
+  .sk-check { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: var(--t-sm); cursor: pointer; }
   .sk-keys dt { font-weight: 600; }
   .sk-keys dd { text-align: left; color: var(--ink-2); }
   .sk-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }

@@ -3,6 +3,8 @@
 // part the server keeps.
 import { clone, emptySketch, isSketch, remove, type Id, type Sketch } from './model';
 import { createTool, type Tool, type ToolId } from './tools';
+import { createAction, type Action, type ActionId } from './actions';
+import { freedom, solve, solverReady } from './solver';
 
 const KEY = 'ol-sketch';
 const LIMIT = 200;
@@ -22,9 +24,19 @@ class SketchStore {
   selection = $state.raw<ReadonlySet<Id>>(new Set());
   /** The drawing tool in hand, or null for selecting. */
   tool = $state.raw<Tool | null>(null);
+  /** A modify, constraint or dimension tool in hand, instead of a drawing tool. */
+  action = $state.raw<Action | null>(null);
   /** Bumped when the tool's own progress changes, so its ghost and hint redraw. */
   toolRevision = $state(0);
   gridSnap = $state(true);
+  /** Grid spacing in millimetres, or null to follow the zoom. */
+  gridStep = $state<number | null>(null);
+  showConstraints = $state(true);
+  showDimensions = $state(true);
+  /** What can still move, for colouring defined geometry; null while unknown. */
+  free = $state.raw<{ points: Set<Id>; circles: Set<Id> } | null>(null);
+  /** Bumped when the solver becomes ready. */
+  solverRevision = $state(0);
   /** The canvas view, kept while other pages are open. */
   view: { cx: number; cy: number; s: number } | null = null;
   private past: Sketch[] = [];
@@ -47,11 +59,39 @@ class SketchStore {
     this.canRedo = this.future.length > 0;
   }
 
-  /** Applies a change to a copy of the sketch as one undo step. */
-  change(edit: (draft: Sketch) => void): void {
+  /** Applies a change to a copy of the sketch as one undo step; the reason
+   *  when the constraints cannot all hold. */
+  change(edit: (draft: Sketch) => void): string | null {
     const draft = clone(this.sketch);
     edit(draft);
-    this.commit(draft, this.sketch);
+    return this.settle(draft, this.sketch);
+  }
+
+  /** Solves `next` and keeps it as one undo step, or says why it cannot hold. */
+  settle(next: Sketch, previous: Sketch = this.sketch, strict = false): string | null {
+    if (!solverReady()) { this.commit(next, previous); return null; }
+    const solved = solve(next);
+    if (!solved.ok) {
+      return solved.conflicting.length
+        ? 'Over-constrained: that conflicts with constraints or dimensions already there.'
+        : 'The constraints cannot all hold.';
+    }
+    if (strict && solved.redundant.length) {
+      return 'Over-constrained: that is already fixed by the constraints and dimensions there.';
+    }
+    this.commit(solved.sketch, previous);
+    return null;
+  }
+
+  private freeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Works out, a moment after the sketch settles, what can still move. */
+  refreshFreedom(): void {
+    if (this.freeTimer) clearTimeout(this.freeTimer);
+    this.freeTimer = setTimeout(() => {
+      this.freeTimer = null;
+      this.free = solverReady() ? freedom(this.sketch) : null;
+    }, 60);
   }
 
   /** Keeps `next` as one undo step that `previous` returns to. */
@@ -63,6 +103,7 @@ class SketchStore {
     this.prune();
     this.history();
     this.save();
+    this.refreshFreedom();
   }
 
   /** Shows a sketch during a drag without making an undo step. */
@@ -78,6 +119,7 @@ class SketchStore {
     this.prune();
     this.history();
     this.save();
+    this.refreshFreedom();
   }
 
   redo(): void {
@@ -88,11 +130,12 @@ class SketchStore {
     this.prune();
     this.history();
     this.save();
+    this.refreshFreedom();
   }
 
   /** Drops selected ids that no longer exist. */
   private prune(): void {
-    const ids = new Set(this.sketch.entities.map((e) => e.id));
+    const ids = new Set([...this.sketch.entities.map((e) => e.id), ...this.sketch.constraints.map((c) => c.id)]);
     if ([...this.selection].some((id) => !ids.has(id))) this.selection = new Set([...this.selection].filter((id) => ids.has(id)));
   }
 
@@ -108,15 +151,18 @@ class SketchStore {
   deleteSelection(): void {
     if (!this.selection.size) return;
     const ids = [...this.selection];
-    this.change((s) => remove(s, ids));
+    // Deleting only removes: the rest always still holds.
+    const next = clone(this.sketch);
+    remove(next, ids);
+    this.commit(next);
     this.selection = new Set();
   }
 
-  toggleConstruction(): void {
-    if (!this.selection.size) return;
+  toggleConstruction(): string | null {
+    if (!this.selection.size) return null;
     const ids = this.selection;
     const all = this.sketch.entities.filter((e) => ids.has(e.id)).every((e) => e.construction);
-    this.change((s) => {
+    return this.change((s) => {
       for (const e of s.entities) {
         if (!ids.has(e.id)) continue;
         if (all) delete e.construction;
@@ -127,8 +173,17 @@ class SketchStore {
 
   use(id: ToolId | null): void {
     this.tool = id ? createTool(id) : null;
+    this.action = null;
     this.toolRevision++;
     if (id) this.selection = new Set();
+  }
+
+  /** Takes up a modify, constraint or dimension tool; the selection stays
+   *  for the tools that work on it. */
+  act(id: ActionId | null): void {
+    this.tool = null;
+    this.action = id ? createAction(id) : null;
+    this.toolRevision++;
   }
 
   clear(): void {

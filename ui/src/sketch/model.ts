@@ -24,13 +24,35 @@ export interface Arc extends Curve { kind: 'arc'; c: Id; a: Id; b: Id }
 
 export type Entity = Line | Circle | Arc;
 
-/** Relations the solver keeps true. Tools record the ones Fusion adds while drawing. */
+/** Where a dimension's value is written: millimetres from the point it
+ *  hangs on (see `labelAnchor`), so it moves with what it measures. */
+export type Place = [number, number];
+
+/** Relations the solver keeps true, and the dimensions that drive sizes.
+ *  Tools record the relations Fusion adds while drawing. */
 export type Constraint =
   | { id: Id; kind: 'horizontal' | 'vertical'; line: Id }
-  | { id: Id; kind: 'parallel' | 'perpendicular' | 'equal'; a: Id; b: Id }
+  /** Between two curves: lines for parallel, perpendicular and collinear;
+   *  lines or circles and arcs for equal and tangent; circles and arcs for concentric. */
+  | { id: Id; kind: 'parallel' | 'perpendicular' | 'equal' | 'collinear' | 'tangent' | 'concentric'; a: Id; b: Id }
   | { id: Id; kind: 'midpoint'; point: Id; line: Id }
   /** The point lies on the curve: a line's infinite extension, or the full circle of an arc. */
-  | { id: Id; kind: 'on'; point: Id; curve: Id };
+  | { id: Id; kind: 'on'; point: Id; curve: Id }
+  /** Two points mirror each other across a line. */
+  | { id: Id; kind: 'symmetric'; a: Id; b: Id; line: Id }
+  /** The point does not move. */
+  | { id: Id; kind: 'fix'; point: Id }
+  /** Distance between two points, along their line or along X or Y. */
+  | { id: Id; kind: 'distance'; a: Id; b: Id; axis: 'aligned' | 'horizontal' | 'vertical'; value: number; at: Place }
+  /** Distance from a point to a line. */
+  | { id: Id; kind: 'offset'; point: Id; line: Id; value: number; at: Place }
+  /** A circle's diameter or an arc's radius, in millimetres. */
+  | { id: Id; kind: 'diameter' | 'radius'; curve: Id; value: number; at: Place }
+  /** The angle between two lines, in degrees. */
+  | { id: Id; kind: 'angle'; a: Id; b: Id; value: number; at: Place };
+
+export type Dimension = Extract<Constraint, { value: number }>;
+export const isDimension = (c: Constraint): c is Dimension => 'value' in c;
 
 export interface Sketch {
   points: Point[];
@@ -69,7 +91,7 @@ export function pointAt(sketch: Sketch, x: number, y: number, at?: Id): Id {
 }
 
 type NewEntity = Line | Circle | Arc extends infer E ? (E extends Entity ? Omit<E, 'id'> : never) : never;
-type NewConstraint = Constraint extends infer C ? (C extends Constraint ? Omit<C, 'id'> : never) : never;
+export type NewConstraint = Constraint extends infer C ? (C extends Constraint ? Omit<C, 'id'> : never) : never;
 
 export function addEntity(sketch: Sketch, entity: NewEntity): Id {
   const id = sketch.next++;
@@ -92,12 +114,18 @@ export function pointsOf(entity: Entity): Id[] {
   }
 }
 
-function constraintRefs(c: Constraint): Id[] {
+/** The points and curves a constraint refers to. */
+export function constraintRefs(c: Constraint): Id[] {
   switch (c.kind) {
     case 'horizontal': case 'vertical': return [c.line];
-    case 'parallel': case 'perpendicular': case 'equal': return [c.a, c.b];
+    case 'parallel': case 'perpendicular': case 'equal': case 'collinear': case 'tangent': case 'concentric': case 'angle': return [c.a, c.b];
     case 'midpoint': return [c.point, c.line];
     case 'on': return [c.point, c.curve];
+    case 'symmetric': return [c.a, c.b, c.line];
+    case 'fix': return [c.point];
+    case 'distance': return [c.a, c.b];
+    case 'offset': return [c.point, c.line];
+    case 'diameter': case 'radius': return [c.curve];
   }
 }
 
@@ -122,7 +150,13 @@ export function merge(sketch: Sketch, from: Id, into: Id): void {
     else if (e.kind === 'circle') { if (e.c === from) e.c = into; }
     else { if (e.c === from) e.c = into; if (e.a === from) e.a = into; if (e.b === from) e.b = into; }
   }
-  for (const c of sketch.constraints) if ((c.kind === 'midpoint' || c.kind === 'on') && c.point === from) c.point = into;
+  for (const c of sketch.constraints) {
+    if ((c.kind === 'midpoint' || c.kind === 'on' || c.kind === 'fix' || c.kind === 'offset') && c.point === from) c.point = into;
+    if ((c.kind === 'symmetric' || c.kind === 'distance') && c.a === from) c.a = into;
+    if ((c.kind === 'symmetric' || c.kind === 'distance') && c.b === from) c.b = into;
+  }
+  // A constraint between a point and itself says nothing.
+  sketch.constraints = sketch.constraints.filter((c) => !((c.kind === 'distance' || c.kind === 'symmetric') && c.a === c.b));
   // A line whose ends merged has no length left.
   const collapsed = sketch.entities.filter((e) => e.kind === 'line' && e.a === e.b).map((e) => e.id);
   sketch.points = sketch.points.filter((p) => p.id !== from);
