@@ -138,10 +138,10 @@ export function draw(s: Sketch, d: Dimension): Drawing | null {
 
 /** A dimension's value as written: millimetres, ⌀ and R, degrees. */
 export function label(d: Dimension, format: (mm: number) => string): string {
-  if (d.kind === 'angle') return `${Number(d.value.toFixed(2))}°`;
-  if (d.kind === 'diameter') return `⌀${format(d.value)}`;
-  if (d.kind === 'radius') return `R${format(d.value)}`;
-  return format(d.value);
+  const text = d.kind === 'angle' ? `${Number(d.value.toFixed(2))}°`
+    : d.kind === 'diameter' ? `⌀${format(d.value)}`
+      : d.kind === 'radius' ? `R${format(d.value)}` : format(d.value);
+  return d.driven ? `(${text})` : text;
 }
 
 /** One glyph for a relation: what it says and the sketch point it sits by. */

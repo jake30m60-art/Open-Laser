@@ -86,6 +86,7 @@ function tangentAngle(sketch: Sketch, a: Id, b: Id, at: Id): number {
  *  are of kinds it does not relate. */
 function translate(sketch: Sketch, c: Constraint): SketchPrimitive[] {
   const id = `c${c.id}`;
+  if ('driven' in c && c.driven) return [];
   const kind = (e: Id) => entityOf(sketch, e)?.kind;
   switch (c.kind) {
     case 'horizontal': return [{ id, type: 'horizontal_l', l_id: E(c.line) }];

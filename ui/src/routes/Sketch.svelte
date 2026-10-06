@@ -20,7 +20,7 @@
   import { type ActionId, type Hit, type Step } from '../sketch/actions';
   import { chain, hit, hitPoint, originsOf, repairArcs, translate } from '../sketch/edit';
   import { initSolver, solve, solverReady, defined, type Pull } from '../sketch/solver';
-  import { draw as drawDimension, glyphs, label as dimensionLabel } from '../sketch/annotations';
+  import { draw as drawDimension, glyphs, label as dimensionLabel, measure } from '../sketch/annotations';
   import { hasCut, toDxf } from '../sketch/dxf';
   import { evaluate } from '../sketch/expression';
 
@@ -170,7 +170,7 @@
     if (!g) return null;
     let d = g.lines.map(([a, b]) => { const p = toScreen(a), q = toScreen(b); return `M${p.x} ${p.y}L${q.x} ${q.y}`; }).join('');
     if (g.arc) d += pathOf({ kind: 'arc', c: g.arc.c, r: g.arc.r, start: g.arc.start, end: g.arc.end });
-    return { id: dim.id, d, arrows: g.arrows.map((a) => arrowHead(a.at, a.toward)), text: toScreen(g.text), label: dimensionLabel(dim, mm) };
+    return { id: dim.id, d, arrows: g.arrows.map((a) => arrowHead(a.at, a.toward)), text: toScreen(g.text), label: dimensionLabel(dim.driven ? { ...dim, value: measure(s, dim) } : dim, mm) };
   }
   const dims = $derived(store.showDimensions ? store.sketch.constraints.filter(isDimension).map((c) => render(store.sketch, c)).filter((x): x is DrawnDim => !!x) : []);
   const pendingDim = $derived(preview?.dimension ? render(store.sketch, { ...preview.dimension, value: locked.value ?? preview.dimension.value }) : null);
@@ -401,6 +401,7 @@
   function editDimension(id: Id): void {
     const c = store.sketch.constraints.find((x) => x.id === id);
     if (!c || !isDimension(c)) return;
+    if (c.driven) { ui.say('A driven dimension follows the geometry; delete another dimension to drive this one.'); return; }
     const angle = c.kind === 'angle';
     osk.number(angle ? 'Angle' : c.kind === 'diameter' ? 'Diameter' : c.kind === 'radius' ? 'Radius' : 'Distance', c.value, angle ? '°' : 'mm', (v) => {
       if (!(v > 0)) { ui.say('A dimension must be above zero.', true); return; }
@@ -434,7 +435,8 @@
       // A constraint or dimension that only repeats what holds already is refused, as Fusion does.
       const strict = !!action && !MODIFY.some((m) => m.id === action.id);
       const problem = store.settle(step.sketch, store.sketch, strict);
-      if (problem) ui.say(problem, true);
+      if (problem?.includes('driven dimension')) ui.say(problem);
+      else if (problem) ui.say(problem, true);
       else {
         if (step.select) store.select(step.select);
         if (step.done) store.act(null);
@@ -778,7 +780,7 @@
     <h3>Selection</h3>
     {#if selectedNotes.length === 1 && !selected.length}
       {@const n = selectedNotes[0]!}
-      <dl><dt class="kind">{NOTE_NAME[n.kind]}</dt><dd>{#if isDimension(n)}{dimensionLabel(n, mm)}{/if}</dd></dl>
+      <dl><dt class="kind">{NOTE_NAME[n.kind]}</dt><dd>{#if isDimension(n)}{dimensionLabel(n.driven ? { ...n, value: measure(store.sketch, n) } : n, mm)}{/if}</dd></dl>
       {#if isDimension(n)}<button class="btn btn-ghost block sk-small" onclick={() => editDimension(n.id)}>Change value</button>{/if}
       <p class="muted">Del removes it.</p>
     {:else if !selected.length && !selectedNotes.length}<p class="muted">{store.sketch.entities.length} curves. Nothing selected.</p>

@@ -417,10 +417,11 @@ class SlotTool extends Tool {
     const ids = p.map((q) => addPoint(sketch, q.x, q.y)) as [Id, Id, Id, Id];
     const top = addLine(sketch, ids[0], ids[1], p[0], p[1]);
     const bottom = addLine(sketch, ids[2], ids[3], p[2], p[3]);
-    addEntity(sketch, { kind: 'arc', c: cb, a: ids[2], b: ids[1] });
-    addEntity(sketch, { kind: 'arc', c: ca, a: ids[0], b: ids[3] });
+    const capB = addEntity(sketch, { kind: 'arc', c: cb, a: ids[2], b: ids[1] });
+    const capA = addEntity(sketch, { kind: 'arc', c: ca, a: ids[0], b: ids[3] });
     addLine(sketch, ca, cb, a, b, true);
-    addConstraint(sketch, { kind: 'parallel', a: top, b: bottom });
+    // As FreeCAD draws a slot: each cap tangent to both sides, which makes them equal too.
+    for (const cap of [capA, capB]) for (const side of [top, bottom]) addConstraint(sketch, { kind: 'tangent', a: side, b: cap });
     this.reset();
     return 'done';
   }

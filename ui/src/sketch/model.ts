@@ -43,13 +43,14 @@ export type Constraint =
   /** The point does not move. */
   | { id: Id; kind: 'fix'; point: Id }
   /** Distance between two points, along their line or along X or Y. */
-  | { id: Id; kind: 'distance'; a: Id; b: Id; axis: 'aligned' | 'horizontal' | 'vertical'; value: number; at: Place }
+  | { id: Id; kind: 'distance'; a: Id; b: Id; axis: 'aligned' | 'horizontal' | 'vertical'; value: number; at: Place; driven?: boolean }
   /** Distance from a point to a line. */
-  | { id: Id; kind: 'offset'; point: Id; line: Id; value: number; at: Place }
+  | { id: Id; kind: 'offset'; point: Id; line: Id; value: number; at: Place; driven?: boolean }
   /** A circle's diameter or an arc's radius, in millimetres. */
-  | { id: Id; kind: 'diameter' | 'radius'; curve: Id; value: number; at: Place }
-  /** The angle between two lines, in degrees. */
-  | { id: Id; kind: 'angle'; a: Id; b: Id; value: number; at: Place };
+  | { id: Id; kind: 'diameter' | 'radius'; curve: Id; value: number; at: Place; driven?: boolean }
+  /** The angle between two lines, in degrees. A driven dimension of any
+   *  kind only shows what the geometry measures, in brackets, as Fusion's. */
+  | { id: Id; kind: 'angle'; a: Id; b: Id; value: number; at: Place; driven?: boolean };
 
 export type Dimension = Extract<Constraint, { value: number }>;
 export const isDimension = (c: Constraint): c is Dimension => 'value' in c;

@@ -1,7 +1,7 @@
 // The open sketch, its undo history and the tool in hand. The sketch is
 // kept in this browser between visits; sending it to Parts makes a library
 // part the server keeps.
-import { clone, emptySketch, isSketch, remove, type Id, type Sketch } from './model';
+import { clone, emptySketch, isDimension, isSketch, remove, type Id, type Sketch } from './model';
 import { createTool, type Tool, type ToolId } from './tools';
 import { createAction, type Action, type ActionId } from './actions';
 import { freedom, solve, solverReady } from './solver';
@@ -77,7 +77,22 @@ class SketchStore {
         : 'The constraints cannot all hold.';
     }
     if (strict && solved.redundant.length) {
-      return 'Over-constrained: that is already fixed by the constraints and dimensions there.';
+      // Only what this edit says twice counts, not what the sketch already did.
+      const before = new Set(solve(previous).redundant);
+      if (solved.redundant.some((id) => !before.has(id))) {
+        const known = new Set(previous.constraints.map((c) => c.id));
+        const added = next.constraints.filter((c) => !known.has(c.id));
+        if (!added.length || !added.every(isDimension)) {
+          return 'Over-constrained: that is already fixed by the constraints and dimensions there.';
+        }
+        // As Fusion offers: keep the dimension as a driven one, which only shows.
+        const driven = clone(next);
+        for (const c of driven.constraints) if (!known.has(c.id) && isDimension(c)) c.driven = true;
+        const kept = solve(driven);
+        if (!kept.ok) return 'The constraints cannot all hold.';
+        this.commit(kept.sketch, previous);
+        return 'That is already fixed by other constraints, so it was added as a driven dimension (in brackets).';
+      }
     }
     this.commit(solved.sketch, previous);
     return null;
