@@ -430,6 +430,7 @@
 
   function apply(step: Step): void {
     if (step.kind === 'select') { store.select(step.ids); resetEntry(); return; }
+    if (step.kind === 'toggle') { store.select([step.id], 'toggle'); store.toolRevision++; return; }
     if (step.kind === 'error') { ui.say(step.message, true); resetEntry(); return; }
     if (step.kind === 'apply') {
       // A constraint or dimension that only repeats what holds already is refused, as Fusion does.

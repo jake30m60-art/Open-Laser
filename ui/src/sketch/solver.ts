@@ -5,7 +5,7 @@
 // real constraints allow, as FreeCAD's and Fusion's sketchers do.
 import { make_gcs_wrapper, SolveStatus, type GcsWrapper, type SketchPrimitive } from '@salusoft89/planegcs';
 import { angleOf, dist, sweep } from './geometry';
-import { clone, point, type Constraint, type Entity, type Id, type Sketch } from './model';
+import { clone, constraintRefs, point, pointsOf, type Constraint, type Entity, type Id, type Sketch } from './model';
 
 let wrapper: GcsWrapper | null = null;
 let loading: Promise<void> | null = null;
@@ -173,7 +173,7 @@ function translate(sketch: Sketch, c: Constraint): SketchPrimitive[] {
 }
 
 /** The whole sketch as solver primitives: points, then curves, then constraints. */
-function primitives(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<Id, number>): SketchPrimitive[] {
+function primitives(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<Id, number>, hold: boolean | ReadonlySet<Id>): SketchPrimitive[] {
   const fixed = new Set(sketch.constraints.flatMap((c) => (c.kind === 'fix' ? [c.point] : [])));
   const out: SketchPrimitive[] = sketch.points.map((p) => ({ id: P(p.id), type: 'point', x: p.x, y: p.y, fixed: fixed.has(p.id) }));
   for (const e of sketch.entities) {
@@ -194,6 +194,17 @@ function primitives(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<I
     out.push({ id: `t${i}x`, type: 'coordinate_x', p_id: P(pull.point), x: pull.x, temporary: true });
     out.push({ id: `t${i}y`, type: 'coordinate_y', p_id: P(pull.point), y: pull.y, temporary: true });
   });
+  if (hold) {
+    // Every other point keeps lightly to where it is, so an edit moves only
+    // what it must, as Fusion's sketch does, rather than the whole sketch.
+    const pulled = new Set(pulls.map((p) => p.point));
+    const loose = hold === true ? new Set<Id>() : hold;
+    for (const p of sketch.points) {
+      if (pulled.has(p.id) || loose.has(p.id)) continue;
+      out.push({ id: `h${p.id}x`, type: 'coordinate_x', p_id: P(p.id), x: p.x, temporary: true, scale: 0.01 });
+      out.push({ id: `h${p.id}y`, type: 'coordinate_y', p_id: P(p.id), y: p.y, temporary: true, scale: 0.01 });
+    }
+  }
   radii.forEach((r, entity) => {
     const e = entityOf(sketch, entity);
     if (e?.kind === 'circle') out.push({ id: `t${entity}r`, type: 'circle_radius', c_id: E(entity), radius: r, temporary: true });
@@ -202,11 +213,11 @@ function primitives(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<I
 }
 
 /** Solves the sketch, with points pulled towards positions and circles towards radii. */
-export function solve(sketch: Sketch, pulls: readonly Pull[] = [], radii: ReadonlyMap<Id, number> = new Map()): Solved {
+export function solve(sketch: Sketch, pulls: readonly Pull[] = [], radii: ReadonlyMap<Id, number> = new Map(), hold: boolean | ReadonlySet<Id> = false): Solved {
   if (!wrapper) return { ok: true, sketch, conflicting: [], redundant: [], dof: -1 };
   const w = wrapper;
   w.clear_data();
-  w.push_primitives_and_params(primitives(sketch, pulls, radii));
+  w.push_primitives_and_params(primitives(sketch, pulls, radii, hold));
   const status = w.solve();
   const conflicting = [...new Set(w.get_gcs_conflicting_constraints().map(owner).filter((id): id is Id => id !== null))];
   const redundant = [...new Set(w.get_gcs_redundant_constraints().map(owner).filter((id): id is Id => id !== null))];
@@ -235,18 +246,18 @@ export function solve(sketch: Sketch, pulls: readonly Pull[] = [], radii: Readon
 export function freedom(sketch: Sketch, limit = 300): { points: Set<Id>; circles: Set<Id> } | null {
   if (!wrapper) return null;
   const free = { points: new Set<Id>(), circles: new Set<Id>() };
-  const base = solve(sketch);
+  const base = solve(sketch, [], new Map(), false);
   if (!base.ok) return null;
   if (base.dof === 0) return free;
   if (sketch.points.length > limit) return null;
   const step = 0.5;
   for (const p of base.sketch.points) {
-    const moved = solve(base.sketch, [{ point: p.id, x: p.x + step, y: p.y + step }]);
+    const moved = solve(base.sketch, [{ point: p.id, x: p.x + step, y: p.y + step }], new Map(), false);
     if (!moved.ok || dist(p, point(moved.sketch, p.id)) > step * 0.05) free.points.add(p.id);
   }
   for (const e of base.sketch.entities) {
     if (e.kind !== 'circle') continue;
-    const grown = solve(base.sketch, [], new Map([[e.id, e.r + step]]));
+    const grown = solve(base.sketch, [], new Map([[e.id, e.r + step]]), false);
     const r = grown.sketch.entities.find((x) => x.id === e.id);
     if (!grown.ok || (r?.kind === 'circle' && Math.abs(r.r - e.r) > step * 0.05)) free.circles.add(e.id);
   }
@@ -262,4 +273,20 @@ export function defined(entity: Entity, free: { points: Set<Id>; circles: Set<Id
   const pts = entity.kind === 'line' ? [entity.a, entity.b] : entity.kind === 'circle' ? [entity.c] : [entity.c, entity.a, entity.b];
   if (pts.some((p) => free.points.has(p))) return false;
   return entity.kind !== 'circle' || !free.circles.has(entity.id);
+}
+
+/** The points an edit is about: those of the constraints it adds or changes,
+ *  and of the curves those refer to, with every point of new curves. They
+ *  move freely while the rest keeps to where it was. */
+export function looseAfter(previous: Sketch, next: Sketch): Set<Id> {
+  const before = new Map(previous.constraints.map((c) => [c.id, JSON.stringify(c)]));
+  const loose = new Set<Id>();
+  const known = new Set(previous.entities.map((e) => e.id));
+  const addCurve = (id: Id) => { const e = next.entities.find((x) => x.id === id); if (e) for (const p of pointsOf(e)) loose.add(p); };
+  for (const c of next.constraints) {
+    if (before.get(c.id) === JSON.stringify(c)) continue;
+    for (const ref of constraintRefs(c)) { if (next.points.some((p) => p.id === ref)) loose.add(ref); else addCurve(ref); }
+  }
+  for (const e of next.entities) if (!known.has(e.id)) addCurve(e.id);
+  return loose;
 }

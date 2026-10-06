@@ -21,6 +21,8 @@ export type Step =
   | { kind: 'more' }
   /** Replace the selection, as picking an offset's chain does. */
   | { kind: 'select'; ids: Id[] }
+  /** Add a curve to the selection or take it out. */
+  | { kind: 'toggle'; id: Id }
   /** Keep this sketch; `done` ends the action. */
   | { kind: 'apply'; sketch: Sketch; select?: Id[]; done?: boolean }
   | { kind: 'error'; message: string };
@@ -152,15 +154,36 @@ function lineDistance(a: Vec, b: Vec, p: Vec): number {
 class Mirror extends Action {
   readonly id = 'mirror';
   readonly name = 'Mirror';
-  hint(ctx: Context): string { return ctx.selection.size ? 'Click the mirror line' : 'Select what to mirror first, then choose Mirror'; }
+  /** Whether the objects are chosen and the next click picks the line. */
+  private line = false;
+  private touched = false;
+  override reset(): void { super.reset(); this.line = false; this.touched = false; }
+  override get busy(): boolean { return this.line || this.touched; }
+  hint(ctx: Context): string {
+    if (this.line) return 'Click the mirror line';
+    return ctx.selection.size ? 'Click more curves to mirror, or Enter, then click the mirror line' : 'Click the curves to mirror, then Enter';
+  }
   override preview(ctx: Context, _c: Vec, hover: Hit): Preview {
-    if (!ctx.selection.size || entityOf(ctx.sketch, hover.entity)?.kind !== 'line') return none();
+    if (!this.line || !ctx.selection.size || entityOf(ctx.sketch, hover.entity)?.kind !== 'line') return none();
     return { ...none(), shapes: createdShapes(mirror(ctx.sketch, [...ctx.selection], hover.entity!)) };
   }
   click(ctx: Context, hit: Hit): Step {
-    if (!ctx.selection.size) return { kind: 'error', message: 'Select what to mirror first.' };
-    if (entityOf(ctx.sketch, hit.entity)?.kind !== 'line') return { kind: 'more' };
-    return outcome(mirror(ctx.sketch, [...ctx.selection], hit.entity!), true);
+    // A selection made before the tool goes straight to the line.
+    if (!this.line && ctx.selection.size && !this.touched) this.line = true;
+    if (!this.line) {
+      if (hit.entity === null) return { kind: 'more' };
+      this.touched = true;
+      return { kind: 'toggle', id: hit.entity };
+    }
+    if (entityOf(ctx.sketch, hit.entity)?.kind !== 'line') return { kind: 'error', message: 'Click a line to mirror across.' };
+    const step = outcome(mirror(ctx.sketch, [...ctx.selection], hit.entity!), true);
+    this.reset();
+    return step;
+  }
+  override enter(ctx: Context): Step {
+    if (!ctx.selection.size) return { kind: 'error', message: 'Click the curves to mirror first.' };
+    this.line = true;
+    return { kind: 'more' };
   }
 }
 
@@ -170,7 +193,7 @@ class RectPattern extends Action {
   readonly id = 'rpattern';
   readonly name = 'Rectangular pattern';
   private set = { nx: 3, ny: 2, dx: 0, dy: 0 };
-  hint(ctx: Context): string { return ctx.selection.size ? 'Set the counts and spacing · Enter or click to apply' : 'Select what to pattern first, then choose the pattern'; }
+  hint(ctx: Context): string { return ctx.selection.size ? 'Click more curves, set the counts and spacing · Enter to apply' : 'Click the curves to pattern'; }
   private values(ctx: Context, locked: Locked) {
     const b = boundsOf(ctx);
     const dx = this.set.dx || (b ? Math.round((b.maxX - b.minX + 5) * 100) / 100 : 10);
@@ -196,7 +219,7 @@ class RectPattern extends Action {
     const v = this.values(ctx, locked);
     return v.nx * v.ny * ctx.selection.size > 3000 ? none() : { ...none(), shapes: createdShapes(this.run(ctx, locked)) };
   }
-  click(ctx: Context, _hit: Hit, locked: Locked): Step { return this.enter(ctx, _hit.at, locked); }
+  click(_ctx: Context, hit: Hit): Step { return hit.entity === null ? { kind: 'more' } : { kind: 'toggle', id: hit.entity }; }
   override enter(ctx: Context, _c: Vec, locked: Locked): Step {
     if (!ctx.selection.size) return { kind: 'error', message: 'Select what to pattern first.' };
     this.set = this.values(ctx, locked);
@@ -209,8 +232,8 @@ class CircPattern extends Action {
   readonly name = 'Circular pattern';
   private set = { count: 6, angle: 360 };
   hint(ctx: Context): string {
-    if (!ctx.selection.size) return 'Select what to pattern first, then choose the pattern';
-    return this.picks.length ? 'Set the count and angle · Enter or click to apply' : 'Click the centre of the pattern';
+    if (!ctx.selection.size) return 'Click the curves to pattern';
+    return this.picks.length ? 'Set the count and angle · Enter to apply' : 'Click more curves, or click the centre point of the pattern';
   }
   private values(locked: Locked) { return { count: Math.max(2, Math.round(locked.count ?? this.set.count)), angle: locked.angle ?? this.set.angle }; }
   override fields(ctx: Context): Field[] {
@@ -225,7 +248,9 @@ class CircPattern extends Action {
     return { ...none(), shapes: createdShapes(circularPattern(ctx.sketch, [...ctx.selection], this.center(ctx), v.count, v.angle)) };
   }
   click(ctx: Context, hit: Hit, locked: Locked): Step {
-    if (!ctx.selection.size) return { kind: 'error', message: 'Select what to pattern first.' };
+    // Curves join the selection; a point, or empty space, is the centre.
+    if (!this.picks.length && hit.point === null && hit.entity !== null) return { kind: 'toggle', id: hit.entity };
+    if (!ctx.selection.size) return { kind: 'error', message: 'Click the curves to pattern first.' };
     if (!this.picks.length) { this.picks.push(hit); return { kind: 'more' }; }
     return this.enter(ctx, hit.at, locked);
   }

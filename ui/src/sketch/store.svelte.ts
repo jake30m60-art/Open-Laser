@@ -4,7 +4,7 @@
 import { clone, emptySketch, isDimension, isSketch, remove, type Id, type Sketch } from './model';
 import { createTool, type Tool, type ToolId } from './tools';
 import { createAction, type Action, type ActionId } from './actions';
-import { freedom, solve, solverReady } from './solver';
+import { freedom, looseAfter, solve, solverReady } from './solver';
 
 const KEY = 'ol-sketch';
 const LIMIT = 200;
@@ -70,7 +70,9 @@ class SketchStore {
   /** Solves `next` and keeps it as one undo step, or says why it cannot hold. */
   settle(next: Sketch, previous: Sketch = this.sketch, strict = false): string | null {
     if (!solverReady()) { this.commit(next, previous); return null; }
-    const solved = solve(next);
+    // The rest of the sketch keeps to where it was; should that not solve, solve plainly.
+    let solved = solve(next, [], new Map(), looseAfter(previous, next));
+    if (!solved.ok) solved = solve(next);
     if (!solved.ok) {
       return solved.conflicting.length
         ? 'Over-constrained: that conflicts with constraints or dimensions already there.'
