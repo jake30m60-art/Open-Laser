@@ -109,7 +109,15 @@ fn layers_run_in_the_tables_order_and_holes_on_their_own_layer_stay_holes() {
 fn a_filled_mark_engraves_one_zigzag_and_keeps_its_outlines() {
     use openlaser_core::features::Fill;
     let drawing = Drawing { contours: vec![square("Cut", 60.), circle("Logo", 30., 30., 10.)] };
-    let fill = Fill { spacing: 0.5, angle: 0., run_up: 2., outline: true };
+    let fill = Fill {
+        spacing: 0.5,
+        angle: 0.,
+        run_up: 2.,
+        outline: true,
+        bidirectional: true,
+        crosshatch: false,
+        scan_offset: 0.,
+    };
     let logo = Layer {
         machining: Some(Machining { fill: Some(fill.clone()), ..Machining::default() }),
         ..layer("Logo", LayerMode::Mark)

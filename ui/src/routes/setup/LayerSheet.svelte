@@ -129,7 +129,12 @@
           <div class="fill">
             <Stepper label="Line spacing" value={fill.spacing} unit="mm" step={0.01} apply={(v) => fillWith({ spacing: Math.min(20, Math.max(0.01, v)) })} />
             <Stepper label="Angle" value={fill.angle} unit="°" step={15} apply={(v) => fillWith({ angle: v % 180 })} />
-            <Stepper label="Run-up, laser off" value={fill.run_up} unit="mm" step={0.5} apply={(v) => fillWith({ run_up: Math.min(50, v) })} />
+            <Stepper label="Overscan, laser off" value={fill.run_up} unit="mm" step={0.5} apply={(v) => fillWith({ run_up: Math.min(50, v) })} />
+            <p class="fill-hint">How far every line runs past the engraving, so the head turns round off the work and engraves at full speed.</p>
+            <Toggle label="Both directions" value={fill.bidirectional} apply={(v) => fillWith({ bidirectional: v })} />
+            <Stepper label="Scan offset" value={fill.scan_offset} unit="mm" step={0.01} apply={(v) => fillWith({ scan_offset: Math.min(2, v) })} />
+            <p class="fill-hint">Backlash compensation for both directions: half the shift you measure between lines engraved left and right.</p>
+            <Toggle label="Crosshatch" value={fill.crosshatch} apply={(v) => fillWith({ crosshatch: v })} />
             <Toggle label="Trace the outlines after the fill" value={fill.outline} apply={(v) => fillWith({ outline: v })} />
           </div>
         {/if}
@@ -167,6 +172,7 @@
 <style>
   .layer-sheet { display:grid; gap:10px; }
   .fill { display:grid; gap:6px; padding:0 0 6px; }
+  .fill-hint { margin:-2px 0 4px; font-size:var(--t-sm); color:var(--ink-3); }
   .ident { display:flex; align-items:center; gap:6px; min-width:0; }
   .swatch-btn, .icon-btn { flex:none; width:48px; height:48px; display:grid; place-items:center; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); color:var(--ink-2); cursor:pointer; }
   .icon-btn.off { color:var(--ink-3); }

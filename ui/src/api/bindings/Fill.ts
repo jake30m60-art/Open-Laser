@@ -21,4 +21,19 @@ run_up: number,
 /**
  * Trace the outlines after the fill, for crisp edges.
  */
-outline: boolean, };
+outline: boolean,
+/**
+ * Engrave in both directions; off, every line runs the same way and
+ * the head returns with the laser off.
+ */
+bidirectional: boolean,
+/**
+ * A second fill at right angles to the first.
+ */
+crosshatch: boolean,
+/**
+ * Scan offset in millimetres: every line's marks move this far back
+ * against its travel, so lines run in opposite directions line up.
+ * Half the measured shift between the two directions.
+ */
+scan_offset: number, };

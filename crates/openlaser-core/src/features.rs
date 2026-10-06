@@ -272,6 +272,16 @@ pub struct FlyCut {
     pub overcut: f64,
     /// Maximum distance between edges that count as one line, in millimetres.
     pub tolerance: f64,
+    /// Every pass of a direction runs the same way, instead of alternating.
+    #[serde(default)]
+    pub one_way: bool,
+    /// Start from the far side: the last line of each direction first.
+    #[serde(default)]
+    pub from_far_side: bool,
+    /// Run the directions in the opposite order, such as vertical lines
+    /// before horizontal ones.
+    #[serde(default)]
+    pub directions_reversed: bool,
 }
 
 /// A marked layer's closed shapes engraved by scan lines: one continuous
@@ -288,6 +298,22 @@ pub struct Fill {
     pub run_up: f64,
     /// Trace the outlines after the fill, for crisp edges.
     pub outline: bool,
+    /// Engrave in both directions; off, every line runs the same way and
+    /// the head returns with the laser off.
+    #[serde(default = "yes")]
+    pub bidirectional: bool,
+    /// A second fill at right angles to the first.
+    #[serde(default)]
+    pub crosshatch: bool,
+    /// Scan offset in millimetres: every line's marks move this far back
+    /// against its travel, so lines run in opposite directions line up.
+    /// Half the measured shift between the two directions.
+    #[serde(default)]
+    pub scan_offset: f64,
+}
+
+const fn yes() -> bool {
+    true
 }
 
 /// A place along a drawing contour: the contour's index in the drawing and

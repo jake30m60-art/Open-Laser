@@ -26,4 +26,17 @@ overcut: number,
 /**
  * Maximum distance between edges that count as one line, in millimetres.
  */
-tolerance: number, };
+tolerance: number,
+/**
+ * Every pass of a direction runs the same way, instead of alternating.
+ */
+one_way: boolean,
+/**
+ * Start from the far side: the last line of each direction first.
+ */
+from_far_side: boolean,
+/**
+ * Run the directions in the opposite order, such as vertical lines
+ * before horizontal ones.
+ */
+directions_reversed: boolean, };

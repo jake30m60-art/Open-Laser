@@ -214,8 +214,9 @@ fn gather(contours: &[PreparedContour], flying: &[bool], tolerance: f64) -> Resu
     Ok(groups)
 }
 
-/// One flying pass per gathered line: lines of one direction side by side,
-/// nearest first, alternating so each starts near where the last ended.
+/// One flying pass per gathered line: the lines of one direction side by
+/// side, alternating unless every pass should run the same way, in the
+/// order and from the side the settings choose.
 fn passes(
     contours: &[PreparedContour],
     mut groups: Vec<Group>,
@@ -223,7 +224,12 @@ fn passes(
 ) -> Result<Vec<PreparedContour>> {
     let family = |g: &Group| (g.direction.angle() * 1000.).round();
     let offset = |g: &Group| g.direction.perpendicular().dot(g.origin);
-    groups.sort_by(|a, b| family(a).total_cmp(&family(b)).then(offset(a).total_cmp(&offset(b))));
+    groups.sort_by(|a, b| {
+        let by_family = family(a).total_cmp(&family(b));
+        let by_family = if fly.directions_reversed { by_family.reverse() } else { by_family };
+        let by_offset = offset(a).total_cmp(&offset(b));
+        by_family.then(if fly.from_far_side { by_offset.reverse() } else { by_offset })
+    });
 
     let mut lines = Vec::with_capacity(groups.len());
     let mut previous_family = None;
@@ -235,7 +241,8 @@ fn passes(
             return Err(feature(
                 "flying cut",
                 format!(
-                    "two cuts on one line are only {web:.2} mm apart; a flying cut needs webs of                      at least {MIN_WEB} mm"
+                    "two cuts on one line are only {web:.2} mm apart; \
+                     a flying cut needs webs of at least {MIN_WEB} mm"
                 ),
             ));
         }
@@ -259,7 +266,9 @@ fn passes(
             segments: line.segments(fly.run_up, reverse),
             film: line.cuts(reverse),
         });
-        reverse = !reverse;
+        if !fly.one_way {
+            reverse = !reverse;
+        }
     }
     Ok(lines)
 }
@@ -313,7 +322,10 @@ fn check_fill(fill: &Fill) -> Result<()> {
         return Err(feature("fill", "the angle must be a number"));
     }
     if !(fill.run_up.is_finite() && (0. ..=50.).contains(&fill.run_up)) {
-        return Err(feature("fill", "the run-up must be 0 to 50 mm"));
+        return Err(feature("fill", "the overscan must be 0 to 50 mm"));
+    }
+    if !(fill.scan_offset.is_finite() && (-2. ..=2.).contains(&fill.scan_offset)) {
+        return Err(feature("fill", "the scan offset must be -2 to 2 mm"));
     }
     Ok(())
 }
@@ -345,41 +357,36 @@ fn polygon(contour: &PreparedContour) -> Vec<Point> {
     points
 }
 
-/// Fills the closed contours with scan lines joined into one zigzag, the
-/// beam on inside them. `None` when no line crosses them.
-pub(crate) fn fill(shapes: &[&PreparedContour], fill: &Fill) -> Result<Option<PreparedContour>> {
-    check_fill(fill)?;
-    let angle = fill.angle.to_radians();
+/// The scan lines across the polygons at `angle` degrees, `spacing` apart
+/// and centred in their extent, each with the spans inside them.
+fn scan(polygons: &[Vec<Point>], spacing: f64, angle: f64) -> Result<Vec<Line>> {
+    let angle = angle.to_radians();
     // Scan along X in a frame turned by -angle; turn the result back.
-    let polygons: Vec<Vec<Point>> = shapes
-        .iter()
-        .map(|c| polygon(c).into_iter().map(|p| p.rotated(-angle)).collect())
-        .filter(|p: &Vec<Point>| p.len() >= 3)
-        .collect();
+    let turned: Vec<Vec<Point>> =
+        polygons.iter().map(|p| p.iter().map(|q| q.rotated(-angle)).collect()).collect();
     let (mut low, mut high) = (f64::INFINITY, f64::NEG_INFINITY);
-    for p in polygons.iter().flatten() {
+    for p in turned.iter().flatten() {
         low = low.min(p.y);
         high = high.max(p.y);
     }
     if !(low.is_finite() && high > low) {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     // Lines centred in the extent, half a spacing in from its edges.
-    let count = ((high - low) / fill.spacing).round().max(1.);
+    let count = ((high - low) / spacing).round().max(1.);
     if count > float(MAX_SCAN_LINES) {
         return Err(Error::Limit(format!(
             "the fill needs more than {MAX_SCAN_LINES} lines; widen the line spacing"
         )));
     }
-    let first = low + (high - low - (count - 1.) * fill.spacing) / 2.;
-
-    let mut lines: Vec<Line> = Vec::new();
+    let first = low + (high - low - (count - 1.) * spacing) / 2.;
+    let mut lines = Vec::new();
     let mut k = 0.;
     while k < count {
-        let y = first + k * fill.spacing;
+        let y = first + k * spacing;
         k += 1.;
         let mut crossings = Vec::new();
-        for polygon in &polygons {
+        for polygon in &turned {
             for (i, a) in polygon.iter().enumerate() {
                 let b = polygon[(i + 1) % polygon.len()];
                 // Half-open in Y, so a vertex on the line counts once.
@@ -404,14 +411,27 @@ pub(crate) fn fill(shapes: &[&PreparedContour], fill: &Fill) -> Result<Option<Pr
             });
         }
     }
-    if lines.is_empty() {
-        return Ok(None);
-    }
+    Ok(lines)
+}
 
-    let mut segments: Vec<PreparedSegment> = Vec::new();
-    let mut traced = Vec::new();
+/// Appends the lines to one continuous path: alternating when the fill is
+/// bidirectional, every line the same way otherwise with the return laser
+/// off, each line's marks moved back against its travel by the scan offset.
+fn zigzag(
+    lines: &[Line],
+    fill: &Fill,
+    segments: &mut Vec<PreparedSegment>,
+    traced: &mut Vec<Curve>,
+) -> Result<()> {
     for (i, line) in lines.iter().enumerate() {
-        let part = line.segments(fill.run_up, i % 2 == 1);
+        let reverse = fill.bidirectional && i % 2 == 1;
+        let back = if reverse { fill.scan_offset } else { -fill.scan_offset };
+        let line = Line {
+            origin: line.origin,
+            direction: line.direction,
+            spans: line.spans.iter().map(|&(a, b)| (a + back, b + back)).collect(),
+        };
+        let part = line.segments(fill.run_up, reverse);
         if let (Some(last), Some(next)) = (segments.last(), part.first()) {
             let (from, to) = (last.curve.end(), next.curve.start());
             if from.distance(to) > EPS {
@@ -419,12 +439,32 @@ pub(crate) fn fill(shapes: &[&PreparedContour], fill: &Fill) -> Result<Option<Pr
             }
         }
         segments.extend(part);
-        traced.extend(line.cuts(i % 2 == 1));
+        traced.extend(line.cuts(reverse));
         if segments.len() > MAX_FILL_SEGMENTS {
             return Err(Error::Limit(format!(
                 "the fill makes more than {MAX_FILL_SEGMENTS} segments; widen the line spacing"
             )));
         }
+    }
+    Ok(())
+}
+
+/// Fills the closed contours with scan lines joined into one path, the
+/// beam on inside them, crossed a second time at right angles when the
+/// fill crosshatches. `None` when no line crosses them.
+pub(crate) fn fill(shapes: &[&PreparedContour], fill: &Fill) -> Result<Option<PreparedContour>> {
+    check_fill(fill)?;
+    let polygons: Vec<Vec<Point>> =
+        shapes.iter().map(|c| polygon(c)).filter(|p| p.len() >= 3).collect();
+    let mut segments: Vec<PreparedSegment> = Vec::new();
+    let mut traced = Vec::new();
+    let turns: &[f64] = if fill.crosshatch { &[0., 90.] } else { &[0.] };
+    for turn in turns {
+        let lines = scan(&polygons, fill.spacing, fill.angle + turn)?;
+        zigzag(&lines, fill, &mut segments, &mut traced)?;
+    }
+    if segments.is_empty() {
+        return Ok(None);
     }
     let mut sources: Vec<usize> = shapes.iter().flat_map(|c| c.sources.iter().copied()).collect();
     sources.sort_unstable();
@@ -470,7 +510,27 @@ mod tests {
     }
 
     fn settings(contours: Vec<usize>) -> FlyCut {
-        FlyCut { contours, run_up: 3., overcut: 0., tolerance: 0.01 }
+        FlyCut {
+            contours,
+            run_up: 3.,
+            overcut: 0.,
+            tolerance: 0.01,
+            one_way: false,
+            from_far_side: false,
+            directions_reversed: false,
+        }
+    }
+
+    fn fill_of(spacing: f64, angle: f64, run_up: f64) -> Fill {
+        Fill {
+            spacing,
+            angle,
+            run_up,
+            outline: false,
+            bidirectional: true,
+            crosshatch: false,
+            scan_offset: 0.,
+        }
     }
 
     fn cut_length(c: &PreparedContour) -> f64 {
@@ -547,7 +607,7 @@ mod tests {
     fn a_fill_scans_inside_shapes_and_skips_holes() {
         let outer = rect(0, 0., 0., 20., 20.);
         let hole = rect(1, 5., 5., 10., 10.);
-        let fill_settings = Fill { spacing: 1., angle: 0., run_up: 2., outline: false };
+        let fill_settings = fill_of(1., 0., 2.);
         let zigzag = fill(&[&outer, &hole], &fill_settings).unwrap().unwrap();
         assert!(zigzag.segments.first().unwrap().process.joint);
         let cut = cut_length(&zigzag);
@@ -562,12 +622,137 @@ mod tests {
     #[test]
     fn a_fill_turns_with_its_angle() {
         let square = rect(0, 0., 0., 10., 10.);
-        let fill_settings = Fill { spacing: 0.5, angle: 45., run_up: 0., outline: false };
+        let fill_settings = fill_of(0.5, 45., 0.);
         let zigzag = fill(&[&square], &fill_settings).unwrap().unwrap();
         let s = zigzag.segments.iter().find(|s| !s.process.joint).unwrap();
         let d = s.curve.end() - s.curve.start();
         assert!((d.x.abs() - d.y.abs()).abs() < 1e-9);
         // Coverage: the scanned area over the spacing is the square's area.
         assert!((cut_length(&zigzag) * 0.5 - 100.).abs() < 2.);
+    }
+
+    fn hexagon(source: usize, center: Point, radius: f64) -> PreparedContour {
+        let p: Vec<Point> = (0..6)
+            .map(|k| center + Point::direction(std::f64::consts::FRAC_PI_3 * float(k)) * radius)
+            .collect();
+        PreparedContour {
+            sources: vec![source],
+            lead_target: None,
+            layer: "0".into(),
+            closed: true,
+            depth: 1,
+            segments: (0..6)
+                .map(|i| {
+                    PreparedSegment::new(
+                        Curve::Line { start: p[i], end: p[(i + 1) % 6] },
+                        SegmentProcess::default(),
+                    )
+                })
+                .collect(),
+            film: Vec::new(),
+        }
+    }
+
+    /// A honeycomb of hexagonal holes flies in three directions: every
+    /// edge lies on a line with the matching edges of other cells.
+    #[test]
+    fn a_honeycomb_flies_along_all_three_edge_directions() {
+        let radius = 5.;
+        let pitch = 3f64.sqrt() * radius + 2.;
+        let a = Point::direction(std::f64::consts::FRAC_PI_6) * pitch;
+        let b = Point::new(0., pitch);
+        let mut cells = Vec::new();
+        for i in 0..3 {
+            for j in 0..3 {
+                cells.push(hexagon(cells.len(), a * float(i) + b * float(j), radius));
+            }
+        }
+        let out = fly(cells, &settings((0..9).collect()), &mut Vec::new()).unwrap();
+        let total: f64 = out.iter().map(cut_length).sum();
+        assert!((total - 9. * 6. * radius).abs() < 1e-6, "every edge once: {total}");
+        let mut directions: Vec<i64> = out
+            .iter()
+            .map(|c| {
+                let d = c.segments[0].curve.end() - c.segments[0].curve.start();
+                #[allow(clippy::cast_possible_truncation, reason = "whole degrees")]
+                let degrees = (d.y.atan2(d.x).to_degrees().rem_euclid(180.)).round() as i64;
+                degrees % 180
+            })
+            .collect();
+        directions.sort_unstable();
+        directions.dedup();
+        assert_eq!(directions, [0, 60, 120]);
+        let joined =
+            out.iter().filter(|c| c.segments.iter().filter(|s| !s.process.joint).count() > 1);
+        assert!(joined.count() >= 6, "lines through several cells");
+        assert!(out.len() < 9 * 6, "fewer passes than edges: {}", out.len());
+    }
+
+    fn horizontal(c: &PreparedContour) -> bool {
+        let d = c.segments[0].curve.end() - c.segments[0].curve.start();
+        d.y.abs() < 1e-9
+    }
+
+    #[test]
+    fn the_order_and_direction_of_passes_can_be_chosen() {
+        let grid = || (0..3).map(|i| rect(i, 0., float(i) * 15., 10., 10.)).collect::<Vec<_>>();
+        let dx = |c: &PreparedContour| c.segments[0].curve.end().x - c.segments[0].curve.start().x;
+
+        let one_way = FlyCut { one_way: true, ..settings((0..3).collect()) };
+        let out = fly(grid(), &one_way, &mut Vec::new()).unwrap();
+        assert!(out.iter().filter(|c| horizontal(c)).all(|c| dx(c) > 0.));
+
+        let far = FlyCut { from_far_side: true, ..settings((0..3).collect()) };
+        let out = fly(grid(), &far, &mut Vec::new()).unwrap();
+        assert!((out[0].segments[0].curve.start().y - 40.).abs() < 1e-9, "the top line first");
+
+        let flipped = FlyCut { directions_reversed: true, ..settings((0..3).collect()) };
+        let out = fly(grid(), &flipped, &mut Vec::new()).unwrap();
+        assert!(!horizontal(&out[0]), "vertical lines first");
+        assert!(horizontal(out.last().unwrap()));
+    }
+
+    fn lit_directions(c: &PreparedContour) -> Vec<f64> {
+        c.segments
+            .iter()
+            .filter(|s| !s.process.joint)
+            .map(|s| (s.curve.end().x - s.curve.start().x).signum())
+            .collect()
+    }
+
+    #[test]
+    fn a_one_way_fill_engraves_every_line_the_same_way() {
+        let square = rect(0, 0., 0., 10., 10.);
+        let one_way = Fill { bidirectional: false, ..fill_of(1., 0., 2.) };
+        let path = fill(&[&square], &one_way).unwrap().unwrap();
+        assert!(lit_directions(&path).iter().all(|d| *d > 0.));
+        let both = fill(&[&square], &fill_of(1., 0., 2.)).unwrap().unwrap();
+        assert!(lit_directions(&both).iter().any(|d| *d < 0.));
+    }
+
+    #[test]
+    fn a_crosshatch_scans_twice_at_right_angles() {
+        let square = rect(0, 0., 0., 10., 10.);
+        let single = fill(&[&square], &fill_of(0.5, 0., 1.)).unwrap().unwrap();
+        let cross = Fill { crosshatch: true, ..fill_of(0.5, 0., 1.) };
+        let double = fill(&[&square], &cross).unwrap().unwrap();
+        assert!((cut_length(&double) - 2. * cut_length(&single)).abs() < 1e-6);
+        assert!(double.segments.iter().any(|s| {
+            let d = s.curve.end() - s.curve.start();
+            !s.process.joint && d.x.abs() < 1e-9
+        }));
+    }
+
+    #[test]
+    fn the_scan_offset_moves_each_line_back_against_its_travel() {
+        let square = rect(0, 0., 0., 10., 10.);
+        let offset = Fill { scan_offset: 0.1, ..fill_of(1., 0., 2.) };
+        let path = fill(&[&square], &offset).unwrap().unwrap();
+        let lit: Vec<_> = path.segments.iter().filter(|s| !s.process.joint).collect();
+        // Forward: 0..10 becomes -0.1..9.9; backward: 10..0 becomes 10.1..0.1.
+        assert!((lit[0].curve.start().x + 0.1).abs() < 1e-9);
+        assert!((lit[0].curve.end().x - 9.9).abs() < 1e-9);
+        assert!((lit[1].curve.start().x - 10.1).abs() < 1e-9);
+        assert!((lit[1].curve.end().x - 0.1).abs() < 1e-9);
     }
 }
