@@ -113,6 +113,7 @@
     try { return action.preview(ctx, cursor, hover ?? { point: null, entity: null, at: cursor }, locked); } catch { return null; }
   });
   const anchor = $derived.by(() => { void store.toolRevision; return tool?.anchor() ?? null; });
+  const picked = $derived.by(() => { void store.toolRevision; return action ? action.picked() : { points: [], curves: [] }; });
   const hint = $derived.by(() => {
     void store.toolRevision;
     if (tool) return tool.hint();
@@ -438,6 +439,7 @@
       const problem = store.settle(step.sketch, store.sketch, strict);
       if (problem?.includes('driven dimension')) ui.say(problem);
       else if (problem) ui.say(problem, true);
+      else if (action && !MODIFY.some((m) => m.id === action.id)) ui.say(action.id === 'dimension' ? 'Dimension added' : `${RELATE.find((r) => r.id === action.id)?.label ?? 'Constraint'} added`);
       else {
         if (step.select) store.select(step.select);
         if (step.done) store.act(null);
@@ -694,11 +696,11 @@
       <path class="axis-y" d={`M${origin.x} 0V${h}`} />
       {#each drawn as e (e.id)}
         <path d={e.d} class="curve" class:defined={e.defined} class:construction={e.construction} class:selected={store.selection.has(e.id)}
-          class:hovered={!!action && hover?.entity === e.id} />
+          class:hovered={!!action && hover?.entity === e.id} class:picked={picked.curves.includes(e.id)} />
       {/each}
       {#each handles as p (p.id)}
         {#if p.center}<path class="handle center" class:defined={p.defined} d={`M${p.x - 3} ${p.y}h6M${p.x} ${p.y - 3}v6`} />
-        {:else}<rect class="handle" class:defined={p.defined} class:fixed={p.fixed} class:hovered={!!action && hover?.point === p.id} x={p.x - 2.5} y={p.y - 2.5} width="5" height="5" />{/if}
+        {:else}<rect class="handle" class:defined={p.defined} class:fixed={p.fixed} class:hovered={!!action && hover?.point === p.id} class:picked={picked.points.includes(p.id)} x={p.x - 2.5} y={p.y - 2.5} width="5" height="5" />{/if}
       {/each}
 
       {#each dims as d (d.id)}
@@ -857,6 +859,8 @@
   .curve.construction { stroke: var(--sketch-construction); stroke-dasharray: 6 4; stroke-width: 1.3; }
   .curve.hovered { stroke-width: 3.2; }
   .curve.selected { stroke: var(--accent); stroke-width: 3; }
+  .curve.picked { stroke: var(--ok); stroke-width: 3.5; }
+  .handle.picked { stroke: var(--ok); fill: var(--ok); }
   .handle { fill: var(--panel); stroke: var(--sketch); stroke-width: 1.2; }
   .handle.defined { stroke: var(--ink); }
   .handle.fixed { fill: var(--ink); }

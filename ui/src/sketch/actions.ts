@@ -40,6 +40,10 @@ export abstract class Action {
   protected picks: Hit[] = [];
   get busy(): boolean { return this.picks.length > 0; }
   reset(): void { this.picks = []; }
+  /** What has been picked so far, to show it. */
+  picked(): { points: Id[]; curves: Id[] } {
+    return { points: this.picks.flatMap((h) => (h.point !== null ? [h.point] : [])), curves: this.picks.flatMap((h) => (h.point === null && h.entity !== null ? [h.entity] : [])) };
+  }
   abstract hint(ctx: Context): string;
   fields(_ctx: Context, _cursor: Vec): Field[] { return []; }
   preview(_ctx: Context, _cursor: Vec, _hover: Hit, _locked: Locked): Preview { return none(); }
