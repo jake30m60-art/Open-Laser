@@ -649,10 +649,12 @@ fn input(
         return Err(Error::Refused("wait for drawing preparation".into()));
     }
     if draft.current.features.common.is_some()
+        || draft.current.features.fly.is_some()
         || draft.current.features.bridges.as_ref().is_some_and(|b| !b.connections.is_empty())
     {
         return Err(Error::Refused(
-            "remove common edges and bridge connections before changing their layout".into(),
+            "remove common edges, flying cuts and bridge connections before changing their layout"
+                .into(),
         ));
     }
     let sheets = sources

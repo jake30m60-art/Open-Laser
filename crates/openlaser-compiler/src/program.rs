@@ -271,6 +271,20 @@ impl Compiled {
         self.pieces.iter().map(|p| p.samples.len()).sum()
     }
 
+    /// Whether the pass pierces standing before it moves: a pre-pierce
+    /// point always, a cut when it pierces and does not open in a joint,
+    /// which enters at speed instead ([`Entry::for_cut`]).
+    #[must_use]
+    pub fn pierces_on_entry(&self) -> bool {
+        match self.pass.kind {
+            PassKind::PrePierce => true,
+            PassKind::Cut => {
+                self.initial_pierce && !self.pieces.first().is_some_and(|p| p.process.joint)
+            }
+            PassKind::Film => false,
+        }
+    }
+
     /// The cutting duration.
     #[must_use]
     pub fn seconds(&self) -> f64 {
@@ -1926,6 +1940,61 @@ mod tests {
 
     fn bound() -> Binding {
         Binding { current: [0., 0.], z_units_per_mm: Some(1000) }
+    }
+
+    /// A flying line from OpenLaser's preparation: it opens in a laser-off
+    /// joint, so it enters at speed without a stationary pierce even though
+    /// the recipe pierces, the beam is gated off over the gap, and the head
+    /// does not slow down across it.
+    #[test]
+    fn a_flying_line_enters_without_piercing_and_gates_the_beam_at_speed() {
+        let s = piercing();
+        let off = SegmentProcess { joint: true, power: Some(0.), ..SegmentProcess::default() };
+        let cut = SegmentProcess::default();
+        let at = |a: f64, b: f64| Segment::Line { start: [a, 0.], end: [b, 0.] };
+        let contour = Contour {
+            segments: tagged(
+                vec![off.clone(), cut.clone(), off.clone(), cut, off],
+                vec![at(0., 5.), at(5., 25.), at(25., 30.), at(30., 50.), at(50., 55.)],
+            ),
+            overrides: Overrides::default(),
+        };
+        let job = Job::schedule_prepared(&s, &[contour], None).unwrap();
+        let mut points: Vec<Point> = Vec::new();
+        let mut powers: Vec<u8> = Vec::new();
+        for piece in &job.passes[0].pieces {
+            points.extend(piece.plan.points[1..].iter().copied());
+            powers.extend(piece.samples.iter().map(|s| s.power));
+        }
+        let mut lit = 0;
+        for (point, power) in points.iter().zip(&powers) {
+            let x = point[0];
+            if x < 4.9 || (25.1..29.9).contains(&x) || x > 50.1 {
+                assert_eq!(*power, 0, "beam on at x = {x}");
+            } else if (5.1..24.9).contains(&x) || (30.1..49.9).contains(&x) {
+                assert!(*power > 0, "beam off at x = {x}");
+                lit += 1;
+            }
+        }
+        assert!(lit > 0);
+        let step = |x: f64| {
+            let i = points.iter().position(|p| p[0] >= x).unwrap();
+            points[i][0] - points[i - 1][0]
+        };
+        assert!(step(27.5) >= 0.99 * step(20.).min(step(35.)), "the head slows over the gap");
+        let program = job.program(bound()).unwrap();
+        assert!(
+            !program
+                .sections
+                .iter()
+                .any(|sec| matches!(sec.kind, Kind::Pierce(_) | Kind::PierceStart(_))),
+            "a flying line must not pierce standing"
+        );
+        let start = program.sections.iter().find(|sec| sec.kind == Kind::CutStart).unwrap();
+        // Gas, then the head down, then the laser armed at zero power: the
+        // first joint's own power, with no laser-on dwell before moving.
+        let opening = records(&program, start);
+        assert!(matches!(opening.last(), Some(Record::Pwm { power: 0, .. })), "{opening:?}");
     }
 
     /// Cleaning uses the actual first pierce position even when there is

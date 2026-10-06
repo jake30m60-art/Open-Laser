@@ -5,7 +5,6 @@
 //! program's own output writes, so the times match what is uploaded.
 
 use super::GasKind;
-use openlaser_compiler::pass::PassKind;
 use openlaser_compiler::program::{Job, Kind, Program, Section};
 use openlaser_compiler::settings::{Hardware, Settings};
 use openlaser_core::units::{Bar, Millimeters, Seconds};
@@ -302,12 +301,7 @@ pub fn of(job: &Job, program: &Program) -> JobUsage {
     }
     if !dry {
         for (compiled, bucket) in job.passes.iter().zip(&mut usage.passes) {
-            let pierces = match compiled.pass.kind {
-                PassKind::PrePierce => true,
-                PassKind::Cut => compiled.initial_pierce,
-                PassKind::Film => false,
-            };
-            bucket.pierces = u32::from(pierces);
+            bucket.pierces = u32::from(compiled.pierces_on_entry());
         }
     }
     let shares = vec![1.; usage.passes.len()];

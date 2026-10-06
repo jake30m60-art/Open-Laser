@@ -28,6 +28,7 @@
 
 mod bridge;
 mod common;
+mod flying;
 mod joints;
 mod leads;
 mod order;
@@ -288,7 +289,55 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     } else {
         ordered
     };
-    Ok(Toolpath { contours, warnings: preparation.warnings })
+    let mut warnings = preparation.warnings;
+    let contours = match &features.fly {
+        Some(fly) => flying::fly(contours, fly, &mut warnings)?,
+        None => contours,
+    };
+    let contours = fills(contours, features)?;
+    let segments: usize = contours.iter().map(|c| c.segments.len()).sum();
+    if segments > MAX_PREPARED_CURVES {
+        return Err(Error::Limit(format!(
+            "flying cuts and fills make more than {MAX_PREPARED_CURVES} lines and arcs;              widen the fill spacing or split the parts over more sheets"
+        )));
+    }
+    Ok(Toolpath { contours, warnings })
+}
+
+/// Each marked layer with a fill of its own: its closed shapes become one
+/// scan zigzag where the first of them ran, followed by the shapes
+/// themselves when the fill keeps its outlines.
+fn fills(contours: Vec<PreparedContour>, features: &Features) -> Result<Vec<PreparedContour>> {
+    let filled: Vec<(&str, &openlaser_core::features::Fill)> = features
+        .layers
+        .iter()
+        .filter(|l| l.mode == LayerMode::Mark)
+        .filter_map(|l| Some((l.name.as_str(), l.machining.as_ref()?.fill.as_ref()?)))
+        .collect();
+    if filled.is_empty() {
+        return Ok(contours);
+    }
+    let mut zigzags = Vec::with_capacity(filled.len());
+    for (name, fill) in &filled {
+        let shapes: Vec<&PreparedContour> =
+            contours.iter().filter(|c| c.layer == *name && c.closed).collect();
+        zigzags.push(flying::fill(&shapes, fill)?);
+    }
+    let mut out = Vec::with_capacity(contours.len() + zigzags.len());
+    for contour in contours {
+        let Some(at) = filled.iter().position(|(name, _)| contour.closed && contour.layer == *name)
+        else {
+            out.push(contour);
+            continue;
+        };
+        if let Some(zigzag) = zigzags[at].take() {
+            out.push(zigzag);
+        }
+        if filled[at].1.outline {
+            out.push(contour);
+        }
+    }
+    Ok(out)
 }
 
 fn validate_drawing(drawing: &Drawing, features: &Features) -> Result<()> {
@@ -311,6 +360,9 @@ fn validate_drawing(drawing: &Drawing, features: &Features) -> Result<()> {
     }
     for layer in features.layers.iter().filter(|l| l.machining.is_some()) {
         check(&features.for_layer(&layer.name))?;
+    }
+    if features.fly.as_ref().is_some_and(|f| f.contours.iter().any(|&i| i >= contours)) {
+        return Err(feature("flying cut", "select the contours again: the drawing has changed"));
     }
     check(features)
 }

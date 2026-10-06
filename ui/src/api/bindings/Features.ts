@@ -3,6 +3,7 @@ import type { Bridges } from "./Bridges";
 import type { CommonEdges } from "./CommonEdges";
 import type { Cooling } from "./Cooling";
 import type { CutOrder } from "./CutOrder";
+import type { FlyCut } from "./FlyCut";
 import type { Joints } from "./Joints";
 import type { Kerf } from "./Kerf";
 import type { Layer } from "./Layer";
@@ -39,6 +40,11 @@ bridges: Bridges | null,
  * Share compatible coincident spans between these placed contours.
  */
 common: CommonEdges | null,
+/**
+ * Cut the straight edges of these placed contours in flying passes;
+ * left out of the file when off, as earlier builds wrote it.
+ */
+fly?: FlyCut,
 /**
  * Where each contour starts and which way it runs.
  */

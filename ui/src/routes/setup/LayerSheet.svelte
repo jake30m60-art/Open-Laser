@@ -12,9 +12,11 @@
   import { explain, plural, recipeLabel } from '../../lib/format';
   import { quantity } from '../../lib/units.svelte';
   import { materialsOf } from '../../lib/materials';
-  import { hasOwn, PALETTE, swatchColor } from '../../lib/drawing-layers';
+  import { defaultFill, hasOwn, PALETTE, setFill, swatchColor } from '../../lib/drawing-layers';
+  import Stepper from '../../components/params/Stepper.svelte';
+  import Toggle from '../../components/params/Toggle.svelte';
   import { featureEdits } from '../../stores/feature-edits';
-  import type { LayerChange, LayerMode } from '../../api';
+  import type { Fill, LayerChange, LayerMode } from '../../api';
 
   let { name: initial, onclose }: { name: string; onclose: () => void } = $props();
   // Renaming changes the layer's name, so the sheet follows it.
@@ -68,6 +70,13 @@
     ui.setupPanel = 'leads';
     onclose();
   }
+  // A mark's scan fill: engraving its closed shapes line by line.
+  const fill = $derived(featureEdits.value(draft).layers?.find((l) => l.name === name)?.machining?.fill ?? null);
+  function writeFill(next: Fill | null): void {
+    const order = draft.layers.map((l) => l.name);
+    featureEdits.change((f) => setFill(f, name, next, order)).catch((error) => ui.say(explain(error), true));
+  }
+  const fillWith = (change: Partial<Fill>) => { if (fill) writeFill({ ...fill, ...change }); };
   const usesJob = $derived(!!layer && layer.output && layer.chosen && !layer.recipe);
   const swatch = $derived(swatchColor(draft.layers, name));
 </script>
@@ -110,6 +119,22 @@
         </div>
       </div>
 
+      {#if layer.mode === 'mark'}
+        <div class="setting">
+          <span><strong>Fill</strong><small>{fill ? 'Engraves the closed shapes line by line' : 'Traces the outlines only'}</small></span>
+          <button class="switch" class:on={!!fill} disabled={busy} aria-label="Fill"
+            onclick={() => writeFill(fill ? null : defaultFill())}></button>
+        </div>
+        {#if fill}
+          <div class="fill">
+            <Stepper label="Line spacing" value={fill.spacing} unit="mm" step={0.01} apply={(v) => fillWith({ spacing: Math.min(20, Math.max(0.01, v)) })} />
+            <Stepper label="Angle" value={fill.angle} unit="°" step={15} apply={(v) => fillWith({ angle: v % 180 })} />
+            <Stepper label="Run-up, laser off" value={fill.run_up} unit="mm" step={0.5} apply={(v) => fillWith({ run_up: Math.min(50, v) })} />
+            <Toggle label="Trace the outlines after the fill" value={fill.outline} apply={(v) => fillWith({ outline: v })} />
+          </div>
+        {/if}
+      {/if}
+
       <div class="setting">
         <span><strong>Machining</strong><small>{own ? 'Its own' : layer.mode === 'mark' ? 'None' : 'The job\'s'}</small></span>
         <button class="btn btn-ghost" onclick={machining}>Edit</button>
@@ -141,6 +166,7 @@
 
 <style>
   .layer-sheet { display:grid; gap:10px; }
+  .fill { display:grid; gap:6px; padding:0 0 6px; }
   .ident { display:flex; align-items:center; gap:6px; min-width:0; }
   .swatch-btn, .icon-btn { flex:none; width:48px; height:48px; display:grid; place-items:center; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); color:var(--ink-2); cursor:pointer; }
   .icon-btn.off { color:var(--ink-3); }

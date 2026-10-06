@@ -101,3 +101,39 @@ fn layers_run_in_the_tables_order_and_holes_on_their_own_layer_stay_holes() {
     let layers: Vec<_> = toolpath.contours.iter().map(|c| c.layer.as_str()).collect();
     assert_eq!(layers, ["Outer", "Etch", "Inner"]);
 }
+
+/// An engraved logo: the marked layer's closed shapes become one zigzag
+/// with the beam on only inside them, entered at speed, and their outlines
+/// follow when the fill keeps them. The cut layer is untouched.
+#[test]
+fn a_filled_mark_engraves_one_zigzag_and_keeps_its_outlines() {
+    use openlaser_core::features::Fill;
+    let drawing = Drawing { contours: vec![square("Cut", 60.), circle("Logo", 30., 30., 10.)] };
+    let fill = Fill { spacing: 0.5, angle: 0., run_up: 2., outline: true };
+    let logo = Layer {
+        machining: Some(Machining { fill: Some(fill.clone()), ..Machining::default() }),
+        ..layer("Logo", LayerMode::Mark)
+    };
+    let features = Features { layers: vec![logo], ..Features::default() };
+    let toolpath = openlaser_prep::prepare(&drawing, &features).unwrap();
+    let logo: Vec<_> = toolpath.contours.iter().filter(|c| c.layer == "Logo").collect();
+    assert_eq!(logo.len(), 2, "the zigzag, then the outline");
+    let zigzag = logo[0];
+    assert!(!zigzag.closed);
+    assert!(zigzag.segments[0].process.joint, "it enters at speed with the beam off");
+    let lit: f64 =
+        zigzag.segments.iter().filter(|s| !s.process.joint).map(|s| s.curve.length()).sum();
+    let area = std::f64::consts::PI * 100.;
+    assert!((lit * fill.spacing - area).abs() < area * 0.02, "covers the disc: {lit}");
+    assert!(logo[1].closed);
+    assert_eq!(toolpath.contours.iter().filter(|c| c.layer == "Cut").count(), 1);
+
+    let bare = Fill { outline: false, ..fill };
+    let logo = Layer {
+        machining: Some(Machining { fill: Some(bare), ..Machining::default() }),
+        ..layer("Logo", LayerMode::Mark)
+    };
+    let features = Features { layers: vec![logo], ..Features::default() };
+    let toolpath = openlaser_prep::prepare(&drawing, &features).unwrap();
+    assert_eq!(toolpath.contours.iter().filter(|c| c.layer == "Logo").count(), 1);
+}

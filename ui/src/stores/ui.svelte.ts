@@ -15,7 +15,7 @@ export type ConfirmRequest = {
 };
 type Confirmation = ConfirmRequest & { resolve: (ok: boolean) => void };
 
-const FEATURE_IDS = ['leads', 'joints', 'cooling', 'kerf', 'bridges', 'order', 'start', 'common'] as const;
+const FEATURE_IDS = ['leads', 'joints', 'cooling', 'kerf', 'bridges', 'order', 'start', 'common', 'fly'] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
 /** What a tap on the drawing places while a panel asks for it. */

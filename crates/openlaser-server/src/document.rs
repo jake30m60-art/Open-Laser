@@ -786,6 +786,9 @@ pub fn features_on(features: &Features) -> Vec<String> {
     if features.common.is_some() {
         on.push("common".into());
     }
+    if features.fly.is_some() {
+        on.push("fly".into());
+    }
     on
 }
 

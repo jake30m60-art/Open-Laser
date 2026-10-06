@@ -1,7 +1,7 @@
 // The drawing's layers on screen: the colour each draws in, and machining seen
 // from one layer. A layer's machining of its own lives in the features'
 // layer table, so editing it is a features edit like any other.
-import type { DraftLayer, Features, Layer, Machining } from '../api';
+import type { DraftLayer, Features, Fill, Layer, Machining } from '../api';
 
 /** Colours for layers the file leaves uncoloured, by name after the first,
  *  which draws in the screen's cut colour; distinct on light and dark, and
@@ -63,10 +63,27 @@ export function setOwn(features: Features, layer: string, view: Features | null,
   const layers = table(features, order);
   const entry = layers.find((l) => l.name === layer);
   if (!entry) return;
+  const fill = entry.machining?.fill;
   entry.machining = view && {
     leads: view.leads ? { ...view.leads, overrides: [] } : null,
     joints: view.joints, cooling: view.cooling, kerf: view.kerf,
     start: { ...view.start, spots: [] }, seam: view.seam,
+    ...(fill ? { fill } : {}),
   };
   features.layers = layers;
 }
+
+/** A marked layer's scan fill, or none. A layer without machining of its
+ *  own gets the bare machining a mark has, with the fill. */
+export function setFill(features: Features, layer: string, fill: Fill | null, order: readonly string[]): void {
+  const layers = table(features, order);
+  const entry = layers.find((l) => l.name === layer);
+  if (!entry) return;
+  const machining: Machining = entry.machining ?? structuredClone(BARE);
+  if (fill) machining.fill = fill;
+  else delete machining.fill;
+  entry.machining = machining;
+  features.layers = layers;
+}
+
+export const defaultFill = (): Fill => ({ spacing: 0.1, angle: 0, run_up: 3, outline: true });

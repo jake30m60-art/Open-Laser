@@ -2,7 +2,7 @@ import { quantity } from '../lib/units.svelte';
 import { plural } from './format';
 // The machining features as the tool bar shows them: which are on, their
 // one-line state, and sensible values when switched on.
-import type { Bridges, CommonEdges, Cooling, Features, Joints, Kerf, Leads } from '../api';
+import type { Bridges, CommonEdges, Cooling, Features, FlyCut, Joints, Kerf, Leads } from '../api';
 
 export interface Tool { id: string; short: string; name: string; desc: string; optional: boolean }
 
@@ -13,6 +13,7 @@ export const TOOLS: Tool[] = [
   { id: 'kerf', short: 'Kerf', name: 'Kerf compensation', desc: 'Offset cuts to allow for the beam width.', optional: true },
   { id: 'bridges', short: 'Bridges', name: 'Bridges', desc: 'Join contours with a channel.', optional: true },
   { id: 'common', short: 'Common edges', name: 'Common edges', desc: 'Cut selected shared edges once.', optional: true },
+  { id: 'fly', short: 'Flying cut', name: 'Flying cut', desc: 'Cut straight edges on one line in a single pass, the laser off over the gaps.', optional: true },
   { id: 'order', short: 'Cut order', name: 'Cutting order', desc: 'Choose the sequence of cuts.', optional: false },
   { id: 'start', short: 'Start & seam', name: 'Start point and seam', desc: 'Set start points, direction, and seam treatment.', optional: false },
 ];
@@ -23,6 +24,7 @@ export const defaultCooling = (): Cooling => ({ dwell: 300, placement: { automat
 export const defaultKerf = (): Kerf => ({ width: 0.2, side: 'auto' });
 export const defaultBridges = (): Bridges => ({ width: 2, connections: [] });
 export const defaultCommon = (contours: number[]): CommonEdges => ({ contours: [...contours], tolerance: 0.01, allow_overcut: false });
+export const defaultFly = (contours: number[]): FlyCut => ({ contours: [...contours], run_up: 3, overcut: 0, tolerance: 0.01 });
 
 export function isOn(features: Features, id: string): boolean {
   switch (id) {
@@ -32,6 +34,7 @@ export function isOn(features: Features, id: string): boolean {
     case 'kerf': return features.kerf !== null;
     case 'bridges': return features.bridges !== null;
     case 'common': return features.common !== null;
+    case 'fly': return !!features.fly;
     default: return true;
   }
 }
@@ -44,6 +47,7 @@ export function toggled(features: Features, id: string, contours: number[] = [])
   if (id === 'kerf') f.kerf = f.kerf ? null : defaultKerf();
   if (id === 'bridges') f.bridges = f.bridges ? null : defaultBridges();
   if (id === 'common') f.common = f.common ? null : defaultCommon(contours);
+  if (id === 'fly') { if (f.fly) delete f.fly; else f.fly = defaultFly(contours); }
   return f;
 }
 
@@ -69,6 +73,7 @@ export function stateOf(features: Features, id: string): string {
     case 'kerf': { const k = features.kerf; return k ? `${quantity(k.width, 'mm')}` : 'Off'; }
     case 'bridges': { const b = features.bridges; return b ? `${b.connections.length} × ${quantity(b.width, 'mm')}` : 'Off'; }
     case 'common': { const c = features.common; return c ? `${plural(c.contours.length, 'contour')} · ${quantity(c.tolerance, 'mm')}` : 'Off'; }
+    case 'fly': { const f = features.fly; return f ? `${plural(f.contours.length, 'contour')} · run-up ${quantity(f.run_up, 'mm')}` : 'Off'; }
     case 'order': { const o = features.order; return typeof o.strategy === 'string' ? (o.inner_first ? 'Inner first' : title(o.strategy)) : 'Manual'; }
     case 'start': { const s = features.start; const at = typeof s.position === 'string' ? title(s.position) : 'Manual'; return `${s.spots.length ? `${s.spots.length} chosen` : at} · ${title(s.direction)}`; }
     default: return '';

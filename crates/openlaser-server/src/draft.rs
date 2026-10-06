@@ -1119,10 +1119,14 @@ fn preview(toolpath: &Toolpath, bounds: Option<Bounds>) -> Preview {
     Preview {
         contours,
         bounds,
+        // What the beam cuts: stretches travelled with the laser off, such
+        // as a flying cut's run-ups and gaps, are not cut length.
         length_mm: toolpath
             .contours
             .iter()
-            .map(openlaser_core::toolpath::PreparedContour::length)
+            .flat_map(|c| &c.segments)
+            .filter(|s| !(s.process.joint && s.process.power == Some(0.)))
+            .map(|s| s.curve.length())
             .sum(),
         warnings: toolpath.warnings.clone(),
     }
@@ -1298,16 +1302,8 @@ pub(crate) fn summary(
     dry_run: bool,
     plan: Vec<crate::document::PassView>,
 ) -> Compiled {
-    let pierces = job
-        .passes
-        .iter()
-        .filter(|pass| match pass.pass.kind {
-            PassKind::PrePierce => true,
-            PassKind::Cut => pass.initial_pierce,
-            PassKind::Film => false,
-        })
-        .map(|pass| pass.start)
-        .collect();
+    let pierces =
+        job.passes.iter().filter(|pass| pass.pierces_on_entry()).map(|pass| pass.start).collect();
     let pass_usage = crate::gas::usage::of(job, program);
     Compiled {
         dry_run,

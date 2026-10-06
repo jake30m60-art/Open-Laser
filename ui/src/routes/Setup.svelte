@@ -48,6 +48,10 @@
       ui.say('Select at least two adjacent contours on the drawing.', true);
       return;
     }
+    if (id === 'fly' && !draft.features.fly && selectedContours.length < 1) {
+      ui.say('Select the contours to cut flying on the drawing, such as a grid of square holes.', true);
+      return;
+    }
     try {
       await featureEdits.change((features) => Object.assign(features, toggled(features, id, selectedContours)));
     } catch (error) {

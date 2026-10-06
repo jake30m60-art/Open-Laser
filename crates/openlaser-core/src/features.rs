@@ -27,6 +27,11 @@ pub struct Features {
     pub bridges: Option<Bridges>,
     /// Share compatible coincident spans between these placed contours.
     pub common: Option<CommonEdges>,
+    /// Cut the straight edges of these placed contours in flying passes;
+    /// left out of the file when off, as earlier builds wrote it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub fly: Option<FlyCut>,
     /// Where each contour starts and which way it runs.
     pub start: Start,
     /// How a closed contour's seam is treated.
@@ -96,6 +101,11 @@ pub struct Machining {
     pub start: Start,
     /// How a closed contour's seam is treated.
     pub seam: Seam,
+    /// Fill the closed shapes of a marked layer with scan lines; left out
+    /// of the file when off, as earlier builds wrote it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub fill: Option<Fill>,
 }
 
 /// One shape on a layer of the operator's choosing. The shape is a contour
@@ -241,6 +251,43 @@ pub struct CommonEdges {
     pub tolerance: f64,
     /// Permit retracing a shared span to connect remaining cuts on one contour.
     pub allow_overcut: bool,
+}
+
+/// Straight edges that lie on one line, cut in one continuous pass with the
+/// laser switched off over the gaps between them: perforated sheet, grids
+/// and rows of slots. Each line starts with the head already moving, so a
+/// cut begins with a flying pierce rather than a stationary one.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FlyCut {
+    /// Placed contour identities, before bridges. Only contours made of
+    /// straight lines fly; others are cut as usual.
+    pub contours: Vec<usize>,
+    /// Laser-off approach before the first cut of a line and after its
+    /// last, in millimetres, so the head is at speed when the beam comes on.
+    /// Zero starts at the first cut with a normal pierce.
+    pub run_up: f64,
+    /// How far each cut runs past its ends, in millimetres, so corners
+    /// cut by two crossing lines separate cleanly.
+    pub overcut: f64,
+    /// Maximum distance between edges that count as one line, in millimetres.
+    pub tolerance: f64,
+}
+
+/// A marked layer's closed shapes engraved by scan lines: one continuous
+/// zigzag with the laser on inside the shapes and off outside them.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Fill {
+    /// Distance between scan lines, in millimetres.
+    pub spacing: f64,
+    /// Scan direction, in degrees counterclockwise from X.
+    pub angle: f64,
+    /// Laser-off travel beyond the shapes at both ends of every line, in
+    /// millimetres, for turning round at speed.
+    pub run_up: f64,
+    /// Trace the outlines after the fill, for crisp edges.
+    pub outline: bool,
 }
 
 /// A place along a drawing contour: the contour's index in the drawing and
@@ -673,6 +720,7 @@ mod tests {
             kerf: Some(Kerf { width: Millimeters(0.2), side: Side::Auto }),
             bridges: None,
             common: None,
+            fly: None,
             start: Start {
                 position: StartPosition::Manual(0.25),
                 direction: Direction::Clockwise,

@@ -7,11 +7,12 @@
   import { server } from '../../stores/server.svelte';
   import { ui, type FeatureId } from '../../stores/ui.svelte';
   import { ago, explain, recipeLabel } from '../../lib/format';
-  import { TOOLS, defaultBridges, defaultCommon, defaultCooling, defaultJoints, defaultKerf, defaultLeads, isOn, toggled } from '../../lib/features';
+  import { TOOLS, defaultBridges, defaultCommon, defaultCooling, defaultFly, defaultJoints, defaultKerf, defaultLeads, isOn, toggled } from '../../lib/features';
   import Tabs from '../../components/params/Tabs.svelte';
   import CutOrderPreview from './CutOrderPreview.svelte';
   import BridgesForm from './features/BridgesForm.svelte';
   import CommonForm from './features/CommonForm.svelte';
+  import FlyForm from './features/FlyForm.svelte';
   import CoolingForm from './features/CoolingForm.svelte';
   import JointsForm from './features/JointsForm.svelte';
   import KerfForm from './features/KerfForm.svelte';
@@ -75,6 +76,7 @@
       if (id === 'kerf') f.kerf = defaultKerf();
       if (id === 'bridges') f.bridges = defaultBridges();
       if (id === 'common' && f.common) f.common = defaultCommon(f.common.contours);
+      if (id === 'fly' && f.fly) f.fly = defaultFly(f.fly.contours);
       if (id === 'order') f.order = { strategy: 'as_drawn', inner_first: true, circles_first: false, spread_heat: false };
       if (id === 'start') { f.start = { position: 'automatic', direction: 'keep', spots: [] }; f.seam = 'seal'; }
     });
@@ -129,6 +131,8 @@
     <BridgesForm {features} {on} {set} {pick} />
   {:else if id === 'common'}
     <CommonForm {features} {on} {selectedContours} error={draft.error} {set} />
+  {:else if id === 'fly'}
+    <FlyForm {features} {on} {selectedContours} error={draft.error} {set} />
   {:else if id === 'order'}
     <OrderForm {features} {on} preview={draft.preview} {set} {pick} />
   {:else if id === 'start'}
