@@ -3,7 +3,7 @@
 // curves, may offer heads-up values, previews its result, and returns the
 // sketch to commit; the page solves it before keeping it.
 import { dist, shapeOf, sketchBounds, type Shape, type Vec } from './geometry';
-import { addConstraint, clone, merge, point, type Dimension, type Entity, type Id, type NewConstraint, type Sketch } from './model';
+import { addConstraint, clone, merge, point, pointsOf, type Dimension, type Entity, type Id, type NewConstraint, type Sketch } from './model';
 import { breakAt, chains, chamfer, circularPattern, extend, fillet, mirror, offset, rectangularPattern, stretch, trim, type Outcome } from './modify';
 import { axisFor, labelAnchor, measure } from './annotations';
 import type { Field, Locked } from './tools';
@@ -23,8 +23,8 @@ export type Step =
   | { kind: 'select'; ids: Id[] }
   /** Add a curve to the selection or take it out. */
   | { kind: 'toggle'; id: Id }
-  /** Keep this sketch; `done` ends the action. */
-  | { kind: 'apply'; sketch: Sketch; select?: Id[]; done?: boolean }
+  /** Keep this sketch; `done` ends the action, `edit` asks a new dimension's value. */
+  | { kind: 'apply'; sketch: Sketch; select?: Id[]; done?: boolean; edit?: Id }
   | { kind: 'error'; message: string };
 
 export interface Preview { shapes: Shape[]; removed: Shape[]; dimension: Dimension | null }
@@ -414,7 +414,7 @@ class Dimensioning extends Action {
   hint(): string {
     if (this.placing) return 'Place the dimension, type its value · Enter or click';
     if (!this.picks.length) return 'Click a line, circle, arc or point';
-    return 'Click a second point or line, or click away to place the dimension';
+    return 'Click a second point, line, circle or arc, or click away to place the dimension';
   }
 
   /** The dimension the picks describe with its text at `at`, at the value it measures now. */
@@ -426,16 +426,24 @@ class Dimensioning extends Action {
     const base = { id: -1, value: 0, at: place };
     let d: Dimension | null = null;
     if (!b) {
-      if (ea?.kind === 'circle') d = { ...base, kind: 'diameter', curve: ea.id };
-      else if (ea?.kind === 'arc') d = { ...base, kind: 'radius', curve: ea.id };
-      else if (ea?.kind === 'line') d = { ...base, kind: 'distance', a: ea.a, b: ea.b, axis: axisFor(point(s, ea.a), point(s, ea.b), at) };
-    } else if (a.point !== null && b.point !== null) {
-      d = { ...base, kind: 'distance', a: a.point, b: b.point, axis: axisFor(point(s, a.point), point(s, b.point), at) };
-    } else if (a.point !== null || b.point !== null) {
-      const pt = a.point ?? b.point!, line = a.point !== null ? b.entity : a.entity;
-      if (entityOf(s, line)?.kind === 'line') d = { ...base, kind: 'offset', point: pt, line: line! };
-    } else if (ea?.kind === 'line' && entityOf(s, b.entity)?.kind === 'line') {
-      d = { ...base, kind: 'angle', a: a.entity!, b: b.entity! };
+      if (ea?.kind === 'circle' && a.point === null) d = { ...base, kind: 'diameter', curve: ea.id };
+      else if (ea?.kind === 'arc' && a.point === null) d = { ...base, kind: 'radius', curve: ea.id };
+      else if (ea?.kind === 'line' && a.point === null) d = { ...base, kind: 'distance', a: ea.a, b: ea.b, axis: axisFor(point(s, ea.a), point(s, ea.b), at) };
+    } else {
+      // As Fusion: a point stands for itself, a circle or arc for its centre;
+      // two lines give their distance when parallel and their angle when not.
+      const eb = entityOf(s, b.entity);
+      const spot = (h: Hit, e: Entity | undefined): Id | null => h.point ?? (e && e.kind !== 'line' ? e.c : null);
+      const lineOf = (h: Hit, e: Entity | undefined) => (h.point === null && e?.kind === 'line' ? e : null);
+      const pa = spot(a, ea), pb = spot(b, eb), la = lineOf(a, ea), lb = lineOf(b, eb);
+      if (la && lb) {
+        d = parallel(s, la, lb)
+          ? { ...base, kind: 'offset', point: lb.a, line: la.id }
+          : { ...base, kind: 'angle', a: la.id, b: lb.id };
+      } else if (pa !== null && pb !== null) {
+        if (pa !== pb) d = { ...base, kind: 'distance', a: pa, b: pb, axis: axisFor(point(s, pa), point(s, pb), at) };
+      } else if (pa !== null && lb) d = { ...base, kind: 'offset', point: pa, line: lb.id };
+      else if (pb !== null && la) d = { ...base, kind: 'offset', point: pb, line: la.id };
     }
     if (d) {
       d.value = measure(s, d);
@@ -446,38 +454,31 @@ class Dimensioning extends Action {
   }
 
   override fields(ctx: Context, cursor: Vec): Field[] {
-    if (!this.placing) return [];
     const d = this.pending(ctx.sketch, cursor);
     if (!d) return [];
     return [{ key: 'value', label: d.kind === 'angle' ? 'Angle' : d.kind === 'diameter' ? 'Diameter' : d.kind === 'radius' ? 'Radius' : 'Distance', kind: d.kind === 'angle' ? 'angle' : 'length', value: d.value }];
   }
 
   override preview(ctx: Context, cursor: Vec): Preview {
-    return { ...none(), dimension: this.placing || this.picks.length === 1 ? this.pending(ctx.sketch, cursor) : null };
+    return { ...none(), dimension: this.pending(ctx.sketch, cursor) };
   }
 
   click(ctx: Context, hit: Hit, locked: Locked): Step {
     const s = ctx.sketch;
     if (this.placing) return this.place(s, hit.at, locked);
     if (!this.picks.length) {
-      const e = entityOf(s, hit.entity);
       if (hit.point !== null) { this.picks.push(hit); return { kind: 'more' }; }
-      if (!e) return { kind: 'more' };
-      this.picks.push(asCurve(hit));
-      if (e.kind !== 'line') this.placing = true;
+      if (entityOf(s, hit.entity)) this.picks.push(asCurve(hit));
       return { kind: 'more' };
     }
     const first = this.picks[0]!;
-    const e = entityOf(s, hit.entity);
-    if (first.point !== null) {
-      if (hit.point !== null && hit.point !== first.point) { this.picks.push(hit); this.placing = true; return { kind: 'more' }; }
-      if (e?.kind === 'line') { this.picks.push(asCurve(hit)); this.placing = true; return { kind: 'more' }; }
-      return { kind: 'more' };
-    }
-    // A line first: a second line measures the angle, a point the distance
-    // to it, anywhere else places the line's length.
-    if (e?.kind === 'line' && e.id !== first.entity && hit.point === null) { this.picks.push(asCurve(hit)); this.placing = true; return { kind: 'more' }; }
-    if (hit.point !== null) { this.picks.push(hit); this.placing = true; return { kind: 'more' }; }
+    const curve = entityOf(s, first.entity);
+    const own = new Set(first.point !== null ? [first.point] : curve ? pointsOf(curve) : []);
+    // A second point, or a second curve, makes a dimension between the two;
+    // a curve's own point or empty space places the curve's own.
+    if (hit.point !== null && !own.has(hit.point)) { this.picks.push(hit); this.placing = true; return { kind: 'more' }; }
+    if (hit.point === null && hit.entity !== null && hit.entity !== first.entity) { this.picks.push(asCurve(hit)); this.placing = true; return { kind: 'more' }; }
+    if (first.point !== null) return { kind: 'more' };
     return this.place(s, hit.at, locked);
   }
 
@@ -494,9 +495,19 @@ class Dimensioning extends Action {
     const s = clone(s0);
     const { id: _drop, ...rest } = d;
     void _drop;
-    addConstraint(s, { ...rest, value } as never);
-    return { kind: 'apply', sketch: s };
+    const id = addConstraint(s, { ...rest, value } as never);
+    // Placed without a typed value: its value is asked next, as in Fusion.
+    return { kind: 'apply', sketch: s, ...(locked.value === undefined ? { edit: id } : {}) };
   }
+}
+
+/** Whether two lines run the same way, within half a degree. */
+function parallel(s: Sketch, a: Entity & { kind: 'line' }, b: Entity & { kind: 'line' }): boolean {
+  const pa = point(s, a.a), qa = point(s, a.b), pb = point(s, b.a), qb = point(s, b.b);
+  const ua = { x: qa.x - pa.x, y: qa.y - pa.y }, ub = { x: qb.x - pb.x, y: qb.y - pb.y };
+  const la = Math.hypot(ua.x, ua.y), lb = Math.hypot(ub.x, ub.y);
+  if (!la || !lb) return false;
+  return Math.abs(ua.x * ub.y - ua.y * ub.x) / (la * lb) < Math.sin(Math.PI / 360);
 }
 
 export function createAction(id: ActionId): Action {

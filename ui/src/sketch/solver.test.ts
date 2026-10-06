@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { addConstraint, addEntity, addPoint, emptySketch, point, type Sketch } from './model';
 import { createTool } from './tools';
-import { defined, freedom, initSolver, solve } from './solver';
+import { clusters, defined, freedom, initSolver, solve } from './solver';
+import { rectangularPattern } from './modify';
 import { angleOf, dist } from './geometry';
 import type { Snap } from './snap';
 
@@ -152,5 +153,25 @@ describe('solver', () => {
     expect(placed.dof).toBe(0);
     const none = freedom(f.sketch)!;
     expect(f.sketch.entities.every((e) => defined(e, none))).toBe(true);
+  });
+
+  it('solves a large pattern group by group', () => {
+    // One system for 400 rectangles ran the solver out of memory.
+    const s = rectangle(10, 6);
+    const [bottom] = lineIds(s) as [number];
+    const b = s.entities.find((e) => e.id === bottom)!;
+    if (b.kind !== 'line') throw new Error('line expected');
+    addConstraint(s, { kind: 'distance', a: b.a, b: b.b, axis: 'aligned', value: 10, at: [0, 0] });
+    const pattern = rectangularPattern(s, s.entities.map((e) => e.id), 20, 20, 15, 10);
+    if ('error' in pattern) throw new Error(pattern.error);
+    const grid = pattern.sketch;
+    expect(clusters(grid)).toHaveLength(400);
+    const solved = solve(grid);
+    expect(solved.ok).toBe(true);
+    // Copies leave the width dimension behind, as Fusion's pattern does.
+    expect(solved.dof).toBe(solve(s).dof + 399 * (solve(s).dof + 1));
+    const free = freedom(grid)!;
+    // Each copy keeps its own width and can still move and stretch upwards.
+    expect(grid.entities.every((e) => !defined(e, free))).toBe(true);
   });
 });

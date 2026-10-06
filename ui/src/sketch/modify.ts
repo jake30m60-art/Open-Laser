@@ -74,6 +74,15 @@ function dropSizes(s: Sketch, id: Id): void {
   s.constraints = s.constraints.filter((c) => !((c.kind === 'diameter' || c.kind === 'radius') && c.curve === id));
 }
 
+/** A line whose length an edit changed lets go of what held its length:
+ *  being equal to other lines and having a point at its middle. Kept, they
+ *  would pull every other side of the outline after it. */
+function freeLength(s: Sketch, ids: readonly Id[]): void {
+  const lines = new Set(ids.filter((id) => s.entities.some((e) => e.id === id && e.kind === 'line')));
+  s.constraints = s.constraints.filter((c) =>
+    !(c.kind === 'equal' && (lines.has(c.a) || lines.has(c.b))) && !(c.kind === 'midpoint' && lines.has(c.line)));
+}
+
 /** Copies a line's horizontal or vertical constraint to a piece of it. */
 function copyAxis(s: Sketch, from: Id, to: Id): void {
   for (const c of s.constraints.filter((c) => (c.kind === 'horizontal' || c.kind === 'vertical') && c.line === from)) {
@@ -126,6 +135,7 @@ export function trim(source: Sketch, id: Id, click: Vec): Outcome {
     return { sketch: s, created: [id] };
   }
   if (!lo && !hi) { remove(s, [id]); return { sketch: s, created: [] }; }
+  freeLength(s, [id]);
   if (!lo) {
     const p = endOn(s, hi!.at, hi!.by);
     e.a = p;
@@ -165,6 +175,7 @@ export function breakAt(source: Sketch, id: Id, click: Vec): Outcome {
     return { sketch: s, created: [id, rest] };
   }
   const created: Id[] = [id];
+  freeLength(s, [id]);
   const end = e.b;
   const cutAt = [lo, hi].filter((c): c is NonNullable<typeof c> => !!c).map((c) => endOn(s, c.at, c.by));
   // The original keeps the first piece; each cut starts the next.
@@ -220,6 +231,7 @@ export function extend(source: Sketch, id: Id, click: Vec): Outcome {
   // A shared end stays with the other curves; this one gets an end of its own.
   const shared = uses(s, endId) > 1;
   s.constraints = s.constraints.filter((c) => !(c.kind === 'distance' && (c.a === endId || c.b === endId)));
+  freeLength(s, [id]);
   const target = s.points.find((p) => dist(p, best!.at) < SAME);
   if (target) {
     if (atEnd) e.b = target.id; else e.a = target.id;
@@ -267,6 +279,7 @@ export function fillet(source: Sketch, vertex: Id, r: number): Outcome {
   const bis = scale(add(u1, u2), 1 / len(add(u1, u2)));
   const center = add(v, scale(bis, r / Math.sin(half)));
   const p1 = addPoint(s, t1.x, t1.y), p2 = addPoint(s, t2.x, t2.y), c = addPoint(s, center.x, center.y);
+  freeLength(s, found.lines);
   reend(s, found.lines[0], vertex, p1);
   reend(s, found.lines[1], vertex, p2);
   // The fillet is the short way round between the tangent points.
@@ -292,6 +305,7 @@ export function chamfer(source: Sketch, vertex: Id, d: number): Outcome {
   const q1 = add(v, scale(sub(found.far[0], v), d / dist(found.far[0], v)));
   const q2 = add(v, scale(sub(found.far[1], v), d / dist(found.far[1], v)));
   const p1 = addPoint(s, q1.x, q1.y), p2 = addPoint(s, q2.x, q2.y);
+  freeLength(s, found.lines);
   reend(s, found.lines[0], vertex, p1);
   reend(s, found.lines[1], vertex, p2);
   const cut = addEntity(s, { kind: 'line', a: p1, b: p2 });

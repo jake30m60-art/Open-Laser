@@ -47,7 +47,8 @@ export function toggled(features: Features, id: string, contours: number[] = [])
   if (id === 'kerf') f.kerf = f.kerf ? null : defaultKerf();
   if (id === 'bridges') f.bridges = f.bridges ? null : defaultBridges();
   if (id === 'common') f.common = f.common ? null : defaultCommon(contours);
-  if (id === 'fly') { if (f.fly) delete f.fly; else f.fly = defaultFly(contours); }
+  // Undefined, not deleted: callers merge this into the draft's own features.
+  if (id === 'fly') f.fly = f.fly ? undefined : defaultFly(contours);
   return f;
 }
 

@@ -120,7 +120,7 @@
 {#if id === 'joints' || id === 'start'}<Tabs names={['Basic', 'More']} bind:active={tab} />{/if}
 <div class="stack" style="opacity:{on ? 1 : 0.45}">
   {#if id === 'leads'}
-    <LeadsForm {features} {on} {tab} {selectedContours} {set} />
+    <LeadsForm {features} {on} {tab} {selectedContours} {set} preview={scope ? null : draft.preview} />
   {:else if id === 'joints'}
     <JointsForm {features} {on} {tab} contours={draft.placed.length} {set} {pick} />
   {:else if id === 'cooling'}

@@ -9,11 +9,20 @@ import { clone, constraintRefs, point, pointsOf, type Constraint, type Entity, t
 
 let wrapper: GcsWrapper | null = null;
 let loading: Promise<void> | null = null;
+let wasmUrl: string | undefined;
 
 /** Loads the solver once; `wasm` locates its WebAssembly in a browser build. */
 export function initSolver(wasm?: string): Promise<void> {
-  loading ??= make_gcs_wrapper(wasm).then((w) => { wrapper = w; });
+  wasmUrl ??= wasm;
+  loading ??= make_gcs_wrapper(wasmUrl).then((w) => { wrapper = w; });
   return loading;
+}
+
+/** A solver that failed inside its WebAssembly cannot be used again: load a fresh one. */
+function restart(): void {
+  wrapper = null;
+  loading = null;
+  void initSolver().catch(() => undefined);
 }
 
 export const solverReady = (): boolean => wrapper !== null;
@@ -212,8 +221,88 @@ function primitives(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<I
   return out;
 }
 
+/** The sketch in groups that share no point, curve or constraint: points
+ *  tied by curves and relations, with those curves and relations. Each
+ *  group solves on its own, so a pattern of a hundred copies is a hundred
+ *  small systems rather than one too large to solve. */
+export function clusters(sketch: Sketch): Sketch[] {
+  const parent = new Map<Id, Id>();
+  const find = (x: Id): Id => {
+    let root = x;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    while (x !== root) { const up = parent.get(x)!; parent.set(x, root); x = up; }
+    return root;
+  };
+  const union = (a: Id, b: Id) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+  for (const p of sketch.points) parent.set(p.id, p.id);
+  const ends = new Map(sketch.entities.map((e) => [e.id, pointsOf(e).filter((id) => parent.has(id))]));
+  const tied = (c: Constraint): Id[] => constraintRefs(c).flatMap((r) => ends.get(r) ?? (parent.has(r) ? [r] : []));
+  const join = (ids: Id[]) => { for (let i = 1; i < ids.length; i++) union(ids[0]!, ids[i]!); };
+  for (const ids of ends.values()) join(ids);
+  for (const c of sketch.constraints) join(tied(c));
+  const groups = new Map<Id, Sketch>();
+  const group = (id: Id): Sketch => {
+    const root = find(id);
+    let g = groups.get(root);
+    if (!g) groups.set(root, (g = { points: [], entities: [], constraints: [], next: sketch.next }));
+    return g;
+  };
+  for (const p of sketch.points) group(p.id).points.push(p);
+  for (const e of sketch.entities) { const first = ends.get(e.id)![0]; if (first !== undefined) group(first).entities.push(e); }
+  for (const c of sketch.constraints) { const first = tied(c)[0]; if (first !== undefined) group(first).constraints.push(c); }
+  return [...groups.values()];
+}
+
+/** Solved groups by content, so a group an edit did not touch is not solved again. */
+const solvedGroups = new Map<string, Solved>();
+
 /** Solves the sketch, with points pulled towards positions and circles towards radii. */
 export function solve(sketch: Sketch, pulls: readonly Pull[] = [], radii: ReadonlyMap<Id, number> = new Map(), hold: boolean | ReadonlySet<Id> = false): Solved {
+  if (!wrapper) return { ok: true, sketch, conflicting: [], redundant: [], dof: -1 };
+  const groups = clusters(sketch);
+  if (groups.length <= 1) return solveGroup(sketch, pulls, radii, hold);
+  const points = new Map<Id, { x: number; y: number }>(), sizes = new Map<Id, number>();
+  const conflicting: Id[] = [], redundant: Id[] = [];
+  let dof = 0, ok = true;
+  for (const group of groups) {
+    const own = new Set(group.points.map((p) => p.id));
+    const curves = new Set(group.entities.map((e) => e.id));
+    const pulled = pulls.filter((p) => own.has(p.point));
+    const sized = new Map([...radii].filter(([e]) => curves.has(e)));
+    const loose = typeof hold === 'boolean' ? hold : group.points.filter((p) => hold.has(p.id)).map((p) => p.id);
+    const key = JSON.stringify([group.points, group.entities, group.constraints, pulled, [...sized], loose]);
+    let result = solvedGroups.get(key);
+    if (!result) {
+      result = solveGroup(group, pulled, sized, hold);
+      if (solvedGroups.size > 4000) solvedGroups.clear();
+      if (wrapper) solvedGroups.set(key, result);
+    }
+    ok &&= result.ok;
+    conflicting.push(...result.conflicting);
+    redundant.push(...result.redundant);
+    dof += result.dof;
+    for (const p of result.sketch.points) points.set(p.id, p);
+    for (const e of result.sketch.entities) if (e.kind === 'circle') sizes.set(e.id, e.r);
+  }
+  if (!ok) return { ok, sketch, conflicting, redundant, dof };
+  const solved = clone(sketch);
+  for (const p of solved.points) { const at = points.get(p.id); if (at) { p.x = at.x; p.y = at.y; } }
+  for (const e of solved.entities) if (e.kind === 'circle') e.r = sizes.get(e.id) ?? e.r;
+  return { ok, sketch: solved, conflicting, redundant, dof };
+}
+
+/** Solves one group of the sketch as one system. */
+function solveGroup(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<Id, number>, hold: boolean | ReadonlySet<Id>): Solved {
+  try {
+    return solveSystem(sketch, pulls, radii, hold);
+  } catch {
+    // Out of memory or aborted inside the WebAssembly: that solver is gone.
+    restart();
+    return { ok: false, sketch, conflicting: [], redundant: [], dof: -1 };
+  }
+}
+
+function solveSystem(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<Id, number>, hold: boolean | ReadonlySet<Id>): Solved {
   if (!wrapper) return { ok: true, sketch, conflicting: [], redundant: [], dof: -1 };
   const w = wrapper;
   w.clear_data();
@@ -241,31 +330,70 @@ export function solve(sketch: Sketch, pulls: readonly Pull[] = [], radii: Readon
 }
 
 /** Which points and circles can still move: the sketch's blue geometry.
- *  Each is nudged in turn and watched; null when the sketch is too large
- *  to check quickly. */
+ *  Each group is nudged point by point and watched; copies alike up to
+ *  where they lie share one answer. Null without a solver. */
 export function freedom(sketch: Sketch, limit = 300): { points: Set<Id>; circles: Set<Id> } | null {
   if (!wrapper) return null;
   const free = { points: new Set<Id>(), circles: new Set<Id>() };
-  const base = solve(sketch, [], new Map(), false);
-  if (!base.ok) return null;
-  if (base.dof === 0) return free;
-  if (sketch.points.length > limit) return null;
-  const step = 0.5;
-  for (const p of base.sketch.points) {
-    const moved = solve(base.sketch, [{ point: p.id, x: p.x + step, y: p.y + step }], new Map(), false);
-    if (!moved.ok || dist(p, point(moved.sketch, p.id)) > step * 0.05) free.points.add(p.id);
-  }
-  for (const e of base.sketch.entities) {
-    if (e.kind !== 'circle') continue;
-    const grown = solve(base.sketch, [], new Map([[e.id, e.r + step]]), false);
-    const r = grown.sketch.entities.find((x) => x.id === e.id);
-    if (!grown.ok || (r?.kind === 'circle' && Math.abs(r.r - e.r) > step * 0.05)) free.circles.add(e.id);
-  }
-  // Freedom left that no nudge found is still freedom: none of it is defined.
-  if (!free.points.size && !free.circles.size) {
-    for (const p of base.sketch.points) free.points.add(p.id);
+  const known = new Map<string, { points: number[]; circles: number[] }>();
+  for (const group of clusters(sketch)) {
+    const base = solve(group);
+    if (base.ok && base.dof === 0) continue;
+    const solved = base.ok ? base.sketch : group;
+    const shape = likeness(solved);
+    let found = known.get(shape);
+    if (!found) {
+      found = base.ok && solved.points.length <= limit ? nudged(solved) : everything(solved);
+      known.set(shape, found);
+    }
+    for (const i of found.points) free.points.add(solved.points[i]!.id);
+    for (const i of found.circles) free.circles.add(solved.entities[i]!.id);
   }
   return free;
+}
+
+/** Every point and circle of a group, by place in its lists. */
+function everything(group: Sketch): { points: number[]; circles: number[] } {
+  return {
+    points: group.points.map((_, i) => i),
+    circles: group.entities.flatMap((e, i) => (e.kind === 'circle' ? [i] : [])),
+  };
+}
+
+/** What moves in one solved group when each point and circle is nudged. */
+function nudged(group: Sketch): { points: number[]; circles: number[] } {
+  const step = 0.5;
+  const found = { points: [] as number[], circles: [] as number[] };
+  group.points.forEach((p, i) => {
+    const moved = solveGroup(group, [{ point: p.id, x: p.x + step, y: p.y + step }], new Map(), false);
+    if (!moved.ok || dist(p, point(moved.sketch, p.id)) > step * 0.05) found.points.push(i);
+  });
+  group.entities.forEach((e, i) => {
+    if (e.kind !== 'circle') return;
+    const grown = solveGroup(group, [], new Map([[e.id, e.r + step]]), false);
+    const r = grown.sketch.entities.find((x) => x.id === e.id);
+    if (!grown.ok || (r?.kind === 'circle' && Math.abs(r.r - e.r) > step * 0.05)) found.circles.push(i);
+  });
+  // Freedom left that no nudge found is still freedom: none of it is defined.
+  return found.points.length || found.circles.length ? found : everything(group);
+}
+
+/** A group's make-up without its ids and position: copies of one shape
+ *  moved elsewhere read alike, so they are nudged once. */
+function likeness(group: Sketch): string {
+  const index = new Map<Id, string>();
+  group.points.forEach((p, i) => index.set(p.id, `p${i}`));
+  group.entities.forEach((e, i) => index.set(e.id, `e${i}`));
+  const o = group.points[0] ?? { x: 0, y: 0 };
+  const round = (v: number) => Math.round(v * 1e6) / 1e6;
+  const named = (key: string, value: unknown): unknown =>
+    typeof value === 'number' && key !== 'value' && key !== 'r' && index.has(value) ? index.get(value) : value;
+  const plain = (o: object, skip: string[]) => Object.entries(o).filter(([k]) => !skip.includes(k)).map(([k, v]) => [k, named(k, v)]);
+  return JSON.stringify([
+    group.points.map((p) => [round(p.x - o.x), round(p.y - o.y)]),
+    group.entities.map((e) => plain(e, ['id', 'construction'])),
+    group.constraints.map((c) => plain(c, ['id', 'at'])),
+  ]);
 }
 
 /** A curve is fully defined when none of its points, nor a circle's size, can move. */
@@ -282,10 +410,12 @@ export function looseAfter(previous: Sketch, next: Sketch): Set<Id> {
   const before = new Map(previous.constraints.map((c) => [c.id, JSON.stringify(c)]));
   const loose = new Set<Id>();
   const known = new Set(previous.entities.map((e) => e.id));
-  const addCurve = (id: Id) => { const e = next.entities.find((x) => x.id === id); if (e) for (const p of pointsOf(e)) loose.add(p); };
+  const points = new Set(next.points.map((p) => p.id));
+  const curves = new Map(next.entities.map((e) => [e.id, e]));
+  const addCurve = (id: Id) => { const e = curves.get(id); if (e) for (const p of pointsOf(e)) loose.add(p); };
   for (const c of next.constraints) {
     if (before.get(c.id) === JSON.stringify(c)) continue;
-    for (const ref of constraintRefs(c)) { if (next.points.some((p) => p.id === ref)) loose.add(ref); else addCurve(ref); }
+    for (const ref of constraintRefs(c)) { if (points.has(ref)) loose.add(ref); else addCurve(ref); }
   }
   for (const e of next.entities) if (!known.has(e.id)) addCurve(e.id);
   return loose;

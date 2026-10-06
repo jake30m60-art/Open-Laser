@@ -249,8 +249,11 @@
     const original = store.sketch;
     const base = { kind: 'press' as const, x: at.x, y: at.y, start: m, moved: false, original, origins: new Map<Id, Vec>(), shift: e.shiftKey || e.ctrlKey || e.metaKey };
     if (tool) { drag = { ...base, mode: 'tool', target: null }; return; }
-    if (action) { drag = { ...base, mode: 'action', target: null }; return; }
+    // A dimension's value answers a click or a double click whatever tool
+    // is open, as in Fusion, so it can be changed at any time.
     const note = annotationAt(e);
+    const dimension = note !== null && store.sketch.constraints.some((c) => c.id === note && isDimension(c));
+    if (action && !(dimension && !action.busy)) { drag = { ...base, mode: 'action', target: null }; return; }
     if (note !== null) { drag = { ...base, mode: 'label', target: note }; return; }
     const p = hitPoint(original, m, reach);
     if (p !== null) { drag = { ...base, mode: 'point', target: p, origins: originsOf(original, []).set(p, { ...point(original, p) }) }; return; }
@@ -390,9 +393,10 @@
   }
 
   function doubleClick(e: MouseEvent): void {
-    if (tool || action) return;
+    if (tool) return;
     const note = annotationAt(e);
     if (note !== null) { editDimension(note); return; }
+    if (action) return;
     const at = local(e);
     const id = hit(store.sketch, toModel(at.x, at.y), reach);
     if (id !== null) store.select(chain(store.sketch, id), e.shiftKey ? 'add' : 'replace');
@@ -439,6 +443,7 @@
       const problem = store.settle(step.sketch, store.sketch, strict);
       if (problem?.includes('driven dimension')) ui.say(problem);
       else if (problem) ui.say(problem, true);
+      else if (step.edit !== undefined) editDimension(step.edit);
       else if (action && !MODIFY.some((m) => m.id === action.id)) ui.say(action.id === 'dimension' ? 'Dimension added' : `${RELATE.find((r) => r.id === action.id)?.label ?? 'Constraint'} added`);
       else {
         if (step.select) store.select(step.select);
