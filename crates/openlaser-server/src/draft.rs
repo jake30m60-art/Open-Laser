@@ -69,6 +69,10 @@ pub struct Draft {
     /// Calibration coupons must retain their nominal geometry.
     #[serde(default)]
     pub calibration: bool,
+    /// Per filled marked layer, the scan offsets measured at its speed by
+    /// angle, as the coordinator found them for this preparation.
+    #[serde(skip)]
+    pub scan_tables: std::collections::BTreeMap<String, Vec<[f64; 2]>>,
     /// Tessellated stock reference for the canvas; never a cutting contour.
     #[serde(skip)]
     pub stock_outline: Vec<[f64; 2]>,
@@ -337,6 +341,7 @@ impl Draft {
             capture_epoch: None,
             capture_used: false,
             calibration: false,
+            scan_tables: std::collections::BTreeMap::new(),
             stock_outline: Vec::new(),
             stock_cutouts: Vec::new(),
             source_count: contours,
@@ -379,7 +384,8 @@ impl Draft {
         let automatic = groups(drawing, &self.current.placed, &[]);
         let matching = crate::correspondence::matching(drawing, &self.current.placed, &automatic);
         self.groups = self.current.grouping.resolve(automatic);
-        match prepare(drawing, &self.current.placed, &self.current.features).and_then(|prepared| {
+        let features = self.calibrated_features();
+        match prepare(drawing, &self.current.placed, &features).and_then(|prepared| {
             crate::nesting::check_prepared(drawing, self, &prepared)?;
             Ok(prepared)
         }) {
@@ -981,6 +987,20 @@ pub fn pick(
         point: transform_of(&draft.current.placed, owner)?.inverse().apply(point).into(),
         owner,
     }))
+}
+
+impl Draft {
+    /// The features with each filled layer's measured scan offsets.
+    fn calibrated_features(&self) -> Features {
+        let mut features = self.current.features.clone();
+        for layer in &mut features.layers {
+            let Some(table) = self.scan_tables.get(&layer.name) else { continue };
+            if let Some(fill) = layer.machining.as_mut().and_then(|m| m.fill.as_mut()) {
+                fill.calibrated.clone_from(table);
+            }
+        }
+        features
+    }
 }
 
 /// Places and prepares a drawing. Bridge picks are kept in the drawing's

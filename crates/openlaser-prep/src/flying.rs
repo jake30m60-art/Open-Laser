@@ -369,6 +369,36 @@ fn polygon(contour: &PreparedContour) -> Vec<Point> {
     points
 }
 
+/// The measured offset at a scan angle in degrees: linear between the
+/// measured angles around the half turn, so 170° lies between 90° and 0°;
+/// none when nothing was measured.
+fn calibrated_at(table: &[[f64; 2]], angle: f64) -> f64 {
+    let mut points: Vec<[f64; 2]> = table.iter().map(|&[a, o]| [a.rem_euclid(180.), o]).collect();
+    points.sort_by(|a, b| a[0].total_cmp(&b[0]));
+    let (Some(&first), Some(&last)) = (points.first(), points.last()) else {
+        return 0.;
+    };
+    // The angles wrap: before the first comes the last, half a turn back,
+    // and after the last the first, half a turn on.
+    let mut ring = Vec::with_capacity(points.len() + 2);
+    ring.push([last[0] - 180., last[1]]);
+    ring.extend(points);
+    ring.push([first[0] + 180., first[1]]);
+    let a = angle.rem_euclid(180.);
+    for pair in ring.windows(2) {
+        let (from, to) = (pair[0], pair[1]);
+        if a <= to[0] {
+            let span = to[0] - from[0];
+            return if span < 1e-9 {
+                to[1]
+            } else {
+                from[1] + (to[1] - from[1]) * (a - from[0]) / span
+            };
+        }
+    }
+    last[1]
+}
+
 /// The scan lines across the polygons at `angle` degrees, `spacing` apart,
 /// centred in their extent and then moved across by `shift` spacings, each
 /// with the spans inside them.
@@ -433,12 +463,13 @@ fn scan(polygons: &[Vec<Point>], spacing: f64, angle: f64, shift: f64) -> Result
 fn zigzag(
     lines: &[Line],
     fill: &Fill,
+    offset: f64,
     segments: &mut Vec<PreparedSegment>,
     traced: &mut Vec<Curve>,
 ) {
     for (i, line) in lines.iter().enumerate() {
         let reverse = fill.bidirectional && i % 2 == 1;
-        let back = if reverse { fill.scan_offset } else { -fill.scan_offset };
+        let back = if reverse { offset } else { -offset };
         let line = Line {
             origin: line.origin,
             direction: line.direction,
@@ -474,11 +505,13 @@ pub(crate) fn fill(shapes: &[&PreparedContour], fill: &Fill) -> Result<Vec<Prepa
     for pass in 0..fill.passes {
         let k = f64::from(pass);
         let shift = (k * fill.pass_shift).fract();
-        let lines = scan(&polygons, fill.spacing, fill.angle + k * fill.pass_angle, shift)?;
+        let angle = fill.angle + k * fill.pass_angle;
+        let offset = fill.scan_offset + calibrated_at(&fill.calibrated, angle);
+        let lines = scan(&polygons, fill.spacing, angle, shift)?;
         for chunk in lines.chunks(LINES_PER_PATH) {
             let mut segments = Vec::new();
             let mut traced = Vec::new();
-            zigzag(chunk, fill, &mut segments, &mut traced);
+            zigzag(chunk, fill, offset, &mut segments, &mut traced);
             total += segments.len();
             if total > MAX_FILL_SEGMENTS {
                 return Err(Error::Limit(format!(
@@ -551,6 +584,7 @@ mod tests {
             passes: 1,
             pass_angle: 0.,
             pass_shift: 0.,
+            calibrated: Vec::new(),
         }
     }
 
@@ -833,5 +867,31 @@ mod tests {
         }
         let lit: f64 = paths.iter().map(cut_length).sum();
         assert!((lit - 1000. * 100.).abs() < 1e-3);
+    }
+
+    #[test]
+    fn calibrated_offsets_follow_the_scan_angle_round_the_half_turn() {
+        assert!(calibrated_at(&[], 30.).abs() < 1e-12);
+        assert!((calibrated_at(&[[0., 0.04]], 77.) - 0.04).abs() < 1e-12);
+        let table = [[0., 0.02], [90., 0.06]];
+        assert!((calibrated_at(&table, 0.) - 0.02).abs() < 1e-12);
+        assert!((calibrated_at(&table, 45.) - 0.04).abs() < 1e-12);
+        assert!((calibrated_at(&table, 90.) - 0.06).abs() < 1e-12);
+        // 135° lies halfway from 90° back round to 180°, which is 0°.
+        assert!((calibrated_at(&table, 135.) - 0.04).abs() < 1e-12);
+        assert!((calibrated_at(&table, 270.) - 0.06).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_fill_takes_the_offset_measured_for_its_angle() {
+        let square = rect(0, 0., 0., 10., 10.);
+        let measured = Fill { calibrated: vec![[0., 0.1], [90., 0.3]], ..fill_of(1., 0., 2.) };
+        let path = fill(&[&square], &measured).map(one_path).unwrap();
+        let lit: Vec<_> = path.segments.iter().filter(|s| !s.process.joint).collect();
+        assert!((lit[0].curve.start().x + 0.1).abs() < 1e-9, "0° takes 0.1 mm");
+        let vertical = Fill { angle: 90., ..measured };
+        let path = fill(&[&square], &vertical).map(one_path).unwrap();
+        let lit: Vec<_> = path.segments.iter().filter(|s| !s.process.joint).collect();
+        assert!((lit[0].curve.start().y + 0.3).abs() < 1e-9, "90° takes 0.3 mm");
     }
 }

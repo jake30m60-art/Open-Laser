@@ -43,6 +43,7 @@ pub mod postflight;
 pub mod preflight;
 pub mod recipes;
 pub mod resume;
+pub mod scan_offsets;
 pub mod setup;
 pub mod sheet_sizes;
 pub mod sheets;

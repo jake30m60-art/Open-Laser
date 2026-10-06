@@ -91,6 +91,7 @@ pub struct Coordinator {
     pub(crate) sheet_persistence_error: Option<String>,
     pub(crate) completed_sheet: Option<String>,
     pub(crate) correction: crate::correction::Store,
+    pub(crate) scan_offsets: crate::scan_offsets::Store,
     pub(crate) fonts: crate::font_store::Store,
     pub(crate) nesting_task: Option<crate::nesting::Task>,
     /// Original execution and its recovery choices, retained in this session.
@@ -234,6 +235,8 @@ impl Coordinator {
             crate::stock_store::Store::open(&config.data_dir).map_err(|e| e.to_string())?;
         let correction =
             crate::correction::Store::open(&config.data_dir).map_err(|e| e.to_string())?;
+        let scan_offsets =
+            crate::scan_offsets::Store::open(&config.data_dir).map_err(|e| e.to_string())?;
         let fonts = crate::font_store::Store::open(&config.data_dir).map_err(|e| e.to_string())?;
         let preflight = crate::preflight::PreflightPreferences::open(&config.data_dir)
             .map_err(|e| e.to_string())?;
@@ -253,6 +256,7 @@ impl Coordinator {
             sheet_persistence_error: None,
             completed_sheet: None,
             correction,
+            scan_offsets,
             fonts,
             nesting_task: None,
             recovery: None,
@@ -1578,6 +1582,8 @@ impl Coordinator {
 
     pub(crate) fn preparation(&self) -> Result<Option<Preparation>> {
         let Some(draft) = self.draft.as_ref().filter(|d| d.preparing) else { return Ok(None) };
+        let mut draft = draft.clone();
+        draft.scan_tables = self.scan_tables(&draft);
         Ok(Some(Preparation {
             revision: self.revisions.draft,
             draft: draft.clone(),

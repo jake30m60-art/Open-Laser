@@ -313,6 +313,12 @@ pub struct Fill {
     /// spacing: 0.5 puts a second pass between the first one's lines.
     #[serde(default)]
     pub pass_shift: f64,
+    /// Scan offsets measured on this machine at the layer's speed, as
+    /// `[angle, offset]` pairs, added to `scan_offset` for each pass's
+    /// angle. Filled in by the server when it prepares; never saved.
+    #[serde(skip)]
+    #[cfg_attr(feature = "typescript", ts(skip))]
+    pub calibrated: Vec<[f64; 2]>,
     /// Scan offset in millimetres: every line's marks move this far back
     /// against its travel, so lines run in opposite directions line up.
     /// Half the measured shift between the two directions.

@@ -80,6 +80,8 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/machine/settings", get(machine_settings).post(save_machine_settings))
         .route("/api/machine/correction", get(correction_view).post(correction_save))
         .route("/api/machine/correction/coupon", post(correction_coupon))
+        .route("/api/machine/scan-offsets", get(scan_offsets_view).post(scan_offsets_save))
+        .route("/api/machine/scan-offsets/coupon", post(scan_offsets_coupon))
         .route("/api/machine/settings/read", post(read_machine_settings))
         .route("/api/machine/settings/write", post(write_machine_settings))
         .route("/api/machine/soft", get(download_soft).post(import_soft))
@@ -1285,6 +1287,33 @@ async fn correction_save(
 ) -> Reply {
     shared.lock().await.save_correction(change)?;
     Ok(ok())
+}
+
+async fn scan_offsets_view(
+    State(shared): State<Shared>,
+    Query(query): Query<CorrectionMode>,
+) -> Reply {
+    let view = shared.lock().await.scan_offsets_view(query.mode)?;
+    Ok(Json(serde_json::to_value(view).map_err(|e| Error::Refused(e.to_string()))?))
+}
+
+async fn scan_offsets_save(
+    State(shared): State<Shared>,
+    Json(change): Json<crate::scan_offsets::ScanOffsetsChange>,
+) -> Reply {
+    shared.lock().await.save_scan_offsets(change)?;
+    Ok(ok())
+}
+
+async fn scan_offsets_coupon(
+    State(shared): State<Shared>,
+    Json(coupon): Json<crate::scan_offsets::ScanCoupon>,
+) -> Reply {
+    edit(&shared, None, |c| {
+        c.scan_offset_coupon(coupon)?;
+        Ok(Value::Null)
+    })
+    .await
 }
 
 async fn correction_coupon(
