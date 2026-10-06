@@ -124,6 +124,7 @@ export type { OperationView } from './bindings/OperationView';
 export type { OrderStrategy } from './bindings/OrderStrategy';
 export type { OutputRequest } from './bindings/OutputRequest';
 export type { OutputsView } from './bindings/OutputsView';
+export type { PartQuantity } from './bindings/PartQuantity';
 export type { PartView } from './bindings/PartView';
 export type { PassKind } from './bindings/PassKind';
 export type { PassView } from './bindings/PassView';

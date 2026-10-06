@@ -102,7 +102,7 @@
     <div class="osk-head" role="toolbar" tabindex="-1" aria-label="Keyboard" onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up}>
       <i class="ic ic-grip grip"></i>
       <span class="osk-label">{osk.label}</span>
-      <div class="osk-echo">{#if osk.value}{osk.value}{:else}<span class="muted">…</span>{/if}{#if osk.unit}<span class="unit">{osk.unit}</span>{/if}</div>
+      <div class="osk-echo">{#if osk.value}<span class="osk-value" class:fresh={osk.fresh}>{osk.value}</span>{:else}<span class="muted">…</span>{/if}<span class="osk-caret"></span>{#if osk.unit}<span class="unit">{osk.unit}</span>{/if}</div>
       <button class="btn btn-ghost pin" class:on={pinned} onclick={pin} title="Pin position for this page"><i class="ic ic-pin"></i></button>
       <button class="btn btn-ghost" onclick={() => osk.close()} aria-label="Close keyboard"><i class="ic ic-x"></i></button>
     </div>

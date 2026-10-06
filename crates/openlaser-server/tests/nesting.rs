@@ -9,7 +9,9 @@ use openlaser_core::features::Features;
 use openlaser_core::geometry::{Contour, Curve, Drawing, Point, Transform};
 use openlaser_core::nesting::{NestRotation, NestSettings};
 use openlaser_server::coordinator::{NewRecipe, Shared, Values};
-use openlaser_server::nesting::{self, NestRequest, NestView, StockChoice, StockSource};
+use openlaser_server::nesting::{
+    self, NestRequest, NestView, PartQuantity, StockChoice, StockSource,
+};
 use openlaser_server::{Coordinator, machine};
 
 fn rect(x: f64, y: f64, width: f64, height: f64) -> Contour {
@@ -70,6 +72,7 @@ fn request() -> NestRequest {
         },
         seconds: 1,
         stock: vec![],
+        quantities: Vec::new(),
     }
 }
 
@@ -244,6 +247,37 @@ async fn rectangle_keeps_the_fixture_position_after_nesting() {
     assert!((bounds.min.x + d.sheet_offset().unwrap()[0] - 146.).abs() < 1e-9);
     assert!((bounds.min.y + d.sheet_offset().unwrap()[1] - 673.).abs() < 1e-9);
     drop(c);
+    openlaser_server::shutdown(&shared).await.unwrap();
+}
+
+#[tokio::test]
+async fn every_part_keeps_its_own_quantity() {
+    let (_sim, shared) = start("nest-quantities").await;
+    setup(&shared).await;
+    let groups = shared.lock().await.draft.as_ref().unwrap().groups.clone();
+    assert_eq!(groups.len(), 2);
+    let quantities = vec![
+        PartQuantity { contours: groups[0].clone(), quantity: 3 },
+        PartQuantity { contours: groups[1].clone(), quantity: 2 },
+    ];
+    // Without a selection, and with one: each part keeps its own count.
+    for contours in [vec![], groups[1].clone()] {
+        let wanted =
+            NestRequest { contours, quantity: 1, quantities: quantities.clone(), ..request() };
+        let revision = shared.lock().await.document().draft_revision;
+        let job = nesting::start(&shared, revision, wanted).await.unwrap();
+        let view = finished(&shared, job.id).await;
+        assert!(view.error.is_none(), "{:?}", view.error);
+        assert_eq!(view.total, 5);
+    }
+    let zero = NestRequest {
+        contours: vec![],
+        quantity: 1,
+        quantities: vec![PartQuantity { contours: groups[0].clone(), quantity: 0 }],
+        ..request()
+    };
+    let revision = shared.lock().await.document().draft_revision;
+    assert!(nesting::start(&shared, revision, zero).await.is_err());
     openlaser_server::shutdown(&shared).await.unwrap();
 }
 

@@ -463,7 +463,8 @@ mark { background: var(--accent-soft); color: var(--accent-2); border-radius: 3p
 .osk-label { font-size: var(--t-sm); font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .08em; white-space: nowrap; }
 .osk-echo { min-height: 44px; padding: 0 14px; display: flex; align-items: center; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); font: 600 var(--t-lg) var(--font); white-space: nowrap; overflow: hidden; }
 .osk-echo .unit { color: var(--ink-3); margin-left: 8px; font-size: var(--t-sm); }
-.osk-echo::after { content: ""; width: 2px; height: 22px; background: var(--accent); margin-left: 2px; animation: caret 1s steps(1) infinite; }
+.osk-caret { flex: none; width: 2px; height: 22px; background: var(--accent); margin-left: 2px; animation: caret 1s steps(1) infinite; }
+.osk-value.fresh { background: var(--accent-soft); border-radius: 4px; padding: 0 2px; }
 .osk-rows { display: flex; flex-direction: column; gap: 6px; }
 .osk-row { display: flex; gap: 6px; justify-content: center; }
 .osk-row.indent { padding-left: 24px; }

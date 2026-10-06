@@ -496,6 +496,7 @@ async fn completed_sheet_survives_edits_and_becomes_stock_with_all_cutouts_exclu
         settings: openlaser_core::nesting::NestSettings::default(),
         seconds: 2,
         stock: vec![],
+        quantities: Vec::new(),
     };
     let work = nesting::start(&server.shared, revision, request).await.unwrap();
     loop {
@@ -640,7 +641,14 @@ async fn several_parts_nest_on_a_remnant_then_a_chosen_sheet() {
     // lists them.
     let fresh = StockSource::Sheet { width: remnant.width(), height: remnant.height(), count: 1 };
     let stock = vec![StockSource::Remnant { id: sheet.clone() }, fresh];
-    let request = NestRequest { contours: vec![], quantity: 1, settings, seconds: 2, stock };
+    let request = NestRequest {
+        contours: vec![],
+        quantity: 1,
+        settings,
+        seconds: 2,
+        stock,
+        quantities: Vec::new(),
+    };
     let work = nesting::start(&server.shared, revision, request).await.unwrap();
     let result = loop {
         let view = nesting::status(&server.shared, work.id).await.unwrap();

@@ -15,7 +15,17 @@
   const effectiveSelection = $derived(selectedContours.length ? selectedContours : draft.groups.length === 1 ? draft.groups[0]! : []);
   const selected = $derived(draft.groups.filter(g => g.some(i => effectiveSelection.includes(i))).length);
   let settings = $state<NestSettings>({ spacing: 3, margin: 3, remnant_clearance: 10, rotation: 'any' });
-  let quantity = $state(1), seconds = $state(10), page = $state(0);
+  let seconds = $state(10), page = $state(0);
+  /** Copies wanted of each part, by its first contour; a part not listed is nested once. */
+  let quantities = $state<Record<number, number>>({});
+  /** The one part selected, whose quantity the keypad edits. */
+  const part = $derived(selected === 1 ? draft.groups.find(g => g.some(i => effectiveSelection.includes(i))) ?? null : null);
+  const quantity = $derived(part ? quantities[part[0]!] ?? 1 : 1);
+  /** Parts given more than one copy, for the request and the summary. */
+  const extra = $derived(draft.groups
+    .map(g => ({ contours: [...g], quantity: quantities[g[0]!] ?? 1 }))
+    .filter(q => q.quantity > 1));
+  const total = $derived(draft.groups.length + extra.reduce((sum, q) => sum + q.quantity - 1, 0));
   let result = $state<NestView | null>(null), previewPage = $state<NestSheetPreview | null>(null);
   /** The running search's arrangement, updated as it improves. */
   let live = $state<NestLive | null>(null);
@@ -101,8 +111,9 @@
     edit(plan.map((s, i) => i === index ? { ...source, count: Math.min(onHand, Math.max(1, Math.round(count))) } : s));
   }
   const quantityTitle = $derived(selected === 1 ? 'Selected part quantity' : `${draft.groups.length} parts on this sheet`);
-  const quantityHint = $derived(
-    selected === 1 ? 'Including this one' : 'Tap a part to set its quantity');
+  const quantityHint = $derived(selected === 1
+    ? 'Including this one'
+    : extra.length ? `${plural(total, 'part')} in all · tap a part to change its quantity` : 'Tap a part to set its quantity');
   const liveNote = $derived(live
     ? `Showing sheet ${first + live.sheet}`
     : '');
@@ -118,12 +129,12 @@
     if (key === initial) return;
     initial = key;
     chosen = null;
+    quantities = {};
     untrack(() => {
       settings = structuredClone(
         $state.snapshot(draft.nesting?.settings) ?? { spacing: 3, margin: 3, remnant_clearance: 10, rotation: 'any' });
     });
   });
-  $effect(() => { if (selected !== 1) quantity = 1; });
   $effect(() => {
     const display = previewPage ?? (result
       ? { preview: result.preview, stock_outline: result.stock_outline, stock_cutouts: result.stock_cutouts }
@@ -162,7 +173,7 @@
   async function start(): Promise<void> {
     if (busy || result?.running) return;
     if (!plan.length && stock?.kind !== 'outline') { chooseNext(); return; }
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 500) {
+    if (extra.some(q => !Number.isInteger(q.quantity) || q.quantity > 500)) {
       error = 'Enter a whole quantity from 1 to 500.';
       return;
     }
@@ -171,7 +182,7 @@
     try {
       searched = $state.snapshot(plan);
       result = await api.nest(
-        { contours: effectiveSelection, quantity, settings: $state.snapshot(settings), seconds, stock: searched },
+        { contours: effectiveSelection, quantity: 1, quantities: extra, settings: $state.snapshot(settings), seconds, stock: searched },
         draft.revision);
       timer = setTimeout(() => { if (result) void poll(result.id); }, 200);
     }
@@ -285,7 +296,7 @@
     <div class="quantity">
       <span>{quantityTitle}<small>{quantityHint}</small></span>
       {#if selected === 1}
-        <button class="number" onclick={() => number('Part quantity', quantity, 'copies', v => quantity = v)}>{quantity}</button>
+        <button class="number" onclick={() => { const key = part![0]!; number('Part quantity', quantity, 'copies', v => quantities[key] = v); }}>{quantity}</button>
       {:else}
         <button class="btn btn-ghost" onclick={onselectall}>Select all</button>
       {/if}

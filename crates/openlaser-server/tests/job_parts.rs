@@ -298,6 +298,7 @@ async fn nest(
         },
         seconds: 1,
         stock,
+        quantities: Vec::new(),
     };
     let task = nesting::start(shared, revision, request).await.unwrap();
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
@@ -379,6 +380,7 @@ async fn a_running_nest_shows_its_arrangement_as_it_goes() {
         },
         seconds: 3,
         stock: vec![],
+        quantities: Vec::new(),
     };
     let task = nesting::start(&shared, revision, request).await.unwrap();
     let mut serials = Vec::new();

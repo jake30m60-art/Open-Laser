@@ -59,6 +59,20 @@ pub struct NestRequest {
     /// once. More sheets are never opened unasked.
     #[serde(default)]
     pub stock: Vec<StockSource>,
+    /// Copies of other parts, each named by contours of its own; a part
+    /// with none here is nested once, the selected part `quantity` times.
+    #[serde(default)]
+    pub quantities: Vec<PartQuantity>,
+}
+
+/// The copies wanted of one part, the original included.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, Deserialize)]
+pub struct PartQuantity {
+    /// Contour identities of the part; any one of them names it.
+    pub contours: Vec<usize>,
+    /// Required copies, including the original.
+    pub quantity: u32,
 }
 
 /// One kind of sheet a search may fill. Sheets fill in the order listed,
@@ -685,6 +699,20 @@ fn input(
     if request.quantity > 1 && selected.len() != 1 {
         return Err(Error::Request("select one complete part before entering its quantity".into()));
     }
+    if request.quantities.iter().any(|q| !(1..=MAX_NEST_COPIES).contains(&q.quantity)) {
+        return Err(Error::Request(format!("use 1–{MAX_NEST_COPIES} copies of each part")));
+    }
+    // Each part's own quantity; the selected part's comes with the request.
+    let wanted = |i: usize, group: &[usize]| -> usize {
+        if selected == [i] && request.quantity > 1 {
+            return request.quantity as usize;
+        }
+        request
+            .quantities
+            .iter()
+            .find(|q| group.iter().any(|c| q.contours.contains(c)))
+            .map_or(1, |q| q.quantity as usize)
+    };
     let items = groups
         .iter()
         .enumerate()
@@ -696,7 +724,7 @@ fn input(
                     p.transform.contour(&drawing.contours[p.source])
                 })
                 .collect(),
-            quantity: if selected == [i] { request.quantity as usize } else { 1 },
+            quantity: wanted(i, g),
         })
         .collect();
     let lead = draft.current.features.leads.as_ref().map_or(0., |l| {
