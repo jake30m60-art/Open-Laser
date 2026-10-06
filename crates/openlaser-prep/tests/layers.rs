@@ -115,8 +115,10 @@ fn a_filled_mark_engraves_one_zigzag_and_keeps_its_outlines() {
         run_up: 2.,
         outline: true,
         bidirectional: true,
-        crosshatch: false,
         scan_offset: 0.,
+        passes: 1,
+        pass_angle: 0.,
+        pass_shift: 0.,
     };
     let logo = Layer {
         machining: Some(Machining { fill: Some(fill.clone()), ..Machining::default() }),

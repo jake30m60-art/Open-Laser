@@ -86,4 +86,4 @@ export function setFill(features: Features, layer: string, fill: Fill | null, or
   features.layers = layers;
 }
 
-export const defaultFill = (): Fill => ({ spacing: 0.1, angle: 0, run_up: 3, outline: true, bidirectional: true, crosshatch: false, scan_offset: 0 });
+export const defaultFill = (): Fill => ({ spacing: 0.1, angle: 0, run_up: 3, outline: true, bidirectional: true, scan_offset: 0, passes: 1, pass_angle: 0, pass_shift: 0 });

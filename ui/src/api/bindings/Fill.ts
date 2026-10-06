@@ -28,9 +28,19 @@ outline: boolean,
  */
 bidirectional: boolean,
 /**
- * A second fill at right angles to the first.
+ * How many times the shapes are scanned, 1 to 20.
  */
-crosshatch: boolean,
+passes: number,
+/**
+ * Degrees each pass turns from the one before: 90 crosshatches, 0
+ * scans the same way again.
+ */
+pass_angle: number,
+/**
+ * How far each pass moves its lines across, as a share of the
+ * spacing: 0.5 puts a second pass between the first one's lines.
+ */
+pass_shift: number,
 /**
  * Scan offset in millimetres: every line's marks move this far back
  * against its travel, so lines run in opposite directions line up.

@@ -132,9 +132,20 @@
             <Stepper label="Overscan, laser off" value={fill.run_up} unit="mm" step={0.5} apply={(v) => fillWith({ run_up: Math.min(50, v) })} />
             <p class="fill-hint">How far every line runs past the engraving, so the head turns round off the work and engraves at full speed.</p>
             <Toggle label="Both directions" value={fill.bidirectional} apply={(v) => fillWith({ bidirectional: v })} />
+            <p class="fill-hint">Off engraves every line under the same conditions: one axis, one direction, one speed, whatever the shape's strokes. The head returns with the laser off.</p>
             <Stepper label="Scan offset" value={fill.scan_offset} unit="mm" step={0.01} apply={(v) => fillWith({ scan_offset: Math.min(2, v) })} />
             <p class="fill-hint">Backlash compensation for both directions: half the shift you measure between lines engraved left and right.</p>
-            <Toggle label="Crosshatch" value={fill.crosshatch} apply={(v) => fillWith({ crosshatch: v })} />
+            <h4 class="fill-head">Passes</h4>
+            <Stepper label="Passes" value={fill.passes} unit="" step={1} apply={(v) => fillWith({ passes: Math.min(20, Math.max(1, Math.round(v))) })} />
+            <Stepper label="Turn each pass" value={fill.pass_angle} unit="°" step={15} apply={(v) => fillWith({ pass_angle: v % 360 })} />
+            <Stepper label="Shift each pass" value={Math.round(fill.pass_shift * 100)} unit="%" step={25} apply={(v) => fillWith({ pass_shift: Math.min(99, v) / 100 })} />
+            <p class="fill-hint">2 passes, 90° crosshatch. 2 passes, 0°, 50 % lays the second pass between the first one's lines: finer, without a slower line. 3 passes, 0°, 0 % engraves deeper.</p>
+            <div class="presets">
+              <button class="chip" onclick={() => fillWith({ passes: 1, pass_angle: 0, pass_shift: 0 })}>Single</button>
+              <button class="chip" onclick={() => fillWith({ passes: 2, pass_angle: 90, pass_shift: 0 })}>Crosshatch</button>
+              <button class="chip" onclick={() => fillWith({ passes: 2, pass_angle: 0, pass_shift: 0.5 })}>Interleaved</button>
+              <button class="chip" onclick={() => fillWith({ passes: 3, pass_angle: 0, pass_shift: 0 })}>Deeper ×3</button>
+            </div>
             <Toggle label="Trace the outlines after the fill" value={fill.outline} apply={(v) => fillWith({ outline: v })} />
           </div>
         {/if}
@@ -173,6 +184,9 @@
   .layer-sheet { display:grid; gap:10px; }
   .fill { display:grid; gap:6px; padding:0 0 6px; }
   .fill-hint { margin:-2px 0 4px; font-size:var(--t-sm); color:var(--ink-3); }
+  .fill-head { margin:8px 0 0; font-size:var(--t-sm); color:var(--ink-2); }
+  .presets { display:flex; flex-wrap:wrap; gap:6px; }
+  .presets .chip { min-height:44px; }
   .ident { display:flex; align-items:center; gap:6px; min-width:0; }
   .swatch-btn, .icon-btn { flex:none; width:48px; height:48px; display:grid; place-items:center; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); color:var(--ink-2); cursor:pointer; }
   .icon-btn.off { color:var(--ink-3); }

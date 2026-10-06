@@ -302,9 +302,17 @@ pub struct Fill {
     /// the head returns with the laser off.
     #[serde(default = "yes")]
     pub bidirectional: bool,
-    /// A second fill at right angles to the first.
+    /// How many times the shapes are scanned, 1 to 20.
+    #[serde(default = "one")]
+    pub passes: u32,
+    /// Degrees each pass turns from the one before: 90 crosshatches, 0
+    /// scans the same way again.
     #[serde(default)]
-    pub crosshatch: bool,
+    pub pass_angle: f64,
+    /// How far each pass moves its lines across, as a share of the
+    /// spacing: 0.5 puts a second pass between the first one's lines.
+    #[serde(default)]
+    pub pass_shift: f64,
     /// Scan offset in millimetres: every line's marks move this far back
     /// against its travel, so lines run in opposite directions line up.
     /// Half the measured shift between the two directions.
@@ -314,6 +322,10 @@ pub struct Fill {
 
 const fn yes() -> bool {
     true
+}
+
+const fn one() -> u32 {
+    1
 }
 
 /// A place along a drawing contour: the contour's index in the drawing and

@@ -330,9 +330,7 @@ fn fills(contours: Vec<PreparedContour>, features: &Features) -> Result<Vec<Prep
             out.push(contour);
             continue;
         };
-        if let Some(zigzag) = zigzags[at].take() {
-            out.push(zigzag);
-        }
+        out.append(&mut zigzags[at]);
         if filled[at].1.outline {
             out.push(contour);
         }
