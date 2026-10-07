@@ -632,6 +632,9 @@ pub async fn pulse(shared: &Shared, duration_ms: u32, power: u8) -> Result<()> {
             origin: binding.position,
             sheet_offset: [0., 0.],
             compiled: Arc::new(crate::document::Compiled {
+                engraving_regions: Vec::new(),
+                engraving_paths: Vec::new(),
+                engraving_passes: Vec::new(),
                 dry_run: false,
                 seconds,
                 plan: Vec::new(),
@@ -1151,8 +1154,11 @@ pub async fn run_reviewed(
         (owner, compiled, sheet_offset, binding, name, material, origin, sheet)
     };
     let result = work(move || {
-        let (program, view) =
+        let (program, mut view) =
             binding.job(&compiled.job, compiled.dry_run, compiled.view.plan.clone())?;
+        Arc::make_mut(&mut view).engraving_regions = compiled.view.engraving_regions.clone();
+        Arc::make_mut(&mut view).engraving_paths = compiled.view.engraving_paths.clone();
+        Arc::make_mut(&mut view).engraving_passes = compiled.view.engraving_passes.clone();
         let held = Arc::new(Held {
             sheet,
             job: compiled.job.clone(),
@@ -1204,12 +1210,18 @@ pub async fn resume_reviewed(
     };
     let result = work(move || {
         let (job, plan) = recovery.remainder(pierce)?;
-        let (program, view) = binding.job_with_return(
+        let (program, mut view) = binding.job_with_return(
             &job,
             recovery.original.dry_run,
             plan,
             recovery.return_position(),
         )?;
+        Arc::make_mut(&mut view).engraving_regions = recovery.execution.compiled.engraving_regions.clone();
+        Arc::make_mut(&mut view).engraving_paths = recovery.execution.compiled.engraving_paths.clone();
+        Arc::make_mut(&mut view).engraving_passes = view.plan.iter().enumerate().filter(|(_, pass)| {
+            recovery.execution.compiled.plan.iter().enumerate().any(|(i, original)|
+                original.ordinal == pass.ordinal && recovery.execution.compiled.engraving_passes.contains(&i))
+        }).map(|(i, _)| i).collect();
         let held = Arc::new(Held {
             sheet: recovery.original.sheet.clone(),
             job: Arc::new(job),

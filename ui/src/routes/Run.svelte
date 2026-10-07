@@ -28,6 +28,8 @@
   import { restartAt } from '../lib/recovery';
   import { beginRun } from '../lib/run-actions';
   import { cutHistory } from '../lib/cut-history';
+  import { contourPath } from '../lib/viewer-geometry';
+  import { screenHatch } from '../lib/engraving';
 
   let { compact = false, recoveryEditor = false }: { compact?: boolean; recoveryEditor?: boolean } = $props();
   const doc = $derived(server.doc!);
@@ -74,6 +76,10 @@
   const resumed = $derived(!!retained && !!execution && retained.id !== execution.id && !recovering);
   const material = $derived(displayed ? displayed.material : draft?.recipe);
   const preview = $derived(draft?.preview ?? null);
+  const engravingRegions = $derived(compiled?.engraving_regions ?? (!displayed ? preview?.engraving_regions : []) ?? []);
+  const engravingPasses = $derived(new Set(compiled?.engraving_passes ?? []));
+  const engravingPaths = $derived(compiled?.engraving_paths ?? (preview?.contours ?? []).filter(c => !c.closed && engravingRegions.some(r => r.layer === c.layer)).flatMap(c => c.paths.filter(p => p.kind === 'cut')));
+  const engravingLayers = $derived([...new Set(engravingRegions.map(c => c.layer))]);
   const jobName = $derived(displayed?.name ?? (draft?.name || 'untitled'));
   const frame = $derived.by(() => {
     const frame = frameOf(doc);
@@ -237,10 +243,16 @@
       </g>
     {/if}
     <g transform="translate({frame.zero[0]} {frame.zero[1]})">
+    {#each engravingLayers as layer}
+      <path class="engrave-area" d={engravingRegions.filter(c => c.layer === layer).map(c => contourPath(c) + 'Z').join(' ')} />
+    {/each}
+    {#each screenHatch(engravingPaths, view.shownMmPerPixel) as path}
+      <path class="engraving-hatch" d={pathOf(path.points, false)} vector-effect="non-scaling-stroke" />
+    {/each}
     {#if compiled}
       {#each moves as move, i}
         {@const finished = move.pass !== null && (retained ? recovery?.steps[move.pass]?.status === 'completed' : move.pass < done)}
-        {#if ui.layerShown(finished ? 'done' : move.kind) && (move.kind !== 'travel' || !resumed && (ui.travelMode === 'all' || i === nextTravel))}
+        {#if !(move.pass !== null && engravingPasses.has(move.pass)) && ui.layerShown(finished ? 'done' : move.kind) && (move.kind !== 'travel' || !resumed && (ui.travelMode === 'all' || i === nextTravel))}
           <path
             class="path {move.kind}"
             class:done={finished}
@@ -264,9 +276,11 @@
       {/if}
     {:else if preview}
       {#each preview.contours as contour}
+        {#if !engravingLayers.includes(contour.layer)}
         {#each contour.paths as path}
           <path class="path {path.kind}" d={pathOf(path.points, false)} vector-effect="non-scaling-stroke"/>
         {/each}
+        {/if}
       {/each}
     {/if}
     </g>

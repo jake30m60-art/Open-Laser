@@ -109,3 +109,24 @@ export function thinFill<T extends { kind: string; points: ReadonlyArray<readonl
   }
   return out;
 }
+
+/** Display scan lines at readable screen spacing. Collinear pieces separated by
+ * a hole stay together; directions from crosshatching retain independent rows. */
+export function screenHatch<T extends { points: ReadonlyArray<readonly number[]> }>(paths: readonly T[], mmPerPixel: number): T[] {
+  const step = Math.max(0.001, mmPerPixel * 4);
+  const rows = new Map<string, number>();
+  return paths.filter(path => {
+    const a = path.points[0], b = path.points.at(-1);
+    if (!a || !b) return false;
+    let dx = b[0]! - a[0]!, dy = b[1]! - a[1]!;
+    const length = Math.hypot(dx, dy);
+    if (length < 1e-9) return false;
+    dx /= length; dy /= length;
+    if (dx < -1e-9 || (Math.abs(dx) < 1e-9 && dy < 0)) { dx = -dx; dy = -dy; }
+    const across = -dy * a[0]! + dx * a[1]!;
+    const key = `${Math.round(Math.atan2(dy, dx) * 1e6)}/${Math.floor(across / step)}`;
+    const first = rows.get(key);
+    if (first === undefined) { rows.set(key, across); return true; }
+    return Math.abs(first - across) < 0.001;
+  });
+}

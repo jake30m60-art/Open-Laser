@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hatchStride, offsetAt, thinFill, thinned } from './engraving';
+import { hatchStride, offsetAt, thinFill, thinned, screenHatch } from './engraving';
 
 describe('engraving display and compensation', () => {
   it('reads the calibration by speed, then between angles', () => {
@@ -34,4 +34,15 @@ describe('engraving display and compensation', () => {
     expect(shown.filter((p) => p.kind === 'travel').length).toBeGreaterThanOrEqual(2);
     expect(thinFill(paths, 0.1, 1)).toHaveLength(20);
   });
+});
+
+it('keeps both sides of a letter hole and both crosshatch directions visible', () => {
+  const paths = [
+    { points: [[0, 0.1], [2, 0.1]] },
+    { points: [[8, 0.1], [10, 0.1]] },
+    { points: [[0, 0.2], [2, 0.2]] },
+    { points: [[0.1, 0], [0.1, 10]] },
+  ];
+  expect(screenHatch(paths, 1)).toEqual([paths[0], paths[1], paths[3]]);
+  expect(screenHatch(paths, 0.01)).toEqual(paths);
 });

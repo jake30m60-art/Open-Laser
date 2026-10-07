@@ -1019,11 +1019,17 @@ pub fn prepare(drawing: &Drawing, placed: &[Placed], features: &Features) -> Res
     let sheet = place(&drawing, placed);
     let features = placed_bridges(&sheet, features, placed)?;
     let toolpath = openlaser_prep::prepare(&sheet, &features)?;
+    let mut display = preview(&toolpath, sheet.bounds());
+    display.engraving_regions = plain(&sheet).contours.into_iter().filter(|c| {
+        c.closed && features.layers.iter().any(|l| l.name == c.layer
+            && l.mode == openlaser_core::features::LayerMode::Mark
+            && l.machining.as_ref().is_some_and(|m| m.fill.is_some()))
+    }).collect();
     Ok(Prepared {
         contours: contours(&toolpath),
         film: toolpath.contours.iter().map(|c| film_runs(&c.film)).collect(),
         shift: [0.; 2],
-        preview: Arc::new(preview(&toolpath, sheet.bounds())),
+        preview: Arc::new(display),
         instances: Arc::new(
             toolpath
                 .contours
@@ -1145,6 +1151,7 @@ fn preview(toolpath: &Toolpath, bounds: Option<Bounds>) -> Preview {
         })
         .collect();
     Preview {
+        engraving_regions: Vec::new(),
         contours,
         bounds,
         // What the beam cuts: stretches travelled with the laser off, such
@@ -1180,6 +1187,7 @@ fn plain(sheet: &Drawing) -> Preview {
         })
         .collect();
     Preview {
+        engraving_regions: Vec::new(),
         contours,
         bounds: sheet.bounds(),
         length_mm: sheet.contours.iter().map(Contour::length).sum(),
@@ -1314,7 +1322,16 @@ pub fn compile(
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    let view = summary(&job, &program, blocks, dry_run, plan);
+    let mut view = summary(&job, &program, blocks, dry_run, plan);
+    view.engraving_regions = prepared.preview.engraving_regions.clone();
+    let filled = |layer: &str| view.engraving_regions.iter().any(|c| c.layer == layer);
+    view.engraving_paths = prepared.preview.contours.iter()
+        .filter(|c| !c.closed && filled(&c.layer))
+        .flat_map(|c| c.paths.iter().filter(|p| p.kind == PathKind::Cut).cloned()).collect();
+    view.engraving_passes = job.passes.iter().enumerate()
+        .filter(|(_, pass)| prepared.preview.contours.get(pass.pass.source)
+            .is_some_and(|c| filled(&c.layer)))
+        .map(|(i, _)| i).collect();
     Ok(CompiledJob {
         dry_run,
         scale,
@@ -1337,6 +1354,9 @@ pub(crate) fn summary(
         job.passes.iter().filter(|pass| pass.pierces_on_entry()).map(|pass| pass.start).collect();
     let pass_usage = crate::gas::usage::of(job, program);
     Compiled {
+        engraving_paths: Vec::new(),
+        engraving_passes: Vec::new(),
+        engraving_regions: Vec::new(),
         dry_run,
         seconds: program.seconds,
         plan,
@@ -1423,6 +1443,51 @@ mod tests {
     /// A 10 mm square at the drawing's own origin.
     fn square() -> Drawing {
         Drawing { contours: vec![square_at([0., 0.])] }
+    }
+
+    #[test]
+    fn fill_only_keeps_editable_regions_without_adding_contour_cuts() {
+        use openlaser_core::features::{Fill, Layer, LayerMode, Machining};
+        let fill: Fill = serde_json::from_value(serde_json::json!({
+            "spacing": 1., "angle": 0., "run_up": 2., "outline": false,
+            "passes": 2, "pass_angle": 90.
+        })).unwrap();
+        let mut drawing = square();
+        let mut hole = square_at([2., 2.]);
+        for curve in &mut hole.curves {
+            if let Curve::Line { start, end } = curve {
+                *start = Point::new(2. + (start.x - 2.) * 0.6, 2. + (start.y - 2.) * 0.6);
+                *end = Point::new(2. + (end.x - 2.) * 0.6, 2. + (end.y - 2.) * 0.6);
+            }
+        }
+        drawing.contours.push(hole);
+        let mut features = Features::default();
+        features.layers.push(Layer { name: "0".into(), mode: LayerMode::Mark, color: None,
+            machining: Some(Machining { fill: Some(fill), ..Machining::default() }) });
+        // Settings survive saving/reopening, including multipass and outline=false.
+        let saved = serde_json::to_vec(&features).unwrap();
+        features = serde_json::from_slice(&saved).unwrap();
+        let prepared = prepare(&drawing, &Placed::all(2), &features).unwrap();
+        assert_eq!(prepared.preview.engraving_regions.len(), 2);
+        assert_eq!(prepared.preview.engraving_regions[1].sources, vec![1]);
+        assert!(prepared.preview.contours.iter().all(|c| !c.closed));
+        let marks: Vec<_> = prepared.preview.contours.iter().flat_map(|c| &c.paths)
+            .filter(|p| p.kind == PathKind::Cut).collect();
+        assert!(marks.iter().any(|p| (p.points[0][0] - p.points.last().unwrap()[0]).abs() > 1.));
+        assert!(marks.iter().any(|p| (p.points[0][1] - p.points.last().unwrap()[1]).abs() > 1.));
+        for path in marks {
+            for segment in path.points.windows(2) {
+                let x = (segment[0][0] + segment[1][0]) / 2.;
+                let y = (segment[0][1] + segment[1][1]) / 2.;
+                assert!(!(x > 2.0001 && x < 7.9999 && y > 2.0001 && y < 7.9999), "hole must stay clear");
+            }
+        }
+        // Changing back to contour engraving removes the fill, not the original shapes.
+        features.layers[0].machining.as_mut().unwrap().fill = None;
+        let contours = prepare(&drawing, &Placed::all(2), &features).unwrap();
+        assert!(contours.preview.engraving_regions.is_empty());
+        assert_eq!(contours.preview.contours.len(), 2);
+        assert!(contours.preview.contours.iter().all(|c| c.closed));
     }
 
     #[test]

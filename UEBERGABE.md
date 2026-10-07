@@ -80,3 +80,34 @@ Nichts davon wurde an der echten Maschine getestet – nur im Simulator.
 - Kamera-Nesting (4K-Kamera) – erst wenn die Grundfunktionen an der Maschine laufen.
 - Erste echte Verbindung zur Maschine: Mlaser vorher schließen, Not-Halt in Reichweite;
   Laser-Freigabe braucht ggf. Gweike-Code (Mlaser-Lizenz abgelaufen 2026-09-06).
+
+
+## Fortsetzung Codex – 2026-10-07: Gravurflächen fertiggestellt
+
+Die zuvor dringend offene Gravurdarstellung ist bearbeitet und die aktualisierte
+OpenLaser-App/OpenLaser.exe installiert (vorherige EXE als OpenLaser-vor-gravurflaechen-*.exe gesichert).
+
+- Gravurpanel: explizit Nur Konturen / Fläche füllen / Füllung + Konturen;
+  Auswahl sichtbar oben, Rezeptauswahl eingeklappt, Berechnungsstatus und Änderungsbestätigung.
+  Rezeptwechsel und Hinzufügen von Formen schalten Konturgravur nicht ungefragt auf Füllung um.
+- Vorschau: Flächen bleiben unabhängig von sichtbaren Leerfahrten getönt, Löcher in Buchstaben
+  bleiben frei. Multipass und Kreuzschraffur zeigen ihre Laserbahnen; Fahrten separat zuschaltbar.
+- Neue Preview.engraving_regions bewahrt originale geschlossene Formen auch bei outline=false.
+  Die Flächenkonturen sind rein zur Anzeige/Auswahl; sie fügen keine Laserbewegung hinzu.
+  Canvas ergänzt fehlende auswählbare Konturen daraus, Bearbeitung bleibt möglich.
+- Compiled und CompiledSummary enthalten engraving_regions, engraving_paths, engraving_passes.
+  Run zeigt für Füllgravuren nur getönte Flächen und lesbare Schraffur, keine zugehörigen Leerfahrten.
+  Start/Fortsetzen übernehmen die Anzeigegeometrie aus dem unveränderlichen kompilierten Auftrag.
+- Änderungen sind nachträglich möglich und rückgängig zu machen; gespeicherte Features enthalten
+  weiterhin Winkel, spacing, passes, pass_angle, outline usw. Keine Änderung des Laser-Compilers.
+- Prüfung: UI-Typprüfung fehlerfrei, 227 UI-Tests bestanden. 72 Server-Lib-Tests bestanden,
+  danach zusätzlicher Regressionstest für fill-only, Innenloch, 2 Passrichtungen, Feature-Serialisierung
+  und Rückwechsel zur Konturgravur bestanden. 6 scan_coupon-, 1 simulation_batch- und
+  9 workflow-Tests bestanden (bekannten CRLF-Test explizit ausgelassen).
+- Browser mit isolierter Kopie von Claudes Testauftrag Gravur ABO: outline=false behält 10
+  auswählbare Umrisse; Kreuzschraffur sichtbar, Run ohne travel-Pfade; Umschalten auf Konturen
+  und Undo inklusive Multipass geprüft. Screenshots und Sicherung von Claudes ursprünglichem
+  Diff: C:/Users/joe/Videos/openlaser-gravur-uebernahme/.
+- Nur Simulator geprüft, keine Verbindung oder Ausführung an der echten Maschine.
+
+Die übrigen Aufgaben (Skizzenteile, Handrad, Manual Cut usw.) bleiben offen.

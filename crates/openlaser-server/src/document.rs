@@ -919,6 +919,8 @@ pub struct DraftPart {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Preview {
+    /// Filled-area boundaries for display and editing, never additional laser moves.
+    pub engraving_regions: Vec<PreviewContour>,
     /// The contours in cutting order, as polylines in drawing coordinates.
     pub contours: Vec<PreviewContour>,
     /// The extent of the placed part.
@@ -993,6 +995,12 @@ pub enum PathKind {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Compiled {
+    /// Laser-on fill lines from every pass, without the laser-off travel.
+    pub engraving_paths: Vec<Path>,
+    /// Program passes replaced by the hatch in the uncluttered run display.
+    pub engraving_passes: Vec<usize>,
+    /// Immutable filled-area boundaries shown during execution.
+    pub engraving_regions: Vec<PreviewContour>,
     /// Whether it is a dry run.
     pub dry_run: bool,
     /// The predictable duration in seconds.
@@ -1018,6 +1026,12 @@ pub struct Compiled {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
 #[derive(Serialize)]
 pub struct CompiledSummary<'a> {
+    /// Laser-on scan lines from every engraving pass.
+    pub engraving_paths: &'a [Path],
+    /// Program passes represented by the hatch in the run display.
+    pub engraving_passes: &'a [usize],
+    /// Filled-area boundaries without the dense scan moves.
+    pub engraving_regions: &'a [PreviewContour],
     /// Whether it is a dry run.
     pub dry_run: bool,
     /// The predictable duration in seconds.
@@ -1036,6 +1050,9 @@ pub struct CompiledSummary<'a> {
 impl<'a> From<&'a Compiled> for CompiledSummary<'a> {
     fn from(compiled: &'a Compiled) -> Self {
         Self {
+            engraving_regions: &compiled.engraving_regions,
+            engraving_paths: &compiled.engraving_paths,
+            engraving_passes: &compiled.engraving_passes,
             dry_run: compiled.dry_run,
             seconds: compiled.seconds,
             plan: &compiled.plan,
@@ -1224,6 +1241,9 @@ mod tests {
         let empty = openlaser_core::geometry::Drawing { contours: Vec::new() };
         let mut draft = crate::draft::Draft::of(empty).view();
         draft.compiled = Some(Arc::new(Compiled {
+            engraving_regions: Vec::new(),
+            engraving_paths: Vec::new(),
+            engraving_passes: Vec::new(),
             dry_run: false,
             seconds: 1.,
             plan: vec![],

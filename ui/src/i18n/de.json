@@ -1312,5 +1312,12 @@
   "No closed shape on this layer: a fill engraves inside closed outlines only. Close the outlines in the sketch, or the lines are traced as they are.": "Keine geschlossene Form auf dieser Ebene: Eine Füllung graviert nur innerhalb geschlossener Umrisse. Umrisse in der Skizze schließen, sonst werden die Linien nur nachgefahren.",
   "Stop engraving the selected shapes ({0}), cut them on:": "Ausgewählte Formen ({0}) nicht mehr gravieren, sondern schneiden auf:",
   "{0} shapes are cut on {1} again · Undo takes it back": "{0} Formen werden wieder auf {1} geschnitten · Rückgängig nimmt es zurück",
-  "This layer has no recipe yet, so nothing on it is worked out or engraved. Choose one:": "Diese Ebene hat noch kein Rezept, deshalb wird darauf nichts berechnet oder graviert. Bitte eines wählen:"
+  "This layer has no recipe yet, so nothing on it is worked out or engraved. Choose one:": "Diese Ebene hat noch kein Rezept, deshalb wird darauf nichts berechnet oder graviert. Bitte eines wählen:",
+  "Engraving mode": "Gravurart",
+  "Contours only": "Nur Konturen",
+  "Fill area": "Fläche füllen",
+  "Fill and contours": "Füllung + Konturen",
+  "Applies to every shape on this layer. Contours only traces the selected outlines; fill scans closed areas and leaves holes clear.": "Gilt für alle Formen dieser Ebene. Nur Konturen fährt die gewählten Umrisse nach; die Füllung graviert geschlossene Flächen und lässt Innenräume frei.",
+  "{0}: {1}. Preview updated; Undo restores the previous setting.": "{0}: {1}. Vorschau aktualisiert; Rückgängig stellt die vorherige Einstellung wieder her.",
+  "Updating engraving preview…": "Gravurvorschau wird aktualisiert…"
 }

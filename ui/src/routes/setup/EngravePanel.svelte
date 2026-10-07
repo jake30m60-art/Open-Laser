@@ -36,7 +36,11 @@
     finally { busy = false; }
   }
   function writeFill(layer: string, next: Fill | null): void {
-    featureEdits.change((f) => setFill(f, layer, next, order)).catch((error) => ui.say(explain(error), true));
+    busy = true;
+    featureEdits.change((f) => setFill(f, layer, next, order))
+      .then(() => ui.say(tr("{0}: {1}. Preview updated; Undo restores the previous setting.", layer, tr(!next ? "Contours only" : next.outline ? "Fill and contours" : "Fill area"))))
+      .catch((error) => ui.say(explain(error), true))
+      .finally(() => { busy = false; });
   }
   /** A layer engraves: marked, filled, with the first engraving recipe when it has none. */
   async function engrave(layer: string, recipe: RecipeView | null = recipes[0] ?? null): Promise<void> {
@@ -44,7 +48,7 @@
     const current = draft.layers.find((l) => l.name === layer);
     if (recipe && !current?.recipe) edits.push({ kind: 'recipe', layer, recipe: recipe.id });
     await change(...edits);
-    if (!fillOfLayer(layer)) writeFill(layer, recipe ? fillOf(recipe.attributes) : defaultFill());
+    if (current?.mode !== 'mark' && !fillOfLayer(layer)) writeFill(layer, recipe ? fillOf(recipe.attributes) : defaultFill());
   }
   /** The selected shapes onto the engraving layer, which then engraves. */
   async function engraveSelection(): Promise<void> {
@@ -59,7 +63,8 @@
   async function useRecipe(layer: DraftLayer, recipe: RecipeView): Promise<void> {
     try {
       await change({ kind: 'recipe', layer: layer.name, recipe: recipe.id });
-      writeFill(layer.name, fillOf(recipe.attributes));
+      const currentFill = fillOfLayer(layer.name);
+      if (currentFill) writeFill(layer.name, { ...fillOf(recipe.attributes), outline: currentFill.outline });
     } catch { /* said */ }
   }
   const backToCut = (layer: string) => change({ kind: 'mode', layer, mode: 'cut' }).catch(() => undefined);
@@ -74,7 +79,7 @@
   /** What a layer fills, as the preview prepared it: closed outlines or the fill's own lines. */
   const closedOn = (name: string): number => (draft.preview?.contours ?? []).filter((c) => c.layer === name && (c.closed || c.paths.some((p) => p.kind === 'travel'))).length;
   /** The layer each placed contour is drawn on, as the preview has it. */
-  const layerOf = $derived(new Map((draft.preview?.contours ?? []).filter((c) => c.sources.length === 1).map((c) => [c.sources[0]!, c.layer])));
+  const layerOf = $derived(new Map([...(draft.preview?.contours ?? []), ...(draft.preview?.engraving_regions ?? [])].filter((c) => c.sources.length === 1).map((c) => [c.sources[0]!, c.layer])));
   /** Selected shapes on an engraving layer. */
   const engravedSelection = $derived(selectedContours.filter((i) => marked.some((l) => l.name === layerOf.get(i))));
   async function cutOn(layer: string): Promise<void> {
@@ -94,6 +99,7 @@
 <p class="feat-desc">{tr("Engraving marks the surface line by line. Pick the shapes to engrave on the drawing, then set the lines here.")}</p>
 
 <div class="stack">
+  {#if busy || draft.error === 'preparing geometry'}<p role="status">{tr("Updating engraving preview…")}</p>{/if}
   <button class="btn btn-primary block" disabled={busy || !selectedContours.length} onclick={engraveSelection}>
     {selectedContours.length ? tr("Engrave the selection ({0} shapes)", selectedContours.length) : tr("Select shapes to engrave")}
   </button>
@@ -132,9 +138,17 @@
           <i class="ic {hidden ? 'ic-eye-off' : 'ic-eye'}"></i>
         </button>
       </header>
+      <div class="recipes" role="group" aria-label={tr("Engraving mode")}>
+        <button class="chip" class:on={!fill} aria-pressed={!fill} disabled={busy} onclick={() => writeFill(layer.name, null)}>{tr("Contours only")}</button>
+        <button class="chip" class:on={!!fill && !fill.outline} aria-pressed={!!fill && !fill.outline} disabled={busy} onclick={() => writeFill(layer.name, { ...(fill ?? defaultFill()), outline: false })}>{tr("Fill area")}</button>
+        <button class="chip" class:on={!!fill && fill.outline} aria-pressed={!!fill && fill.outline} disabled={busy} onclick={() => writeFill(layer.name, { ...(fill ?? defaultFill()), outline: true })}>{tr("Fill and contours")}</button>
+      </div>
+      <p class="muted">{tr("Applies to every shape on this layer. Contours only traces the selected outlines; fill scans closed areas and leaves holes clear.")}</p>
       {#if !layer.chosen}
         <p class="warn-box">{tr("This layer has no recipe yet, so nothing on it is worked out or engraved. Choose one:")}</p>
       {/if}
+      <details class="recipe-picker">
+        <summary>{tr("Recipe")}: {(layer.recipe ?? draft.recipe)?.name ?? tr("Choose one")}</summary>
       <div class="recipes" role="group" aria-label={tr("Engraving recipes")}>
         {#each recipes as r (r.id)}
           <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {r.gas}</button>
@@ -146,13 +160,13 @@
         {/each}
         <button class="link" onclick={() => (ui.layerSheet = layer.name)}>{tr("All layer settings")}</button>
       </div>
+      </details>
       {#if fill && draft.recipe && !draft.error && closed === 0}
         <p class="warn-box">{tr("No closed shape on this layer: a fill engraves inside closed outlines only. Close the outlines in the sketch, or the lines are traced as they are.")}</p>
       {/if}
       {#if fill}
         <FillSettings {fill} apply={(c) => writeFill(layer.name, { ...fill, ...c })} speed={speedOf(layer)} offset={offsetOf(layer, fill)} />
-      {:else}
-        <button class="btn btn-soft block" disabled={busy} onclick={() => writeFill(layer.name, defaultFill())}>{tr("Fill the shapes line by line")}</button>
+
       {/if}
       <button class="link" disabled={busy} onclick={() => backToCut(layer.name)}>{tr("Cut this layer instead")}</button>
     </section>
@@ -172,6 +186,7 @@
 
 <style>
   .stack > .btn { white-space:normal; height:auto; min-height:48px; }
+  .recipe-picker summary { cursor:pointer; padding:10px 0; overflow-wrap:anywhere; }
   .paths { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0; }
   .paths small { display:block; font-size:var(--t-sm); color:var(--ink-3); }
   .layer { border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:grid; gap:8px; }

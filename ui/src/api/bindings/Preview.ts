@@ -7,6 +7,10 @@ import type { PreviewContour } from "./PreviewContour";
  */
 export type Preview = {
 /**
+ * Filled-area boundaries for display and editing, never additional laser moves.
+ */
+engraving_regions: Array<PreviewContour>,
+/**
  * The contours in cutting order, as polylines in drawing coordinates.
  */
 contours: Array<PreviewContour>,

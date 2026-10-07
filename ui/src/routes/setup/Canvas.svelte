@@ -60,6 +60,7 @@
   const thinnest = $derived(Math.max(1, ...strides.values()));
   /** A contour's paths as drawn: a fill thinned to what the screen can show. */
   function shownPaths(contour: PreviewContour): PreviewContour['paths'] {
+    if (preview?.engraving_regions?.includes(contour)) return [];
     const spacing = filled.get(contour.layer);
     if (contour.closed || spacing === undefined) return contour.paths;
     return thinFill(contour.paths, spacing, strides.get(contour.layer) ?? 1);
@@ -105,7 +106,9 @@
   const groupOf = $derived(new Map(groups.flatMap((members, g) => members.map((c) => [c, g] as const))));
   const shapes = $derived.by(() => {
     const by = new Map<number, PreviewContour[]>();
-    for (const contour of preview?.contours ?? []) {
+    const paths = preview?.contours ?? [];
+    const original = (preview?.engraving_regions ?? []).filter(region => !paths.some(c => c.closed && c.sources.length === 1 && c.sources[0] === region.sources[0]));
+    for (const contour of [...paths, ...original]) {
       // A path made from several shapes, as a fill's lines, a flying cut's
       // passes or a shared edge, belongs to none of them alone: drawn apart,
       // so a tap on it does not take the first of its shapes.
@@ -679,17 +682,22 @@
     transform={moved}>
     <!-- The selection's halo: the whole part softly, one shape taken alone strongly. -->
     {#if on && !picks.length}<path class="halo" d={groupPath(shapes.get(g) ?? [], hiddenKey, (c) => !hidden(c.layer))} vector-effect="non-scaling-stroke"/>{/if}
+    {#each [...filled.keys()] as layer}
+      {#if !hidden(layer)}
+        <!-- One compound path preserves letter counters with the evenodd fill rule. -->
+        <path class="engrave-area" d={(preview?.engraving_regions ?? (shapes.get(g) ?? [])).filter(c => c.closed && c.layer === layer && groupOf.get(c.sources[0] ?? -1) === g).map(c => contourPath(c) + 'Z').join(' ')} style:fill={colors.get(layer)} />
+      {/if}
+    {/each}
     {#each shapes.get(g) ?? [] as contour}
       {#if !hidden(contour.layer)}
         {@const picked = contour.sources.length === 1 && pickSet.has(contour.sources[0]!)}
         <g class="contour" class:picked>
         {#if picked}<path class="halo strong" d={contourPath(contour)} vector-effect="non-scaling-stroke"/>{/if}
-        {#if contour.closed && filled.has(contour.layer)}
-          <!-- What a fill engraves: the shape tinted under its lines. -->
-          <path class="engrave-area" d={contourPath(contour)} style:fill={colors.get(contour.layer)} />
+        {#if preview?.engraving_regions?.includes(contour)}
+          <path class="engrave-boundary" d={contourPath(contour)} style:stroke={colors.get(contour.layer)} vector-effect="non-scaling-stroke" />
         {/if}
         {#each shownPaths(contour) as path}
-          {#if ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)}
+          {#if ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)} class:fill-line={!contour.closed && filled.has(contour.layer)}
             style:stroke={path.kind === 'cut' ? colors.get(contour.layer) : null} d={drawingPath(path.points)} vector-effect="non-scaling-stroke"/>{/if}
         {/each}
         {#if details && ui.layerShown('cut') && (contour.closed || !marked.has(contour.layer))}
@@ -773,7 +781,7 @@
         {#each shared as contour}
           {#if !hidden(contour.layer)}
             {#each shownPaths(contour) as path}
-              {#if ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)}
+              {#if ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)} class:fill-line={filled.has(contour.layer)}
                 style:stroke={path.kind === 'cut' ? colors.get(contour.layer) : null} d={drawingPath(path.points)} vector-effect="non-scaling-stroke"/>{/if}
             {/each}
           {/if}
