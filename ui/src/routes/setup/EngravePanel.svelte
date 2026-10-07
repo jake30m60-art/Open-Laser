@@ -100,6 +100,7 @@
 
 <div class="stack">
   {#if busy || draft.error === 'preparing geometry'}<p role="status">{tr("Updating engraving preview…")}</p>{/if}
+  <p class="muted">{tr("Selected now: {0} contours", selectedContours.length)}<br />{tr("Click a contour to select only it. Shift-click adds or removes contours.")}</p>
   <button class="btn btn-primary block" disabled={busy || !selectedContours.length} onclick={engraveSelection}>
     {selectedContours.length ? tr("Engrave the selection ({0} shapes)", selectedContours.length) : tr("Select shapes to engrave")}
   </button>
@@ -120,10 +121,11 @@
     <button class="switch" class:on={ui.layerShown('travel')} aria-label={tr("Show tool paths")} onclick={() => ui.toggleLayer('travel')}></button>
   </div>
 
+  {#if draft.error && draft.error !== 'preparing geometry'}
+    <p class="warn-box" role="alert">{tr("The hatching cannot be shown: {0}", draft.error)}<br />{tr("The complete job could not be prepared. Valid engraving layers are previewed separately; fix the geometry error before running.")}</p>
+  {/if}
   {#if !draft.recipe}
-    <p class="warn-box">{tr("Choose a material first: the hatching is worked out, and shown, once the job has a recipe.")}</p>
-  {:else if draft.error}
-    <p class="warn-box">{tr("The hatching cannot be shown: {0}", draft.error)}</p>
+    <p class="warn-box">{tr("No job recipe selected. Layers with their own recipe can still engrave; choose a recipe for the other layers before running.")}</p>
   {/if}
   {#each marked as layer (layer.name)}
     {@const fill = fillOfLayer(layer.name)}
@@ -133,7 +135,7 @@
       <header>
         <span class="layer-swatch mark" style:--layer={swatchColor(draft.layers, layer.name)}></span>
         <strong>{layer.name}</strong>
-        <small>{layer.contours === 1 ? tr("1 shape") : tr("{0} shapes", layer.contours)}</small>
+        <small>{tr("On this layer: {0} contours", layer.contours)}</small>
         <button class="icon-btn" aria-label={hidden ? tr("Show on the drawing") : tr("Hide on the drawing")} onclick={() => ui.toggleDrawingLayer(layer.name)}>
           <i class="ic {hidden ? 'ic-eye-off' : 'ic-eye'}"></i>
         </button>

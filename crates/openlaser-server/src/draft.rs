@@ -412,7 +412,7 @@ impl Draft {
                 self.error = None;
             }
             Err(error) => {
-                self.preview = Some(Arc::new(plain(&place(drawing, &self.current.placed))));
+                self.preview = Some(Arc::new(partial_preview(drawing, &self.current.placed, &features)));
                 self.prepared = None;
                 self.error = Some(error.to_string());
             }
@@ -1056,6 +1056,36 @@ pub fn prepare(drawing: &Drawing, placed: &[Placed], features: &Features) -> Res
     })
 }
 
+/// Keep editable outlines on a failed job, and show each valid filled marking
+/// layer independently. This is display geometry only: no Prepared is retained,
+/// so the original error continues to block compilation and execution.
+fn partial_preview(drawing: &Drawing, placed: &[Placed], features: &Features) -> Preview {
+    let relayered = crate::layers::relayered(drawing, &features.layer_edits);
+    let sheet = place(&relayered, placed);
+    let mut display = plain(&sheet);
+    for layer in features.layers.iter().filter(|l| {
+        l.mode == openlaser_core::features::LayerMode::Mark
+            && l.machining.as_ref().is_some_and(|m| m.fill.is_some())
+            && !features.skip_layers.contains(&l.name)
+    }) {
+        let mut isolated = features.clone();
+        for contour in &sheet.contours {
+            if contour.layer != layer.name && !isolated.skip_layers.contains(&contour.layer) {
+                isolated.skip_layers.push(contour.layer.clone());
+            }
+        }
+        let Ok(prepared) = prepare(drawing, placed, &isolated) else { continue; };
+        let original_length: f64 = sheet.contours.iter().filter(|c| c.layer == layer.name)
+            .map(Contour::length).sum();
+        display.length_mm += prepared.preview.length_mm - original_length;
+        display.contours.retain(|c| c.layer != layer.name);
+        display.contours.extend(prepared.preview.contours.iter().filter(|c| c.layer == layer.name).cloned());
+        display.engraving_regions.extend(prepared.preview.engraving_regions.iter().filter(|c| c.layer == layer.name).cloned());
+        display.warnings.extend(prepared.preview.warnings.iter().cloned());
+    }
+    display
+}
+
 /// The runs of a film pass over bare geometry: every break in the curves
 /// starts a run of its own, with its own travel and start.
 fn film_runs(curves: &[Curve]) -> Vec<cut::Contour> {
@@ -1488,6 +1518,55 @@ mod tests {
         assert!(contours.preview.engraving_regions.is_empty());
         assert_eq!(contours.preview.contours.len(), 2);
         assert!(contours.preview.contours.iter().all(|c| c.closed));
+    }
+
+    #[test]
+    fn failed_preparation_keeps_assigned_layers_without_toolpaths() {
+        let mut drawing = square();
+        let corners = [[0., 0.], [10., 10.], [0., 10.], [10., 0.]];
+        drawing.contours.push(Contour {
+            layer: "0".into(),
+            curves: (0..4).map(|i| Curve::Line {
+                start: Point::from(corners[i]), end: Point::from(corners[(i + 1) % 4]),
+            }).collect(),
+        });
+        let mut draft = Draft::of(drawing.clone());
+        draft.current.features.layer_edits = serde_json::from_value(serde_json::json!([
+            { "contour": 0, "layer": "Engraving" }
+        ])).unwrap();
+        draft.prepare(&drawing);
+        assert!(draft.error.as_ref().unwrap().contains("crosses itself"));
+        assert!(draft.prepared.is_none());
+        let preview = draft.preview.as_ref().unwrap();
+        assert_eq!(preview.contours[0].layer, "Engraving");
+        assert_eq!(preview.contours[0].sources, vec![0]);
+        assert!(preview.engraving_regions.is_empty());
+        assert_eq!(preview.contours.len(), 2);
+
+        // An unrelated bad cutting contour must not hide a valid fill preview.
+        use openlaser_core::features::{Fill, Layer, LayerMode, Machining};
+        draft.current.features.layers.push(Layer {
+            name: "Engraving".into(), mode: LayerMode::Mark, color: None,
+            machining: Some(Machining { fill: Some(serde_json::from_value::<Fill>(serde_json::json!({
+                "spacing": 1., "angle": 0., "run_up": 2., "outline": false
+            })).unwrap()), ..Machining::default() }),
+        });
+        draft.prepare(&drawing);
+        assert!(draft.error.as_ref().unwrap().contains("crosses itself"));
+        assert!(draft.prepared.is_none());
+        let preview = draft.preview.as_ref().unwrap();
+        assert_eq!(preview.engraving_regions.len(), 1);
+        assert_eq!(preview.engraving_regions[0].sources, vec![0]);
+        assert!(preview.contours.iter().any(|c| c.layer == "Engraving" && !c.closed
+            && c.paths.iter().any(|p| p.kind == PathKind::Travel)));
+        assert!(preview.contours.iter().any(|c| c.layer == "0" && c.sources == vec![1]));
+
+        // Invalid engraving itself remains unprepared and gets no invented hatch.
+        draft.current.features.layer_edits[0].contour = 1;
+        draft.prepare(&drawing);
+        assert!(draft.error.is_some());
+        assert!(draft.prepared.is_none());
+        assert!(draft.preview.as_ref().unwrap().engraving_regions.is_empty());
     }
 
     #[test]

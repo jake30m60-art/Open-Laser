@@ -392,7 +392,7 @@
     const lead = target.closest<SVGGElement>('[data-lead]')?.dataset['lead'];
     if (lead !== undefined) return `lead:${lead}`;
     // Taking shapes one by one, a drag draws a box that takes more.
-    if (picks.length) return null;
+    if (picks.length || ui.setupPanel === 'engrave') return null;
     // Anywhere inside the selection's box moves it.
     if (target.closest('[data-selection]') && selected.length) return `move:${selected[0]}`;
     // A line within half a fingertip moves its part, found as a tap finds
@@ -499,6 +499,11 @@
     if (!hit) { if (!additive) { selected = []; picks = []; } return; }
     const n = hit.group;
     const one = hit.contour.sources.length === 1 ? hit.contour.sources[0]! : null;
+    if (ui.setupPanel === 'engrave' && one !== null) {
+      picks = additive ? (pickSet.has(one) ? picks.filter(c => c !== one) : [...picks, one]) : [one];
+      selected = [...new Set(picks.flatMap(c => { const g = groupOf.get(c); return g === undefined ? [] : [g]; }))];
+      return;
+    }
     if (one !== null && picks.length) {
       picks = pickSet.has(one) ? picks.filter((c) => c !== one) : [...picks, one];
       if (!selected.includes(n)) selected = [...selected, n];
@@ -515,7 +520,7 @@
   function onmarquee(swept: Box, additive: boolean): void {
     if (canvasBusy) return;
     const box = { minX: swept.minX - zero[0], maxX: swept.maxX - zero[0], minY: swept.minY - zero[1], maxY: swept.maxY - zero[1] };
-    if (picks.length) {
+    if (picks.length || ui.setupPanel === 'engrave') {
       // Shapes one by one: the box takes every shape whose line it touches, of any part.
       const taken = marqueeContours(shapes, boundsIndex, box, (c) => !hidden(c.layer));
       if (!taken.length) return;

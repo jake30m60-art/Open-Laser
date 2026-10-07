@@ -1319,5 +1319,10 @@
   "Fill and contours": "Füllung + Konturen",
   "Applies to every shape on this layer. Contours only traces the selected outlines; fill scans closed areas and leaves holes clear.": "Gilt für alle Formen dieser Ebene. Nur Konturen fährt die gewählten Umrisse nach; die Füllung graviert geschlossene Flächen und lässt Innenräume frei.",
   "{0}: {1}. Preview updated; Undo restores the previous setting.": "{0}: {1}. Vorschau aktualisiert; Rückgängig stellt die vorherige Einstellung wieder her.",
-  "Updating engraving preview…": "Gravurvorschau wird aktualisiert…"
+  "Updating engraving preview…": "Gravurvorschau wird aktualisiert…",
+  "Selected now: {0} contours": "Aktuell ausgewählt: {0} Konturen",
+  "Click a contour to select only it. Shift-click adds or removes contours.": "Ein Klick wählt genau eine Kontur. Umschalt-Klick fügt Konturen hinzu oder entfernt sie.",
+  "On this layer: {0} contours": "Auf dieser Ebene: {0} Konturen",
+  "The complete job could not be prepared. Valid engraving layers are previewed separately; fix the geometry error before running.": "Der gesamte Auftrag konnte nicht aufbereitet werden. Gültige Gravurebenen werden separat angezeigt; vor dem Ausführen den Geometriefehler beheben.",
+  "No job recipe selected. Layers with their own recipe can still engrave; choose a recipe for the other layers before running.": "Kein Auftragsrezept gewählt. Ebenen mit eigenem Rezept können trotzdem gravieren; für die anderen Ebenen vor dem Ausführen ein Rezept wählen."
 }

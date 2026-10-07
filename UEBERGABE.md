@@ -111,3 +111,45 @@ OpenLaser-App/OpenLaser.exe installiert (vorherige EXE als OpenLaser-vor-gravurf
 - Nur Simulator geprüft, keine Verbindung oder Ausführung an der echten Maschine.
 
 Die übrigen Aufgaben (Skizzenteile, Handrad, Manual Cut usw.) bleiben offen.
+
+## Fortsetzung Codex – 2026-10-07: fehlende Gravurvorschau und Einzelauswahl
+
+Joes Meldung am aktuellen Auftrag OPH Logo Schablone nachvollzogen:
+Die Vorbereitung scheitert an `contour 41: crosses itself`. Die bisherige Fehleransicht
+zeigte nur rohe Umrisse und verlor dabei auch die im Auftrag zugewiesenen Ebenen.
+Im Gravurpanel wurde der eigentliche Fehler durch den Hinweis auf das fehlende
+Auftragsrezept verdeckt. Die Angabe 12 Formen war der Ebeneninhalt, nicht die Auswahl.
+
+- Gravurkontext: ein Klick nimmt genau eine Kontur, Umschalt-Klick nimmt weitere
+  hinzu bzw. entfernt sie; auch das Auswahlrechteck arbeitet dort auf Konturen.
+- Aktuelle Auswahl und Anzahl auf der gesamten Ebene sind getrennt beschriftet.
+- Geometriefehler werden unabhängig vom Auftragsrezept angezeigt. Ein eigenes
+  Ebenenrezept erlaubt bereits die Gravurvorschau ohne globales Auftragsrezept.
+- Bei fehlgeschlagener Auftragsvorbereitung bleiben Ebenenzuweisungen erhalten.
+  Jede gültige gefüllte Markierebene erhält eine getrennt berechnete Vorschau
+  mit Flächen und tatsächlichen Laser-/Leerfahrtpfaden. Fehlerhafte Gravurebenen
+  erhalten keine erfundene Füllung. `prepared` bleibt None, der ursprüngliche
+  Geometriefehler sperrt weiterhin Kompilierung und Ausführung des Gesamtauftrags.
+- Joes Geometrie wurde nicht geändert oder aus der Ausgabe entfernt. Nur in der
+  isolierten Diagnosekopie wurde Kontur 41 vorübergehend deaktiviert, um die Ursache
+  nachzuweisen. Anschließend wurde die unveränderte aktuelle Auftragskopie geprüft.
+- Prüfung: 227 UI-Tests bestanden, UI-Typprüfung fehlerfrei, UI-Build erfolgreich.
+  Vollständige Server/Prep/Controller-Testprüfung erfolgreich (bekannten CRLF-Test
+  imported_recipes_and_machine_files ausgelassen). Nach Ergänzung der Teilvorschau
+  alle 74 Server-Lib-Tests erneut bestanden, einschließlich Regressionstest für
+  gültige Füllung neben fehlerhafter Schneidkontur und ungültige Gravurkontur.
+- Finale Release-EXE installiert und Oberfläche gestartet; EXE-Hashes identisch.
+  Sicherung: OpenLaser-App/OpenLaser-vor-gravurauswahl-20261007-112938.exe.
+  Direkt am laufenden installierten Server geprüft: 13 Gravurflächen, 2954 cut-
+  und 2914 travel-Pfade, weiterhin Fehler Kontur 41 und compiled=null.
+  Der Auftrag hatte bei der ersten Diagnose 12, beim letzten gespeicherten Stand
+  13 Gravurkonturen. Kein Test an der echten Maschine.
+- Diagnosekopie und API-Nachweis: C:/Users/joe/Videos/openlaser-gravur-diagnose-20261007/.
+  Der eigene Simulator auf Port 8097 ist beendet. Joes Instanzen nicht beendet.
+- Die Aufnahme des nativen Fensters lief in einen Timeout; UI-Screenshotprüfung
+  war deshalb nicht möglich. Die Pfade wurden über die reale Server-API verifiziert.
+
+Offen am Auftrag: Kontur 41 auf Ebene 0 besitzt vier Bögen und zwei mikroskopisch
+kurze Linien bei ungefähr X=35 mm / Y=-54 mm. Den Import/Umriss gezielt untersuchen
+und geometrisch korrigieren, bevor der Gesamtauftrag ausgeführt wird.
+Die übrigen Aufgaben aus der Übergabe bleiben offen.
