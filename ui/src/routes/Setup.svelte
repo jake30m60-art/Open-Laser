@@ -118,8 +118,8 @@
   <Canvas {engraveMode} bind:engravingAreas bind:this={canvas} bind:selectedContours bind:clipboard bind:pasting {pasteSettings} {simulationProgress} {simulationMode} />
 </section>
 
-<aside class="panel side" class:spread={ui.setupPanel === null} bind:this={settingsPanel}>
-  {#if draft}<JobOverview onmanualcut={()=>manualCutOpen=true} onselectpart={(first,count)=>canvas?.selectPart(first,count)} />{/if}
+<aside class="panel side setup-side" class:spread={ui.setupPanel === null} class:compact bind:this={settingsPanel}>
+  <div class="setup-settings" class:spread={ui.setupPanel === null}>
   {#if !draft}
     <h2>No part open</h2>
     <p class="muted">Pick a part or a saved job on the Parts page, or start from text.</p>
@@ -142,6 +142,8 @@
   {:else}
     <JobPanel onselectpart={(first, count) => canvas?.selectPart(first, count)} />
   {/if}
+  </div>
+  {#if draft}<div class="setup-overview"><JobOverview onmanualcut={()=>manualCutOpen=true} onselectpart={(first,count)=>canvas?.selectPart(first,count)} /></div>{/if}
 </aside>
 {#if manualCutOpen}<ManualCut onclose={()=>manualCutOpen=false} />{/if}
 {#if texting}<CreateText onclose={() => (texting = false)} />{/if}
@@ -150,6 +152,12 @@
 
 
 <style>
+  .panel.setup-side { overflow:hidden; gap:0; }
+  .setup-settings { display:flex; flex-direction:column; gap:12px; flex:1; min-height:0; overflow:auto; padding-bottom:12px; overscroll-behavior:contain; }
+  .setup-settings.spread { justify-content:space-between; }
+  .setup-overview { flex:0 1 42%; min-height:148px; max-height:42%; overflow:auto; border-top:1px solid var(--line); padding-top:8px; overscroll-behavior:contain; }
+  .compact .setup-settings { flex:none; overflow:visible; }
+  .compact .setup-overview { flex:none; max-height:none; overflow:visible; }
   /* The machining bar runs along the top and down the left; the drawing bar spans the foot. */
   .canvas-panel.corner {
     display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr) auto;

@@ -25,7 +25,7 @@
   const undoLast = () => set((f) => { f.bridges!.connections.pop(); });
 </script>
 
-<p class="muted">{t("After the first endpoint, the shaded band previews the channel width. Click the second endpoint to inspect the actual cut; Apply saves it, Cancel discards it.")}</p>
+<p class="muted">{t("Pick both endpoints to preview the actual cut. Review it, then click the drawing once more to save the bridge. Cancel discards it.")}</p>
 <p class="muted">{t("Stencil bridge: connect the outer boundary to the inner hole. Keep separate bridges farther apart than their width.")}</p>
 {#if bad}<p role="alert">{t("Bridge {0} is invalid: {1}",bad,error ?? '')}</p>{/if}
 <ol class="bridge-list">{#each bridges.connections as connection,i}<li><strong>{t("Bridge {0}",i+1)}</strong> · {connection.first.point.x.toFixed(2)}, {connection.first.point.y.toFixed(2)} → {connection.second.point.x.toFixed(2)}, {connection.second.point.y.toFixed(2)}<button class="btn btn-ghost" onclick={()=>removeFrom(i)}>{t("Remove this and subsequent bridges")}</button></li>{/each}</ol>

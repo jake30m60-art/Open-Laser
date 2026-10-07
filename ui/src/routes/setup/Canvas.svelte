@@ -606,6 +606,10 @@
     if (picking.revision !== draft.revision) {
       ui.say('The drawing changed. Start the picking session again.', true); ui.picking = null; return;
     }
+    if (picking.feature === 'bridges' && picking.bridgeReview) {
+      if (picking.error || !picking.preview) { ui.say(picking.error ?? t('Wait for the bridge preview.'), true); return; }
+      await finishPicks(); return;
+    }
     const ticket = latestPick.begin(draft.revision);
     pickBusy = true;
     try {
@@ -636,10 +640,10 @@
         }
       }
       const point = draft.placed[pick.owner] ? apply(draft.placed[pick.owner]!.transform, pick.point) : pick.point;
-      const staged = { ...(ui.picking ?? picking), features: f, marks: [...picking.marks, point] };
+      const staged = { ...(ui.picking ?? picking), features: f, marks: [...picking.marks, point], preview: undefined, error: null, previewPending: true, bridgeReview: picking.feature === 'bridges' };
       ui.picking = staged;
       const reply = await api.previewFeatures(f, ticket.revision);
-      if (ui.picking === staged && server.doc?.draft?.revision === ticket.revision) ui.picking = { ...staged, preview: reply.preview, error: reply.error };
+      if (ui.picking === staged && server.doc?.draft?.revision === ticket.revision) ui.picking = { ...staged, preview: reply.preview, error: reply.error, previewPending: false };
     } catch (error) {
       ui.say(explain(error), true);
     } finally { pickBusy = false; }
@@ -647,6 +651,7 @@
   async function finishPicks(): Promise<void> {
     const picking = ui.picking;
     if (updating || !picking || pickBusy || picking.previewPending) return;
+    if (picking.feature === 'bridges' && (!picking.bridgeReview || !picking.preview || picking.first || picking.error)) return;
     if (picking.error && picking.error !== draft?.error) { ui.say(picking.error, true); return; }
     if (picking.first) { ui.say('Complete or cancel the pending bridge end first.', true); return; }
     await withBusy((b) => (pickBusy = b), async () => {

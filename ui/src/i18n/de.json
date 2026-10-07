@@ -1420,5 +1420,9 @@
   "Replaces this part in the open job. Original stays available; Undo restores it. Bridges are cleared and changed contour settings must be reviewed.": "Ersetzt dieses Teil im offenen Auftrag. Original bleibt erhalten; Rückgängig stellt es wieder her. Brücken werden zurückgesetzt; Einstellungen geänderter Konturen bitte prüfen.",
   "Text with fonts": "Text mit Schriftauswahl",
   "Import DXF / SVG": "DXF / SVG importieren",
-  "Manual separation cut": "Manueller Trennschnitt"
+  "Manual separation cut": "Manueller Trennschnitt",
+  "Wait for the bridge preview.": "Warte auf die Brückenvorschau.",
+  "Invalid bridge. Undo the last bridge or cancel.": "Ungültige Brücke. Letzte Brücke zurücknehmen oder abbrechen.",
+  "Review the bridge preview, then click the drawing to confirm.": "Brückenvorschau prüfen, dann mit einem Klick auf die Zeichnung bestätigen.",
+  "Pick both endpoints to preview the actual cut. Review it, then click the drawing once more to save the bridge. Cancel discards it.": "Beide Endpunkte wählen und den tatsächlichen Schnitt in der Vorschau prüfen. Ein weiterer Klick auf die Zeichnung speichert die Brücke. Abbrechen verwirft sie."
 }

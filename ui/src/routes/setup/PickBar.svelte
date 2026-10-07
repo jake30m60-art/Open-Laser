@@ -22,7 +22,7 @@
       case 'joints': return 'Tap a contour where a joint should hold it';
       case 'cooling': return 'Tap a contour where the cut should pause to cool';
       case 'start': return 'Tap a contour where its cut should start';
-      case 'bridges': return picking.first ? 'Tap the other end of the bridge' : 'Tap the first end of the bridge';
+      case 'bridges': return picking.bridgeReview ? picking.error ? 'Invalid bridge. Undo the last bridge or cancel.' : 'Review the bridge preview, then click the drawing to confirm.' : picking.first ? 'Tap the other end of the bridge' : 'Tap the first end of the bridge';
       case 'order': return `Tap the contours in cutting order · ${picked} of ${total}`;
     }
   });
@@ -33,7 +33,7 @@
   async function undoBridge(): Promise<void> {
     const current=ui.picking; if(!current?.features.bridges || busy)return;
     const features=structuredClone($state.snapshot(current.features)); features.bridges!.connections.pop();
-    const staged={...current,features,first:null,marks:current.marks.slice(0,-1),preview:undefined,error:null,previewPending:true}; ui.picking=staged;
+    const staged={...current,features,bridgeReview:false,first:null,marks:current.marks.slice(0,-1),preview:undefined,error:null,previewPending:true}; ui.picking=staged;
     try{const reply=await api.previewFeatures(features,current.revision); if(ui.picking===staged)ui.picking={...staged,preview:reply.preview,error:reply.error,previewPending:false};}catch(e){ui.say(explain(e),true);}
   }
   function cancel(): void {
@@ -49,5 +49,5 @@
   {/if}
   {#if picking.feature === 'bridges' && picking.features.bridges?.connections.length}<button class="btn btn-ghost" disabled={busy} onclick={undoBridge}>{t("Undo last bridge")}</button>{/if}
   <button class="btn btn-ghost" onclick={cancel}>{t("Cancel")}</button>
-  <button class="btn btn-primary" disabled={busy || picking.previewPending || !!picking.first || !!picking.error && picking.error !== draftError} onclick={onfinish}>{t("Apply")}</button>
+  {#if picking.feature !== 'bridges'}<button class="btn btn-primary" disabled={busy || picking.previewPending || !!picking.first || !!picking.error && picking.error !== draftError} onclick={onfinish}>{t("Apply")}</button>{/if}
 </div>

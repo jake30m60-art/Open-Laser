@@ -22,6 +22,8 @@ export type FeatureId = (typeof FEATURE_IDS)[number];
 export interface Picking {
   error?: string | null;
   previewPending?: boolean;
+  /** Two bridge endpoints have a preview to review before a canvas confirmation. */
+  bridgeReview?: boolean;
   features: Features;
   preview?: Preview;
   marks: [number, number][];

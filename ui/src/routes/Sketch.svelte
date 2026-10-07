@@ -30,7 +30,6 @@
   import { evaluate } from '../sketch/expression';
 
   let textOpen=$state(false), importing=$state(false);
-  let toolGroup=$state<'create'|'modify'|'constraints'|'dimension'>('create');
   let importInput:HTMLInputElement;
   async function insertPart(id:string){const {drawing}=await api.partDrawing(id);let ids:number[]=[];const error=store.change(s=>{ids=appendDrawing(s,drawing);});if(error)throw new Error(error);store.select(ids);fit();}
   async function importDrawing(event:Event){const input=event.currentTarget as HTMLInputElement,file=input.files?.[0];if(!file)return;importing=true;try{const {id,warnings}=await api.importPart(file.name,await file.arrayBuffer());await insertPart(id);if(warnings?.length)ui.say(warnings.join(' · '));}catch(e){ui.say(explain(e),true);}finally{importing=false;input.value='';}}
@@ -663,8 +662,7 @@
 
 <section class="panel main sketch-main">
   <div class="sketch-bar" role="toolbar" aria-label={t("Sketch tools")}>
-    <div class="sk-group">{#each [["create","Create"],["modify","Modify"],["constraints","Constraints"],["dimension","Dimension"]] as [group,label]}<button class="btn btn-ghost" class:on={toolGroup===group} onclick={()=>toolGroup=group as typeof toolGroup}>{t(label!)}</button>{/each}</div>
-    <div class="sk-group" hidden={toolGroup!=='create'}>
+    <div class="sk-group">
       <span class="sk-title">{t("Create")}</span>
       <div class="sk-tools">
         <button class="btn btn-soft" onclick={()=>textOpen=true}>{t("Text with fonts")}</button>
@@ -677,7 +675,7 @@
         {/each}
       </div>
     </div>
-    <div class="sk-group" hidden={toolGroup!=='modify'}>
+    <div class="sk-group">
       <span class="sk-title">{t("Modify")}</span>
       <div class="sk-tools">
         {#each MODIFY as t (t.id)}
@@ -690,7 +688,7 @@
         </button>
       </div>
     </div>
-    <div class="sk-group" hidden={toolGroup!=='constraints'}>
+    <div class="sk-group">
       <span class="sk-title">{t("Constraints")}</span>
       <div class="sk-tools">
         {#each RELATE as t (t.id)}
@@ -698,7 +696,7 @@
         {/each}
       </div>
     </div>
-    <div class="sk-group" hidden={toolGroup!=='dimension'}>
+    <div class="sk-group">
       <span class="sk-title">{t("Dimension")}</span>
       <div class="sk-tools">
         <button class="sk-tool" class:on={action?.id === 'dimension'} title={t("Sketch dimension (D)")} aria-label={t("Sketch dimension")} onclick={() => chooseAction('dimension')}>
@@ -872,14 +870,13 @@
 </aside>
 
 <style>
-  .sk-group[hidden]{display:none!important}
   .sketch-side select{width:100%;min-height:44px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);padding:8px;margin:6px 0}
   .sketch-main { position: relative; }
   .sketch-bar { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
   .sk-group { display: flex; flex-direction: column; gap: 2px; }
-  .sk-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
+  .sk-title { font-size: var(--t-sm); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
   .sk-tools { display: flex; flex-wrap: wrap; gap: 2px; }
-  .sk-tool { min-width: 40px; height: 40px; border-radius: 9px; border: 1px solid transparent; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-2); }
+  .sk-tool { min-width: 44px; height: 44px; border-radius: 9px; border: 1px solid transparent; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-2); }
   .sk-tool.glyph { font-weight: 700; font-size: 15px; padding: 0 6px; }
   .sk-tool:hover:not(:disabled) { background: var(--panel); border-color: var(--line); }
   .sk-tool.on { background: var(--accent-soft); color: var(--accent-2); border-color: transparent; }
