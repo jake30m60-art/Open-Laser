@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 import { quantity } from '../lib/units.svelte';
 import { plural } from './format';
 // The machining features as the tool bar shows them: which are on, their
@@ -7,15 +8,15 @@ import type { Bridges, CommonEdges, Cooling, Features, FlyCut, Joints, Kerf, Lea
 export interface Tool { id: string; short: string; name: string; desc: string; optional: boolean }
 
 export const TOOLS: Tool[] = [
-  { id: 'leads', short: 'Leads', name: 'Entry & exit leads', desc: 'Keep pierce marks off the finished edge.', optional: true },
-  { id: 'joints', short: 'Microjoints', name: 'Microjoints', desc: 'Leave small gaps to hold parts in place.', optional: true },
-  { id: 'cooling', short: 'Cooling', name: 'Cooling points', desc: 'Pause at corners to reduce heat.', optional: true },
-  { id: 'kerf', short: 'Kerf', name: 'Kerf compensation', desc: 'Offset cuts to allow for the beam width.', optional: true },
-  { id: 'bridges', short: 'Bridges', name: 'Bridges', desc: 'Join contours with a channel.', optional: true },
-  { id: 'common', short: 'Common edges', name: 'Common edges', desc: 'Cut selected shared edges once.', optional: true },
-  { id: 'fly', short: 'Flying cut', name: 'Flying cut', desc: 'Cut straight edges on one line in a single pass, the laser off over the gaps.', optional: true },
-  { id: 'order', short: 'Cut order', name: 'Cutting order', desc: 'Choose the sequence of cuts.', optional: false },
-  { id: 'start', short: 'Start & seam', name: 'Start point and seam', desc: 'Set start points, direction, and seam treatment.', optional: false },
+  { id: 'leads', short: t("Leads"), name: t("Entry & exit leads"), desc: t("Keep pierce marks off the finished edge."), optional: true },
+  { id: 'joints', short: t("Microjoints"), name: t("Microjoints"), desc: t("Leave small gaps to hold parts in place."), optional: true },
+  { id: 'cooling', short: t("Cooling"), name: t("Cooling points"), desc: t("Pause at corners to reduce heat."), optional: true },
+  { id: 'kerf', short: t("Kerf"), name: t("Kerf compensation"), desc: t("Offset cuts to allow for the beam width."), optional: true },
+  { id: 'bridges', short: t("Bridges"), name: t("Bridges"), desc: t("Join contours with a channel."), optional: true },
+  { id: 'common', short: t("Common edges"), name: t("Common edges"), desc: t("Cut selected shared edges once."), optional: true },
+  { id: 'fly', short: t("Flying cut"), name: t("Flying cut"), desc: t("Cut straight edges on one line in a single pass, the laser off over the gaps."), optional: true },
+  { id: 'order', short: t("Cut order"), name: t("Cutting order"), desc: t("Choose the sequence of cuts."), optional: false },
+  { id: 'start', short: t("Start & seam"), name: t("Start point and seam"), desc: t("Set start points, direction, and seam treatment."), optional: false },
 ];
 
 export const defaultLeads = (): Leads => ({ entry: { shape: 'line', length: 2, radius: 1, angle: 45 }, exit: null, side: 'auto', closed_only: true, overrides: [] });
@@ -59,24 +60,24 @@ export const WORDS: Record<string, string> = {
   as_drawn: 'As drawn', nearest: 'Shortest path', left_to_right: 'Left to right', right_to_left: 'Right to left', bottom_to_top: 'Bottom to top', top_to_bottom: 'Top to bottom',
   line: 'Line', arc: 'Arc', line_arc: 'Line and arc',
 };
-const title = (s: string) => WORDS[s] ?? s.replace(/_/g, ' ');
+const title = (s: string) => t(WORDS[s] ?? s.replace(/_/g, ' '));
 
 export function stateOf(features: Features, id: string): string {
   switch (id) {
-    case 'leads': { const l = features.leads; if (!l) return 'Off'; const e = l.entry; return e ? `${title(e.shape)} ${quantity(e.length, 'mm')}` : 'Exit only'; }
+    case 'leads': { const l = features.leads; if (!l) return t("Off"); const e = l.entry; return e ? `${title(e.shape)} ${quantity(e.length, 'mm')}` : t("Exit only"); }
     case 'joints': {
-      const j = features.joints; if (!j) return 'Off';
+      const j = features.joints; if (!j) return t("Off");
       const p = j.placement;
-      const n = 'count' in p ? `${p.count} per contour` : 'spacing' in p ? `every ${quantity(p.spacing, 'mm')}` : 'across_x' in p ? `${p.across_x} across X` : 'across_y' in p ? `${p.across_y} across Y` : `${p.manual.length} placed`;
+      const n = 'count' in p ? t("{0} per contour", p.count) : 'spacing' in p ? t("every {0}", quantity(p.spacing, 'mm')) : 'across_x' in p ? t("{0} across X", p.across_x) : 'across_y' in p ? t("{0} across Y", p.across_y) : t("{0} placed", p.manual.length);
       return `${n} · ${quantity(j.width, 'mm')}`;
     }
-    case 'cooling': { const c = features.cooling; if (!c) return 'Off'; return `${(c.dwell / 1000).toFixed(1)} s · ${'manual' in c.placement ? `${c.placement.manual.length} placed` : 'corners'}`; }
-    case 'kerf': { const k = features.kerf; return k ? `${quantity(k.width, 'mm')}` : 'Off'; }
-    case 'bridges': { const b = features.bridges; return b ? `${b.connections.length} × ${quantity(b.width, 'mm')}` : 'Off'; }
-    case 'common': { const c = features.common; return c ? `${plural(c.contours.length, 'contour')} · ${quantity(c.tolerance, 'mm')}` : 'Off'; }
-    case 'fly': { const f = features.fly; return f ? `${plural(f.contours.length, 'contour')} · run-up ${quantity(f.run_up, 'mm')}` : 'Off'; }
-    case 'order': { const o = features.order; return typeof o.strategy === 'string' ? (o.inner_first ? 'Inner first' : title(o.strategy)) : 'Manual'; }
-    case 'start': { const s = features.start; const at = typeof s.position === 'string' ? title(s.position) : 'Manual'; return `${s.spots.length ? `${s.spots.length} chosen` : at} · ${title(s.direction)}`; }
+    case 'cooling': { const c = features.cooling; if (!c) return t("Off"); return `${(c.dwell / 1000).toFixed(1)} s · ${'manual' in c.placement ? t("{0} placed", c.placement.manual.length) : t("corners")}`; }
+    case 'kerf': { const k = features.kerf; return k ? `${quantity(k.width, 'mm')}` : t("Off"); }
+    case 'bridges': { const b = features.bridges; return b ? `${b.connections.length} × ${quantity(b.width, 'mm')}` : t("Off"); }
+    case 'common': { const c = features.common; return c ? `${plural(c.contours.length, 'contour')} · ${quantity(c.tolerance, 'mm')}` : t("Off"); }
+    case 'fly': { const f = features.fly; return f ? t("{0} · run-up {1}", plural(f.contours.length, 'contour'), quantity(f.run_up, 'mm')) : t("Off"); }
+    case 'order': { const o = features.order; return typeof o.strategy === 'string' ? (o.inner_first ? t("Inner first") : title(o.strategy)) : t("Manual"); }
+    case 'start': { const s = features.start; const at = typeof s.position === 'string' ? title(s.position) : t("Manual"); return `${s.spots.length ? t("{0} chosen", s.spots.length) : at} · ${title(s.direction)}`; }
     default: return '';
   }
 }

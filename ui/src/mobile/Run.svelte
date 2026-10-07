@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { untrack } from 'svelte';
   import type { ExecutionView, PreflightReview } from '../api';
   import { api } from '../api/client';
@@ -80,11 +82,11 @@
 
 <div class="phone-run">
   <div class="phone-run-scroll">
-    <div class="phone-page-title phone-run-title"><h1>Run</h1>{#if draft}<RunChip message={chipMessage} gates={[['Start', doc.readiness.run], ['Frame', doc.readiness.frame]]} tone={doc.readiness.run.ok ? 'ready' : 'info'} />{/if}</div>
+    <div class="phone-page-title phone-run-title"><h1>{t("Run")}</h1>{#if draft}<RunChip message={chipMessage} gates={[['Start', doc.readiness.run], ['Frame', doc.readiness.frame]]} tone={doc.readiness.run.ok ? 'ready' : 'info'} />{/if}</div>
     {#if draft}
       {#if !running && !recovering}
-        <div class="seg phone-run-choice" role="group" aria-label="Run type">
-          <button class:on={!draft.dry_run} disabled={compileBlocked} onclick={() => perform(() => api.compile(false))}>Cut</button>
+        <div class="seg phone-run-choice" role="group" aria-label={t("Run type")}>
+          <button class:on={!draft.dry_run} disabled={compileBlocked} onclick={() => perform(() => api.compile(false))}>{t("Cut")}</button>
           <button class:on={draft.dry_run} disabled={compileBlocked} onclick={() => perform(() => api.compile(true))}>Dry run</button>
         </div>
       {/if}
@@ -93,7 +95,7 @@
           <div>
             <h2>{name}</h2>
             <p class="phone-job-material">
-              {material ? recipeLabel(material) : 'No material'}
+              {material ? recipeLabel(material) : t("No material")}
               {#if material}<button class="values-toggle" aria-expanded={valuesOpen} onclick={() => (valuesOpen = !valuesOpen)}>{valuesOpen ? 'Hide values' : 'Values'}</button>{/if}
             </p>
             {#if material && valuesOpen}<p class="phone-job-summary"><MaterialSummary source={material} variant="line" /></p>{/if}
@@ -117,12 +119,12 @@
           Use Controls to move the head. Resume returns here.
         </p>
       {/if}
-      {#if recovering}<button class="phone-review-restart" onclick={() => review(true)}>Adjust restart…<i class="ic ic-arrow-right"></i></button>{/if}
+      {#if recovering}<button class="phone-review-restart" onclick={() => review(true)}>{t("Adjust restart…")}<i class="ic ic-arrow-right"></i></button>{/if}
     {:else}
       <div class="phone-empty">
         <i class="ic ic-folder"></i>
         <h2>No part open</h2>
-        <p>Choose a part or saved job to begin.</p>
+        <p>{t("Choose a part or saved job to begin.")}</p>
         <button class="phone-primary" onclick={() => ui.tab = 'parts'}>Go to Parts</button>
       </div>
     {/if}
@@ -132,7 +134,7 @@
       <RunControls onaction={act} {busy} showStop={false} explain={false} />
     {/if}
     <div class="phone-run-tools">
-      <button onclick={controls}><i class="ic ic-target"></i>Controls</button>
+      <button onclick={controls}><i class="ic ic-target"></i>{t("Controls")}</button>
       <HoldButton class="" disabled={blocked || !doc.readiness.frame.ok} onhold={() => perform(() => api.machine('frame'))}>
         <i class="ic ic-frame"></i>Frame
       </HoldButton>

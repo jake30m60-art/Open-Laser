@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
   import { api } from '../api/client';
@@ -136,7 +138,7 @@
     return ui.confirm({
       title: key === 'xml' ? 'Save machine settings?' : 'Use this machine backup?',
       body: `${what}${when}`,
-      confirm: connected ? 'Save and write controller' : 'Save settings',
+      confirm: connected ? 'Save and write controller' : t("Save settings"),
     });
   }
 
@@ -203,7 +205,7 @@
   async function discardRecipe(id: string, recipe: RecipeView | undefined): Promise<void> {
     const ok = await ui.confirm({
       title: 'Discard these material values?',
-      body: `${recipeEdits.count(id)} staged values for ${recipe?.name ?? 'this material'} are thrown away.`,
+      body: t("{0} staged values for {1} are thrown away.", recipeEdits.count(id), recipe?.name ?? 'this material'),
       confirm: 'Discard values',
       danger: true,
     });
@@ -218,7 +220,7 @@
     const ok = await ui.confirm({
       title: `Discard ${labels[key].toLowerCase()} edits?`,
       body: 'The staged changes on this screen are thrown away.',
-      confirm: 'Discard edits',
+      confirm: t("Discard edits"),
       danger: true,
     });
     if (ok) run(() => settingsEdits.discard(key));
@@ -245,7 +247,7 @@
     if (preferences) run(() => settingsEdits.resolvePreflight(key, $state.snapshot(preferences!), ours));
   }
 </script>
-<Modal title="Pending changes" wide {onclose}>
+<Modal title={t("Pending changes")} wide {onclose}>
   <p class="muted">Review and save each item.</p>
   {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
   {#if doc.persistence_error || recipeEdits.storageError || settingsEdits.error}
@@ -265,7 +267,7 @@
         </div>
       {/each}
       <div class="actions">
-        <button class="btn btn-ghost" onclick={() => (reviewing = null)}>Back</button>
+        <button class="btn btn-ghost" onclick={() => (reviewing = null)}>{t("Back")}</button>
         <button class="btn btn-primary" disabled={busy || unresolved} onclick={() => run(resolveJob)}>Resolve and save</button>
       </div>
     </section>
@@ -276,8 +278,8 @@
         <div><h3>{draft.name}</h3><small>{draftNote(draft)}</small></div>
         <div class="actions">
           <button class="btn btn-ghost" disabled={busy || !!draft.problem} onclick={() => openDraft(draft)}>Open</button>
-          <button class="btn btn-ghost" disabled={busy} onclick={() => discardDraft(draft)}>Discard</button>
-          <button class="btn btn-primary" disabled={busy || !draft.can_save} onclick={() => run(() => saveDraft(draft))}>Save job</button>
+          <button class="btn btn-ghost" disabled={busy} onclick={() => discardDraft(draft)}>{t("Discard")}</button>
+          <button class="btn btn-primary" disabled={busy || !draft.can_save} onclick={() => run(() => saveDraft(draft))}>{t("Save job")}</button>
         </div>
       </div>
     </section>
@@ -290,8 +292,8 @@
         <div><h3>{recipe?.name ?? 'Deleted material'}</h3><small>{recipeEdits.count(id)} staged material values</small></div>
         <div class="actions">
           <button class="btn btn-ghost" disabled={busy} onclick={() => openRecipe(id)}>Open</button>
-          <button class="btn btn-ghost" disabled={busy} onclick={() => discardRecipe(id, recipe)}>Discard</button>
-          <button class="btn btn-primary" disabled={busy || !recipe || !!conflicts.length} onclick={() => recipe && run(() => saveRecipe(recipe))}>Save</button>
+          <button class="btn btn-ghost" disabled={busy} onclick={() => discardRecipe(id, recipe)}>{t("Discard")}</button>
+          <button class="btn btn-primary" disabled={busy || !recipe || !!conflicts.length} onclick={() => recipe && run(() => saveRecipe(recipe))}>{t("Save")}</button>
         </div>
       </div>
       {#each conflicts as conflict}
@@ -312,8 +314,8 @@
       <div class="row">
         <h3>{labels[key]}</h3>
         <div class="actions">
-          <button class="btn btn-ghost" disabled={busy} onclick={() => discardSetting(key)}>Discard</button>
-          <button class="btn btn-primary" disabled={busy || saveBlocked(key)} onclick={() => confirmSaveSetting(key)}>Save</button>
+          <button class="btn btn-ghost" disabled={busy} onclick={() => discardSetting(key)}>{t("Discard")}</button>
+          <button class="btn btn-primary" disabled={busy || saveBlocked(key)} onclick={() => confirmSaveSetting(key)}>{t("Save")}</button>
         </div>
       </div>
       {#if key === 'theme'}<p>{staged.theme?.base} → {staged.theme?.value}</p>
@@ -347,7 +349,7 @@
           {#each [['Preflight', prefMerge.value], ['Pause', prefMerge.value.pause], ['Postflight', prefMerge.value.postflight]] as [phase, defaults]}
             {#each ['fiber', 'co2'] as mode}
               {@const list = (defaults as PreflightPreferences['postflight'])[mode as 'fiber' | 'co2']}
-              <div class="checklist-review"><strong>{phase} · {laserLabel(mode as 'fiber' | 'co2')} · {list.enabled ? 'On' : 'Off'}</strong>
+              <div class="checklist-review"><strong>{phase} · {laserLabel(mode as 'fiber' | 'co2')} · {list.enabled ? t("On") : t("Off")}</strong>
                 {#if list.enabled}<ul>{#each list.steps as step}<li>{step.text}{#if step.action}<small>{actionName(step.action)}</small>{/if}</li>{/each}</ul>{/if}
               </div>
             {/each}

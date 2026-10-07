@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // A count of sheets: fewer, the number (tap to type it) and more.
   import { osk } from '../lib/osk.svelte';
 
@@ -15,7 +17,7 @@
 </script>
 
 <div class="count">
-  <span>{label}</span>
+  <span>{t(label)}</span>
   <button aria-label="One fewer" disabled={disabled || value <= min} onclick={() => set(value - 1)}><i class="ic ic-minus"></i></button>
   <button class="number" {disabled} onclick={() => osk.number(prompt, value, 'sheets', set)}>{value}</button>
   <button aria-label="One more" {disabled} onclick={() => set(value + 1)}><i class="ic ic-plus"></i></button>

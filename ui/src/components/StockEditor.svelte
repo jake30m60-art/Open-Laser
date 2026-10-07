@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // One rack entry or remnant: how many are on hand, which folder keeps it,
   // and removing it.
   import SheetCount from './SheetCount.svelte';
@@ -58,7 +60,7 @@
     <div class="actions">
       {#if item}<button class="btn btn-ghost danger" disabled={busy} onclick={remove}>{confirming ? 'Tap again to remove' : 'Remove this size'}</button>
       {:else}<button class="btn btn-ghost" disabled={busy} onclick={() => inspecting = true}>Inspect remnant</button>{/if}
-      <button class="btn" onclick={onclose}>Done</button>
+      <button class="btn" onclick={onclose}>{t("Done")}</button>
     </div>
   </div>
 </Modal>

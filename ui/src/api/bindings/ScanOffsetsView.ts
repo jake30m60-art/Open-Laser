@@ -20,6 +20,14 @@ mode: LaserMode,
  */
 bed: Bounds,
 /**
+ * Cutting acceleration from the active machine backup, in mm/s².
+ */
+acceleration: number,
+/**
+ * Planner acceleration time in seconds.
+ */
+acceleration_time: number,
+/**
  * Every measurement, by angle then speed.
  */
 entries: Array<ScanOffset>, };

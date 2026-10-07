@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
   import { api } from '../api/client';
@@ -21,7 +23,7 @@
 </script>
 
 <Modal title="Saved edit history" {onclose}>
-  <div class="row"><button class="btn" disabled={busy || !history?.past.length} onclick={() => step(true)}>Undo</button><button class="btn" disabled={busy || !history?.future.length} onclick={() => step(false)}>Redo</button></div>
+  <div class="row"><button class="btn" disabled={busy || !history?.past.length} onclick={() => step(true)}>{t("Undo")}</button><button class="btn" disabled={busy || !history?.future.length} onclick={() => step(false)}>{t("Redo")}</button></div>
   <p class="muted">Library history. Drawing Undo is in Setup.</p>
   {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
   <div class="edits">

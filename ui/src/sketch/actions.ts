@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 // The tools that act on what is drawn: Fusion's modify tools, its
 // constraints and its sketch dimension. Each takes clicks on points and
 // curves, may offer heads-up values, previews its result, and returns the
@@ -57,9 +58,9 @@ export abstract class Action {
 class CurveClick extends Action {
   constructor(readonly id: 'trim' | 'extend' | 'break', readonly name: string, private readonly run: (s: Sketch, id: Id, at: Vec) => Outcome) { super(); }
   hint(): string {
-    return this.id === 'trim' ? 'Click the stretch of a curve to remove, up to where others cross it'
-      : this.id === 'extend' ? 'Click near the end of a line or arc to lengthen it to the next curve'
-        : 'Click a curve to split it where others cross it';
+    return this.id === 'trim' ? t("Click the stretch of a curve to remove, up to where others cross it")
+      : this.id === 'extend' ? t("Click near the end of a line or arc to lengthen it to the next curve")
+        : t("Click a curve to split it where others cross it");
   }
   override preview(ctx: Context, _cursor: Vec, hover: Hit): Preview {
     if (hover.entity === null) return none();
@@ -78,10 +79,10 @@ class CurveClick extends Action {
 class Corner extends Action {
   private size: number;
   constructor(readonly id: 'fillet' | 'chamfer', readonly name: string) { super(); this.size = id === 'fillet' ? 5 : 2; }
-  hint(): string { return this.picks.length ? `Type the ${this.id === 'fillet' ? 'radius' : 'distance'} · Enter or click to apply` : 'Click a corner where two lines meet'; }
+  hint(): string { return this.picks.length ? t("Type the {0} · Enter or click to apply", this.id === 'fillet' ? 'radius' : 'distance') : t("Click a corner where two lines meet"); }
   private key(): string { return this.id === 'fillet' ? 'radius' : 'distance'; }
   override fields(): Field[] {
-    return this.picks.length ? [{ key: this.key(), label: this.id === 'fillet' ? 'Radius' : 'Distance', kind: 'length', value: this.size }] : [];
+    return this.picks.length ? [{ key: this.key(), label: this.id === 'fillet' ? t("Radius") : t("Distance"), kind: 'length', value: this.size }] : [];
   }
   private run(s: Sketch, locked: Locked): Outcome {
     const size = locked[this.key()] ?? this.size;
@@ -93,7 +94,7 @@ class Corner extends Action {
   }
   click(ctx: Context, hit: Hit, locked: Locked): Step {
     if (!this.picks.length) {
-      if (hit.point === null) return { kind: 'error', message: 'Click the corner point where two lines meet.' };
+      if (hit.point === null) return { kind: 'error', message: t("Click the corner point where two lines meet.") };
       this.picks.push(hit);
       return { kind: 'more' };
     }
@@ -112,8 +113,8 @@ class Corner extends Action {
 
 class Offset extends Action {
   readonly id = 'offset';
-  readonly name = 'Offset';
-  hint(ctx: Context): string { return ctx.selection.size ? 'Move to the side, type the distance · Enter or click to apply' : 'Click a curve: its connected profile is offset'; }
+  readonly name = t("Offset");
+  hint(ctx: Context): string { return ctx.selection.size ? t("Move to the side, type the distance · Enter or click to apply") : t("Click a curve: its connected profile is offset"); }
   private distance(ctx: Context, cursor: Vec, locked: Locked): number {
     if (locked.distance !== undefined) return locked.distance;
     let best = Infinity;
@@ -127,7 +128,7 @@ class Offset extends Action {
     return Number.isFinite(best) ? Math.round(best * 100) / 100 : 1;
   }
   override fields(ctx: Context, cursor: Vec): Field[] {
-    return ctx.selection.size ? [{ key: 'distance', label: 'Distance', kind: 'length', value: this.distance(ctx, cursor, {}) }] : [];
+    return ctx.selection.size ? [{ key: 'distance', label: t("Distance"), kind: 'length', value: this.distance(ctx, cursor, {}) }] : [];
   }
   override preview(ctx: Context, cursor: Vec, _h: Hit, locked: Locked): Preview {
     if (!ctx.selection.size) return none();
@@ -157,35 +158,33 @@ function lineDistance(a: Vec, b: Vec, p: Vec): number {
 
 class Mirror extends Action {
   readonly id = 'mirror';
-  readonly name = 'Mirror';
+  readonly name = t("Mirror");
   /** Whether the objects are chosen and the next click picks the line. */
   private line = false;
   private touched = false;
   override reset(): void { super.reset(); this.line = false; this.touched = false; }
   override get busy(): boolean { return this.line || this.touched; }
   hint(ctx: Context): string {
-    if (this.line) return 'Click the mirror line';
-    return ctx.selection.size ? 'Click more curves to mirror, or Enter, then click the mirror line' : 'Click the curves to mirror, then Enter';
+    if (this.line) return t("Click the mirror line");
+    return ctx.selection.size ? t("Click more curves to mirror, or Enter, then click the mirror line") : t("Click the curves to mirror, then Enter");
   }
   override preview(ctx: Context, _c: Vec, hover: Hit): Preview {
     if (!this.line || !ctx.selection.size || entityOf(ctx.sketch, hover.entity)?.kind !== 'line') return none();
     return { ...none(), shapes: createdShapes(mirror(ctx.sketch, [...ctx.selection], hover.entity!)) };
   }
   click(ctx: Context, hit: Hit): Step {
-    // A selection made before the tool goes straight to the line.
-    if (!this.line && ctx.selection.size && !this.touched) this.line = true;
     if (!this.line) {
       if (hit.entity === null) return { kind: 'more' };
       this.touched = true;
       return { kind: 'toggle', id: hit.entity };
     }
-    if (entityOf(ctx.sketch, hit.entity)?.kind !== 'line') return { kind: 'error', message: 'Click a line to mirror across.' };
+    if (entityOf(ctx.sketch, hit.entity)?.kind !== 'line') return { kind: 'error', message: t("Click a line to mirror across.") };
     const step = outcome(mirror(ctx.sketch, [...ctx.selection], hit.entity!), true);
     this.reset();
     return step;
   }
   override enter(ctx: Context): Step {
-    if (!ctx.selection.size) return { kind: 'error', message: 'Click the curves to mirror first.' };
+    if (!ctx.selection.size) return { kind: 'error', message: t("Click the curves to mirror first.") };
     this.line = true;
     return { kind: 'more' };
   }
@@ -195,9 +194,9 @@ class Mirror extends Action {
 
 class RectPattern extends Action {
   readonly id = 'rpattern';
-  readonly name = 'Rectangular pattern';
+  readonly name = t("Rectangular pattern");
   private set = { nx: 3, ny: 2, dx: 0, dy: 0 };
-  hint(ctx: Context): string { return ctx.selection.size ? 'Click more curves, set the counts and spacing · Enter to apply' : 'Click the curves to pattern'; }
+  hint(ctx: Context): string { return ctx.selection.size ? t("Click more curves, set the counts and spacing · Enter to apply") : t("Click the curves to pattern"); }
   private values(ctx: Context, locked: Locked) {
     const b = boundsOf(ctx);
     const dx = this.set.dx || (b ? Math.round((b.maxX - b.minX + 5) * 100) / 100 : 10);
@@ -208,10 +207,10 @@ class RectPattern extends Action {
     if (!ctx.selection.size) return [];
     const v = this.values(ctx, {});
     return [
-      { key: 'nx', label: 'Columns', kind: 'count', value: v.nx },
-      { key: 'ny', label: 'Rows', kind: 'count', value: v.ny },
-      { key: 'dx', label: 'Spacing X', kind: 'length', value: v.dx },
-      { key: 'dy', label: 'Spacing Y', kind: 'length', value: v.dy },
+      { key: 'nx', label: t("Columns"), kind: 'count', value: v.nx },
+      { key: 'ny', label: t("Rows"), kind: 'count', value: v.ny },
+      { key: 'dx', label: t("Spacing X"), kind: 'length', value: v.dx },
+      { key: 'dy', label: t("Spacing Y"), kind: 'length', value: v.dy },
     ];
   }
   private run(ctx: Context, locked: Locked): Outcome {
@@ -225,7 +224,7 @@ class RectPattern extends Action {
   }
   click(_ctx: Context, hit: Hit): Step { return hit.entity === null ? { kind: 'more' } : { kind: 'toggle', id: hit.entity }; }
   override enter(ctx: Context, _c: Vec, locked: Locked): Step {
-    if (!ctx.selection.size) return { kind: 'error', message: 'Select what to pattern first.' };
+    if (!ctx.selection.size) return { kind: 'error', message: t("Select what to pattern first.") };
     this.set = this.values(ctx, locked);
     return outcome(this.run(ctx, locked), true);
   }
@@ -233,17 +232,17 @@ class RectPattern extends Action {
 
 class CircPattern extends Action {
   readonly id = 'cpattern';
-  readonly name = 'Circular pattern';
+  readonly name = t("Circular pattern");
   private set = { count: 6, angle: 360 };
   hint(ctx: Context): string {
-    if (!ctx.selection.size) return 'Click the curves to pattern';
-    return this.picks.length ? 'Set the count and angle · Enter to apply' : 'Click more curves, or click the centre point of the pattern';
+    if (!ctx.selection.size) return t("Click the curves to pattern");
+    return this.picks.length ? t("Set the count and angle · Enter to apply") : t("Click more curves, or click the centre point of the pattern");
   }
   private values(locked: Locked) { return { count: Math.max(2, Math.round(locked.count ?? this.set.count)), angle: locked.angle ?? this.set.angle }; }
   override fields(ctx: Context): Field[] {
     if (!ctx.selection.size || !this.picks.length) return [];
     const v = this.values({});
-    return [{ key: 'count', label: 'Count', kind: 'count', value: v.count }, { key: 'angle', label: 'Angle', kind: 'angle', value: v.angle }];
+    return [{ key: 'count', label: t("Count"), kind: 'count', value: v.count }, { key: 'angle', label: t("Angle"), kind: 'angle', value: v.angle }];
   }
   private center(ctx: Context): Vec { const h = this.picks[0]!; return h.point !== null ? point(ctx.sketch, h.point) : h.at; }
   override preview(ctx: Context, _c: Vec, _h: Hit, locked: Locked): Preview {
@@ -254,7 +253,7 @@ class CircPattern extends Action {
   click(ctx: Context, hit: Hit, locked: Locked): Step {
     // Curves join the selection; a point, or empty space, is the centre.
     if (!this.picks.length && hit.point === null && hit.entity !== null) return { kind: 'toggle', id: hit.entity };
-    if (!ctx.selection.size) return { kind: 'error', message: 'Click the curves to pattern first.' };
+    if (!ctx.selection.size) return { kind: 'error', message: t("Click the curves to pattern first.") };
     if (!this.picks.length) { this.picks.push(hit); return { kind: 'more' }; }
     return this.enter(ctx, hit.at, locked);
   }
@@ -348,17 +347,17 @@ class Relate extends Action {
       case 'coincident': {
         if (a.point !== null && b.point !== null) { if (a.point !== b.point) merge(s, a.point, b.point); return; }
         const pt = a.point ?? b.point, curve = a.point !== null ? b.entity : a.entity;
-        if (pt === null || curve === null) return 'Pick a point and a point or curve.';
+        if (pt === null || curve === null) return t("Pick a point and a point or curve.");
         add1({ kind: 'on', point: pt, curve }); return;
       }
       case 'collinear': case 'parallel': case 'perpendicular': case 'tangent': case 'concentric':
-        if (a.entity === b.entity) return 'Pick two different curves.';
-        if (this.id === 'tangent' && entityOf(s, a.entity)?.kind === 'line' && entityOf(s, b.entity)?.kind === 'line') return 'Two lines cannot be tangent.';
+        if (a.entity === b.entity) return t("Pick two different curves.");
+        if (this.id === 'tangent' && entityOf(s, a.entity)?.kind === 'line' && entityOf(s, b.entity)?.kind === 'line') return t("Two lines cannot be tangent.");
         add1({ kind: this.id, a: a.entity!, b: b.entity! }); return;
       case 'equal': {
         const ka = entityOf(s, a.entity)?.kind, kb = entityOf(s, b.entity)?.kind;
-        if ((ka === 'line') !== (kb === 'line')) return 'Equal takes two lines, or two circles and arcs.';
-        if (a.entity === b.entity) return 'Pick two different curves.';
+        if ((ka === 'line') !== (kb === 'line')) return t("Equal takes two lines, or two circles and arcs.");
+        if (a.entity === b.entity) return t("Pick two different curves.");
         add1({ kind: 'equal', a: a.entity!, b: b.entity! }); return;
       }
       case 'midpoint': {
@@ -370,7 +369,7 @@ class Relate extends Action {
         if (l?.kind !== 'line') return;
         const pa = point(s, l.a), pb = point(s, l.b);
         const kind = Math.abs(pb.x - pa.x) >= Math.abs(pb.y - pa.y) ? 'horizontal' : 'vertical';
-        if (s.constraints.some((x) => (x.kind === 'horizontal' || x.kind === 'vertical') && x.line === l.id)) return 'That line is already horizontal or vertical.';
+        if (s.constraints.some((x) => (x.kind === 'horizontal' || x.kind === 'vertical') && x.line === l.id)) return t("That line is already horizontal or vertical.");
         add1({ kind, line: l.id }); return;
       }
       case 'fix': {
@@ -384,7 +383,7 @@ class Relate extends Action {
         const line = c.entity!;
         if (a.point !== null && b.point !== null) { add1({ kind: 'symmetric', a: a.point, b: b.point, line }); return; }
         const ea = entityOf(s, a.entity), eb = entityOf(s, b.entity);
-        if (!ea || !eb || ea.kind !== eb.kind) return 'Symmetry takes two points, or two curves of the same kind.';
+        if (!ea || !eb || ea.kind !== eb.kind) return t("Symmetry takes two points, or two curves of the same kind.");
         if (ea.kind === 'line' && eb.kind === 'line') {
           // Each end pairs with the mirror end nearer to it.
           const [a1, a2] = [point(s, ea.a), point(s, ea.b)];
@@ -408,13 +407,13 @@ class Relate extends Action {
 /** Fusion's dimension: pick what to measure, then place the value and type it. */
 class Dimensioning extends Action {
   readonly id = 'dimension';
-  readonly name = 'Sketch dimension';
+  readonly name = t("Sketch dimension");
   private placing = false;
   override reset(): void { super.reset(); this.placing = false; }
   hint(): string {
-    if (this.placing) return 'Place the dimension, type its value · Enter or click';
-    if (!this.picks.length) return 'Click a line, circle, arc or point';
-    return 'Click a second point, line, circle or arc, or click away to place the dimension';
+    if (this.placing) return t("Place the dimension, type its value · Enter or click");
+    if (!this.picks.length) return t("Click a line, circle, arc or point");
+    return t("Click a second point, line, circle or arc, or click away to place the dimension");
   }
 
   /** The dimension the picks describe with its text at `at`, at the value it measures now. */
@@ -456,7 +455,7 @@ class Dimensioning extends Action {
   override fields(ctx: Context, cursor: Vec): Field[] {
     const d = this.pending(ctx.sketch, cursor);
     if (!d) return [];
-    return [{ key: 'value', label: d.kind === 'angle' ? 'Angle' : d.kind === 'diameter' ? 'Diameter' : d.kind === 'radius' ? 'Radius' : 'Distance', kind: d.kind === 'angle' ? 'angle' : 'length', value: d.value }];
+    return [{ key: 'value', label: d.kind === 'angle' ? t("Angle") : d.kind === 'diameter' ? t("Diameter") : d.kind === 'radius' ? t("Radius") : t("Distance"), kind: d.kind === 'angle' ? 'angle' : 'length', value: d.value }];
   }
 
   override preview(ctx: Context, cursor: Vec): Preview {
@@ -489,9 +488,9 @@ class Dimensioning extends Action {
   private place(s0: Sketch, at: Vec, locked: Locked): Step {
     const d = this.pending(s0, at);
     this.reset();
-    if (!d) return { kind: 'error', message: 'That cannot be dimensioned.' };
+    if (!d) return { kind: 'error', message: t("That cannot be dimensioned.") };
     const value = locked.value ?? d.value;
-    if (!(value > 0) && d.kind !== 'angle') return { kind: 'error', message: 'A dimension must be above zero.' };
+    if (!(value > 0) && d.kind !== 'angle') return { kind: 'error', message: t("A dimension must be above zero.") };
     const s = clone(s0);
     const { id: _drop, ...rest } = d;
     void _drop;
@@ -512,11 +511,11 @@ function parallel(s: Sketch, a: Entity & { kind: 'line' }, b: Entity & { kind: '
 
 export function createAction(id: ActionId): Action {
   switch (id) {
-    case 'trim': return new CurveClick('trim', 'Trim', trim);
-    case 'extend': return new CurveClick('extend', 'Extend', extend);
-    case 'break': return new CurveClick('break', 'Break', breakAt);
-    case 'fillet': return new Corner('fillet', 'Fillet');
-    case 'chamfer': return new Corner('chamfer', 'Chamfer');
+    case 'trim': return new CurveClick('trim', t("Trim"), trim);
+    case 'extend': return new CurveClick('extend', t("Extend"), extend);
+    case 'break': return new CurveClick('break', t("Break"), breakAt);
+    case 'fillet': return new Corner('fillet', t("Fillet"));
+    case 'chamfer': return new Corner('chamfer', t("Chamfer"));
     case 'offset': return new Offset();
     case 'mirror': return new Mirror();
     case 'rpattern': return new RectPattern();

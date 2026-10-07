@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // A sheet size: typed, rotated, or picked from common and saved sizes.
   import { quantity, unitLabel } from '../lib/units.svelte';
   import { api } from '../api/client';
@@ -75,7 +77,7 @@
     </span>
   {/each}
   <button class="chip save" disabled={disabled || saved || width <= 0 || height <= 0} onclick={remember}>
-    {saved ? 'Saved' : '+ Save this size'}
+    {saved ? 'Saved' : t("+ Save this size")}
   </button>
 </div>
 

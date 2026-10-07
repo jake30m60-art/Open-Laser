@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { quantity } from '../lib/units.svelte';
   // The run page: the compiled program on the bed with its layers, the head,
   // progress from the controller's item tag, and the three controls.
@@ -211,7 +213,7 @@
   <div class="panel-head compact">
     <div class="crumb">
       <strong>{jobName}</strong>
-      <span class="run-msg run-material">{material ? `${recipeLabel(material)} · ${laserLabel(material.laser)}` : 'No material'}</span>
+      <span class="run-msg run-material">{material ? `${recipeLabel(material)} · ${laserLabel(material.laser)}` : t("No material")}</span>
       {#if material}<button class="values-toggle" aria-expanded={valuesOpen} onclick={() => (valuesOpen = !valuesOpen)}>{valuesOpen ? 'Hide values' : 'Values'}</button>{/if}
       {#if draft?.calibration}
         <span class="run-msg run-correction">Correction off</span>
@@ -287,13 +289,13 @@
       <div class="run-float">
         {#if draft && !recovering && !running && !paused}
           <div class="seg">
-            <button class:on={!draft.dry_run} disabled={choosingRun || !doc.readiness.compile.ok || !!machine.operation} onclick={() => chooseRun(false)}>Cut</button>
+            <button class:on={!draft.dry_run} disabled={choosingRun || !doc.readiness.compile.ok || !!machine.operation} onclick={() => chooseRun(false)}>{t("Cut")}</button>
             <button class:on={draft.dry_run} disabled={choosingRun || !doc.readiness.compile.ok || !!machine.operation} onclick={() => chooseRun(true)}>Dry run</button>
           </div>
         {/if}
         <div class="run-meta">
           <strong>{execution?.frame ? 'Frame' : `${Math.round(pct)}%`}</strong>
-          <span>{execution?.frame ? 'Laser off' : `${done} / ${contours} passes`}</span>
+          <span>{execution?.frame ? t("Laser off") : t("{0} / {1} passes", done, contours)}</span>
           {#if !execution?.frame}<span>{execution && !recovering && program?.state === 'completed' ? 'done' : eta}</span>{/if}
         </div>
         <span class="float-spacer"></span>
@@ -302,7 +304,7 @@
       <div class="run-layers">
         {#if canRecover && !recoveryEditor}
           <button class="legend-chip recovery-toggle" onclick={() => showRecovery = !showRecovery}>
-            {recovering ? 'Back to controls' : 'Adjust restart…'}
+            {recovering ? t("Back to controls") : t("Adjust restart…")}
           </button>
         {/if}
         {#if recovering && !showLayers}
@@ -315,10 +317,10 @@
               <svg class="sample" viewBox="0 0 36 12" aria-hidden="true">
                 {#if layer === 'pierce'}<circle class="mark pierce" cx="18" cy="6" r="3"/>{:else}<path class="path {layer}" d="M2 6H34"/>{/if}
               </svg>
-              {label}
+              {t(label)}
             </button>
           {/each}
-          {#if recovering}<button class="legend-chip" onclick={() => showLayers = false}>Done</button>
+          {#if recovering}<button class="legend-chip" onclick={() => showLayers = false}>{t("Done")}</button>
           {:else}<button class="legend-chip" onclick={() => (layersOpen = false)}>Hide layers</button>{/if}
         {:else}
           <button class="legend-chip" onclick={() => (layersOpen = true)}>Layers…</button>
@@ -327,7 +329,7 @@
         {#if !recovering || showLayers}
           <div class="seg small">
             <button class:on={ui.travelMode === 'next'} onclick={() => ui.setTravelMode('next')}>Next move</button>
-            <button class:on={ui.travelMode === 'all'} onclick={() => ui.setTravelMode('all')}>All moves</button>
+            <button class:on={ui.travelMode === 'all'} onclick={() => ui.setTravelMode('all')}>{t("All moves")}</button>
           </div>
         {/if}
       </div>

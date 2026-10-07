@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // The one confirmation dialog: Cancel beside a button that names the
   // consequence. It closes on Cancel, Escape or a completed tap on the
   // backdrop, and answers no if this screen loses control.
@@ -18,12 +20,12 @@
     onpointerup={(event) => { if (pressed && event.target === event.currentTarget) ui.answer(false); pressed = false; }}>
     <div class="modal confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
       <div class="confirm-body">
-        <h2 id="confirm-title">{asked.title}</h2>
-        <p id="confirm-body">{asked.body}</p>
+        <h2 id="confirm-title">{t(asked.title)}</h2>
+        <p id="confirm-body">{t(asked.body)}</p>
       </div>
       <div class="confirm-actions">
-        <button class="btn btn-ghost lg" onclick={() => ui.answer(false)}>Cancel</button>
-        <button class="btn lg {asked.danger ? 'btn-danger' : 'btn-primary'}" onclick={() => ui.answer(true)}>{asked.confirm}</button>
+        <button class="btn btn-ghost lg" onclick={() => ui.answer(false)}>{t("Cancel")}</button>
+        <button class="btn lg {asked.danger ? 'btn-danger' : 'btn-primary'}" onclick={() => ui.answer(true)}>{t(asked.confirm)}</button>
       </div>
     </div>
   </div>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   // The Cutting page: the six controls along the path, in the vendor's
   // pairs, then a line on what else the recipe does. What the machine
   // cannot set is not offered: a cut height without height control, a
@@ -12,13 +14,13 @@
   const start = $derived(cutStart(ed.values));
 </script>
 
-<div class="section-head"><div><h2>Cutting</h2><p class="muted">The settings used along the cutting path.</p></div></div>
+<div class="section-head"><div><h2>{t("Cutting")}</h2><p class="muted">The settings used along the cutting path.</p></div></div>
 <div class="fields big">
   <Field {ed} key="CutSpeed" big />
   {#if ed.a.height}
     <Field {ed} key="CutHeight" big />
   {:else}
-    <div class="fld big"><span class="lbl">Cut height</span><div class="box static"><b>Set by hand</b><span class="unit">no height control</span></div></div>
+    <div class="fld big"><span class="lbl">{t("Cut height")}</span><div class="box static"><b>Set by hand</b><span class="unit">no height control</span></div></div>
   {/if}
   <Field {ed} key={duty} big />
   {#if ed.a.gas}<Field {ed} key="CutAirPressure" big />{/if}
@@ -29,7 +31,7 @@
 <div class="fields big head-setup">
   <Field {ed} key="OpenLaserNozzleDiameter" big />
   <div class="fld big" class:changed={'OpenLaserNozzleType' in ed.edits}>
-    <span class="lbl">Nozzle type</span>
+    <span class="lbl">{t("Nozzle type")}</span>
     <div class="chips">
       <button class="chip" class:on={ed.values['OpenLaserNozzleType'] === 'single'} onclick={() => ed.set('OpenLaserNozzleType', 'single')}>Single</button>
       <button class="chip" class:on={ed.values['OpenLaserNozzleType'] === 'double'} onclick={() => ed.set('OpenLaserNozzleType', 'double')}>Double</button>
@@ -40,7 +42,7 @@
   {#if ed.a.gas || ed.laser === 'co2'}
     <Field {ed} key="CutGasType" big />
   {:else}
-    <div class="fld big gas-unavailable"><span class="lbl">Cutting gas</span><p>No gas valve is wired on this machine.</p></div>
+    <div class="fld big gas-unavailable"><span class="lbl">{t("Cutting gas")}</span><p>No gas valve is wired on this machine.</p></div>
   {/if}
 </div>
 <div class="summary-strip">

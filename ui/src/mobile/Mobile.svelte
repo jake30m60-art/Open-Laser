@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { setupAlarms } from '../lib/setup-alarms';
   import { api } from '../api/client';
   import { access } from '../lib/access.svelte';
@@ -86,8 +88,8 @@
       <button
         class="phone-connection" class:connected disabled={!access.canControl || !server.link || connecting}
         onclick={connect} title={doc?.link.detail || undefined}
-      ><span class="connection-dot"></span>{connectionLabel(doc)}{#if linkBusy}<small>Cancel</small>{/if}</button>
-      <button class="phone-icon phone-alarm" aria-label="Alarms" onclick={() => ui.modal = 'alarms'}>
+      ><span class="connection-dot"></span>{connectionLabel(doc)}{#if linkBusy}<small>{t("Cancel")}</small>{/if}</button>
+      <button class="phone-icon phone-alarm" aria-label={t("Alarms")} onclick={() => ui.modal = 'alarms'}>
         <i class="ic ic-bell"></i>{#if alarmCount}<b>{alarmCount}</b>{/if}
       </button>
     </div>
@@ -109,7 +111,7 @@
     class:phone-detail-recovery={section?.kind === 'recovery'}
     class:phone-detail-materials={ui.tab === 'materials'}
   >
-    {#if !doc}<div class="phone-empty"><h2>Waiting for the server</h2></div>
+    {#if !doc}<div class="phone-empty"><h2>{t("Waiting for the server")}</h2></div>
     {:else if section?.kind === 'controls'}<div class="phone-jog"><RunSide /></div>
     {:else if section?.kind === 'setup' || section?.kind === 'layout'}<SetupEditor compact />
     {:else if section?.kind === 'recovery'}<RunReview compact recoveryEditor={section.restart ?? false} />
@@ -120,7 +122,7 @@
     {:else if ui.tab === 'materials'}<Materials compact />
     {:else}<Settings open={setting} materials={() => ui.tab = 'materials'} />{/if}
   </main>
-  <div class="phone-stop"><button disabled={!doc?.readiness.stop.ok || !server.link} onclick={stop}><i class="ic ic-stop"></i>Stop motion</button></div>
+  <div class="phone-stop"><button disabled={!doc?.readiness.stop.ok || !server.link} onclick={stop}><i class="ic ic-stop"></i>{t("Stop motion")}</button></div>
   <nav class="phone-nav" aria-label="Main navigation">
     {#each WORKFLOW as step}
       <button aria-current={ui.tab === step.id ? 'page' : undefined} onclick={() => go(step.id)}>
@@ -130,7 +132,7 @@
     {/each}
     <button aria-current={ui.tab === SETTINGS.id || ui.tab === 'materials' ? 'page' : undefined} onclick={() => go(SETTINGS.id)}>
       <span class="phone-step"><i class="ic ic-gear"></i></span>
-      {SETTINGS.label}
+      {t(SETTINGS.label)}
     </button>
   </nav>
 </div>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import Modal from './Modal.svelte';
   import ImportReview from './ImportReview.svelte';
   import { api } from '../api/client';
@@ -48,7 +50,7 @@
     const input = event.currentTarget as HTMLInputElement;
     const files = [...(input.files ?? [])].filter((f) => /\.(dxf|svg)$/i.test(f.name) && !macMetadata(f.webkitRelativePath || f.name));
     input.value = '';
-    if (!files.length) { ui.say('Choose DXF or SVG files.', true); return; }
+    if (!files.length) { ui.say(t("Choose DXF or SVG files."), true); return; }
     importing = { done: 0, total: files.length };
     cancelled = false;
     let added = 0, existing = 0, skipped = 0;
@@ -77,14 +79,14 @@
     importing = null;
     failed = errors;
     notes = warnings;
-    ui.say(`${added} added · ${existing} already in library${skipped ? ` · ${skipped} skipped` : ''}${errors.length ? ` · ${errors.length} failed` : ''}${remaining ? ` · ${remaining} not imported` : ''}`);
+    ui.say(t("{0} added · {1} already in library{2}{3}{4}", added, existing, skipped ? ` · ${skipped} skipped` : '', errors.length ? ` · ${errors.length} failed` : '', remaining ? ` · ${remaining} not imported` : ''));
   }
 </script>
 
 <div class="import-parts">
   <label class="btn btn-primary">{importing ? `${importing.done} / ${importing.total}` : '+ DXF / SVG'}<input type="file" multiple accept=".dxf,.svg" hidden disabled={!!importing} onchange={importFiles}></label>
   <label class="btn btn-ghost">Import folder<input type="file" multiple webkitdirectory accept=".dxf,.svg" hidden disabled={!!importing} onchange={importFiles}></label>
-  {#if importing}<button class="btn btn-ghost" onclick={() => (cancelled = true)}>Stop importing</button>{/if}
+  {#if importing}<button class="btn btn-ghost" onclick={() => (cancelled = true)}>{t("Stop importing")}</button>{/if}
 </div>
 {#if reviewing}
   {@const current = reviewing}
@@ -95,8 +97,8 @@
     onskip={() => { if (!current.busy) current.resolve('skip'); }}
     onstop={() => current.resolve('stop')} />
 {/if}
-{#if failed.length}<Modal title="Files that did not import" onclose={() => (failed = [])}><div class="import-log">{failed.join('\n')}</div><button class="btn btn-primary" onclick={() => (failed = [])}>Close</button></Modal>{/if}
-{#if notes.length && !failed.length}<Modal title="Import notes" onclose={() => (notes = [])}><div class="import-log">{notes.join('\n')}</div><button class="btn btn-primary" onclick={() => (notes = [])}>Close</button></Modal>{/if}
+{#if failed.length}<Modal title="Files that did not import" onclose={() => (failed = [])}><div class="import-log">{failed.join('\n')}</div><button class="btn btn-primary" onclick={() => (failed = [])}>{t("Close")}</button></Modal>{/if}
+{#if notes.length && !failed.length}<Modal title="Import notes" onclose={() => (notes = [])}><div class="import-log">{notes.join('\n')}</div><button class="btn btn-primary" onclick={() => (notes = [])}>{t("Close")}</button></Modal>{/if}
 
 <style>
   .import-parts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }

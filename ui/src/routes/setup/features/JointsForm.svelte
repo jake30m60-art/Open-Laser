@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../../i18n/index';
+
   // Joints (micro-joints): uncut spots that hold a part in the sheet.
   import Chips from '../../../components/params/Chips.svelte';
   import Placed from '../../../components/params/Placed.svelte';
@@ -57,36 +59,36 @@
 </script>
 
 {#if tab === 0}
-  <Chips label="Placement" options={PLACEMENTS} current={kind} disabled={!on} apply={setKind} />
+  <Chips label={t("Placement")} options={PLACEMENTS} current={kind} disabled={!on} apply={setKind} />
   {#if 'count' in placement}
-    <Stepper label="Joints per contour" value={placement.count} unit="" step={1} disabled={!on} apply={setCount} />
+    <Stepper label={t("Joints per contour")} value={placement.count} unit="" step={1} disabled={!on} apply={setCount} />
   {/if}
   {#if 'spacing' in placement}
-    <Stepper label="Spacing" value={placement.spacing} unit="mm" step={10} disabled={!on} apply={setSpacing} />
+    <Stepper label={t("Spacing")} value={placement.spacing} unit="mm" step={10} disabled={!on} apply={setSpacing} />
   {/if}
   {#if 'across_x' in placement}
-    <Stepper label="Grid lines across X" value={placement.across_x} unit="" step={1} disabled={!on} apply={setAcrossX} />
+    <Stepper label={t("Grid lines across X")} value={placement.across_x} unit="" step={1} disabled={!on} apply={setAcrossX} />
   {/if}
   {#if 'across_y' in placement}
-    <Stepper label="Grid lines across Y" value={placement.across_y} unit="" step={1} disabled={!on} apply={setAcrossY} />
+    <Stepper label={t("Grid lines across Y")} value={placement.across_y} unit="" step={1} disabled={!on} apply={setAcrossY} />
   {/if}
   {#if 'manual' in placement}
     <Placed count={placement.manual.length} what="joint" disabled={!on} onclear={clearPicked} onpick={() => pick('joints')} />
   {/if}
   <button class="btn btn-soft" onclick={() => askPercentages(features, 'joints', contours, set)} disabled={!on}>Enter positions (%)…</button>
-  <Stepper label="Joint width" value={joints.width} unit="mm" step={0.1} disabled={!on} apply={setWidth} />
-  <Stepper label="Skip contours under" value={joints.minimum_size} unit="mm" step={10} disabled={!on} apply={setMinimumSize} />
-  <Toggle label="Outer contours only" value={joints.outer_only} disabled={!on} apply={setOuterOnly} />
+  <Stepper label={t("Joint width")} value={joints.width} unit="mm" step={0.1} disabled={!on} apply={setWidth} />
+  <Stepper label={t("Skip contours under")} value={joints.minimum_size} unit="mm" step={10} disabled={!on} apply={setMinimumSize} />
+  <Toggle label={t("Outer contours only")} value={joints.outer_only} disabled={!on} apply={setOuterOnly} />
 {:else}
-  <Toggle label="Joint at an open contour’s start" value={joints.open_start} disabled={!on} apply={setOpenStart} />
-  <Chips label="In the joint" options={BEHAVIOURS} current={joints.behaviour === 'laser_off' ? 'laser_off' : 'power'} disabled={!on} apply={setBehaviour} />
+  <Toggle label={t("Joint at an open contour’s start")} value={joints.open_start} disabled={!on} apply={setOpenStart} />
+  <Chips label={t("In the joint")} options={BEHAVIOURS} current={joints.behaviour === 'laser_off' ? 'laser_off' : 'power'} disabled={!on} apply={setBehaviour} />
   {#if typeof joints.behaviour !== 'string'}
-    <Stepper label="Joint power" value={joints.behaviour.power} unit="%" step={5} disabled={!on} apply={setPower} />
+    <Stepper label={t("Joint power")} value={joints.behaviour.power} unit="%" step={5} disabled={!on} apply={setPower} />
   {/if}
-  <Toggle label="Slow down in the joint" value={joints.slow_speed !== null} disabled={!on} apply={setSlow} />
+  <Toggle label={t("Slow down in the joint")} value={joints.slow_speed !== null} disabled={!on} apply={setSlow} />
   {#if joints.slow_speed !== null}
-    <Stepper label="Joint speed" value={joints.slow_speed} unit="mm/s" step={1} disabled={!on} apply={setSlowSpeed} />
+    <Stepper label={t("Joint speed")} value={joints.slow_speed} unit="mm/s" step={1} disabled={!on} apply={setSlowSpeed} />
   {/if}
-  <Toggle label="Pierce again after each joint" value={joints.repierce} disabled={!on} apply={setRepierce} />
-  <p class="muted" style="font-size:var(--t-sm);margin:0">Piercing again needs a recipe with pierce stages.</p>
+  <Toggle label={t("Pierce again after each joint")} value={joints.repierce} disabled={!on} apply={setRepierce} />
+  <p class="muted" style="font-size:var(--t-sm);margin:0">{t("Piercing again needs a recipe with pierce stages.")}</p>
 {/if}

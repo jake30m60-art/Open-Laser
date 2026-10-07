@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   import { quantity } from '../../lib/units.svelte';
   // The sheets the recipe pages open: the piercing mode, a stage's
   // refinements, each process option, the review of staged changes and
@@ -77,7 +79,7 @@
     {:else if which === 'inspector'}
       <Inspector {ed} {recipe} />
     {:else if which === 'start'}
-      <div class="toggle-row"><div><strong>Cut start</strong><small>A slower region at the start of every contour.</small></div><button
+      <div class="toggle-row"><div><strong>Cut start</strong><small>{t("A slower region at the start of every contour.")}</small></div><button
         class="switch" class:on={start.enabled} onclick={() => ed.setMany(cutStartEdits(v, { enabled: !start.enabled }))} aria-label="Cut start"></button></div>
       {#if start.legacy}<div class="notice info">Editing replaces the legacy slow-start settings.</div>{/if}
       <div class="fields">
@@ -99,8 +101,8 @@
         <div class="field"><span class="lbl">Head mode</span><div class="seg block"><button
             class:on={head === 'follow'} onclick={() => setHead('follow')}>Follow the sheet</button><button
             class:on={head === 'fixed'} onclick={() => setHead('fixed')}>Fixed height</button><button
-            class:on={head === 'absolute'} onclick={() => setHead('absolute')}>Absolute height</button></div></div>
-        {#if head !== 'follow'}<p class="muted">A fixed or absolute head does not pierce in stages.</p>{/if}
+            class:on={head === 'absolute'} onclick={() => setHead('absolute')}>{t("Absolute height")}</button></div></div>
+        {#if head !== 'follow'}<p class="muted">{t("A fixed or absolute head does not pierce in stages.")}</p>{/if}
         <div class="fields"><Field {ed} key="UpHeight" />{#if head === 'absolute'}<Field {ed} key="AdvFixHeightCutPos" />{/if}</div>
         <Field {ed} key="NoFollow" row />
         <Field {ed} key="ShortDistNoUp" row note={caps?.short_transfer_mm != null ? `Under the machine's short-transfer distance of ${quantity(caps.short_transfer_mm, 'mm')}.` : "Under the machine's short-transfer distance."} />
@@ -144,7 +146,7 @@
         {#if ed.a.gas}<div class="wide"><Field {ed} key="CleanResidue_GasType" /></div>{/if}
       </div>
     {:else if which === 'pre'}
-      {#if m === 'smooth'}<div class="notice warn">Batch pre-piercing is unavailable with smooth piercing.</div>{/if}
+      {#if m === 'smooth'}<div class="notice warn">{t("Batch pre-piercing is unavailable with smooth piercing.")}</div>{/if}
       {#if m === 'none'}<div class="notice info">Needs staged piercing; the switch is kept as data until then.</div>{/if}
       <Field {ed} key="PreDrill" row note="Pierce a batch of contours before cutting them." />
       <p><strong>{caps?.pre_pierce_batch ?? 'Not set'}</strong>{caps?.pre_pierce_batch != null ? ' contours per batch' : ''} <span class="muted">· from the machine's operating settings (PreDrillMaxNum)</span></p>
@@ -160,7 +162,7 @@
         </div>
       </div>
       <p class="muted">Film removal uses its selected recipe.</p>
-      <p><strong>{caps?.film_batch ? `${caps.film_batch} contours per batch` : 'Batch: whole job'}</strong> <span class="muted">· from the machine's operating settings (ClearUpFilmNum_Pre)</span></p>
+      <p><strong>{caps?.film_batch ? t("{0} contours per batch", caps.film_batch) : t("Batch: whole job")}</strong> <span class="muted">· from the machine's operating settings (ClearUpFilmNum_Pre)</span></p>
     {:else if which === 'shift'}
       <Field {ed} key="EnableContourShift" row note="Shifts cutting and film paths; keeps the sheet origin." />
       <div class="fields"><Field {ed} key="ContourShiftXDist" /><Field {ed} key="ContourShiftYDist" /></div>

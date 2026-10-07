@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Machine tests: things that fire the beam, open a valve or change the
   // machine, kept beside the jog pad rather than among the settings. Every
   // one is held (DESIGN.md rules 1 and 5); Stop stays in the top bar.
@@ -87,7 +89,7 @@
       {#each GAS as name, selector}
         {#if bindings?.outputs.gas[selector]}
           <div class="setting">
-            <div class="lbl">{name}<small>valve{selector < 3 ? ' and proportional pressure' : ''}</small></div>
+            <div class="lbl">{name}<small>valve{selector < 3 ? t("and proportional pressure") : ''}</small></div>
             <button class="btn btn-warn deadman" disabled={!readiness.outputs.ok} onpointerdown={(event) => hold(event, { kind: 'gas', selector, pressure: gasPressure })}>
               Hold
             </button>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { osk } from '../lib/osk.svelte';
   import { ui } from '../stores/ui.svelte';
 
@@ -30,8 +32,8 @@
 
   function pin(): void {
     if (!element) return;
-    if (pinned) { try { localStorage.removeItem(key()); } catch { /* ignore */ } ui.say('Keyboard unpinned.'); }
-    else { const r = element.getBoundingClientRect(); try { localStorage.setItem(key(), JSON.stringify({ x: r.left, y: r.top })); } catch { /* ignore */ } ui.say('Keyboard pinned here for this page.'); }
+    if (pinned) { try { localStorage.removeItem(key()); } catch { /* ignore */ } ui.say(t("Keyboard unpinned.")); }
+    else { const r = element.getBoundingClientRect(); try { localStorage.setItem(key(), JSON.stringify({ x: r.left, y: r.top })); } catch { /* ignore */ } ui.say(t("Keyboard pinned here for this page.")); }
     place();
   }
 
@@ -94,17 +96,17 @@
     };
   });
 
-  const label = (k: string) => k === 'bs' ? '<i class="ic ic-backspace"></i>' : k === 'done' ? 'Done' : k === 'clear' ? 'Clear' : k === 'shift' ? 'Shift' : k === ' ' ? 'Space' : (osk.shift ? k.toUpperCase() : k);
+  const label = (k: string) => k === 'bs' ? '<i class="ic ic-backspace"></i>' : k === 'done' ? t("Done") : k === 'clear' ? t("Clear") : k === 'shift' ? t("Shift") : k === ' ' ? t("Space") : (osk.shift ? k.toUpperCase() : k);
 </script>
 
 {#if osk.open}
   <div class="osk {osk.kind}" id="osk" bind:this={element}>
-    <div class="osk-head" role="toolbar" tabindex="-1" aria-label="Keyboard" onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up}>
+    <div class="osk-head" role="toolbar" tabindex="-1" aria-label={t("Keyboard")} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up}>
       <i class="ic ic-grip grip"></i>
-      <span class="osk-label">{osk.label}</span>
-      <div class="osk-echo">{#if osk.value}<span class="osk-value" class:fresh={osk.fresh}>{osk.value}</span>{:else}<span class="muted">…</span>{/if}<span class="osk-caret"></span>{#if osk.unit}<span class="unit">{osk.unit}</span>{/if}</div>
-      <button class="btn btn-ghost pin" class:on={pinned} onclick={pin} title="Pin position for this page"><i class="ic ic-pin"></i></button>
-      <button class="btn btn-ghost" onclick={() => osk.close()} aria-label="Close keyboard"><i class="ic ic-x"></i></button>
+      <span class="osk-label">{t(osk.label)}</span>
+      <div class="osk-echo">{#if osk.value}<span class="osk-value" class:fresh={osk.fresh}>{osk.value}</span>{:else}<span class="muted">…</span>{/if}<span class="osk-caret"></span>{#if osk.unit}<span class="unit">{t(osk.unit)}</span>{/if}</div>
+      <button class="btn btn-ghost pin" class:on={pinned} onclick={pin} title={t("Pin position for this page")}><i class="ic ic-pin"></i></button>
+      <button class="btn btn-ghost" onclick={() => osk.close()} aria-label={t("Close keyboard")}><i class="ic ic-x"></i></button>
     </div>
     <div class="osk-rows">
       {#if osk.kind === 'num'}
@@ -114,16 +116,16 @@
       {:else}
         {#each ROWS_TEXT as row, i}
           <div class="osk-row" class:indent={i === 2}>
-            {#if i === 3}<button class="osk-key wide" class:on={osk.shift} onclick={() => osk.key('shift')}>Shift</button>{/if}
+            {#if i === 3}<button class="osk-key wide" class:on={osk.shift} onclick={() => osk.key('shift')}>{t("Shift")}</button>{/if}
             {#each row as k}<button class="osk-key" onclick={() => osk.key(k)}>{osk.shift ? k.toUpperCase() : k}</button>{/each}
-            {#if i === 3}<button class="osk-key wide" aria-label="Backspace" onclick={() => osk.key('bs')}><i class="ic ic-backspace"></i></button>{/if}
+            {#if i === 3}<button class="osk-key wide" aria-label={t("Backspace")} onclick={() => osk.key('bs')}><i class="ic ic-backspace"></i></button>{/if}
           </div>
         {/each}
         <div class="osk-row"><button
-            class="osk-key wide" onclick={() => osk.key('clear')}>Clear</button><button
-            class="osk-key space" onclick={() => osk.key(' ')}>Space</button>{#if osk.multiline}<button
-            class="osk-key wide" onclick={() => osk.key('\n')}>New line</button>{/if}<button
-            class="osk-key done wide" onclick={() => osk.key('done')}>Done</button></div>
+            class="osk-key wide" onclick={() => osk.key('clear')}>{t("Clear")}</button><button
+            class="osk-key space" onclick={() => osk.key(' ')}>{t("Space")}</button>{#if osk.multiline}<button
+            class="osk-key wide" onclick={() => osk.key('\n')}>{t("New line")}</button>{/if}<button
+            class="osk-key done wide" onclick={() => osk.key('done')}>{t("Done")}</button></div>
       {/if}
     </div>
   </div>

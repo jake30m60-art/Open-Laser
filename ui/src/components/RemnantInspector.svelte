@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { quantity } from '../lib/units.svelte';
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
@@ -78,7 +80,7 @@
         </div>
       </div>
       <div class="details">
-        <span class="eyebrow">{status}</span>
+        <span class="eyebrow">{t(status)}</span>
         <h3>{sheet.name}</h3>
         <p>{sheet.material} · {quantity(sheet.thickness_mm, 'mm')} · {laserLabel(sheet.mode)}</p>
         <p>{sheet.cutouts.length} cut areas will be excluded from future nests. Check the remaining sheet against this drawing before saving it.</p>
@@ -87,7 +89,7 @@
         {/if}
         {#if sheet.state === 'completed' && !sheet.used}
           <button class="field" disabled={busy} onclick={() => osk.text('Remnant name', name, v => name = v)}>
-            <span>Name</span>
+            <span>{t("Name")}</span>
             <strong>{name}</strong>
           </button>
           {#if !sheet.boundary_known}
@@ -95,7 +97,7 @@
             <div class="dimensions">
               {#each dimensions as [label, value]}
                 <button class="field" disabled={busy} onclick={() => editDimension(label, value)}>
-                  <span>{label}</span>
+                  <span>{t(label)}</span>
                   <strong>{quantity(value, 'mm')}</strong>
                 </button>
               {/each}
@@ -116,7 +118,7 @@
               Use as nesting stock
             </button>
           {:else}
-            <button class="btn lg block" onclick={onclose}>Done</button>
+            <button class="btn lg block" onclick={onclose}>{t("Done")}</button>
           {/if}
         </div>
       </div>

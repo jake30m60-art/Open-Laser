@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t as tr } from '../../i18n/index';
+
   import { quantity } from '../../lib/units.svelte';
   // The library tree: materials under their laser, one opened to its
   // recipes by gas, then thickness. Importing the vendor's process library
@@ -7,6 +9,7 @@
   import { ui } from '../../stores/ui.svelte';
   import { explain, laserLabel, plural } from '../../lib/format';
   import { pictureOf, materialsOf, materialKey, type Material } from '../../lib/materials';
+  import { isEngraving } from '../../lib/engraving';
   import { droppedFiles, picked, type Picked } from '../../lib/recipe-import';
   import ImportRecipes from './ImportRecipes.svelte';
   import type { RecipeView } from '../../api';
@@ -20,14 +23,28 @@
     selectOnExpand?: boolean;
   } = $props();
 
+  let process = $state<'cut' | 'engrave'>('cut');
+  $effect(() => { if (selected) process = isEngraving(selected) ? 'engrave' : 'cut'; });
+  function switchProcess(next: 'cut' | 'engrave'): void {
+    if (selected && isEngraving(selected) !== (next === 'engrave')) {
+      const candidate = recipes.find(r => isEngraving(r) === (next === 'engrave'));
+      if (candidate && !onselect(candidate)) return;
+    }
+    process = next;
+    open = null;
+  }
   let search = $state('');
   let open = $state<string | null>(null);
-  const opened = $derived(open ?? (selected ? materialKey(selected) : null));
-  const materials = $derived(materialsOf(recipes).filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase())));
+  /** Engraving recipes are listed apart, under keys of their own. */
+  const keyOf = (r: RecipeView) => (isEngraving(r) ? `engrave:${materialKey(r)}` : materialKey(r));
+  const opened = $derived(open ?? (selected ? keyOf(selected) : null));
+  const found = (m: Material) => m.name.toLowerCase().includes(search.trim().toLowerCase());
+  const materials = $derived(materialsOf(recipes.filter((r) => !isEngraving(r))).filter(found));
+  const engravings = $derived(materialsOf(recipes.filter(isEngraving)).map((m) => ({ ...m, key: `engrave:${m.key}` })).filter(found));
   const lasers = $derived((['fiber', 'co2'] as const).filter((laser) => materials.some((m) => m.laser === laser)));
   const thicknessRange = (m: Material) => {
     const sizes = m.recipes.map(r => r.thickness_mm).filter(t => t > 0);
-    if (!sizes.length) return 'Thickness not set';
+    if (!sizes.length) return tr("Thickness not set");
     const min = Math.min(...sizes), max = Math.max(...sizes);
     return min === max ? quantity(min, 'mm') : `${quantity(min, 'mm')} – ${quantity(max, 'mm')}`;
   };
@@ -63,45 +80,67 @@
   const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files') ?? false;
 </script>
 
-<aside class="panel library" class:dragging aria-label="Material library"
+{#snippet material(m: Material, engraving: boolean)}
+    {@const art = pictureOf(m.name, m.photo)}
+    <button class="mat" class:open={opened === m.key} aria-expanded={opened === m.key} onclick={() => tap(m)}>
+      {#if art}<img class="art" src={art} alt="" loading="lazy">{:else}<span class="art blank"><i class="ic ic-layers"></i></span>{/if}
+      <span class="mat-info"><span class="name">{m.name}</span><span class="mat-meta">{plural(m.recipes.length, 'recipe')}</span><span class="mat-meta">{engraving ? laserLabel(m.laser) : thicknessRange(m)}</span></span><i class="ic ic-chev-right mat-chevron"></i>
+    </button>
+    {#if opened === m.key}
+      {#each gasesOf(m) as gas (gas)}
+        <span class="gas">{gas}</span>
+        {#each m.recipes.filter((r) => r.gas === gas) as r (r.id)}
+          <button
+            class="rec" class:on={r.id === selected?.id} aria-pressed={r.id === selected?.id} onclick={() => onselect(r)}
+          ><strong>{r.thickness_mm > 0 ? quantity(r.thickness_mm, 'mm') : tr("No thickness")}</strong><MaterialSummary source={r} variant="line" /></button>
+        {/each}
+      {/each}
+    {/if}
+{/snippet}
+
+<aside class="panel library" class:dragging aria-label={tr("Material library")}
   ondragover={(e) => { if (carriesFiles(e)) { e.preventDefault(); dragging = true; } }}
   ondragleave={(e) => { if (e.currentTarget === e.target) dragging = false; }}
   ondrop={drop}>
-  <div class="library-head"><h2>Materials</h2><button class="btn btn-primary icon-only" onclick={onadd} aria-label="New recipe"><i class="ic ic-plus"></i></button></div>
-  <div class="search"><i class="ic ic-search"></i><input placeholder="Find a material…" bind:value={search}></div>
+  <div class="library-head"><h2>{tr("Materials")}</h2><button class="btn btn-primary icon-only" onclick={onadd} aria-label={tr("New recipe")}><i class="ic ic-plus"></i></button></div>
+  <div class="process-tabs" role="group" aria-label="Rezeptart">
+    <button class="btn" class:btn-primary={process === 'cut'} aria-pressed={process === 'cut'} onclick={() => switchProcess('cut')}>{tr("Cutting")}</button>
+    <button class="btn" class:btn-primary={process === 'engrave'} aria-pressed={process === 'engrave'} onclick={() => switchProcess('engrave')}>{tr("Engraving")}</button>
+  </div>
+  <div class="search"><i class="ic ic-search"></i><input placeholder={tr("Find a material…")} bind:value={search}></div>
   <div class="tree" bind:this={tree}>
+    {#if process === 'cut'}
     {#each lasers as laser (laser)}
-      {#if lasers.length > 1}<h3>{laserLabel(laser)}</h3>{/if}
-      {#each materials.filter((m) => m.laser === laser) as m (m.key)}
-        {@const art = pictureOf(m.name, m.photo)}
-        <button class="mat" class:open={opened === m.key} aria-expanded={opened === m.key} onclick={() => tap(m)}>
-          {#if art}<img class="art" src={art} alt="" loading="lazy">{:else}<span class="art blank"><i class="ic ic-layers"></i></span>{/if}
-          <span class="mat-info"><span class="name">{m.name}</span><span class="mat-meta">{plural(m.recipes.length, 'recipe')}</span><span class="mat-meta">{thicknessRange(m)}</span></span><i class="ic ic-chev-right mat-chevron"></i>
-        </button>
-        {#if opened === m.key}
-          {#each gasesOf(m) as gas (gas)}
-            <span class="gas">{gas}</span>
-            {#each m.recipes.filter((r) => r.gas === gas) as r (r.id)}
-              <button
-                class="rec" class:on={r.id === selected?.id} aria-pressed={r.id === selected?.id} onclick={() => onselect(r)}
-              ><strong>{r.thickness_mm > 0 ? quantity(r.thickness_mm, 'mm') : 'No thickness'}</strong><MaterialSummary source={r} variant="line" /></button>
-            {/each}
-          {/each}
-        {/if}
-      {/each}
+      {#if lasers.length > 1 || engravings.length}<h3>{laserLabel(laser)}</h3>{/if}
+      {#each materials.filter((m) => m.laser === laser) as m (m.key)}{@render material(m, false)}{/each}
     {:else}
-      <p class="muted">{search ? 'No material matches.' : 'No recipes yet.'}</p>
+      {#if !engravings.length}<p class="muted">{search ? tr("No material matches.") : tr("No recipes yet.")}</p>{/if}
     {/each}
+    {:else}
+    {#if engravings.length}
+      <h3>{tr("Engraving")}</h3>
+      {#each engravings as m (m.key)}{@render material(m, true)}{/each}
+    {:else}<p class="muted">{search ? tr("No material matches.") : "Noch keine Gravurrezepte. Mit + ein Gravurrezept anlegen."}</p>{/if}
+    {/if}
   </div>
   <div class="library-foot">
     <div class="import-buttons">
-      <label class="btn btn-ghost">Import files<input type="file" multiple accept=".xml,.png,.jpg,.jpeg" hidden onchange={chosen}></label>
-      <label class="btn btn-ghost">Import folder<input type="file" multiple webkitdirectory hidden onchange={chosen}></label>
+      <label class="btn btn-ghost">{tr("Import files")}<input type="file" multiple accept=".xml,.png,.jpg,.jpeg" hidden onchange={chosen}></label>
+      <label class="btn btn-ghost">{tr("Import folder")}<input type="file" multiple webkitdirectory hidden onchange={chosen}></label>
     </div>
-    <span class="muted">{dragging ? 'Drop recipe files or folders to review them' : `${plural(materials.length, 'material')} · ${plural(recipes.length, 'recipe')} · or drop files here`}</span>
+    <span class="muted">{dragging ? tr("Drop recipe files or folders to review them") : tr("{0} · {1} · or drop files here", plural(materials.length, 'material'), plural(recipes.length, 'recipe'))}</span>
   </div>
 </aside>
 
 {#if importing}
   <ImportRecipes files={importing} onclose={() => (importing = null)} />
 {/if}
+
+<style>
+  .library :global(.summary-line .item) { white-space:normal; overflow-wrap:anywhere; }
+  .library :global(.summary-line) { min-width:0; max-width:100%; }
+  .library .import-buttons { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  .library .import-buttons .btn { white-space:normal; overflow-wrap:anywhere; text-align:center; padding:8px; height:auto; }
+  .process-tabs { display:flex; gap:8px; padding:0 12px 10px; }
+  .process-tabs button { flex:1; min-width:0; }
+</style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { distance as length, quantity, unitLabel } from '../lib/units.svelte';
   import { api } from '../api/client';
   import HoldButton from './HoldButton.svelte';
@@ -70,10 +72,10 @@
 
 <aside class="panel side recovery-side" aria-label="Job recovery">
   <div class="recovery-heading">
-    {#if page !== 'main'}<button class="back" disabled={busy} onclick={toMain} aria-label="Back to restart">‹</button>{/if}
+    {#if page !== 'main'}<button class="back" disabled={busy} onclick={toMain} aria-label={t("Back to restart")}>‹</button>{/if}
     <div>
       <h2>{title}</h2>
-      <p>{completed} of {recovery.steps.length} paths complete{skipped ? ` · ${skipped} skipped` : ''}</p>
+      <p>{completed} {t("of")} {recovery.steps.length} paths complete{skipped ? ` · ${skipped} skipped` : ''}</p>
     </div>
   </div>
   <div class="recovery-content">
@@ -94,7 +96,7 @@
         {/if}
       </div>
       <button class="row-action" disabled={busy || !selected} onclick={() => page = 'adjust'}>
-        <span>Adjust restart point<small>Move back, skip an outline or recall a point</small></span>
+        <span>{t("Adjust restart point")}<small>Move back, skip an outline or recall a point</small></span>
         <span>›</span>
       </button>
       <HoldButton
@@ -118,7 +120,7 @@
         <button class="value" disabled={busy} onclick={stepDistance}>{quantity(distance, 'mm')}</button>
       </div>
       <div class="step-pair">
-        <button class="btn" disabled={busy || !selected} onclick={() => change({ kind: 'backward', distance })}>← Back</button>
+        <button class="btn" disabled={busy || !selected} onclick={() => change({ kind: 'backward', distance })}>{t("← Back")}</button>
         <button class="btn" disabled={busy || !selected} onclick={() => change({ kind: 'forward', distance })}>Forward →</button>
       </div>
       <button class="row-action" disabled={busy || !selected} onclick={fraction}>
@@ -184,9 +186,9 @@
     {:else if page === 'main'}
       <button class="btn btn-start xl block" disabled={busy || !selected} onclick={primary}>Prepare restart</button>
     {:else if page !== 'prepare'}
-      <button class="btn btn-primary block" disabled={busy} onclick={toMain}>Done</button>
+      <button class="btn btn-primary block" disabled={busy} onclick={toMain}>{t("Done")}</button>
     {/if}
-    <button class="btn btn-ghost block stop-recovery" disabled={sending || !doc.readiness.stop.ok} onclick={stop}>Stop motion</button>
+    <button class="btn btn-ghost block stop-recovery" disabled={sending || !doc.readiness.stop.ok} onclick={stop}>{t("Stop motion")}</button>
   </div>
 </aside>
 

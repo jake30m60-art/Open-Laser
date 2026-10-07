@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { api } from '../api/client';
   import { access } from '../lib/access.svelte';
   import { server } from '../stores/server.svelte';
@@ -67,7 +69,7 @@
 
 <div class="phone-run phone-setup-home">
   <div class="phone-run-scroll">
-    <div class="phone-page-title"><h1>Setup</h1></div>
+    <div class="phone-page-title"><h1>{t("Setup")}</h1></div>
     {#if draft}
       <section class="phone-job-card">
         <div class="phone-job-heading"><div><h2>{job?.name ?? (draft.name || 'Current job')}</h2></div></div>
@@ -86,13 +88,13 @@
       </button>
       <div class="phone-action-list phone-setup-options">
         <button disabled={blocked} onclick={() => adding = true}>
-          <span>Parts<small>{partsHint}</small></span><i class="ic ic-plus"></i>
+          <span>{t("Parts")}<small>{partsHint}</small></span><i class="ic ic-plus"></i>
         </button>
         <button disabled={blocked} onclick={() => texting = true}>
-          <span>Add text<small>Letters welded into cutting outlines</small></span><i class="ic ic-plus"></i>
+          <span>{t("Add text")}<small>Letters welded into cutting outlines</small></span><i class="ic ic-plus"></i>
         </button>
         <button disabled={blocked} onclick={() => tools = true}>
-          <span>Machining<small>{active ? `${active} tools on` : 'Default settings'}</small></span><i class="ic ic-arrow-right"></i>
+          <span>Machining<small>{active ? t("{0} tools on", active) : 'Default settings'}</small></span><i class="ic ic-arrow-right"></i>
         </button>
         <button disabled={blocked} onclick={() => preflight = true}>
           <span>Preflight<small>{draft ? preflightLabel(draft) : ''}</small></span><i class="ic ic-arrow-right"></i>
@@ -102,9 +104,9 @@
       <div class="phone-empty">
         <i class="ic ic-folder"></i>
         <h2>No part open</h2>
-        <p>Choose a part or saved job to set up, or start from text.</p>
+        <p>{t("Choose a part or saved job to set up, or start from text.")}</p>
         <button class="phone-primary" onclick={() => ui.tab = 'parts'}>Go to Parts</button>
-        <button class="phone-text-action" onclick={() => texting = true}>Add text</button>
+        <button class="phone-text-action" onclick={() => texting = true}>{t("Add text")}</button>
       </div>
     {/if}
   </div>
@@ -138,11 +140,11 @@
   <div class="phone-action-list">
     {#each TOOLS as tool}
       <button onclick={() => openTool(tool.id as FeatureId)}>
-        <span>{tool.name}<small>{draft ? stateOf(draft.features,tool.id) : ''}</small></span><i class="ic ic-arrow-right"></i>
+        <span>{t(tool.name)}<small>{draft ? stateOf(draft.features,tool.id) : ''}</small></span><i class="ic ic-arrow-right"></i>
       </button>
     {/each}
-    <button onclick={() => openTool('nest')}>Nest parts<i class="ic ic-arrow-right"></i></button>
-    <button onclick={() => openTool('copy')}>Copy machining from job<i class="ic ic-arrow-right"></i></button>
+    <button onclick={() => openTool('nest')}>{t("Nest parts")}<i class="ic ic-arrow-right"></i></button>
+    <button onclick={() => openTool('copy')}>{t("Copy machining from job")}<i class="ic ic-arrow-right"></i></button>
   </div>
 </Modal>{/if}
 {#if preflight}<PreflightEditor scope="job" onclose={() => preflight = false} />{/if}

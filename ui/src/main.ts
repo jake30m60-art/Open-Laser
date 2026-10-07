@@ -1,5 +1,6 @@
 // The app: the mockup's stylesheet, the theme, then the event stream and
 // the shell.
+import './i18n/browser';
 import './app.css';
 import { mount } from 'svelte';
 import Root from './Root.svelte';

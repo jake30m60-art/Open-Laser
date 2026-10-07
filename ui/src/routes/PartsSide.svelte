@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import SimplifyPart from '../components/SimplifyPart.svelte';
   import { api } from '../api/client';
   import { server } from '../stores/server.svelte';
@@ -37,7 +39,7 @@
 
   function rename(): void {
     const current = item?.name ?? '';
-    osk.text('Rename', current, (name) => {
+    osk.text(t("Rename"), current, (name) => {
       if (!name.trim()) return;
       if (job) run(() => api.updateJob(job.id, { name: name.trim() }));
       else if (part) run(() => api.updatePart(part.id, { name: name.trim() }));
@@ -48,8 +50,8 @@
     const what = job ? 'job' : 'part';
     const confirmed = await ui.confirm({
       title: `Delete this ${what}?`,
-      body: `“${item?.name ?? ''}” leaves the library. Library history can undo it.`,
-      confirm: `Delete ${what}`,
+      body: t("“{0}” leaves the library. Library history can undo it.", item?.name ?? ''),
+      confirm: t("Delete {0}", what),
       danger: true,
     });
     if (!confirmed) return;
@@ -69,7 +71,7 @@
   function editNotes(): void {
     if (!item) return;
     const id = item.id, savedJob = !!job;
-    osk.text('Notes', item.notes, (notes) => run(() => savedJob ? api.updateJob(id, { notes }) : api.updatePart(id, { notes })));
+    osk.text(t("Notes"), item.notes, (notes) => run(() => savedJob ? api.updateJob(id, { notes }) : api.updatePart(id, { notes })));
   }
 
   const outline = $derived(item?.outline ?? []);
@@ -79,8 +81,8 @@
 
 <aside class="panel side">
   {#if !item}
-    <h2>Start with a part</h2>
-    <p class="muted">Choose a library part, or import a DXF or SVG drawing with the import buttons at the top of Parts. Add text on Setup.</p>
+    <h2>{t("Start with a part")}</h2>
+    <p class="muted">{t("Choose a library part, or import a DXF or SVG drawing with the import buttons at the top of Parts. Add text on Setup.")}</p>
   {:else}
     <div class="side-scroll">
     <div class="side-preview"><svg viewBox={thumb} role="img" aria-label="Drawing of {item.name}">{#each outline as line}<path
@@ -89,30 +91,30 @@
       <div><h2>{item.name}</h2><div class="muted">{job ? 'Saved job' : 'Part'}{#if job} · {laserLabel(job.recipe.laser)}{/if} · updated {ago(item.updated)}</div></div>
     </div>
     <dl class="kv">
-      <dt>Bounding box</dt><dd>{size(item.bounds)}</dd>
-      <dt>Cut paths</dt><dd>{item.contours}</dd>
-      <dt>Material</dt><dd>{#if job}{recipeLabel(job.recipe)}{:else}<span class="muted">not set</span>{/if}</dd>
+      <dt>{t("Bounding box")}</dt><dd>{size(item.bounds)}</dd>
+      <dt>{t("Cut paths")}</dt><dd>{item.contours}</dd>
+      <dt>{t("Material")}</dt><dd>{#if job}{recipeLabel(job.recipe)}{:else}<span class="muted">not set</span>{/if}</dd>
       {#if job && jobParts.length > 1}
-        <dt>Parts</dt><dd>{jobParts.map((p) => p.name).join(', ')}</dd>
+        <dt>{t("Parts")}</dt><dd>{jobParts.map((p) => p.name).join(', ')}</dd>
       {:else}
         <dt>Source</dt><dd class="mono">{(jobParts[0] ?? part)?.file_name}</dd>
       {/if}
-      <dt>Folder</dt><dd>{folderName}</dd>
+      <dt>{t("Folder")}</dt><dd>{folderName}</dd>
     </dl>
     <div class="item-meta">
-      <button class="meta-notes" onclick={editNotes}><span class="meta-label">Notes<span class="edit-label">Edit</span></span><span class:placeholder={!item.notes}>{item.notes || 'Add a note'}</span></button>
+      <button class="meta-notes" onclick={editNotes}><span class="meta-label">{t("Notes")}<span class="edit-label">{t("Edit")}</span></span><span class:placeholder={!item.notes}>{item.notes || 'Add a note'}</span></button>
     </div>
     <div class="item-actions">
       <button class="btn btn-ghost" onclick={duplicate}>Duplicate</button>
-      <button class="btn btn-ghost" onclick={rename}>Rename</button>
-      <button class="btn btn-ghost" onclick={remove}>Delete</button>
+      <button class="btn btn-ghost" onclick={rename}>{t("Rename")}</button>
+      <button class="btn btn-ghost" onclick={remove}>{t("Delete")}</button>
     </div>
     {#if part}<button class="btn btn-ghost block" onclick={() => (simplifying = true)}>Simplify drawing…</button>{/if}
     </div>
     <div class="side-foot">
       {#if job}
         <button class="btn btn-ghost lg block" onclick={() => open('setup')}>Open in Setup</button>
-        <button class="btn btn-primary lg block" onclick={() => open('run')}>▶ Run again</button>
+        <button class="btn btn-primary lg block" onclick={() => open('run')}>{t("▶ Run again")}</button>
       {:else if part}
         <button class="btn btn-ghost lg block" onclick={() => (ui.partPicks = [part.id])}>Cut with other parts…</button>
         <button class="btn btn-primary lg block" onclick={() => open('setup')}>Set up job →</button>

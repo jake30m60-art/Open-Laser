@@ -95,6 +95,7 @@ export type { LinkView } from './bindings/LinkView';
 export type { Liters } from './bindings/Liters';
 export type { LitersPerMinute } from './bindings/LitersPerMinute';
 export type { Machining } from './bindings/Machining';
+export type { ManualCut } from './bindings/ManualCut';
 export type { MaterialView } from './bindings/MaterialView';
 export type { Measurement } from './bindings/Measurement';
 export type { MergeReview } from './bindings/MergeReview';

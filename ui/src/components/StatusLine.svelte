@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // One plain status line. Tapping it shows why each control is unavailable,
   // the active alarms with how to clear them, and the original technical text.
   import { server } from '../stores/server.svelte';
@@ -32,7 +34,7 @@
     <button class="status-summary" onclick={() => (open = !open)} disabled={!expandable} aria-expanded={expandable ? open : undefined}>
       <span class="dot" aria-hidden="true"></span>
       <span class="status-text" role="status">{line.text}</span>
-      {#if expandable}<span class="more">{open ? 'Hide' : 'Details'}</span>{/if}
+      {#if expandable}<span class="more">{open ? 'Hide' : t("Details")}</span>{/if}
     </button>
     {#if open && expandable}
       <div class="status-details">

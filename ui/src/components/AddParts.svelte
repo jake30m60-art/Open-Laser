@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Adds library parts to the open job, beside what is on the sheet, as one
   // undoable edit. Parts already in the job are copied on the sheet instead.
   import Modal from './Modal.svelte';
@@ -34,7 +36,7 @@
   }
 </script>
 
-<Modal title="Add parts to this job" wide onclose={() => { if (!busy) onclose(); }}>
+<Modal title={t("Add parts to this job")} wide onclose={() => { if (!busy) onclose(); }}>
   <p class="muted">Picked parts go beside the sheet in the order picked, each its own shape. Nest parts can arrange them afterwards.</p>
   <label class="search"><i class="ic ic-search"></i><input type="search" aria-label="Search parts" placeholder="Search parts" bind:value={search} /></label>
   <div class="add-list" role="group" aria-label="Library parts">
@@ -44,15 +46,15 @@
       <button class="add-row" class:on={pick >= 0} disabled={already || busy} aria-pressed={pick >= 0} onclick={() => (picks = togglePick(picks, part.id))}>
         <span class="mark" class:on={pick >= 0} aria-hidden="true">{pick >= 0 ? pick + 1 : ''}</span>
         <Preview outline={part.outline} label={part.name} small />
-        <span class="name"><strong>{part.name}</strong><small>{already ? 'Already in this job' : `${size(part.bounds)} · ${plural(part.contours, 'path')}`}</small></span>
+        <span class="name"><strong>{part.name}</strong><small>{already ? t("Already in this job") : `${size(part.bounds)} · ${plural(part.contours, 'path')}`}</small></span>
       </button>
     {:else}
       <p class="muted">No parts match.</p>
     {/each}
   </div>
   <div class="actions">
-    <button class="btn btn-ghost lg" disabled={busy} onclick={onclose}>Cancel</button>
-    <button class="btn btn-primary lg" disabled={busy || !picks.length} onclick={add}>{picks.length ? `Add ${plural(picks.length, 'part')}` : 'Add parts'}</button>
+    <button class="btn btn-ghost lg" disabled={busy} onclick={onclose}>{t("Cancel")}</button>
+    <button class="btn btn-primary lg" disabled={busy || !picks.length} onclick={add}>{picks.length ? t("Add {0}", plural(picks.length, 'part')) : t("Add parts")}</button>
   </div>
 </Modal>
 

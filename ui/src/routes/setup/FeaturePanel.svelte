@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   // One machining feature's settings: every field the server takes, in
   // the words the operator uses. Places on the drawing are picked on the
   // canvas; the panel only starts and ends the picking. Each feature's form
@@ -64,7 +66,7 @@
   /** Starts placing on the drawing; the canvas takes it from here. Places
    *  picked on the drawing are the job's, whichever layer they are on. */
   function pick(feature: PickFeature): void {
-    if (scope) { ui.say('Places picked on the drawing apply to every layer. Choose All layers to pick them.'); return; }
+    if (scope) { ui.say(t("Places picked on the drawing apply to every layer. Choose All layers to pick them.")); return; }
     ui.picking = { feature, first: null, order: [], revision: draft.revision, features: structuredClone($state.snapshot(features)), marks: [] };
   }
 
@@ -86,15 +88,15 @@
 
 {#if !compact || tool.optional}
   <div class="feat-head">
-    <h2 class="feat-title"><i class="ic ic-tool-{id}"></i>{compact ? 'Enabled' : tool.name}</h2>
-    {#if tool.optional}<button class="switch" class:on={on} onclick={toggle} aria-label="On"></button>{/if}
-    {#if !compact}<button class="btn btn-ghost" onclick={close}>Close</button>{/if}
+    <h2 class="feat-title"><i class="ic ic-tool-{id}"></i>{compact ? t("Enabled") : tool.name}</h2>
+    {#if tool.optional}<button class="switch" class:on={on} onclick={toggle} aria-label={t("On")}></button>{/if}
+    {#if !compact}<button class="btn btn-ghost" onclick={close}>{t("Close")}</button>{/if}
   </div>
 {/if}
-<p class="feat-desc">{tool.desc}</p>
+<p class="feat-desc">{t(tool.desc)}</p>
 {#if perLayer}
-  <div class="scope" role="group" aria-label="Applies to">
-    <button class="chip" class:on={!scope} onclick={() => (ui.machiningLayer = null)}>All layers</button>
+  <div class="scope" role="group" aria-label={t("Applies to")}>
+    <button class="chip" class:on={!scope} onclick={() => (ui.machiningLayer = null)}>{t("All layers")}</button>
     {#each draft.layers as layer (layer.name)}
       <button class="chip" class:on={scope === layer.name} onclick={() => (ui.machiningLayer = layer.name)}>
         <span class="layer-swatch" style:--layer={swatchColor(draft.layers, layer.name)}></span>{layer.name}{hasOwn(base, layer.name) ? ' ·' : ''}
@@ -113,10 +115,10 @@
 {/if}
 {#if id === 'order'}<CutOrderPreview preview={draft.preview} disabled={!!ui.picking} bind:progress={orderProgress} />{/if}
 {#if featureEdits.error}
-  <p class="muted">{featureEdits.error} <button class="link" onclick={() => featureEdits.discard()}>Discard refused edits</button></p>
+  <p class="muted">{featureEdits.error} <button class="link" onclick={() => featureEdits.discard()}>{t("Discard refused edits")}</button></p>
 {/if}
 {#if id === 'leads'}<Tabs names={['Entry', 'Exit']} bind:active={tab} />{/if}
-{#if id === 'leads'}<p class="muted lead-hint">Drag a lead to edit it. Selected copies update the matching lead.</p>{/if}
+{#if id === 'leads'}<p class="muted lead-hint">{t("Drag a lead to edit it. Selected copies update the matching lead.")}</p>{/if}
 {#if id === 'joints' || id === 'start'}<Tabs names={['Basic', 'More']} bind:active={tab} />{/if}
 <div class="stack" style="opacity:{on ? 1 : 0.45}">
   {#if id === 'leads'}
@@ -146,8 +148,8 @@
       {recipeLabel(draft.recipe)}. Saved with this job; the next job on this recipe starts from these.{/if}
   </div>
   <div class="row">
-    <button class="btn btn-ghost" onclick={reset}>Reset to defaults</button>
-    <button class="btn btn-primary" onclick={close}>Done</button>
+    <button class="btn btn-ghost" onclick={reset}>{t("Reset to defaults")}</button>
+    <button class="btn btn-primary" onclick={close}>{t("Done")}</button>
   </div>
 </div>
 

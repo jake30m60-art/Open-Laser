@@ -11,6 +11,8 @@ import type { SheetPage, SheetView, SaveRemnant, NestSheetPreview, CorrectionVie
 import type { LayerChange, NewStock, SheetSize, StockChange } from './index';
 import type { PlacementChange, SimplifyView, ImportOptions, ImportReview, Move } from './index';
 import type { Calibration, FlowEstimate, GasCosts, GasKind, Nozzle, RunRecord } from './index';
+import type { ManualCut } from './bindings/ManualCut';
+import type { ScanCoupon, ScanOffsetsChange, ScanOffsetsView } from './index';
 
 /** A flow test: gas, gauge pressure, nozzle and seconds open. */
 export type FlowTest = { gas: GasKind; pressure: number; nozzle: Nozzle; seconds: number };
@@ -121,6 +123,18 @@ export const api = {
   nestSheet: (id: number, index: number) => request<NestSheetPreview>('GET', `/api/draft/nest/${id}/sheet/${index}`),
   correction: (mode: LaserMode) => request<CorrectionView>('GET', `/api/machine/correction?mode=${mode}`),
   saveCorrection: (change: CorrectionChange) => post('/api/machine/correction', change),
+  scanOffsets: (mode: LaserMode) => request<ScanOffsetsView>('GET', `/api/machine/scan-offsets?mode=${mode}`),
+  saveScanOffsets: (change: ScanOffsetsChange) => post('/api/machine/scan-offsets', change),
+  manualCut: async (cut: ManualCut) => {
+    const reply = await post<DraftReply>('/api/draft/manual-cut', cut);
+    server.applyDraft(reply.draft, reply.draft_revision);
+    return reply;
+  },
+  scanCoupon: async (coupon: ScanCoupon) => {
+    const reply = await post<DraftReply>('/api/machine/scan-offsets/coupon', coupon);
+    server.applyDraft(reply.draft, reply.draft_revision);
+    return reply;
+  },
   correctionCoupon: async (mode: LaserMode) => {
     const reply = await post<DraftReply>('/api/machine/correction/coupon', { mode });
     server.applyDraft(reply.draft, reply.draft_revision);

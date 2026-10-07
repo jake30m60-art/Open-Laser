@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Simplifies a part's drawing into a new part: runs of short lines become
   // the arcs and lines they follow within a tolerance, repeated contours and
   // specks go. The part itself stays as it is for the jobs that use it.
@@ -57,22 +59,22 @@
     for the jobs that use it.</p>
   <div class="tolerances" role="group" aria-label="Tolerance">
     {#each TOLERANCES as [label, value]}
-      <button aria-pressed={tolerance === value} disabled={saving} onclick={() => (tolerance = value)}><strong>{label}</strong><small>{quantity(value, 'mm', 3)}</small></button>
+      <button aria-pressed={tolerance === value} disabled={saving} onclick={() => (tolerance = value)}><strong>{t(label)}</strong><small>{quantity(value, 'mm', 3)}</small></button>
     {/each}
   </div>
   <dl class="outcome" aria-live="polite">
     {#if result}
       <dt>Lines and arcs</dt><dd>{count(result.curves_before)} → <strong>{count(result.curves_after)}</strong></dd>
-      <dt>Contours</dt><dd>{count(result.contours_before)} → <strong>{count(result.contours_after)}</strong>{#if result.repeats || result.specks}<small
+      <dt>{t("Contours")}</dt><dd>{count(result.contours_before)} → <strong>{count(result.contours_after)}</strong>{#if result.repeats || result.specks}<small
         >{dropped(result)}</small>{/if}</dd>
     {:else if checking}
       <dt>Checking…</dt><dd></dd>
     {/if}
   </dl>
-  {#if result && !changed}<p class="gate-reason">Already as simple as this tolerance allows.</p>{/if}
+  {#if result && !changed}<p class="gate-reason">{t("Already as simple as this tolerance allows.")}</p>{/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   <div class="actions">
-    <button class="btn btn-ghost lg" disabled={saving} onclick={onclose}>Cancel</button>
+    <button class="btn btn-ghost lg" disabled={saving} onclick={onclose}>{t("Cancel")}</button>
     <button class="btn btn-primary lg" disabled={saving || checking || !changed} onclick={save}>{saving ? 'Saving…' : 'Save as new part'}</button>
   </div>
 </Modal>

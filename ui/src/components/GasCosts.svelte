@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Settings → Gas costs: where each gas comes from, its price, how its
   // flow is known and its calibration. Each change saves at once; the server
   // keeps them in the data directory.
@@ -145,7 +147,7 @@
           <button class:on={supply.flow.kind === 'estimated'} aria-pressed={supply.flow.kind === 'estimated'} onclick={() => estimateFlow(gas)}>
             Nozzle estimate
           </button>
-          <button class:on={supply.flow.kind === 'manual'} aria-pressed={supply.flow.kind === 'manual'} onclick={() => manualFlow(gas)}>Manual</button>
+          <button class:on={supply.flow.kind === 'manual'} aria-pressed={supply.flow.kind === 'manual'} onclick={() => manualFlow(gas)}>{t("Manual")}</button>
         </div>
       </div>
       {#if supply.flow.kind === 'manual'}
@@ -156,8 +158,8 @@
         </div>
       {/if}
       <div class="setting">
-        <div class="lbl">Calibration<small class:calibrated={!!supply.calibration}>{calibrationStatus(costs, gas)}</small></div>
-        <button class="btn btn-ghost" disabled={busy} onclick={() => (calibrating = gas)}>Calibrate</button>
+        <div class="lbl">{t("Calibration")}<small class:calibrated={!!supply.calibration}>{calibrationStatus(costs, gas)}</small></div>
+        <button class="btn btn-ghost" disabled={busy} onclick={() => (calibrating = gas)}>{t("Calibrate")}</button>
       </div>
     </section>
   {/each}

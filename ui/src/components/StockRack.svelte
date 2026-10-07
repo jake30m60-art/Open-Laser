@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Sheets on hand, by material and thickness: full sheets on the rack with
   // their counts, and the remnants of the same material beside them.
   import { quantity } from '../lib/units.svelte';
@@ -40,7 +42,7 @@
 
 <div class="stock-rack">
   <div class="rack-tools">
-    <button class="btn btn-primary" onclick={() => adding = true}><i class="ic ic-plus"></i>Add sheets</button>
+    <button class="btn btn-primary" onclick={() => adding = true}><i class="ic ic-plus"></i>{t("Add sheets")}</button>
   </div>
   {#each groups as g (g.key)}
     <section class="rack-group">
@@ -62,14 +64,14 @@
             <strong>{sheet.name}</strong>
             <small>Remnant · {size(sheet)} · {plural(sheet.cutouts.length, 'cut area')}{sheet.folder ? ` · ${folderName(sheet.folder)}` : ''}</small>
           </button>
-          <span class="tag">Remnant</span>
+          <span class="tag">{t("Remnant")}</span>
         </div>
       {/each}
     </section>
   {:else}
     <div class="empty-rack">
       <strong>Nothing on the rack yet</strong>
-      <p>Add the sheets you have. Saved remnants appear here too.</p>
+      <p>{t("Add the sheets you have. Saved remnants appear here too.")}</p>
     </div>
   {/each}
 </div>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { settingsEdits } from '../lib/settings-edits.svelte';
   import { server } from '../stores/server.svelte';
   import { ui } from '../stores/ui.svelte';
@@ -31,10 +33,10 @@
     <div class="setting"><div class="lbl">Process INI<small>{doc.soft.name ?? 'Default process timing'}</small></div><button
         class="btn btn-ghost" {disabled} onclick={() => picker?.click()}>Import INI</button><input
         bind:this={picker} type="file" accept=".ini" hidden {disabled} onchange={importSoft} /></div>
-    <details class="process-details"><summary>Details</summary><div
+    <details class="process-details"><summary>{t("Details")}</summary><div
         class="setting"><div class="lbl">Follow / retract</div><span class="val">{doc.soft.follow_ms} ms</span></div><div
         class="setting"><div class="lbl">Pierce-height move</div><span class="val">{doc.soft.section_drill_ms} ms</span></div><div
-        class="setting"><div class="lbl">Analog minimum</div><span class="val">{doc.soft.analog_minimum}</span></div>{#if doc.soft.name}<a
+        class="setting"><div class="lbl">{t("Analog minimum")}</div><span class="val">{doc.soft.analog_minimum}</span></div>{#if doc.soft.name}<a
         class="btn btn-ghost" href="/api/machine/soft" download>Download original INI</a>{/if}</details>
   </div>
 {/if}

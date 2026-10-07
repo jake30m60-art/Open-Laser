@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import Modal from './Modal.svelte';
   import { osk } from '../lib/osk.svelte';
 
@@ -11,8 +13,8 @@
 {#if osk.open}
   <Modal title={osk.label} onclose={() => osk.close()}>
     <form onsubmit={commit}>
-      <label><span>{osk.label}{osk.unit ? ` · ${osk.unit}` : ''}</span><input aria-label={osk.label} inputmode={osk.kind === 'num' ? 'decimal' : 'text'} autocomplete="off" bind:value={osk.value} /></label>
-      <button class="btn btn-primary lg block" type="submit">Done</button>
+      <label><span>{t(osk.label)}{osk.unit ? ` · ${osk.unit}` : ''}</span><input aria-label={osk.label} inputmode={osk.kind === 'num' ? 'decimal' : 'text'} autocomplete="off" bind:value={osk.value} /></label>
+      <button class="btn btn-primary lg block" type="submit">{t("Done")}</button>
     </form>
   </Modal>
 {/if}

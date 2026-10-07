@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   import { plural, recipeLabel } from '../../lib/format';
   // The Process options page: the optional behaviours as cards, each with
   // its state and a line on what it does, in the vendor's order. A card
@@ -18,13 +20,13 @@
     const head = headMode(v);
     const list: Card[] = [
       {
-        id: 'start', title: 'Start work Segment', status: start.enabled ? 'On' : 'Off',
+        id: 'start', title: t("Start work Segment"), status: start.enabled ? 'On' : 'Off',
         text: start.enabled
           ? `${shown('UD_UpLen', start.length)} at ${shown('UD_UpSpeed', start.speed)}${start.legacy ? ' · legacy slow start' : ''}`
           : 'Use the main cutting settings',
       },
       {
-        id: 'end', title: 'End work Segment', status: on('UD_DownEnable') ? 'On' : 'Off',
+        id: 'end', title: t("End work Segment"), status: on('UD_DownEnable') ? 'On' : 'Off',
         text: on('UD_DownEnable')
           ? `${mm('UD_DownLen')} at ${shown('UD_DownSpeed', v['UD_DownSpeed'] ?? '')}`
           : 'Use the main cutting settings',
@@ -43,12 +45,12 @@
           + `${ed.a.gas && (on('ShortDistGasKeepOn') || on('NoCloseGasInManu')) ? ' · gas kept' : ''}`,
       },
       {
-        id: 'curves', title: 'Dynamic Power',
+        id: 'curves', title: t("Dynamic Power"),
         status: on('PowerAdjustWithSpeed') || on('FreqAdjustWithSpeed') ? 'On' : 'Off',
         text: 'Adjust Cut Power and frequency as the speed changes',
       },
       {
-        id: 'residue', title: 'Clean Residue',
+        id: 'residue', title: t("Clean Residue"),
         status: on('CleanResidue_Enable') ? (m === 'staged' ? 'On' : 'Inactive') : 'Off',
         text: on('CleanResidue_Enable')
           ? `${mm('CleanResidue_WorkR')} radius · ${bare('CleanResidue_SpiralTimes', v['CleanResidue_SpiralTimes'] ?? '')} turns`
@@ -56,7 +58,7 @@
           : 'A separate cleaning motion after piercing',
       },
       {
-        id: 'pre', title: 'PreDrill',
+        id: 'pre', title: t("PreDrill"),
         status: on('PreDrill') ? (m === 'staged' ? 'On' : 'Inactive') : 'Off',
         text: on('PreDrill')
           ? `${caps?.pre_pierce_batch == null ? '? contours' : plural(caps.pre_pierce_batch, 'contour')} per batch`
@@ -64,7 +66,7 @@
           : 'Pierce a batch of contours before cutting them',
       },
       {
-        id: 'film', title: 'With Film', status: on('WithFilm') ? 'On' : 'Off',
+        id: 'film', title: t("With Film"), status: on('WithFilm') ? 'On' : 'Off',
         text: on('WithFilm')
           ? (film ? `Film process: ${recipeLabel(film)}` : 'Choose a film process')
           : 'Run a separate pass before the cut',

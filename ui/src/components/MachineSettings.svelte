@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import MachineFiles from './MachineFiles.svelte';
   import { api } from '../api/client';
   import { server } from '../stores/server.svelte';
@@ -163,7 +165,7 @@
     return ui.confirm({
       title: 'Write the controller?',
       body: changed
-        ? `${plural(changed, 'changed value')} ${changed === 1 ? 'is' : 'are'} saved, then every machine setting is written to the controller and read back to verify it.`
+        ? t("{0} {1} saved, then every machine setting is written to the controller and read back to verify it.", plural(changed, 'changed value'), changed === 1 ? 'is' : 'are')
         : 'Every machine setting from the backup is written to the controller and read back to verify it.',
       confirm: 'Write controller',
     });
@@ -174,8 +176,8 @@
   async function discardEdits(): Promise<void> {
     const ok = await ui.confirm({
       title: 'Discard these edits?',
-      body: `${changed} edited machine ${changed === 1 ? 'value is' : 'values are'} thrown away.`,
-      confirm: 'Discard edits',
+      body: t("{0} edited machine {1} thrown away.", changed, changed === 1 ? 'value is' : 'values are'),
+      confirm: t("Discard edits"),
       danger: true,
     });
     if (ok) run(() => settingsEdits.discard('xml'));
@@ -208,7 +210,7 @@
           role="status"
           class:mismatch={!controllerWorking && mismatches.length > 0}
           class:matched={!controllerWorking && data?.connected && !mismatches.length && !data?.problem}
-        >{status}</span>
+        >{t(status)}</span>
       </div>
     </div>
     <div class="xml-actions">
@@ -224,7 +226,7 @@
   {#if changed}
     <div class="draft-bar"><div><strong>{plural(changed, 'edited value')}</strong><small>{draftNote}</small></div>
       <div class="xml-actions">
-        <button class="btn btn-ghost" disabled={busy} onclick={discardEdits}>Discard edits</button>
+        <button class="btn btn-ghost" disabled={busy} onclick={discardEdits}>{t("Discard edits")}</button>
         <button class="btn btn-primary" disabled={busy || machineBusy || stale} onclick={saveEdits}>{connected ? 'Save & apply' : 'Save XML'}</button>
       </div>
     </div>
@@ -233,7 +235,7 @@
     <input class="xml-search" aria-label="Search machine settings" type="search" bind:value={query} placeholder="Search settings…" />
     <div class="seg">
       {#each [['all', 'All values'], ['mismatch', 'Mismatches'], ['edited', 'Edited']] as [key, label]}
-        <button class:on={filter === key} onclick={() => filter = key as typeof filter}>{label}</button>
+        <button class:on={filter === key} onclick={() => filter = key as typeof filter}>{t(label)}</button>
       {/each}
     </div>
   </div>

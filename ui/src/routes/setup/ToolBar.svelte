@@ -1,4 +1,6 @@
 <script lang="ts" module>
+  import { t } from '../../i18n/index';
+
   /** One tool on a bar. */
   export type Tool = {
     label: string;
@@ -53,7 +55,7 @@
     return !!tool && (editing || shows(tool));
   }));
   // Tiles fill the top row, as many as fit at their least width; the rest go down the side.
-  const TILE = { icons: 56, names: 136 } as const;
+  const TILE = { icons: 80, names: 136 } as const;
   const GAP = 6;
   let row = $state<HTMLDivElement | null>(null);
   let width = $state(0);
@@ -79,11 +81,11 @@
   {@const tool = tools[id]!}
   <button class="tile" data-bar-tool={id} class:on={tool.on?.() ?? false} class:set={tool.set?.() ?? false}
     class:placeholder={bar.dragging === id} class:editing
-    title={tool.title ?? tool.label} disabled={!editing && tool.disabled()} onclick={() => run(tool)}
+    title={t(tool.title ?? tool.label)} disabled={!editing && tool.disabled()} onclick={() => run(tool)}
     onpointerdown={bar.down}>
     {#if variant === 'names'}
       {#if tool.icon}<i class="ic {tool.icon}"></i>{/if}
-      <span class="texts"><span class="name">{tool.label}</span>{#if tool.detail}<small class="detail">{tool.detail()}</small>{/if}</span>
+      <span class="texts"><span class="name">{t(tool.label)}</span>{#if tool.detail}<small class="detail">{t(tool.detail())}</small>{/if}</span>
     {:else}
       {#if id === 'group'}
         <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
@@ -97,7 +99,7 @@
         </svg>
       {:else if tool.text}<strong>{tool.text()}</strong>
       {:else}<i class="ic {tool.icon}"></i>{/if}
-      <small>{tool.label}</small>
+      <small>{t(tool.label)}</small>
     {/if}
   </button>
 {/snippet}
@@ -113,7 +115,7 @@
     {#if editing || !selected}
       <button class="tile arrange" class:on={editing}
         title={editing ? 'Finish arranging' : 'Drag the tools into your order'} onclick={() => (editing = !editing)}>
-        <i class="ic {editing ? 'ic-check' : 'ic-grip'}"></i><small>{editing ? 'Done' : 'Order'}</small>
+        <i class="ic {editing ? 'ic-check' : 'ic-grip'}"></i><small>{editing ? t("Done") : t("Order")}</small>
       </button>
     {/if}
   </div>
@@ -130,7 +132,7 @@
   .tool-bar { flex-shrink: 0; padding: 8px 12px; background: var(--panel); }
   .tool-row { display: flex; gap: 6px; align-items: stretch; }
   .tiles { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
-  .tiles > .slot { flex: 1 0 56px; min-width: 56px; }
+  .tiles > .slot { flex: 1 0 80px; min-width: 80px; }
   .names .tiles > .slot { flex: 1 0 136px; min-width: 136px; }
   .editing .tiles { flex-wrap: wrap; overflow: visible; }
   .editing .tiles > .slot { flex: 0 0 72px; }
@@ -151,10 +153,10 @@
   .names .tile { min-height: 48px; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; padding: 4px 10px; text-align: left; }
   .names .tile .ic { width: 20px; height: 20px; flex: none; }
   .texts { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .tile small { font-size: var(--t-sm); font-weight: 700; color: var(--ink-3); white-space: nowrap; letter-spacing: 0; }
+  .tile small { font-size: var(--t-sm); font-weight: 700; color: var(--ink-3); white-space: normal; overflow-wrap: normal; hyphens: auto; line-height: 1.2; letter-spacing: 0; padding: 0 3px; }
   .tile strong { font-size: var(--t-base); }
-  .tile .name { font-size: var(--t-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .tile .detail { font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .tile .name { font-size: var(--t-base); white-space: normal; overflow-wrap: normal; hyphens: auto; line-height: 1.2; max-width: 100%; }
+  .tile .detail { font-weight: 600; max-width: 100%; overflow-wrap: normal; hyphens: auto; }
   .tile .ic { width: 23px; height: 23px; }
   .tile.arrange { align-items: center; }
   .tile.on { background: var(--accent-soft); border-color: transparent; color: var(--accent-2); }

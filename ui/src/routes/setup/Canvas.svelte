@@ -22,6 +22,7 @@
   import { orderPosition, orderSegments } from '../../lib/cut-order';
   import { copiedLeadOverrides, setLeadOverrides } from '../../lib/lead-overrides';
   import { draggedLead, leadHandlesOf, type LeadHandle } from '../../lib/lead-handles';
+  import { arrowAlong } from '../../lib/direction';
   import { pasteBatch, pasteable, type CopiedShapes, type PasteSettings } from '../../lib/copy-paste';
   import { server } from '../../stores/server.svelte';
   import { ui } from '../../stores/ui.svelte';
@@ -631,6 +632,18 @@
 
   /** A mark size in millimetres that keeps its screen size. */
   const mark = $derived(Math.min(view.shown.w, view.shown.h) / 120);
+  /** The longest stretch a contour is cut along, for its direction arrow. */
+  function longestCut(contour: PreviewContour): number[][] {
+    let best: number[][] = [];
+    let most = 0;
+    for (const path of contour.paths) {
+      if (path.kind !== 'cut') continue;
+      let length = 0;
+      for (let i = 1; i < path.points.length; i++) length += Math.hypot(path.points[i]![0] - path.points[i - 1]![0], path.points[i]![1] - path.points[i - 1]![1]);
+      if (length > most) { most = length; best = path.points; }
+    }
+    return best;
+  }
   // Non-scaling round strokes keep the same dot size without rewriting a
   // radius on every contour during zoom. Recompute only with canvas size.
   const markPixels = $derived(Math.min(view.pixelWidth, Math.round(view.shown.h / view.shownMmPerPixel)) / 120);
@@ -654,6 +667,11 @@
           {#if ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)}
             style:stroke={path.kind === 'cut' ? colors.get(contour.layer) : null} d={drawingPath(path.points)} vector-effect="non-scaling-stroke"/>{/if}
         {/each}
+        {#if details && ui.layerShown('cut') && (contour.closed || !marked.has(contour.layer))}
+          <!-- Which way the contour is cut, as Mlaser shows it. -->
+          {@const arrow = arrowAlong(longestCut(contour), mark * 2.4)}
+          {#if arrow}<path class="dir-arrow" d={arrow} style:fill={colors.get(contour.layer)} />{/if}
+        {/if}
         {#if details && (ui.setupPanel !== 'nest' || on)}
           {#if ui.layerShown('cooling')}
             {#each contour.cooling as [x, y]}

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { distance, quantity, unitLabel } from '../lib/units.svelte';
   // The run side: the DRO, homing and origin, and the jog pad. An axis
   // moves while its button is held and a heartbeat renews the lease;
@@ -93,14 +95,14 @@
 </script>
 
 {#snippet key(axis: Axis, positive: boolean, icon: string, label: string, enabled: boolean)}
-  <button onpointerdown={(event) => press(event, axis, positive)} disabled={!enabled}><i class="ic {icon}"></i><small>{label}</small></button>
+  <button onpointerdown={(event) => press(event, axis, positive)} disabled={!enabled}><i class="ic {icon}"></i><small>{t(label)}</small></button>
 {/snippet}
 {#snippet corner(xPositive: boolean, yPositive: boolean)}
   {@const label = `${xPositive ? 'X+' : 'X−'} ${yPositive ? 'Y+' : 'Y−'}`}
   <button
     class="diagonal"
     style:--turn="{cornerTurn(xPositive, yPositive)}deg"
-    aria-label="Jog {label}"
+    aria-label="Jog {t(label)}"
     onpointerdown={(event) => press(event, 0, xPositive, yPositive)}
     disabled={!diagonalOk(xPositive, yPositive)}
   ><i class="ic ic-arrow-up"></i></button>
@@ -141,11 +143,11 @@
     >Go origin</HoldButton>
     <HoldButton
       class="btn btn-move"
-      label="Calibrate Z"
+      label={t("Calibrate Z")}
       onhold={() => call(() => api.machine('calibrate'))}
       disabled={!readiness.calibrate.ok}
       title={plain(readiness.calibrate.reason).text}
-    >Calibrate Z</HoldButton>
+    >{t("Calibrate Z")}</HoldButton>
   </div>
   <div class="frame-row">
     <HoldButton
@@ -179,7 +181,7 @@
         title={auxiliary === 'z' ? 'Tap for W table' : 'Tap for Z head'}
       >
         <strong>{auxiliary.toUpperCase()}</strong>
-        <small>{auxiliary === 'z' ? 'Head' : 'Table'}</small>
+        <small>{auxiliary === 'z' ? 'Head' : t("Table")}</small>
         <small>Tap for {auxiliary === 'z' ? 'W' : 'Z'}</small>
       </button>
       {@render key(auxiliary, false, 'ic-arrow-down', auxiliary === 'z' ? 'Z down' : 'W−', auxiliaryDown)}

@@ -230,17 +230,15 @@ export function extend(source: Sketch, id: Id, click: Vec): Outcome {
   if (!best) return { error: 'Nothing lies ahead of that end to extend to.' };
   // A shared end stays with the other curves; this one gets an end of its own.
   const shared = uses(s, endId) > 1;
-  s.constraints = s.constraints.filter((c) => !(c.kind === 'distance' && (c.a === endId || c.b === endId)));
+  if (!shared) s.constraints = s.constraints.filter((c) => !(c.kind === 'distance' && (c.a === endId || c.b === endId)));
   freeLength(s, [id]);
   const target = s.points.find((p) => dist(p, best!.at) < SAME);
   if (target) {
     if (atEnd) e.b = target.id; else e.a = target.id;
-  } else if (shared) {
+  } else {
+    // Detach old endpoint references before attaching the extended end.
     const p = endOn(s, best.at, best.by);
     if (atEnd) e.b = p; else e.a = p;
-  } else {
-    end.x = best.at.x; end.y = best.at.y;
-    addConstraint(s, { kind: 'on', point: endId, curve: best.by });
   }
   remove(s, []);
   return { sketch: s, created: [id] };

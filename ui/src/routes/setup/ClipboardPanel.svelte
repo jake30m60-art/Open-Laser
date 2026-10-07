@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   import { displayNumber, quantity, unitLabel } from '../../lib/units.svelte';
   import { osk } from '../../lib/osk.svelte';
   import { plural } from '../../lib/format';
@@ -9,8 +11,8 @@
     clipboard: CopiedShapes | null; settings: PasteSettings; disabled: boolean; pasting: boolean; onpaste: () => void;
   } = $props();
   const directions: { value: PasteDirection; label: string }[] = [
-    { value: 'left', label: '← Left' }, { value: 'right', label: 'Right →' },
-    { value: 'up', label: '↑ Up' }, { value: 'down', label: '↓ Down' },
+    { value: 'left', label: t("← Left") }, { value: 'right', label: 'Right →' },
+    { value: 'up', label: t("↑ Up") }, { value: 'down', label: t("↓ Down") },
   ];
   function copies(): void {
     osk.number('Number of copies', settings.count, 'copies', value => {
@@ -26,7 +28,7 @@
   }
 </script>
 
-<div class="feat-head"><h2>Copy / paste</h2><button class="btn btn-ghost" onclick={() => (ui.setupPanel = null)}>Close</button></div>
+<div class="feat-head"><h2>{t("Copy / paste")}</h2><button class="btn btn-ghost" onclick={() => (ui.setupPanel = null)}>{t("Close")}</button></div>
 {#if clipboard}
   <p class="feat-desc">Each copy contains {plural(clipboard.grouping.length, 'group')} · {plural(clipboard.contours.length, 'contour')}.</p>
   <fieldset disabled={pasting}>

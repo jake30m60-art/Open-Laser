@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../../i18n/index';
+
   // Lead-ins and lead-outs: the open tab picks which one is edited.
   import Chips from '../../../components/params/Chips.svelte';
   import Stepper from '../../../components/params/Stepper.svelte';
@@ -75,30 +77,30 @@
 </script>
 
 {#if targets.length && features.leads}
-  <div class="seg block lead-scope" role="group" aria-label="Lead edits apply to">
-    <button class:on={local} onclick={() => (jobWide = false)}>Selected ({targets.length})</button>
-    <button class:on={!local} onclick={() => (jobWide = true)}>All contours</button>
+  <div class="seg block lead-scope" role="group" aria-label={t("Lead edits apply to")}>
+    <button class:on={local} onclick={() => (jobWide = false)}>{t("Selected (")}{targets.length})</button>
+    <button class:on={!local} onclick={() => (jobWide = true)}>{t("All contours")}</button>
   </div>
 {/if}
 {#if local && lead}
-  <p class="muted lead-note">Changes apply to the {plural(targets.length, 'selected contour')} only. Switching a lead off or changing the side applies to all contours.</p>
+  <p class="muted lead-note">{t("Changes apply to the")} {plural(targets.length, 'selected contour')} {t("only. Switching a lead off or changing the side applies to all contours.")}</p>
 {:else}
   <Toggle label={tab === 0 ? 'Lead-in' : 'Lead-out'} value={lead !== null} disabled={!on} apply={switchLead} />
 {/if}
 {#if lead}
-  <Chips label="Shape" options={SHAPES} current={lead.shape} disabled={!on} apply={setShape} />
-  {#if lead.shape !== 'arc'}<Stepper label="Length" value={lead.length} unit="mm" step={0.5} disabled={!on} apply={setLength} />{/if}
-  {#if lead.shape !== 'line'}<Stepper label="Arc radius" value={lead.radius} unit="mm" step={0.5} disabled={!on} apply={setRadius} />{/if}
+  <Chips label={t("Shape")} options={SHAPES} current={lead.shape} disabled={!on} apply={setShape} />
+  {#if lead.shape !== 'arc'}<Stepper label={t("Length")} value={lead.length} unit="mm" step={0.5} disabled={!on} apply={setLength} />{/if}
+  {#if lead.shape !== 'line'}<Stepper label={t("Arc radius")} value={lead.radius} unit="mm" step={0.5} disabled={!on} apply={setRadius} />{/if}
   <Stepper label={lead.shape === 'arc' ? 'Arc sweep' : 'Angle'} value={lead.angle} unit="°" step={15} disabled={!on} apply={setAngle} />
 {/if}
 {#if !local}
-  <Chips label="Side" options={SIDES} current={leads.side} disabled={!on} apply={setSide} />
-  <Toggle label="Closed contours only" value={leads.closed_only} disabled={!on} apply={setClosedOnly} />
+  <Chips label={t("Side")} options={SIDES} current={leads.side} disabled={!on} apply={setSide} />
+  <Toggle label={t("Closed contours only")} value={leads.closed_only} disabled={!on} apply={setClosedOnly} />
 {/if}
 {#if leads.overrides?.length}
-  <p class="muted" style="font-size:var(--t-sm)">{plural(leads.overrides.length, 'contour')} with individual lead settings</p>
-  <button class="btn btn-soft" disabled={!on || !selectionEdited} onclick={useDefaultsForSelection}>Use job defaults for selection</button>
-  <button class="btn btn-ghost" disabled={!on} onclick={resetOverrides}>Reset all individual leads</button>
+  <p class="muted" style="font-size:var(--t-sm)">{plural(leads.overrides.length, 'contour')} {t("with individual lead settings")}</p>
+  <button class="btn btn-soft" disabled={!on || !selectionEdited} onclick={useDefaultsForSelection}>{t("Use job defaults for selection")}</button>
+  <button class="btn btn-ghost" disabled={!on} onclick={resetOverrides}>{t("Reset all individual leads")}</button>
 {/if}
 
 <style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   import { quantity } from '../../lib/units.svelte';
   // A new recipe, full screen: the laser, then the material from the
   // cards or a custom name; under them the thickness, the gas for fiber,
@@ -123,7 +125,7 @@
         gas: draft.laser === 'fiber' ? draft.gas : null,
       });
       ui.selectedRecipe = id;
-      ui.say(`${name} ${mm(draft.thickness_mm)} added.`);
+      ui.say(t("{0} {1} added.", name, mm(draft.thickness_mm)));
       onadded(id);
     } catch (error) {
       ui.say(explain(error), true);
@@ -141,16 +143,16 @@
     <div class="actions">
       <div class="seg">
         {#each [['fiber', 'Fiber'], ['co2', 'CO₂']] as [k, label] (k)}
-          <button class:on={draft.laser === k} onclick={() => setLaser(k as LaserMode)}>{label}</button>
+          <button class:on={draft.laser === k} onclick={() => setLaser(k as LaserMode)}>{t(label)}</button>
         {/each}
       </div>
-      <button class="btn btn-ghost icon-only" onclick={onclose} aria-label="Close"><i class="ic ic-x"></i></button>
+      <button class="btn btn-ghost icon-only" onclick={onclose} aria-label={t("Close")}><i class="ic ic-x"></i></button>
     </div>
   </div>
   <div class="toolbar">
     {#if categories.length > 1}
       <div class="chips cats">
-        <button class="chip" class:on={!category} onclick={() => (category = '')}>All</button>
+        <button class="chip" class:on={!category} onclick={() => (category = '')}>{t("All")}</button>
         {#each categories as c (c)}
           <button class="chip" class:on={category === c} onclick={() => toggleCategory(c)}>{c}</button>
         {/each}
@@ -180,7 +182,7 @@
     </div>
     {#if draft.laser === 'fiber'}
       <div class="field">
-        <h3>Assist gas</h3>
+        <h3>{t("Assist gas")}</h3>
         <div class="chips">
           {#each gases as selector (selector)}
             <button class="chip" class:on={draft.gas === selector} onclick={() => (draft.gas = selector)}>

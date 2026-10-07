@@ -1584,6 +1584,7 @@ impl Coordinator {
         let Some(draft) = self.draft.as_ref().filter(|d| d.preparing) else { return Ok(None) };
         let mut draft = draft.clone();
         draft.scan_tables = self.scan_tables(&draft);
+        draft.scan_runups = self.scan_runups(&draft)?;
         Ok(Some(Preparation {
             revision: self.revisions.draft,
             draft: draft.clone(),

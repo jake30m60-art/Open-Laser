@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { osk } from '../lib/osk.svelte';
   import { distance, unitLabel } from '../lib/units.svelte';
   import type { Check } from '../api';
@@ -23,7 +25,7 @@
     steps = steps.filter((_, index) => index !== i);
   }
   function editCoordinate(action: { x: number; y: number }, axis: 'x' | 'y'): void {
-    osk.number(`${axis.toUpperCase()} position`, action[axis], 'mm', value => { if (Number.isFinite(value)) action[axis] = value; });
+    osk.number(t("{0} position", axis.toUpperCase()), action[axis], 'mm', value => { if (Number.isFinite(value)) action[axis] = value; });
   }
   function setAction(step: Check, kind: string): void {
     switch (kind) {
@@ -49,7 +51,7 @@
         <summary>{actionTitle(step)}{#if movesMachine(step.action)}<span class="motion-label">Moves machine</span>{/if}</summary>
         <div class="action-fields">
           <fieldset class="choices">
-            <legend>Action</legend>
+            <legend>{t("Action")}</legend>
             <div class="choice-grid">
               {#each actions as [kind, title]}
                 <button class="choice" aria-pressed={(actionKind(step) ?? 'none') === kind} onclick={() => setAction(step, kind)}>{title}</button>
@@ -59,7 +61,7 @@
           {#if step.action?.kind === 'move_to'}
             {@const action = step.action}
             <fieldset class="choices">
-              <legend>Bed point</legend>
+              <legend>{t("Bed point")}</legend>
               <div class="choice-grid bed-points">
                 {#each BED_GRID as [point, title]}
                   <button class="choice" aria-pressed={action.point === point} onclick={() => (action.point = point)}>{title}</button>
@@ -81,12 +83,12 @@
           {/if}
         </div>
         {#if canAutoCheck(step.action)}
-          <label class="auto-check"><input type="checkbox" bind:checked={step.auto_check}>Auto-check from machine state</label>
+          <label class="auto-check"><input type="checkbox" bind:checked={step.auto_check}>{t("Auto-check from machine state")}</label>
         {:else if step.action?.kind === 'gas_test' || step.action?.kind === 'job_gas_test'}<p class="muted">Confirm flow after testing.</p>{/if}
       </details>
     </div>
   {/each}
-  <button class="btn btn-ghost" disabled={steps.length >= 50} onclick={addStep}><i class="ic ic-plus"></i>Add check</button>
+  <button class="btn btn-ghost" disabled={steps.length >= 50} onclick={addStep}><i class="ic ic-plus"></i>{t("Add check")}</button>
 </div>
 
 <style>

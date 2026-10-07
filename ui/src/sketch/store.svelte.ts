@@ -4,7 +4,7 @@
 import { clone, emptySketch, isDimension, isSketch, remove, type Id, type Sketch } from './model';
 import { createTool, type Tool, type ToolId } from './tools';
 import { createAction, type Action, type ActionId } from './actions';
-import { freedom, looseAfter, solve, solverReady } from './solver';
+import { freedom, solveEdit, solve, solverReady } from './solver';
 
 const KEY = 'ol-sketch';
 const LIMIT = 200;
@@ -37,6 +37,8 @@ class SketchStore {
   free = $state.raw<{ points: Set<Id>; circles: Set<Id> } | null>(null);
   /** Bumped when the solver becomes ready. */
   solverRevision = $state(0);
+  /** Existing constraint IDs involved in the last rejected edit. */
+  conflicts = $state<Set<Id>>(new Set());
   /** The canvas view, kept while other pages are open. */
   view: { cx: number; cy: number; s: number } | null = null;
   private past: Sketch[] = [];
@@ -71,12 +73,13 @@ class SketchStore {
   settle(next: Sketch, previous: Sketch = this.sketch, strict = false): string | null {
     if (!solverReady()) { this.commit(next, previous); return null; }
     // The rest of the sketch keeps to where it was; should that not solve, solve plainly.
-    let solved = solve(next, [], new Map(), looseAfter(previous, next));
-    if (!solved.ok) solved = solve(next);
+    let solved = solveEdit(previous, next);
+    if (!solved.ok && !solved.reason) solved = solve(next);
     if (!solved.ok) {
-      return solved.conflicting.length
+      this.conflicts = new Set(solved.conflicting);
+      return solved.reason ?? (solved.conflicting.length
         ? 'Over-constrained: that conflicts with constraints or dimensions already there.'
-        : 'The constraints cannot all hold.';
+        : 'The constraints cannot all hold.');
     }
     if (strict && solved.redundant.length) {
       // Only what this edit says twice counts, not what the sketch already did.
@@ -92,10 +95,12 @@ class SketchStore {
         for (const c of driven.constraints) if (!known.has(c.id) && isDimension(c)) c.driven = true;
         const kept = solve(driven);
         if (!kept.ok) return 'The constraints cannot all hold.';
+        this.conflicts = new Set();
         this.commit(kept.sketch, previous);
         return 'That is already fixed by other constraints, so it was added as a driven dimension (in brackets).';
       }
     }
+    this.conflicts = new Set();
     this.commit(solved.sketch, previous);
     return null;
   }
@@ -113,10 +118,11 @@ class SketchStore {
 
   /** Keeps `next` as one undo step that `previous` returns to. */
   commit(next: Sketch, previous: Sketch = this.sketch): void {
+    this.conflicts = new Set();
     this.past.push(previous);
     if (this.past.length > LIMIT) this.past.shift();
     this.future = [];
-    this.sketch = next;
+    this.sketch = next; this.conflicts = new Set();
     this.prune();
     this.history();
     this.save();
@@ -124,7 +130,7 @@ class SketchStore {
   }
 
   /** Shows a sketch during a drag without making an undo step. */
-  preview(next: Sketch): void { this.sketch = next; }
+  preview(next: Sketch): void { this.sketch = next; this.conflicts = new Set(); }
 
   rename(name: string): void { this.name = name.trim() || 'Sketch'; this.save(); }
 
@@ -132,7 +138,7 @@ class SketchStore {
     const previous = this.past.pop();
     if (!previous) return;
     this.future.push(this.sketch);
-    this.sketch = previous;
+    this.sketch = previous; this.conflicts = new Set();
     this.prune();
     this.history();
     this.save();
@@ -143,7 +149,7 @@ class SketchStore {
     const next = this.future.pop();
     if (!next) return;
     this.past.push(this.sketch);
-    this.sketch = next;
+    this.sketch = next; this.conflicts = new Set();
     this.prune();
     this.history();
     this.save();

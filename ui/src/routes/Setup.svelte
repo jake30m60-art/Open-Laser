@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
+  import ManualCut from '../components/ManualCut.svelte';
   import SheetStrip from '../components/SheetStrip.svelte';
   import Canvas from './setup/Canvas.svelte';
   import JobPanel from './setup/JobPanel.svelte';
@@ -29,8 +32,9 @@
   const doc = $derived(server.doc!);
   const draft = $derived(doc.draft);
 
-  const EXTRA = [{ id: 'nest', short: 'Nest parts' }, { id: 'copy', short: 'Copy job' }];
+  const EXTRA = [{ id: 'nest', short: t("Nest parts") }, { id: 'copy', short: t("Copy job") }];
   let texting = $state(false);
+  let cuttingSheet = $state(false);
   let selectedContours = $state<number[]>([]);
   let orderProgress = $state(0);
   let canvas = $state<{ paste: (count?: number) => Promise<void>; selectAll: () => void; selectPart: (first: number, count: number) => void }>();
@@ -76,6 +80,7 @@
   <ToolBar class="setup-head" variant="names" label="Machining tools" tools={BAR_TOOLS} order={ui.bar} save={(order) => ui.setBar(order)}
     bind:editing={ui.editBar} corner={!compact} />
 
+  <div class="manual-cut-entry"><button class="btn btn-soft" onclick={() => cuttingSheet = true}>Manueller Trennschnitt</button></div>
   <SheetStrip />
   <Canvas bind:this={canvas} bind:selectedContours bind:clipboard bind:pasting {pasteSettings} {orderProgress} />
 </section>
@@ -84,7 +89,7 @@
   {#if !draft}
     <h2>No part open</h2>
     <p class="muted">Pick a part or a saved job on the Parts page, or start from text.</p>
-    <div class="side-foot"><button class="btn btn-ghost lg block" onclick={() => (texting = true)}>Add text</button><button class="btn btn-primary lg block" onclick={() => (ui.tab = 'parts')}>Go to Parts</button></div>
+    <div class="side-foot"><button class="btn btn-ghost lg block" onclick={() => (texting = true)}>{t("Add text")}</button><button class="btn btn-primary lg block" onclick={() => (ui.tab = 'parts')}>Go to Parts</button></div>
   {:else if ui.setupPanel === 'copy'}
     <CopyPanel />
   {:else if ui.setupPanel === 'clipboard'}
@@ -100,6 +105,7 @@
     <JobPanel onselectpart={(first, count) => canvas?.selectPart(first, count)} />
   {/if}
 </aside>
+{#if cuttingSheet}<ManualCut onclose={() => cuttingSheet = false} />{/if}
 {#if texting}<CreateText onclose={() => (texting = false)} />{/if}
 {#if ui.layerSheet && draft}{#key ui.layerSheet}<LayerSheet name={ui.layerSheet} onclose={() => (ui.layerSheet = null)} />{/key}{/if}
 
@@ -108,9 +114,10 @@
 <style>
   /* The machining bar runs along the top and down the left; the drawing bar spans the foot. */
   .canvas-panel.corner {
-    display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
-    grid-template-areas: 'top top' 'side strip' 'side canvas' 'bottom bottom';
+    display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas: 'top top' 'side manual' 'side strip' 'side canvas' 'bottom bottom';
   }
+  .manual-cut-entry { display:flex; justify-content:flex-end; padding:6px 12px; grid-area:manual; }
   .canvas-panel.corner > :global(.sheet-strip) { grid-area: strip; }
   .canvas-panel.corner > :global(.canvas-wrap) { grid-area: canvas; }
   .canvas-panel.corner > :global(.drawing-toolbar) { grid-area: bottom; }

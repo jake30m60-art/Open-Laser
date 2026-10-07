@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
   import { unitLabel } from '../../lib/units.svelte';
   // One control of the recipe: a number or text box that opens the
   // keypad, a flag that flips, or the gas selections as chips. A pressure
@@ -36,9 +37,9 @@
 
 {#snippet chips()}
   {#if ed.a.fixedGas !== null}
-    <div class="box static"><b>{GAS[ed.a.fixedGas]}</b>{#if !wired(ed.a.fixedGas)}<span class="unit">valve not assigned</span>{/if}</div>
+    <div class="box static"><b>{t(GAS[ed.a.fixedGas])}</b>{#if !wired(ed.a.fixedGas)}<span class="unit">{t("valve not assigned")}</span>{/if}</div>
   {:else}
-  <div class="chips">{#each choices as s (s)}<button class="chip" class:on={v === String(s)} class:warn={!wired(s)} onclick={() => ed.set(key, String(s))}>{wired(s) ? GAS[s] ?? `Selection ${s}` : `Unwired ${s}`}</button>{/each}</div>
+  <div class="chips">{#each choices as s (s)}<button class="chip" class:on={v === String(s)} class:warn={!wired(s)} onclick={() => ed.set(key, String(s))}>{wired(s) ? t(GAS[s] ?? t("Selection {0}", s)) : t("Unwired {0}", s)}</button>{/each}</div>
   {/if}
 {/snippet}
 
@@ -46,22 +47,22 @@
   {@render chips()}
 {:else if f.kind === 'flag' && row}
   <div class="toggle-row" class:changed>
-    <div><strong>{label ?? f.label}</strong>{#if note ?? f.explain}<small>{note ?? f.explain}</small>{/if}</div>
-    <button class="switch" class:on={isOn(v)} onclick={tap} aria-label={label ?? f.label}></button>
+    <div><strong>{t(label ?? f.label)}</strong>{#if note ?? f.explain}<small>{t(note ?? f.explain)}</small>{/if}</div>
+    <button class="switch" class:on={isOn(v)} onclick={tap} aria-label={t(label ?? f.label)}></button>
   </div>
 {:else}
   <div class="fld" class:changed class:big>
-    <span class="lbl">{label ?? f.label}{#if f.explain && !note}<small class="explain">{f.explain}</small>{/if}</span>
+    <span class="lbl">{t(label ?? f.label)}{#if f.explain && !note}<small class="explain">{t(f.explain)}</small>{/if}</span>
     {#if f.kind === 'gas'}
       {@render chips()}
     {:else if regulator}
-      <div class="box static"><b>Set at regulator</b>{#if v !== ''}<span class="unit">file says {bare(key, v)} {unitLabel(f.unit ?? '')}</span>{/if}</div>
+      <div class="box static"><b>{t("Set at regulator")}</b>{#if v !== ''}<span class="unit">{t("file says")} {bare(key, v)} {unitLabel(f.unit ?? '')}</span>{/if}</div>
     {:else}
       <button class="box" class:on={ed.editing === key} data-numpad={f.kind !== 'flag' || undefined} onclick={tap}>
-        <b>{bare(key, v)}</b>
+        <b>{f.kind === 'flag' ? t(bare(key, v)) : bare(key, v)}</b>
         {#if f.kind === 'flag'}<span class="switch small" class:on={isOn(v)}></span>{:else if f.unit}<span class="unit">{unitLabel(f.unit ?? '')}</span>{/if}
       </button>
     {/if}
-    {#if note}<small class="muted">{note}</small>{/if}
+    {#if note}<small class="muted">{t(note)}</small>{/if}
   </div>
 {/if}

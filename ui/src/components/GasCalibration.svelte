@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Calibrate a gas: note the supply, open the valve for 60 s at a chosen
   // pressure, measure what it used, and save measured / estimated as the
   // gas's calibration factor. Opening the valve is held (DESIGN.md rule 1);
@@ -92,12 +94,12 @@
   const unit = $derived(method === 'pressure' ? 'bar' : method === 'weight' ? 'kg' : method === 'meter' ? 'L/min' : 'L');
 </script>
 
-<Modal title="Calibrate {GAS_NAMES[gas]}" dismissable={!running} {onclose}>
+<Modal title="{t("Calibrate")} {GAS_NAMES[gas]}" dismissable={!running} {onclose}>
   <div class="cal" style="--gas:{GAS_COLORS[gas]}">
     <ol class="steps">
       <li class:on={step === 'setup'}>Note the supply</li>
       <li class:on={step === 'running'}>Open 60 s</li>
-      <li class:on={step === 'measure' || step === 'saved'}>Measure</li>
+      <li class:on={step === 'measure' || step === 'saved'}>{t("Measure")}</li>
     </ol>
 
     {#if step === 'setup'}
@@ -110,7 +112,7 @@
       <div class="fields">
         <button class="field" onclick={() => numberAtLeast('Test pressure', pressure, 'bar', v => { if (v > 0 && v <= 100) pressure = v; })}><span>{route?.pressure ? 'Pressure' : 'Regulator pressure'}</span><strong>{quantity(pressure, 'bar')}</strong></button>
         <button class="field" onclick={() => numberAtLeast('Nozzle diameter', diameter, 'mm', v => { if (v > 0 && v <= 20) diameter = v; })}><span>Nozzle</span><strong>{quantity(diameter, 'mm', 1)}</strong></button>
-        <div class="field seg-field"><span>Nozzle type</span><div class="seg"><button
+        <div class="field seg-field"><span>{t("Nozzle type")}</span><div class="seg"><button
               class:on={nozzleType === 'single'} onclick={() => (nozzleType = 'single')}>Single</button><button
               class:on={nozzleType === 'double'} onclick={() => (nozzleType = 'double')}>Double</button></div></div>
       </div>
@@ -132,14 +134,14 @@
       <div class="running">
         <div class="countdown"><b>{remaining}</b><span>s left</span></div>
         <p>{GAS_NAMES[gas]} is flowing at {quantity(pressure, 'bar')}.{#if method === 'meter'} Read the flow meter now.{/if}</p>
-        <button class="btn btn-stop xl block" onclick={stop}>Stop</button>
+        <button class="btn btn-stop xl block" onclick={stop}>{t("Stop")}</button>
       </div>
     {:else if step === 'measure'}
       {#if elapsed < TEST_SECONDS - 2}<p class="warn-text">The valve closed after {elapsed} s; the estimate below covers {elapsed} s.</p>{/if}
       <div class="fields">
         {#if method === 'pressure' || method === 'weight'}
           <div class="field static"><span>{beforeLabel}</span><strong>{quantity(before, unit, 1)}</strong></div>
-          <button class="field" onclick={() => numberAtLeast(method === 'pressure' ? 'Cylinder pressure after' : 'Cylinder weight after', after, unit, v => (after = v))}><span>After</span><strong>{quantity(after, unit, 1)}</strong></button>
+          <button class="field" onclick={() => numberAtLeast(method === 'pressure' ? 'Cylinder pressure after' : 'Cylinder weight after', after, unit, v => (after = v))}><span>{t("After")}</span><strong>{quantity(after, unit, 1)}</strong></button>
         {:else}
           <button class="field" onclick={() => numberAtLeast(beforeLabel, before, unit, v => (before = v))}><span>{beforeLabel}</span><strong>{quantity(before, unit, 1)}</strong></button>
         {/if}
@@ -151,11 +153,11 @@
       </div>
       <div class="row-actions">
         <button class="btn btn-ghost" onclick={() => (step = 'setup')}>Test again</button>
-        <button class="btn btn-primary" disabled={measured === null || busy} onclick={save}>Save calibration</button>
+        <button class="btn btn-primary" disabled={measured === null || busy} onclick={save}>{t("Save calibration")}</button>
       </div>
     {:else}
       <p class="done">{GAS_NAMES[gas]} estimates now use ×{factor?.toFixed(2)}.</p>
-      <button class="btn btn-primary block" onclick={onclose}>Done</button>
+      <button class="btn btn-primary block" onclick={onclose}>{t("Done")}</button>
     {/if}
   </div>
 </Modal>

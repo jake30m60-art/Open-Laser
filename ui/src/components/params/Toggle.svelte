@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   // A labelled on/off switch.
   let { label, value, disabled = false, apply }: {
     label: string;
@@ -9,6 +11,6 @@
 </script>
 
 <div class="param">
-  <div class="lbl">{label}</div>
+  <div class="lbl">{t(label)}</div>
   <button class="switch" class:on={value} onclick={() => apply(!value)} {disabled} style="justify-self:end" aria-label={label}></button>
 </div>

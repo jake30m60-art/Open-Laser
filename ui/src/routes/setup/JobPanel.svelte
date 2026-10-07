@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   import { plain } from '../../lib/plain';
   import { displayNumber, quantity, unitLabel } from '../../lib/units.svelte';
   import MaterialSheet from './MaterialSheet.svelte';
-  import { Reorder } from '../../lib/reorder.svelte';
   import MaterialSummary from '../../components/MaterialSummary.svelte';
   import PreflightEditor from '../../components/PreflightEditor.svelte';
   import { pictureOf } from '../../lib/materials';
@@ -11,7 +12,6 @@
   import { ui } from '../../stores/ui.svelte';
   import { explain, laserLabel, plural, recipeLabel, seconds } from '../../lib/format';
   import { preflightLabel, saveJob, saveLabel } from '../../lib/save-job';
-  import { swatchColor } from '../../lib/drawing-layers';
   import type { DraftLayer } from '../../api';
   import { TOOLS, isOn } from '../../lib/features';
   import AddParts from '../../components/AddParts.svelte';
@@ -46,26 +46,8 @@
     return `${mode} · ${layer.recipe ? recipeLabel(layer.recipe) : 'Material'}`;
   }
 
-  // Dragging reorders a local list; the order is sent once, on release.
-  let layerOrder = $state<string[]>([]);
-  let grabbing = false;
-  $effect(() => { layerOrder = draft.layers.map((l) => l.name); });
-  const rows = new Reorder({
-    attribute: 'layer-row',
-    order: () => layerOrder,
-    save: (next) => { layerOrder = next; },
-    editing: () => grabbing,
-    horizontal: () => false,
-  });
-  function grab(e: PointerEvent): void { grabbing = true; rows.down(e); }
-  function release(): void {
-    if (!grabbing) return;
-    grabbing = false;
-    rows.up();
-    const next = $state.snapshot(layerOrder);
-    if (next.join('\n') !== draft.layers.map((l) => l.name).join('\n')) run(() => api.changeLayers({ kind: 'order', layers: next }));
-  }
-  const shownLayers = $derived(layerOrder.map((name) => draft.layers.find((l) => l.name === name)).filter((l): l is DraftLayer => !!l));
+  let selectedLayer = $state('');
+  $effect(() => { if (!draft.layers.some(l => l.name === selectedLayer)) selectedLayer = draft.layers[0]?.name ?? ''; });
   let sheet = $state(false);
   let checklist = $state(false);
 
@@ -83,10 +65,10 @@
 <div class="job-scroll">
 <div class="card2 compact">
   <div class="card2-head">
-    <div><h3>Parts</h3><span class="muted">{partsLabel}</span></div>
+    <div><h3>{t("Parts")}</h3><span class="muted">{partsLabel}</span></div>
     <div class="parts-actions">
-      <button class="btn btn-ghost" onclick={() => (texting = true)}>Add text</button>
-      <button class="btn btn-ghost" onclick={() => (adding = true)}>Add parts</button>
+      <button class="btn btn-ghost" onclick={() => (texting = true)}>{t("Add text")}</button>
+      <button class="btn btn-ghost" onclick={() => (adding = true)}>{t("Add parts")}</button>
     </div>
   </div>
   {#if draft.parts.length > 1}
@@ -117,35 +99,16 @@
       </span>
     {:else}
       <span class="swatch" style="background:var(--warn-soft)"></span>
-      <span class="mat-text"><strong class="warn-text">Choose a material</strong><small>Required before running</small></span>
+      <span class="mat-text"><strong class="warn-text">{t("Choose a material")}</strong><small>Required before running</small></span>
     {/if}
-    <span class="link">Change</span>
+    <span class="link">{t("Change")}</span>
   </button>
   {#if recipe}<MaterialSummary source={recipe} variant="compact" />{/if}
-  {#if draft.layers.length > 1}
-    <div class="layers-head">
-      <h3>Layers</h3>
-      <small class:warn-text={layersMissing}>{layersMissing ? 'Marks need a recipe' : 'Run top to bottom'}</small>
-    </div>
-    <div class="layer-lines" role="list">
-      {#each shownLayers as layer (layer.name)}
-        {@const needs = !layer.chosen}
-        <!-- The row holds the pointer while its grip drags it, so it hears the move and release. -->
-        <div class="layer-line" data-layer-row={layer.name} class:off={!layer.output} class:needs class:placeholder={rows.dragging === layer.name}
-          onpointerup={release} onpointercancel={release} role="listitem">
-          <button class="grip" aria-label="Drag {layer.name} up or down" onpointerdown={grab}><i class="ic ic-grip"></i></button>
-          <button class="layer-open" onclick={() => (ui.layerSheet = layer.name)}>
-            <span class="layer-swatch" class:mark={layer.mode === 'mark'} style:--layer={swatchColor(draft.layers, layer.name)}></span>
-            <span class="layer-text">
-              <span class="layer-name">{layer.name}</span>
-              <small class="layer-how">{layerHow(layer)}</small>
-            </span>
-          </button>
-          <button class="switch small" class:on={layer.output} aria-label="Output {layer.name}"
-            onclick={() => run(() => api.changeLayers({ kind: 'output', layer: layer.name, on: !layer.output }))}></button>
-        </div>
-      {/each}
-    </div>
+  {#if draft.layers.length}
+    <label class="layer-choice">Bearbeitungsbereich
+      <select bind:value={selectedLayer}>{#each draft.layers as layer (layer.name)}<option value={layer.name}>{layer.name} · {layerHow(layer)}</option>{/each}</select>
+    </label>
+    <button class="btn btn-ghost" onclick={() => ui.layerSheet = selectedLayer}>Bearbeitungseinstellungen öffnen</button>
   {/if}
 </div>
 
@@ -153,9 +116,9 @@
 
 <div class="card2 compact rows">
   <div class="info-row">
-    <span><strong>Machining</strong><small>{on} of {optional} on{#if draft.feature_source} · from {draft.feature_source.name}{/if}</small></span>
+    <span><strong>Machining</strong><small>{on} {t("of")} {optional} on{#if draft.feature_source} · from {draft.feature_source.name}{/if}</small></span>
     <span><strong>Preflight</strong><small>{preflightLabel(draft)}</small></span>
-    <button class="btn btn-ghost" onclick={() => (checklist = true)}>Edit</button>
+    <button class="btn btn-ghost" onclick={() => (checklist = true)}>{t("Edit")}</button>
   </div>
 </div>
 
@@ -187,7 +150,7 @@
 <style>
   /* The cards scroll on a short screen; saving and Go to Run stay in reach. */
   .parts-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-  .job-scroll { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:8px; margin:-2px; padding:2px; }
+  .job-scroll { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; display:flex; flex-direction:column; gap:8px; margin:-2px; padding:2px; }
   .stack { flex-shrink:0; }
   .correction-status { padding:10px 12px; font-size:var(--t-sm); color:var(--ink-3); border-left:2px solid var(--accent); }
   .job-parts { list-style:none; margin:0; padding:0; display:grid; gap:6px; max-height:220px; overflow-y:auto; }
@@ -197,7 +160,7 @@
   }
   .job-part span { font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .job-part small { flex:none; color:var(--ink-3); font-size:var(--t-sm); }
-  .compact { padding:10px 12px; gap:8px; }
+  .compact { min-width:0; padding:10px 12px; gap:8px; }
   .mat-row { display:flex; align-items:center; gap:12px; min-height:52px; padding:0; border:0; background:transparent; color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
   .mat-row .swatch { flex:none; width:40px; height:40px; border-radius:8px; object-fit:cover; }
   .mat-text { flex:1; min-width:0; display:grid; gap:2px; }
@@ -211,19 +174,6 @@
   .info-row small { font-size:var(--t-sm); color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .info-row .btn { min-height:44px; }
   .compact.needs { border-color:var(--warn); }
-  .layers-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding-top:8px; border-top:1px solid var(--line); }
-  .layers-head small { color:var(--ink-3); }
-  .layer-lines { display:grid; gap:6px; }
-  .layer-line { display:flex; align-items:center; gap:4px; min-width:0; padding-right:8px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); }
-  .layer-line.placeholder { opacity:.3; }
-  .layer-line.needs { border-color:var(--warn); }
-  .layer-line.needs .layer-how { color:var(--warn); font-weight:600; }
-  .layer-line.off .layer-name, .layer-line.off .layer-swatch { opacity:.5; }
-  .grip { flex:none; width:40px; height:48px; display:grid; place-items:center; border:0; background:transparent; color:var(--ink-3); cursor:grab; touch-action:none; }
-  .layer-open { flex:1; min-width:0; min-height:48px; display:flex; align-items:center; gap:10px; padding:0; border:0; background:transparent; color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
-  .layer-swatch { flex:none; width:18px; height:18px; border-radius:5px; background:var(--layer); }
-  .layer-swatch.mark { background:transparent; border:2px dashed var(--layer); }
-  .layer-text { display:grid; gap:1px; min-width:0; }
-  .layer-name { font-weight:600; font-size:var(--t-base); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .layer-how { color:var(--ink-3); font-size:var(--t-sm); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .layer-choice { display:grid; gap:6px; margin-top:8px; }
+  .layer-choice select { width:100%; min-width:0; min-height:44px; }
 </style>

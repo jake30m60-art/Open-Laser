@@ -38,7 +38,7 @@ const FLATTEN: f64 = 0.005;
 
 /// A stretch at cutting speed with the beam off.
 fn off() -> SegmentProcess {
-    SegmentProcess { joint: true, power: Some(0.), ..SegmentProcess::default() }
+    SegmentProcess { joint: true, power: Some(0.), run_up: true, ..SegmentProcess::default() }
 }
 
 /// A line through `origin` along the unit `direction`, and the intervals
@@ -324,8 +324,8 @@ fn check_fill(fill: &Fill) -> Result<()> {
     if !fill.angle.is_finite() {
         return Err(feature("fill", "the angle must be a number"));
     }
-    if !(fill.run_up.is_finite() && (0. ..=50.).contains(&fill.run_up)) {
-        return Err(feature("fill", "the overscan must be 0 to 50 mm"));
+    if !(fill.run_up.is_finite() && (0. ..=1000.).contains(&fill.run_up)) {
+        return Err(feature("fill", "the overscan must be 0 to 1000 mm"));
     }
     if !(fill.scan_offset.is_finite() && (-2. ..=2.).contains(&fill.scan_offset)) {
         return Err(feature("fill", "the scan offset must be -2 to 2 mm"));

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { explain, technicalDetail } from '../lib/format';
   import { ui } from '../stores/ui.svelte';
   import { server } from '../stores/server.svelte';
@@ -16,8 +18,8 @@
 
 {#if ui.toast}
   <div class="toast" class:error={ui.toast.error} role={ui.toast.error ? 'alert' : 'status'}>
-    <span>{ui.toast.text}{#if technicalDetail(ui.toast.text)}<details
-      class="toast-detail"><summary>Details</summary><code>{technicalDetail(ui.toast.text)}</code></details>{/if}</span>{#if ui.toast.error}<button
+    <span>{t(ui.toast.text)}{#if technicalDetail(ui.toast.text)}<details
+      class="toast-detail"><summary>{t("Details")}</summary><code>{technicalDetail(ui.toast.text)}</code></details>{/if}</span>{#if ui.toast.error}<button
       class="toast-close" onclick={() => ui.dismissToast()}>OK</button>{/if}
   </div>
 {/if}

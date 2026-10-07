@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../../i18n/index';
+
   // Cooling stops: pauses in the cut that let the heat spread.
   import Chips from '../../../components/params/Chips.svelte';
   import Placed from '../../../components/params/Placed.svelte';
@@ -39,14 +41,14 @@
 </script>
 
 <button class="btn btn-soft" onclick={() => askPercentages(features, 'cooling', contours, set)} disabled={!on}>Enter positions (%)…</button>
-<Stepper label="Dwell" value={cooling.dwell / 1000} unit="s" step={0.1} disabled={!on} apply={setDwell} />
-<Chips label="Placement" options={PLACEMENTS} current={'automatic' in cooling.placement ? 'automatic' : 'manual'} disabled={!on} apply={setPlacement} />
+<Stepper label={t("Dwell")} value={cooling.dwell / 1000} unit="s" step={0.1} disabled={!on} apply={setDwell} />
+<Chips label={t("Placement")} options={PLACEMENTS} current={'automatic' in cooling.placement ? 'automatic' : 'manual'} disabled={!on} apply={setPlacement} />
 {#if 'automatic' in cooling.placement}
   {@const auto = cooling.placement.automatic}
-  <Toggle label="Cool after the pierce" value={auto.at_start} disabled={!on} apply={setAtStart} />
-  <Toggle label="Cool at sharp corners" value={auto.corners_below !== null} disabled={!on} apply={setCorners} />
+  <Toggle label={t("Cool after the pierce")} value={auto.at_start} disabled={!on} apply={setAtStart} />
+  <Toggle label={t("Cool at sharp corners")} value={auto.corners_below !== null} disabled={!on} apply={setCorners} />
   {#if auto.corners_below !== null}
-    <Stepper label="Corners sharper than" value={auto.corners_below} unit="°" step={5} disabled={!on} apply={setCornerAngle} />
+    <Stepper label={t("Corners sharper than")} value={auto.corners_below} unit="°" step={5} disabled={!on} apply={setCornerAngle} />
   {/if}
 {:else}
   <Placed count={cooling.placement.manual.length} what="stop" disabled={!on} onclear={clearPicked} onpick={() => pick('cooling')} />

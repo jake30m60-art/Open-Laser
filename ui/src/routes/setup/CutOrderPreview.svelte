@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
   import { orderPosition, orderSegments } from '../../lib/cut-order';
   import type { Preview } from '../../api';
 
@@ -23,9 +24,9 @@
 </script>
 
 <div class="order-preview">
-  <div class="row"><strong>Order preview</strong><span class="muted">Path {position ? position.contour + 1 : 0} / {preview?.contours.length ?? 0}</span></div>
-  <input aria-label="Cut order preview position" type="range" min="0" max="1" step="0.001" bind:value={progress} disabled={disabled || !segments.length} oninput={() => (playing = false)} />
-  <button class="btn btn-soft" disabled={disabled || !segments.length} onclick={() => { if (progress >= 1) progress = 0; playing = !playing; }}>{playing ? 'Pause preview' : 'Play cut order'}</button>
+  <div class="row"><strong>{t("Order preview")}</strong><span class="muted">{t("Path {0} / {1}", position ? position.contour + 1 : 0, preview?.contours.length ?? 0)}</span></div>
+  <input aria-label={t("Cut order preview position")} type="range" min="0" max="1" step="0.001" bind:value={progress} disabled={disabled || !segments.length} oninput={() => (playing = false)} />
+  <button class="btn btn-soft" disabled={disabled || !segments.length} onclick={() => { if (progress >= 1) progress = 0; playing = !playing; }}>{playing ? t('Pause preview') : t('Play cut order')}</button>
 </div>
 
 <style>

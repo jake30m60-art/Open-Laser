@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../../i18n/index';
+
   // Where each contour's cut starts and which way it runs, and how its end
   // meets its start.
   import Chips from '../../../components/params/Chips.svelte';
@@ -33,17 +35,17 @@
 </script>
 
 {#if tab === 0}
-  <Chips label="Start point" options={POSITIONS} current={typeof start.position === 'string' ? start.position : 'manual'} disabled={!on} apply={setPosition} />
+  <Chips label={t("Start point")} options={POSITIONS} current={typeof start.position === 'string' ? start.position : 'manual'} disabled={!on} apply={setPosition} />
   {#if typeof start.position !== 'string'}
-    <Stepper label="Along the contour" value={Math.round(start.position.manual * 100)} unit="%" step={5} disabled={!on} apply={setAlong} />
+    <Stepper label={t("Along the contour")} value={Math.round(start.position.manual * 100)} unit="%" step={5} disabled={!on} apply={setAlong} />
   {/if}
   <Placed count={start.spots.length} what="chosen start" disabled={!on} onclear={clearSpots} onpick={() => pick('start')} />
-  <Chips label="Direction" options={DIRECTIONS} current={start.direction} disabled={!on} apply={setDirection} />
+  <Chips label={t("Direction")} options={DIRECTIONS} current={start.direction} disabled={!on} apply={setDirection} />
 {:else}
-  <Chips label="Seam" options={SEAMS} current={seamKind} disabled={!on} apply={setSeam} />
+  <Chips label={t("Seam")} options={SEAMS} current={seamKind} disabled={!on} apply={setSeam} />
   {#if typeof features.seam !== 'string'}
     {@const seam = features.seam}
     <Stepper label={'gap' in seam ? 'Gap' : 'Overcut'} value={'gap' in seam ? seam.gap : seam.overcut} unit="mm" step={0.1} disabled={!on} apply={setSeamLength} />
   {/if}
-  <p class="muted" style="font-size:var(--t-sm);margin:0">Gap leaves an attachment; overcut cuts past the start.</p>
+  <p class="muted" style="font-size:var(--t-sm);margin:0">{t("Gap leaves an attachment; overcut cuts past the start.")}</p>
 {/if}

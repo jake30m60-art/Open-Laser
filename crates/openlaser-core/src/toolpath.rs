@@ -32,6 +32,10 @@ pub struct SegmentProcess {
     pub speed: Option<f64>,
     /// A cooling stop at the segment's start, in milliseconds.
     pub cool_ms: u32,
+    /// A laser-off stretch run at cut speed between cuts, as a flying
+    /// cut's or a fill's run-up and turn: shown as an overscan, never cut.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub run_up: bool,
 }
 
 /// The interval of a placed contour retained by a prepared segment.

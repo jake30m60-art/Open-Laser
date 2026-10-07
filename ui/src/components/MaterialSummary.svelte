@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // The one material summary (lib/summary.ts): speed, power, duty,
   // frequency, gas and pressure, nozzle, focus, lens, cut height and
   // pierce, in that order and under those names on every screen. `grid`
@@ -13,17 +15,17 @@
 </script>
 
 {#if variant === 'line'}
-  <span class="summary-line">{#each items.filter((i) => i.set) as item, n (item.key)}{#if n}<span class="sep" aria-hidden="true">·</span>{' '}{/if}<span class="item"><span class="k">{item.label}</span> {item.value}</span>{/each}</span>
+  <span class="summary-line">{#each items.filter((i) => i.set) as item, n (item.key)}{#if n}<span class="sep" aria-hidden="true">·</span>{' '}{/if}<span class="item"><span class="k">{t(item.label)}</span> {item.value}</span>{/each}</span>
 {:else if variant === 'compact'}
   <dl class="summary-compact">
     {#each items as item (item.key)}
-      <div class:unset={!item.set}><dt>{item.label}</dt><dd>{item.value}</dd></div>
+      <div class:unset={!item.set}><dt>{t(item.label)}</dt><dd>{item.value}</dd></div>
     {/each}
   </dl>
 {:else}
   <dl class="summary-grid">
     {#each items as item (item.key)}
-      <div class:unset={!item.set}><dt>{item.label}</dt><dd>{item.value}</dd></div>
+      <div class:unset={!item.set}><dt>{t(item.label)}</dt><dd>{item.value}</dd></div>
     {/each}
   </dl>
 {/if}
@@ -34,9 +36,9 @@
   .summary-grid dt { font-size: var(--t-sm); color: var(--ink-3); }
   .summary-grid dd { margin: 0; font-size: var(--t-base); font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .summary-grid .unset dd { color: var(--ink-3); font-weight: 600; }
-  .summary-compact { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; margin: 0; }
+  .summary-compact { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0 12px; margin: 0; }
   .summary-compact div { display: flex; flex-direction: column; gap: 0; min-width: 0; padding: 1px 0; }
-  .summary-compact dt { font-size: var(--t-sm); color: var(--ink-3); white-space: nowrap; }
+  .summary-compact dt { font-size: var(--t-sm); color: var(--ink-3); white-space: normal; overflow-wrap: anywhere; }
   .summary-compact dd { margin: 0; font-size: var(--t-sm); font-weight: 700; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .summary-compact .unset dd { color: var(--ink-3); font-weight: 600; }
   .summary-line { font-size: var(--t-sm); color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }

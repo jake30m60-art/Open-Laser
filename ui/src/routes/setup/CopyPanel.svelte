@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   import { api } from '../../api/client';
   import { server } from '../../stores/server.svelte';
   import { ui } from '../../stores/ui.svelte';
@@ -16,7 +18,7 @@
   }
 </script>
 
-<div class="feat-head"><h2>Copy machining from a job</h2><button class="btn btn-ghost" onclick={() => (ui.setupPanel = null)}>Close</button></div>
+<div class="feat-head"><h2>{t("Copy machining from a job")}</h2><button class="btn btn-ghost" onclick={() => (ui.setupPanel = null)}>{t("Close")}</button></div>
 {#snippet row(j: (typeof jobs)[number], same: boolean)}
   <div class="mat-row" class:same
     role="button" tabindex="0" onclick={() => copy(j.id, j.name)} onkeydown={(e) => { if (e.key === 'Enter') copy(j.id, j.name); }}

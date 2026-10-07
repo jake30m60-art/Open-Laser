@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // The review of one drawing before it becomes a part: a preview with open
   // and self-crossing shapes and repairs marked, its size against the bed,
   // the layers to import and, for an SVG sized in pixels, the scale. Every
@@ -45,7 +47,7 @@
 
 <Modal title={`Review ${review.name}`} wide dismissable={!busy} onclose={onskip}>
   <div class="import-review">
-    <figure class="preview" aria-label="Preview">
+    <figure class="preview" aria-label={t("Preview")}>
       <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${review.contours} shapes`}>
         {#each review.outline as line, i (i)}
           <path d={pathOf(line)} class={kinds[i]} vector-effect="non-scaling-stroke" />
@@ -81,7 +83,7 @@
           <legend>{review.scale?.units === 'ambiguous' ? 'The file does not say how large a pixel is' : review.scale?.units === 'illustrator' ? 'Written by Illustrator: 72 px per inch' : 'Written by Inkscape: 96 px per inch'}</legend>
           <div class="scales" role="group" aria-label="Scale">
             {#each SCALES as [value, label] (value)}
-              <button aria-pressed={scale === value} disabled={busy} onclick={() => chooseScale(value)}>{label}</button>
+              <button aria-pressed={scale === value} disabled={busy} onclick={() => chooseScale(value)}>{t(label)}</button>
             {/each}
           </div>
         </fieldset>
@@ -116,9 +118,9 @@
   </div>
 
   <div class="actions">
-    {#if remaining > 0}<button class="btn btn-ghost lg" disabled={busy} onclick={onstop}>Stop importing</button>{/if}
+    {#if remaining > 0}<button class="btn btn-ghost lg" disabled={busy} onclick={onstop}>{t("Stop importing")}</button>{/if}
     <button class="btn btn-ghost lg" disabled={busy} onclick={onskip}>Skip file</button>
-    <button class="btn btn-primary lg" disabled={busy || review.contours === 0} onclick={onimport}>{busy ? 'Checking…' : 'Import'}</button>
+    <button class="btn btn-primary lg" disabled={busy || review.contours === 0} onclick={onimport}>{busy ? 'Checking…' : t("Import")}</button>
   </div>
   {#if review.contours === 0}<p class="gate-reason">Choose at least one layer with geometry.</p>{/if}
 </Modal>

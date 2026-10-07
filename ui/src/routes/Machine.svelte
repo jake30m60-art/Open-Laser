@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Settings: one sidebar of sections with search, Advanced last. Display,
   // checklist, route and gas settings save as they change; only what writes
   // the machine (the backup, process INI and controller parameters) waits in
@@ -7,6 +9,7 @@
   import { onDestroy, tick } from 'svelte';
   import PreflightEditor from '../components/PreflightEditor.svelte';
   import MatrixCalibration from '../components/MatrixCalibration.svelte';
+  import ScanCalibration from '../components/ScanCalibration.svelte';
   import MachineSettings from '../components/MachineSettings.svelte';
   import MachineFiles from '../components/MachineFiles.svelte';
   import GasCosts from '../components/GasCosts.svelte';
@@ -47,28 +50,28 @@
     osk.number(label, doc.hold[key] / 1000, 's', (seconds) => {
       const ms = Math.round(seconds * 1000);
       if (ms < MIN_HOLD_MS || ms > MAX_HOLD_MS) {
-        ui.say(`Use ${holdSeconds(MIN_HOLD_MS)} to ${holdSeconds(MAX_HOLD_MS)}.`, true);
+        ui.say(t("Use {0} to {1}.", holdSeconds(MIN_HOLD_MS), holdSeconds(MAX_HOLD_MS)), true);
         return;
       }
       const saved = $state.snapshot(doc.hold);
-      void run(() => api.saveHoldTimes({ ...saved, [key]: ms }, saved), 'Hold time saved.');
+      void run(() => api.saveHoldTimes({ ...saved, [key]: ms }, saved), t("Hold time saved."));
     });
   }
 
   // The controller route saves at once; it is used from the next connection.
   function route(key: 'adapter' | 'controller' | 'host', value: string, saved: string): void {
     if (value === saved) return;
-    void run(() => api.setRoute({ [key]: value, expected: { [key]: saved } }), 'Saved · used from the next connection.');
+    void run(() => api.setRoute({ [key]: value, expected: { [key]: saved } }), t("Saved · used from the next connection."));
   }
 
   function toggleTheme(): void {
     void run(() => settingsEdits.saveTheme(ui.theme === 'dark' ? 'light' : 'dark'));
   }
   function editControllerAddress(): void {
-    osk.text('Controller address', link.controller, (v) => route('controller', v, link.controller));
+    osk.text(t("Controller address"), link.controller, (v) => route('controller', v, link.controller));
   }
   function editComputerAddress(): void {
-    osk.text("This computer's address", link.computer, (v) => route('host', v, link.computer));
+    osk.text(t("This computer's address"), link.computer, (v) => route('host', v, link.computer));
   }
   function openPage(id: typeof ui.machinePage): void {
     ui.settingsQuery = '';
@@ -76,16 +79,16 @@
   }
 
   const linkText = $derived(connection.state === 'connected' ? connection.endpoint
-    : connection.state === 'faulted' ? 'lost' : 'disconnected');
+    : connection.state === 'faulted' ? t("lost") : t("disconnected"));
   const identityText = $derived(machine.identity ? `${machine.identity.product_id} · ${machine.identity.program_version}` : '—');
   const scaleText = $derived(feedback ? `${displayNumber(feedback.scale, 'units/mm')} · ${feedback.cycle_us} µs` : '—');
   /** A soft-limit range, "from to to", on one axis. */
   const travel = (axis: 0 | 1): string =>
-    bindings ? `${distance(bindings.extent[axis][0])} to ${quantity(bindings.extent[axis][1], 'mm')}` : '—';
+    bindings ? t("{0} to {1}", distance(bindings.extent[axis][0]), quantity(bindings.extent[axis][1], 'mm')) : '—';
   const jogSpeedsText = $derived(bindings
     ? `${displayNumber(bindings.jog_speed[0], 'mm/s')} · ${quantity(bindings.jog_speed[1], 'mm/s')}` : '—');
-  const routeText = $derived(link.adapter ? `${link.adapter.description || link.adapter.name} · ${link.host ?? '—'}` : 'found on connection');
-  const attemptText = $derived(link.phase === 'failed' ? 'failed' : link.phase === 'idle' ? 'ended' : 'in progress');
+  const routeText = $derived(link.adapter ? `${link.adapter.description || link.adapter.name} · ${link.host ?? '—'}` : t("found on connection"));
+  const attemptText = $derived(link.phase === 'failed' ? t("failed") : link.phase === 'idle' ? t("ended") : t("in progress"));
 
   const inputOn = (input: number): boolean => !!feedback && ((feedback.inputs >> (input - 1)) & 1) === 1;
 
@@ -127,120 +130,120 @@
 
 {#snippet group(name: string)}
   {#if name === 'display'}
-    <div class="setting-group"><h3>Display</h3>
-      <div class="setting"><div class="lbl">Units</div>
-        <div class="seg" role="group" aria-label="Display units">
-          <button class:on={units.system === 'metric'} aria-pressed={units.system === 'metric'} onclick={() => units.set('metric')}>Metric · mm</button>
+    <div class="setting-group"><h3>{t("Display")}</h3>
+      <div class="setting"><div class="lbl">{t("Units")}</div>
+        <div class="seg" role="group" aria-label={t("Display units")}>
+          <button class:on={units.system === 'metric'} aria-pressed={units.system === 'metric'} onclick={() => units.set('metric')}>{t("Metric · mm")}</button>
           <button class:on={units.system === 'imperial'} aria-pressed={units.system === 'imperial'} onclick={() => units.set('imperial')}>
-            Imperial · in
+            {t("Imperial · in")}
           </button>
         </div>
       </div>
       <div class="setting">
-        <div class="lbl">Night mode<small>Dark colours for this screen</small></div>
+        <div class="lbl">{t("Night mode")}<small>{t("Dark colours for this screen")}</small></div>
         <button
           class="switch"
           role="switch"
           class:on={ui.theme === 'dark'}
           aria-checked={ui.theme === 'dark'}
-          aria-label="Night mode"
+          aria-label={t("Night mode")}
           onclick={toggleTheme}
         ></button>
       </div>
       <div class="setting">
-        <div class="lbl">Hold to move or fire<small>Every screen</small></div>
+        <div class="lbl">{t("Hold to move or fire")}<small>{t("Every screen")}</small></div>
         <button class="val" data-numpad onclick={() => holdTime('move_ms', 'Hold to move or fire')}>{holdSeconds(doc.hold.move_ms)}</button>
       </div>
       <div class="setting">
-        <div class="lbl">Hold to set origin<small>Every screen</small></div>
+        <div class="lbl">{t("Hold to set origin")}<small>{t("Every screen")}</small></div>
         <button class="val" data-numpad onclick={() => holdTime('zero_ms', 'Hold to set origin')}>{holdSeconds(doc.hold.zero_ms)}</button>
       </div>
     </div>
   {:else if name === 'checklists'}
-    <div class="setting-group"><h3>Checklists</h3>
+    <div class="setting-group"><h3>{t("Checklists")}</h3>
       <div class="setting">
-        <div class="lbl">Before cutting<small>Preflight · Fiber and CO₂</small></div>
-        <button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'defaults')}>Edit</button>
+        <div class="lbl">{t("Before cutting")}<small>{t("Preflight · Fiber and CO₂")}</small></div>
+        <button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'defaults')}>{t("Edit")}</button>
       </div>
       <div class="setting">
-        <div class="lbl">When paused<small>Clear debris and check before resuming</small></div>
-        <button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'pause')}>Edit</button>
+        <div class="lbl">{t("When paused")}<small>{t("Clear debris and check before resuming")}</small></div>
+        <button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'pause')}>{t("Edit")}</button>
       </div>
       <div class="setting">
-        <div class="lbl">After the job<small>Postflight · parking and part inspection</small></div>
-        <button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'postflight')}>Edit</button>
+        <div class="lbl">{t("After the job")}<small>{t("Postflight · parking and part inspection")}</small></div>
+        <button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'postflight')}>{t("Edit")}</button>
       </div>
     </div>
   {:else if name === 'interface'}
-    <div class="setting-group"><h3>This screen</h3>
+    <div class="setting-group"><h3>{t("This screen")}</h3>
       <div class="setting">
-        <div class="lbl">{compact ? 'Full interface' : 'Phone interface'}<small>The layout also follows the window size</small></div>
-        <a class="btn btn-ghost" href={compact ? '/app' : '/mobile'} onclick={() => rememberLayout(compact ? 'full' : 'mobile')}>Open</a>
+        <div class="lbl">{compact ? t("Full interface") : t("Phone interface")}<small>{t("The layout also follows the window size")}</small></div>
+        <a class="btn btn-ghost" href={compact ? '/app' : '/mobile'} onclick={() => rememberLayout(compact ? 'full' : 'mobile')}>{t("Open")}</a>
       </div>
-      <div class="setting"><div class="lbl">Version</div><div class="val">{APP_VERSION}</div></div>
+      <div class="setting"><div class="lbl">{t("Version")}</div><div class="val">{APP_VERSION}</div></div>
     </div>
   {:else if name === 'controller'}
-    <div class="setting-group"><h3>Controller</h3>
-      <div class="setting"><div class="lbl">Link<small>UDP to the motion card</small></div><div class="val">{linkText}</div></div>
-      <div class="setting"><div class="lbl">Identity<small>product · firmware</small></div><div class="val">{identityText}</div></div>
+    <div class="setting-group"><h3>{t("Controller")}</h3>
+      <div class="setting"><div class="lbl">{t("Link")}<small>{t("UDP to the motion card")}</small></div><div class="val">{linkText}</div></div>
+      <div class="setting"><div class="lbl">{t("Identity")}<small>{t("product · firmware")}</small></div><div class="val">{identityText}</div></div>
       <div class="setting">
-        <div class="lbl">Scale · cycle<small>{unitLabel('units/mm')} · interpolation</small></div>
+        <div class="lbl">{t("Scale · cycle")}<small>{t("{0} · interpolation", unitLabel('units/mm'))}</small></div>
         <div class="val">{scaleText}</div>
       </div>
       <div class="setting">
-        <div class="lbl">Machine backup<small>{doc.files.backup?.name ?? doc.bindings_error ?? 'None loaded'}</small></div>
+        <div class="lbl">{t("Machine backup")}<small>{doc.files.backup?.name ?? doc.bindings_error ?? 'None loaded'}</small></div>
         <MachineFiles disabled={!!machine.operation} />
       </div>
     </div>
   {:else if name === 'laser'}
-    <div class="setting-group"><h3>Laser and head</h3>
+    <div class="setting-group"><h3>{t("Laser and head")}</h3>
       <div class="setting">
-        <div class="lbl">Operating mode<small>Switch it in Machine tests</small></div>
+        <div class="lbl">{t("Operating mode")}<small>{t("Switch it in Machine tests")}</small></div>
         <div class="val">{laserLabel(doc.mode)}</div>
       </div>
       <div class="setting">
-        <div class="lbl">Applied on this connection</div>
-        <div class="val">{machine.session.mode ? laserLabel(machine.session.mode) : 'not yet'}</div>
+        <div class="lbl">{t("Applied on this connection")}</div>
+        <div class="val">{machine.session.mode ? laserLabel(machine.session.mode) : t("not yet")}</div>
       </div>
       <div class="setting">
-        <div class="lbl">Head controller<small>From the machine backup</small></div>
-        <div class="val">{bindings ? (bindings.head_enabled ? 'configured' : 'none') : '—'}</div>
+        <div class="lbl">{t("Head controller")}<small>{t("From the machine backup")}</small></div>
+        <div class="val">{bindings ? (bindings.head_enabled ? t("configured") : t("none")) : '—'}</div>
       </div>
     </div>
   {:else if name === 'tests'}
-    <div class="setting-group"><h3>Machine tests</h3>
-      <div class="setting"><div class="lbl">Laser, gas and outputs<small>Pulse the laser, test a gas valve, hold an output, switch Fiber / CO₂</small></div><button class="btn btn-ghost" onclick={() => (testing = true)}>Open</button></div>
+    <div class="setting-group"><h3>{t("Machine tests")}</h3>
+      <div class="setting"><div class="lbl">{t("Laser, gas and outputs")}<small>{t("Pulse the laser, test a gas valve, hold an output, switch Fiber / CO₂")}</small></div><button class="btn btn-ghost" onclick={() => (testing = true)}>{t("Open")}</button></div>
     </div>
   {:else if name === 'axes'}
-    <div class="setting-group"><h3>Axes and travel</h3>
-      <div class="setting"><div class="lbl">X travel<small>soft limits</small></div><div class="val">{travel(0)}</div></div>
-      <div class="setting"><div class="lbl">Y travel<small>soft limits</small></div><div class="val">{travel(1)}</div></div>
-      <div class="setting"><div class="lbl">Jog speeds<small>slow · fast</small></div><div class="val">{jogSpeedsText}</div></div>
+    <div class="setting-group"><h3>{t("Axes and travel")}</h3>
+      <div class="setting"><div class="lbl">{t("X travel")}<small>{t("soft limits")}</small></div><div class="val">{travel(0)}</div></div>
+      <div class="setting"><div class="lbl">{t("Y travel")}<small>{t("soft limits")}</small></div><div class="val">{travel(1)}</div></div>
+      <div class="setting"><div class="lbl">{t("Jog speeds")}<small>{t("slow · fast")}</small></div><div class="val">{jogSpeedsText}</div></div>
       <div class="setting">
-        <div class="lbl">Home<small>on this connection</small></div>
-        <div class="val">{machine.session.homed ? 'done' : 'needed'}</div>
+        <div class="lbl">{t("Home")}<small>{t("on this connection")}</small></div>
+        <div class="val">{machine.session.homed ? t("done") : t("needed")}</div>
       </div>
       <div class="setting">
-        <div class="lbl">Axis parameters<small>Compared with the backup</small></div>
-        <div class="val">{machine.session.parameters_verified ? 'checked' : 'not read'}</div>
+        <div class="lbl">{t("Axis parameters")}<small>{t("Compared with the backup")}</small></div>
+        <div class="val">{machine.session.parameters_verified ? t("checked") : t("not read")}</div>
       </div>
     </div>
   {:else if name === 'safety'}
-    <div class="setting-group"><h3>Safety inputs</h3>
+    <div class="setting-group"><h3>{t("Safety inputs")}</h3>
       {#each bindings?.rules ?? [] as rule}
         <div class="setting">
-          <div class="lbl">{rule.label}<small>Input {rule.input}</small></div>
-          <div class="val">{feedback ? (inputOn(rule.input) ? 'high' : 'low') : '—'}</div>
+          <div class="lbl">{rule.label}<small>{t("Input {0}", rule.input)}</small></div>
+          <div class="val">{feedback ? (inputOn(rule.input) ? t("high") : t("low")) : '—'}</div>
         </div>
       {:else}
-        <div class="setting"><div class="lbl">No input rules<small>{doc.bindings_error ?? 'Load the machine backup and connect'}</small></div></div>
+        <div class="setting"><div class="lbl">{t("No input rules")}<small>{doc.bindings_error ?? 'Load the machine backup and connect'}</small></div></div>
       {/each}
     </div>
   {:else if name === 'materials'}
-    <div class="setting-group"><h3>Material library</h3>
+    <div class="setting-group"><h3>{t("Material library")}</h3>
       <div class="setting">
-        <div class="lbl">Recipes<small>{doc.library.recipes.length} saved</small></div>
-        <button class="btn btn-ghost" onclick={() => (ui.tab = 'materials')}>Open library</button>
+        <div class="lbl">{t("Recipes")}<small>{t("{0} saved", doc.library.recipes.length)}</small></div>
+        <button class="btn btn-ghost" onclick={() => (ui.tab = 'materials')}>{t("Open library")}</button>
       </div>
     </div>
   {:else if name === 'process'}
@@ -248,23 +251,25 @@
   {:else if name === 'gas'}
     <GasCosts />
   {:else if name === 'head-calibration'}
-    <div class="setting-group"><h3>Head calibration</h3>
+    <div class="setting-group"><h3>{t("Head calibration")}</h3>
       <div class="setting">
-        <div class="lbl">On this connection<small>Calibrate from Run</small></div>
+        <div class="lbl">{t("On this connection")}<small>{t("Calibrate from Run")}</small></div>
         <div class="val">{machine.session.calibration ?? 'not yet'}</div>
       </div>
     </div>
   {:else if name === 'matrix'}
     <MatrixCalibration />
+  {:else if name === 'scan'}
+    <ScanCalibration />
   {:else if name === 'network'}
-    <div class="setting-group"><h3>Controller network</h3>
-      <div class="setting"><div class="lbl">Route<small>Network adapter</small></div><div class="val">{routeText}</div></div>
+    <div class="setting-group"><h3>{t("Controller network")}</h3>
+      <div class="setting"><div class="lbl">{t("Route")}<small>{t("Network adapter")}</small></div><div class="val">{routeText}</div></div>
       <div class="setting">
-        <div class="lbl">Last attempt<small>{attemptText}</small></div>
+        <div class="lbl">{t("Last attempt")}<small>{attemptText}</small></div>
         <div class="val">{link.detail || (connection.state === 'connected' ? 'connected' : '—')}</div>
       </div>
       {#if link.choices.length}
-        <div class="setting"><div class="lbl">Machine adapter<small>Used from the next connection</small></div>
+        <div class="setting"><div class="lbl">{t("Machine adapter")}<small>{t("Used from the next connection")}</small></div>
           <div class="seg">
             {#each link.choices as choice}
               <button class:on={choice.name === link.remembered_adapter} onclick={() => route('adapter', choice.name, link.remembered_adapter)}>
@@ -275,19 +280,19 @@
         </div>
       {/if}
       <div class="setting">
-        <div class="lbl">Controller address<small>ip:port · used from the next connection</small></div>
+        <div class="lbl">{t("Controller address")}<small>{t("ip:port · used from the next connection")}</small></div>
         <button class="val" onclick={editControllerAddress}>{link.controller}</button>
       </div>
       <div class="setting">
-        <div class="lbl">This computer's address<small>ip/prefix · used from the next connection</small></div>
+        <div class="lbl">{t("This computer's address")}<small>{t("ip/prefix · used from the next connection")}</small></div>
         <button class="val" onclick={editComputerAddress}>{link.computer}</button>
       </div>
     </div>
   {:else if name === 'phones'}
-    <div class="setting-group"><h3>Phones and tablets</h3>
+    <div class="setting-group"><h3>{t("Phones and tablets")}</h3>
       <div class="setting">
-        <div class="lbl">Local network<small>{access.info?.address.replace('http://', '')}</small></div>
-        <button class="btn btn-ghost" onclick={() => (access.manage = true)}>Open</button>
+        <div class="lbl">{t("Local network")}<small>{access.info?.address.replace('http://', '')}</small></div>
+        <button class="btn btn-ghost" onclick={() => (access.manage = true)}>{t("Open")}</button>
       </div>
     </div>
   {:else if name === 'xml'}
@@ -297,12 +302,12 @@
 
 <section class="panel main settings-page" class:section-only={sectionOnly}>
   {#if !sectionOnly}
-    <nav class="settings-sidebar" aria-label="Settings sections">
-      <div class="settings-title"><h1>Settings</h1><span>v{APP_VERSION}</span></div>
+    <nav class="settings-sidebar" aria-label={t("Settings sections")}>
+      <div class="settings-title"><h1>{t("Settings")}</h1><span>v{APP_VERSION}</span></div>
       <label class="search settings-search"><i class="ic ic-search"></i><input
         type="search"
-        aria-label="Search settings"
-        placeholder="Search settings"
+        aria-label={t("Search settings")}
+        placeholder={t("Search…")}
         bind:value={ui.settingsQuery}
       /></label>
       {#each SETTINGS_PAGES as item (item.id)}
@@ -311,21 +316,21 @@
           class:on={!query && ui.machinePage === item.id}
           aria-current={!query && ui.machinePage === item.id ? 'page' : undefined}
           onclick={() => openPage(item.id)}
-        >{item.label}</button>
+        >{t(item.label)}</button>
       {/each}
     </nav>
   {/if}
   <div class="settings-content" bind:this={content}>
     {#if query}
-      {#if !sectionOnly}<h2 class="settings-heading">Results for “{ui.settingsQuery.trim()}”</h2>{/if}
+      {#if !sectionOnly}<h2 class="settings-heading">{t("Results for “{0}”", ui.settingsQuery.trim())}</h2>{/if}
       {#each SETTINGS_PAGES as item (item.id)}
         {#each item.groups as name (name)}
-          <div class="search-block" data-keywords="{item.label} {item.keywords ?? ''}"><p class="search-section">{item.label}</p>{@render group(name)}</div>
+          <div class="search-block" data-keywords="{t(item.label)} {item.keywords ?? ''}"><p class="search-section">{t(item.label)}</p>{@render group(name)}</div>
         {/each}
       {/each}
-      {#if matches === 0}<p class="muted">Nothing matches. Try a shorter word.</p>{/if}
+      {#if matches === 0}<p class="muted">{t("Nothing matches. Try a shorter word.")}</p>{/if}
     {:else}
-      {#if !sectionOnly}<h2 class="settings-heading">{page.label}</h2>{/if}
+      {#if !sectionOnly}<h2 class="settings-heading">{t(page.label)}</h2>{/if}
       <div class="settings-groups" class:wide-page={page.wide}>
         {#each page.groups as name (name)}<div class="search-block">{@render group(name)}</div>{/each}
       </div>
@@ -341,14 +346,17 @@
   .settings-page.section-only { grid-template-columns: minmax(0, 1fr); border: 0; background: transparent; box-shadow: none; }
   .section-only .settings-content { padding: 0; overflow: visible; }
   .settings-sidebar { display: flex; flex-direction: column; gap: 4px; padding: 16px 12px; border-right: 1px solid var(--line); overflow-y: auto; }
-  .settings-title { display: flex; align-items: baseline; gap: 8px; padding: 0 8px 8px; }
+  .settings-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 0 8px 8px; }
   .settings-title span { font-size: var(--t-sm); color: var(--ink-3); }
+  .settings-search :global(input) { min-width: 0; width: 100%; }
+  .settings-sidebar { min-width: 0; overflow-x: hidden; }
+  .settings-link { hyphens: auto; overflow-wrap: normal; height: auto; padding-top: 10px; padding-bottom: 10px; }
   .settings-search { flex: none; min-width: 0; margin: 0 0 8px; }
   .settings-link { min-height: 48px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-2); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
   .settings-link.on { background: var(--accent-soft); color: var(--accent-2); }
   .settings-content { min-width: 0; overflow-y: auto; padding: 16px 22px 22px; display: flex; flex-direction: column; gap: 12px; }
   .settings-heading { margin: 4px 0; }
-  .settings-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; align-items: start; }
+  .settings-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 12px; align-items: start; }
   .settings-groups.wide-page { grid-template-columns: minmax(0, 1fr); }
   .search-section { margin: 8px 0 6px; font-size: var(--t-sm); font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
   @media (max-width: 900px) { .settings-page { grid-template-columns: 200px minmax(0, 1fr); } }

@@ -73,6 +73,9 @@ pub struct Draft {
     /// angle, as the coordinator found them for this preparation.
     #[serde(skip)]
     pub scan_tables: std::collections::BTreeMap<String, Vec<[f64; 2]>>,
+    /// Minimum laser-off scan ramps from active machine motion settings.
+    #[serde(skip)]
+    pub scan_runups: std::collections::BTreeMap<String, f64>,
     /// Tessellated stock reference for the canvas; never a cutting contour.
     #[serde(skip)]
     pub stock_outline: Vec<[f64; 2]>,
@@ -342,6 +345,7 @@ impl Draft {
             capture_used: false,
             calibration: false,
             scan_tables: std::collections::BTreeMap::new(),
+            scan_runups: std::collections::BTreeMap::new(),
             stock_outline: Vec::new(),
             stock_cutouts: Vec::new(),
             source_count: contours,
@@ -994,9 +998,13 @@ impl Draft {
     fn calibrated_features(&self) -> Features {
         let mut features = self.current.features.clone();
         for layer in &mut features.layers {
-            let Some(table) = self.scan_tables.get(&layer.name) else { continue };
             if let Some(fill) = layer.machining.as_mut().and_then(|m| m.fill.as_mut()) {
-                fill.calibrated.clone_from(table);
+                if let Some(table) = self.scan_tables.get(&layer.name) {
+                    fill.calibrated.clone_from(table);
+                }
+                if let Some(distance) = self.scan_runups.get(&layer.name) {
+                    fill.run_up = fill.run_up.max(*distance);
+                }
             }
         }
         features
@@ -1181,7 +1189,10 @@ fn plain(sheet: &Drawing) -> Preview {
 
 /// The canvas layer of a prepared segment.
 const fn path_kind(process: &SegmentProcess) -> PathKind {
-    if process.joint {
+    if process.run_up {
+        // A run-up or turn with the laser off reads as a move, not a joint.
+        PathKind::Travel
+    } else if process.joint {
         PathKind::Joint
     } else {
         match process.lead {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   // The Piercing page: the mode, then the stages in the order they run.
   // Stage 1 is the highest native bank, as the vendor pierces from the
   // top down. Duration is one value under its three stored names. A
@@ -31,8 +33,8 @@
 </script>
 
 <div class="section-head">
-  <div><h2>Piercing</h2><p class="muted">{modeName(ed.values)}{#if m === 'staged'}{' · shown in the order they run'}{/if}</p></div>
-  <button class="btn btn-ghost" onclick={onmode}>Change mode</button>
+  <div><h2>{t("Piercing")}</h2><p class="muted">{modeName(ed.values)}{#if m === 'staged'}{' · shown in the order they run'}{/if}</p></div>
+  <button class="btn btn-ghost" onclick={onmode}>{t("Change mode")}</button>
 </div>
 {#if m === 'none'}
   <div class="empty-mode"><h3>Cut directly</h3><p>This recipe starts cutting without a separate piercing sequence.</p><button class="btn btn-ghost" onclick={onmode}>Choose piercing mode</button></div>

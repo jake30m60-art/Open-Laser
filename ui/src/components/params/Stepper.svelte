@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   // A number with − and + either side; a tap on the number types a new one.
   // Values never go below zero.
   import { displayNumber, unitLabel } from '../../lib/units.svelte';
@@ -20,7 +22,7 @@
   }
 </script>
 
-<div class="param"><div class="lbl">{label}</div>
+<div class="param"><div class="lbl">{t(label)}</div>
   <div class="stepper">
     <button onclick={down} {disabled}>−</button>
     <div class="val tappable" data-numpad role="button" aria-disabled={disabled} tabindex={disabled ? -1 : 0}

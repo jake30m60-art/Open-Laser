@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 // The drawing tools. Each one walks through its clicks, shows a ghost of
 // what the next click makes, and offers Fusion's heads-up fields: a typed
 // value locks that measure, and the cursor supplies the rest. Lengths are
@@ -44,6 +45,13 @@ function moved(snap: Snap, to: Vec): Snap {
 /** The sketch point for a snapped position, recording a midpoint or on-curve landing. */
 function use(sketch: Sketch, s: Snap): Id {
   const id = pointAt(sketch, s.x, s.y, s.point);
+  if (s.tangent?.at === 'end') {
+    const curve=sketch.entities.find(e=>e.id===s.tangent!.curve);
+    const arcEnd=curve?.kind==='arc' && (curve.a===id || curve.b===id);
+    if (!arcEnd && !sketch.constraints.some(c=>c.kind==='on' && c.point===id && c.curve===s.tangent!.curve))
+      addConstraint(sketch,{kind:'on',point:id,curve:s.tangent.curve});
+    return id;
+  }
   if (s.point === undefined && s.entity !== undefined) {
     if (s.kind === 'mid') addConstraint(sketch, { kind: 'midpoint', point: id, line: s.entity });
     else if (s.kind === 'on') addConstraint(sketch, { kind: 'on', point: id, curve: s.entity });
@@ -52,9 +60,9 @@ function use(sketch: Sketch, s: Snap): Id {
 }
 
 /** A line between two points, recording horizontal or vertical as Fusion infers it. */
-function addLine(sketch: Sketch, a: Id, b: Id, from: Vec, to: Vec, construction = false): Id {
+function addLine(sketch: Sketch, a: Id, b: Id, from: Vec, to: Vec, construction = false, inferAxes = true): Id {
   const id = addEntity(sketch, { kind: 'line', a, b, ...(construction ? { construction } : {}) });
-  if (!construction) {
+  if (!construction && inferAxes) {
     if (Math.abs(to.y - from.y) < 1e-9) addConstraint(sketch, { kind: 'horizontal', line: id });
     else if (Math.abs(to.x - from.x) < 1e-9) addConstraint(sketch, { kind: 'vertical', line: id });
   }
@@ -73,8 +81,8 @@ function polarTarget(from: Vec, cursor: Snap, locked: Locked, lengthKey = 'lengt
 function polarFields(from: Vec, to: Vec): Field[] {
   const angle = dist(from, to) < EPS ? 0 : angleOf(from, to) / DEG;
   return [
-    { key: 'length', label: 'Length', kind: 'length', value: dist(from, to) },
-    { key: 'angle', label: 'Angle', kind: 'angle', value: angle < 0 ? angle + 360 : angle },
+    { key: 'length', label: t("Length"), kind: 'length', value: dist(from, to) },
+    { key: 'angle', label: t("Angle"), kind: 'angle', value: angle < 0 ? angle + 360 : angle },
   ];
 }
 
@@ -104,10 +112,20 @@ export abstract class Tool {
 /** A chain of lines; clicking the chain's first point closes it. */
 class LineTool extends Tool {
   readonly id = 'line';
-  readonly name = 'Line';
-  hint(): string { return this.picks.length ? 'Pick the next point · click the start to close · Esc ends the chain' : 'Pick the start point'; }
+  readonly name = t("Line");
+  hint(): string { return this.picks.length ? t("Pick the next point · click the start to close · Esc ends the chain") : t("Pick the start point"); }
   override fields(at: Snap): Field[] { const from = this.anchor(); return from ? polarFields(from, at) : []; }
-  override resolve(cursor: Snap, locked: Locked): Snap { const from = this.anchor(); return from ? polarTarget(from, cursor, locked) : cursor; }
+  override resolve(cursor: Snap, locked: Locked): Snap {
+    const from = this.anchor();
+    if (!from) return cursor;
+    const target = polarTarget(from, cursor, locked);
+    if (cursor.tangent?.at === 'start') {
+      const dx=cursor.x-from.x,dy=cursor.y-from.y,tx=target.x-from.x,ty=target.y-from.y;
+      if (Math.hypot(tx,ty)>1e-9 && Math.abs(dx*ty-dy*tx)<1e-8*Math.hypot(dx,dy)*Math.hypot(tx,ty))
+        return {...target,kind:'tangent',tangent:cursor.tangent};
+    }
+    return target;
+  }
   ghost(at: Snap): Ghost { const from = this.anchor(); return from ? ghost([line(from, at)]) : ghost(); }
   click(sketch: Sketch, at: Snap): Outcome {
     const from = this.picks.at(-1);
@@ -118,7 +136,8 @@ class LineTool extends Tool {
     if (from === first) this.picks[0] = { ...first, point: a, kind: 'end' };
     const closes = this.picks.length > 1 && (at.point !== undefined ? at.point === this.picks[0]!.point : dist(at, first) < EPS);
     const b = closes ? this.picks[0]!.point! : use(sketch, at);
-    addLine(sketch, a, b, from, at);
+    const id = addLine(sketch, a, b, from, at, false, !at.tangent);
+    if (at.tangent) addConstraint(sketch, { kind: 'tangent', a: id, b: at.tangent.curve });
     if (closes) { this.reset(); return 'done'; }
     this.picks.push({ x: at.x, y: at.y, kind: 'end', point: b });
     return 'more';
@@ -134,11 +153,11 @@ const rectShapes = (c: [Vec, Vec, Vec, Vec]): Shape[] => c.map((p, i) => line(p,
 /** Two opposite corners. */
 class Rect2Tool extends Tool {
   readonly id = 'rect2';
-  readonly name = '2-point rectangle';
-  hint(): string { return this.picks.length ? 'Pick the opposite corner' : 'Pick the first corner'; }
+  readonly name = t("2-point rectangle");
+  hint(): string { return this.picks.length ? t("Pick the opposite corner") : t("Pick the first corner"); }
   override fields(at: Snap): Field[] {
     const a = this.anchor();
-    return a ? [{ key: 'width', label: 'Width', kind: 'length', value: Math.abs(at.x - a.x) }, { key: 'height', label: 'Height', kind: 'length', value: Math.abs(at.y - a.y) }] : [];
+    return a ? [{ key: 'width', label: t("Width"), kind: 'length', value: Math.abs(at.x - a.x) }, { key: 'height', label: t("Height"), kind: 'length', value: Math.abs(at.y - a.y) }] : [];
   }
   override resolve(cursor: Snap, locked: Locked): Snap {
     const a = this.anchor();
@@ -164,11 +183,11 @@ class Rect2Tool extends Tool {
 /** A centre and a corner; construction diagonals keep the centre. */
 class RectCTool extends Tool {
   readonly id = 'rectc';
-  readonly name = 'Center rectangle';
-  hint(): string { return this.picks.length ? 'Pick a corner' : 'Pick the center'; }
+  readonly name = t("Center rectangle");
+  hint(): string { return this.picks.length ? t("Pick a corner") : t("Pick the center"); }
   override fields(at: Snap): Field[] {
     const c = this.anchor();
-    return c ? [{ key: 'width', label: 'Width', kind: 'length', value: 2 * Math.abs(at.x - c.x) }, { key: 'height', label: 'Height', kind: 'length', value: 2 * Math.abs(at.y - c.y) }] : [];
+    return c ? [{ key: 'width', label: t("Width"), kind: 'length', value: 2 * Math.abs(at.x - c.x) }, { key: 'height', label: t("Height"), kind: 'length', value: 2 * Math.abs(at.y - c.y) }] : [];
   }
   override resolve(cursor: Snap, locked: Locked): Snap {
     const c = this.anchor();
@@ -206,9 +225,9 @@ class RectCTool extends Tool {
 /** A centre and a diameter. */
 class CircleTool extends Tool {
   readonly id = 'circle';
-  readonly name = 'Center diameter circle';
-  hint(): string { return this.picks.length ? 'Set the diameter' : 'Pick the center'; }
-  override fields(at: Snap): Field[] { const c = this.anchor(); return c ? [{ key: 'diameter', label: 'Diameter', kind: 'length', value: 2 * dist(c, at) }] : []; }
+  readonly name = t("Center diameter circle");
+  hint(): string { return this.picks.length ? t("Set the diameter") : t("Pick the center"); }
+  override fields(at: Snap): Field[] { const c = this.anchor(); return c ? [{ key: 'diameter', label: t("Diameter"), kind: 'length', value: 2 * dist(c, at) }] : []; }
   override resolve(cursor: Snap, locked: Locked): Snap {
     const c = this.anchor();
     if (!c || locked.diameter === undefined) return cursor;
@@ -230,9 +249,9 @@ class CircleTool extends Tool {
 /** Two ends of a diameter. */
 class Circle2Tool extends Tool {
   readonly id = 'circle2';
-  readonly name = '2-point circle';
-  hint(): string { return this.picks.length ? 'Pick the other end of the diameter' : 'Pick the first point on the circle'; }
-  override fields(at: Snap): Field[] { const a = this.anchor(); return a ? polarFields(a, at).map((f) => (f.key === 'length' ? { ...f, key: 'diameter', label: 'Diameter' } : f)) : []; }
+  readonly name = t("2-point circle");
+  hint(): string { return this.picks.length ? t("Pick the other end of the diameter") : t("Pick the first point on the circle"); }
+  override fields(at: Snap): Field[] { const a = this.anchor(); return a ? polarFields(a, at).map((f) => (f.key === 'length' ? { ...f, key: 'diameter', label: t("Diameter") } : f)) : []; }
   override resolve(cursor: Snap, locked: Locked): Snap { const a = this.anchor(); return a ? polarTarget(a, cursor, locked, 'diameter') : cursor; }
   ghost(at: Snap): Ghost { const a = this.anchor(); return a ? ghost([{ kind: 'circle', c: mid(a, at), r: dist(a, at) / 2 }], [line(a, at)]) : ghost(); }
   click(sketch: Sketch, at: Snap): Outcome {
@@ -260,12 +279,12 @@ function arcThrough(s: Vec, e: Vec, p: Vec): { c: Vec; r: number; a: 's' | 'e'; 
 /** Start, end, then a point the arc passes through. */
 class Arc3Tool extends Tool {
   readonly id = 'arc3';
-  readonly name = '3-point arc';
+  readonly name = t("3-point arc");
   hint(): string { return ['Pick the start point', 'Pick the end point', 'Pick a point on the arc'][this.picks.length] ?? ''; }
   override fields(at: Snap): Field[] {
-    if (this.picks.length !== 2) return this.picks.length === 1 ? polarFields(this.picks[0]!, at).slice(0, 1).map((f) => ({ ...f, label: 'Chord' })) : [];
+    if (this.picks.length !== 2) return this.picks.length === 1 ? polarFields(this.picks[0]!, at).slice(0, 1).map((f) => ({ ...f, label: t("Chord") })) : [];
     const arc = arcThrough(this.picks[0]!, this.picks[1]!, at);
-    return [{ key: 'radius', label: 'Radius', kind: 'length', value: arc?.r ?? 0 }];
+    return [{ key: 'radius', label: t("Radius"), kind: 'length', value: arc?.r ?? 0 }];
   }
   override resolve(cursor: Snap, locked: Locked): Snap {
     if (this.picks.length === 1) return polarTarget(this.picks[0]!, cursor, locked);
@@ -305,7 +324,7 @@ class Arc3Tool extends Tool {
 /** A centre, a start point and a sweep that follows the cursor's direction. */
 class ArcCTool extends Tool {
   readonly id = 'arcc';
-  readonly name = 'Center point arc';
+  readonly name = t("Center point arc");
   /** The signed sweep the cursor has wound so far, and the last angle it was at. */
   private wound = 0;
   private last: number | null = null;
@@ -326,8 +345,8 @@ class ArcCTool extends Tool {
     return locked.angle !== undefined ? signOr1(this.wound) * Math.min(359.999, Math.abs(locked.angle)) * DEG : this.wound;
   }
   override fields(at: Snap): Field[] {
-    if (this.picks.length === 1) return [{ key: 'radius', label: 'Radius', kind: 'length', value: dist(this.picks[0]!, at) }];
-    if (this.picks.length === 2) return [{ key: 'angle', label: 'Angle', kind: 'angle', value: Math.abs(this.wound) / DEG }];
+    if (this.picks.length === 1) return [{ key: 'radius', label: t("Radius"), kind: 'length', value: dist(this.picks[0]!, at) }];
+    if (this.picks.length === 2) return [{ key: 'angle', label: t("Angle"), kind: 'angle', value: Math.abs(this.wound) / DEG }];
     return [];
   }
   override resolve(cursor: Snap, locked: Locked): Snap {
@@ -372,7 +391,7 @@ class ArcCTool extends Tool {
 /** Two centres, then the width: two parallel lines capped by half circles. */
 class SlotTool extends Tool {
   readonly id = 'slot';
-  readonly name = 'Center to center slot';
+  readonly name = t("Center to center slot");
   hint(): string { return ['Pick the first center', 'Pick the second center', 'Set the width'][this.picks.length] ?? ''; }
   private width(at: Vec, locked: Locked): number {
     if (locked.width !== undefined) return locked.width;
@@ -382,7 +401,7 @@ class SlotTool extends Tool {
   }
   override fields(at: Snap): Field[] {
     if (this.picks.length === 1) return polarFields(this.picks[0]!, at);
-    if (this.picks.length === 2) return [{ key: 'width', label: 'Width', kind: 'length', value: this.width(at, {}) }];
+    if (this.picks.length === 2) return [{ key: 'width', label: t("Width"), kind: 'length', value: this.width(at, {}) }];
     return [];
   }
   override resolve(cursor: Snap, locked: Locked): Snap { return this.picks.length === 1 ? polarTarget(this.picks[0]!, cursor, locked) : cursor; }
@@ -430,16 +449,16 @@ class SlotTool extends Tool {
 /** A regular polygon inscribed in a circle: centre, then a corner. */
 class PolygonTool extends Tool {
   readonly id = 'polygon';
-  readonly name = 'Inscribed polygon';
+  readonly name = t("Inscribed polygon");
   private sides = 6;
-  hint(): string { return this.picks.length ? 'Pick a corner · Tab to the side count' : 'Pick the center'; }
+  hint(): string { return this.picks.length ? t("Pick a corner · Tab to the side count") : t("Pick the center"); }
   private count(locked: Locked): number {
     const n = locked.sides === undefined ? this.sides : Math.round(locked.sides);
     return Math.max(3, Math.min(64, n));
   }
   override fields(at: Snap): Field[] {
     const c = this.anchor();
-    return c ? [{ key: 'sides', label: 'Sides', kind: 'count', value: this.sides }, { key: 'diameter', label: 'Diameter', kind: 'length', value: 2 * dist(c, at) }] : [];
+    return c ? [{ key: 'sides', label: t("Sides"), kind: 'count', value: this.sides }, { key: 'diameter', label: t("Diameter"), kind: 'length', value: 2 * dist(c, at) }] : [];
   }
   override resolve(cursor: Snap, locked: Locked): Snap {
     const c = this.anchor();

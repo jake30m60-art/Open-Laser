@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Adds a sheet to the ones a nest fills: a new sheet of a size, a sheet
   // from the rack, a remnant, or an outline on the drawing. One at a time;
   // the list's count takes more.
@@ -41,7 +43,7 @@
   }
 </script>
 
-<Modal title="Add sheets to nest on" wide {onclose}>
+<Modal title={t("Add sheets to nest on")} wide {onclose}>
   <div class="stock-tabs seg">
     <button class:on={page === 'rack'} onclick={() => page = 'rack'}>On the rack</button>
     <button class:on={page === 'remnants'} onclick={() => page = 'remnants'}>Remnants</button>
@@ -61,7 +63,7 @@
         <button
           class="btn btn-primary lg block"
           disabled={width <= 0 || height <= 0}
-          onclick={() => add({ kind: 'sheet', width, height, count: 1 })}>Add this sheet</button>
+          onclick={() => add({ kind: 'sheet', width, height, count: 1 })}>{t("Add this sheet")}</button>
       </div>
     </div>
   {:else if page === 'rack'}
@@ -72,9 +74,9 @@
           <span>{plural(item.quantity, 'sheet')} on hand</span>
         </button>
       {:else}
-        <p class="empty">{taken.length ? 'Already in the list.' : 'None on the rack.'}</p>
+        <p class="empty">{taken.length ? t("Already in the list.") : 'None on the rack.'}</p>
       {/each}
-      <button class="btn btn-ghost" onclick={() => adding = true}>+ Add sheets to the rack</button>
+      <button class="btn btn-ghost" onclick={() => adding = true}>{t("+ Add sheets to the rack")}</button>
     </div>
   {:else if page === 'remnants'}<SheetLibrary onchoose={useRemnant} />
   {:else}

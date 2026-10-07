@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../../i18n/index';
+
   // The cutting order: a strategy, or contours tapped or typed in order.
   import Chips from '../../../components/params/Chips.svelte';
   import Toggle from '../../../components/params/Toggle.svelte';
@@ -34,12 +36,12 @@
   function typedOrder(): void {
     const current = order.strategy;
     const typed = typeof current === 'object' ? current.manual.map(v => v + 1).join(', ') : '';
-    osk.text('Contour IDs in cutting order (starting at 1)', typed, (text) => {
+    osk.text(t("Contour IDs in cutting order (starting at 1)"), typed, (text) => {
       const order = text.split(',').map(v => v.trim() ? Number(v.trim()) - 1 : NaN);
       const all = [...new Set(preview?.contours.flatMap(c => c.sources) ?? [])];
       const valid = order.length === all.length && new Set(order).size === order.length
         && order.every(v => Number.isInteger(v) && all.includes(v));
-      if (!valid) { ui.say(`Enter each active contour ID once: ${all.map(v => v + 1).join(', ')}.`, true); return; }
+      if (!valid) { ui.say(t("Enter each active contour ID once: {0}.", all.map(v => v + 1).join(', ')), true); return; }
       set(f => { f.order.strategy = { manual: order }; });
     });
   }
@@ -48,14 +50,14 @@
   const setSpreadHeat = (v: boolean) => set((f) => { f.order.spread_heat = v; });
 </script>
 
-<Chips label="Strategy" options={STRATEGIES} current={strategy} disabled={!on} apply={setStrategy} />
+<Chips label={t("Strategy")} options={STRATEGIES} current={strategy} disabled={!on} apply={setStrategy} />
 {#if typeof order.strategy !== 'string'}
   <div class="param">
-    <div class="lbl">Contours cut in the order they were tapped</div>
-    <button class="btn btn-soft" onclick={() => pick('order')}>Pick again</button>
+    <div class="lbl">{t("Contours cut in the order they were tapped")}</div>
+    <button class="btn btn-soft" onclick={() => pick('order')}>{t("Pick again")}</button>
   </div>
 {/if}
 <button class="btn btn-soft" onclick={typedOrder}>Enter contour order…</button>
-<Toggle label="Inner contours first" value={order.inner_first} disabled={!on} apply={setInnerFirst} />
-<Toggle label="Circles first" value={order.circles_first} disabled={!on} apply={setCirclesFirst} />
-<Toggle label="Spread heat" value={order.spread_heat} disabled={!on} apply={setSpreadHeat} />
+<Toggle label={t("Inner contours first")} value={order.inner_first} disabled={!on} apply={setInnerFirst} />
+<Toggle label={t("Circles first")} value={order.circles_first} disabled={!on} apply={setCirclesFirst} />
+<Toggle label={t("Spread heat")} value={order.spread_heat} disabled={!on} apply={setSpreadHeat} />

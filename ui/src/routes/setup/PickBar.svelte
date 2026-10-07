@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   // While a feature asks for places on the drawing: what to tap, and the
   // way out. The canvas takes the taps.
   import { ui, type Picking } from '../../stores/ui.svelte';
@@ -30,10 +32,10 @@
 </script>
 
 <div class="pick-bar">
-  <span>{hint}</span>
+  <span>{t(hint)}</span>
   {#if picking.feature === 'bridges' && picking.first}
-    <button class="btn btn-ghost" onclick={cancelBridgeEnd}>Cancel end</button>
+    <button class="btn btn-ghost" onclick={cancelBridgeEnd}>{t("Cancel end")}</button>
   {/if}
-  <button class="btn btn-ghost" onclick={cancel}>Cancel</button>
+  <button class="btn btn-ghost" onclick={cancel}>{t("Cancel")}</button>
   <button class="btn btn-primary" disabled={busy || !!picking.first} onclick={onfinish}>Finish</button>
 </div>

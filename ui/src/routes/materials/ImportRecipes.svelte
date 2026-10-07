@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   // The import review. Every recipe file of the chosen files, folders or
   // drop is read without saving, then listed: the material it goes under
   // (matched by name and thickness, changeable, or a new one), its
@@ -167,7 +169,7 @@
     const skipped = items.length - steps.length;
     const known = tally.known ? `, ${tally.known} already there` : '';
     const failed = tally.failed.length ? `, ${tally.failed.length} failed` : '';
-    ui.say(`${tally.added} added, ${tally.replaced} replaced${known}${skipped ? `, ${skipped} skipped` : ''}${failed}.`, tally.failed.length > 0);
+    ui.say(t("{0} added, {1} replaced{2}{3}{4}.", tally.added, tally.replaced, known, skipped ? `, ${skipped} skipped` : '', failed), tally.failed.length > 0);
     if (tally.failed.length) {
       failures = tally.failed;
       items = [];
@@ -178,9 +180,9 @@
 
 <Modal title="Import recipes" wide dismissable={phase !== 'saving'} {onclose}>
   {#if phase === 'reading'}
-    <p class="muted" role="status">Reading {progress.done} of {progress.total} recipe files…</p>
+    <p class="muted" role="status">Reading {progress.done} {t("of")} {progress.total} recipe files…</p>
   {:else if phase === 'saving'}
-    <p class="muted" role="status">Saving {progress.done} of {progress.total}…</p>
+    <p class="muted" role="status">Saving {progress.done} {t("of")} {progress.total}…</p>
   {:else}
     <div class="import-head">
       <p><strong>{plural(items.length, 'recipe file')}</strong>{headNotes}</p>
@@ -221,17 +223,17 @@
               <span>Nozzle</span>
               <b>{shownValue('OpenLaserNozzleDiameter', item.setup.nozzle_diameter_mm)}</b>
             </button>
-            <div class="seg nozzle" role="group" aria-label="Nozzle type">
+            <div class="seg nozzle" role="group" aria-label={t("Nozzle type")}>
               <button class:on={item.setup.nozzle === 'single'} onclick={() => nozzle(item, 'single')}>Single</button>
               <button class:on={item.setup.nozzle === 'double'} onclick={() => nozzle(item, 'double')}>Double</button>
               <button class:on={item.setup.nozzle === null} onclick={() => nozzle(item, null)}>Not set</button>
             </div>
             <button class="value" data-numpad onclick={() => setup(item, 'focus_mm', 'OpenLaserManualFocus', 'Focus')}>
-              <span>Focus</span>
+              <span>{t("Focus")}</span>
               <b>{shownValue('OpenLaserManualFocus', item.setup.focus_mm)}</b>
             </button>
             <button class="value" data-numpad onclick={() => setup(item, 'lens_mm', 'OpenLaserLens', 'Lens')}>
-              <span>Lens</span>
+              <span>{t("Lens")}</span>
               <b>{shownValue('OpenLaserLens', item.setup.lens_mm)}</b>
             </button>
           </div>
@@ -261,7 +263,7 @@
     <div class="import-foot">
       {#if unresolved}<p class="gate-reason">Choose Replace, Keep both or Skip for {plural(unresolved, 'duplicate')}.</p>{/if}
       <div class="row">
-        <button class="btn btn-ghost" onclick={onclose}>Cancel</button>
+        <button class="btn btn-ghost" onclick={onclose}>{t("Cancel")}</button>
         <button class="btn btn-primary" disabled={!!unresolved || !saving.length} onclick={save}>{importLabel}</button>
       </div>
     </div>

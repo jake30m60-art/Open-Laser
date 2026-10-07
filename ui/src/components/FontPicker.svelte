@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { onMount } from 'svelte';
   import { api, type FontFace, type TextOptions } from '../api/client';
   import { explain } from '../lib/format';
@@ -56,11 +58,11 @@
 </script>
 
 <div class="font-picker">
-  <div class="font-heading"><span>Font</span><button class="font-import" disabled={busy} onclick={() => { osk.close(); fileInput.click(); }}>{importing ? 'Importing…' : '+ Import fonts'}</button></div>
+  <div class="font-heading"><span>Font</span><button class="font-import" disabled={busy} onclick={() => { osk.close(); fileInput.click(); }}>{importing ? 'Importing…' : t("+ Import fonts")}</button></div>
   <input bind:this={fileInput} type="file" accept=".ttf,.otf,.ttc,.otc" multiple aria-label="Import font files" onchange={importFiles} hidden />
   <div class="font-defaults">
     {#each [['sans', 'Sans'], ['serif', 'Serif'], ['mono', 'Mono']] as [id, label]}
-      <button class:on={!font && family === id} aria-pressed={!font && family === id} disabled={busy} onclick={() => { family = id as TextOptions['family']; font = undefined; }}>{label}</button>
+      <button class:on={!font && family === id} aria-pressed={!font && family === id} disabled={busy} onclick={() => { family = id as TextOptions['family']; font = undefined; }}>{t(label)}</button>
     {/each}
   </div>
   {#if fonts.length}

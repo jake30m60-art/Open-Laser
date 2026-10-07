@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Adds full sheets to the rack: a material from the recipes, a size and
   // how many. The same material and size in the same folder adds up.
   import SheetCount from './SheetCount.svelte';
@@ -41,14 +43,14 @@
         material: picked.name, thickness_mm: picked.thickness_mm, laser: picked.laser,
         width_mm: width, height_mm: height, quantity: count, folder,
       });
-      ui.say(`${plural(count, 'sheet')} added to the rack`);
+      ui.say(t("{0} added to the rack", plural(count, 'sheet')));
       onclose();
     }
     catch (e) { error = explain(e); } finally { busy = false; }
   }
 </script>
 
-<Modal title="Add sheets to the rack" wide onclose={() => { if (!busy) onclose(); }}>
+<Modal title={t("Add sheets to the rack")} wide onclose={() => { if (!busy) onclose(); }}>
   <div class="add-stock">
     {#if material}
       <p class="fixed">{label(material)}</p>
@@ -57,7 +59,7 @@
       <div class="chips">
         {#each names as name (name)}
           <button class="chip" class:on={picked?.name === name} disabled={busy} onclick={() => pickName(name)}>{name}</button>
-        {:else}<p class="fixed">Add a recipe first.</p>{/each}
+        {:else}<p class="fixed">{t("Add a recipe first.")}</p>{/each}
       </div>
       {#if picked}
         <h4>Thickness</h4>
@@ -71,10 +73,10 @@
       {/if}
     {/if}
     <SheetSizePicker bind:width bind:height disabled={busy} />
-    <div class="count"><SheetCount label="Sheets" prompt="Sheets to add" value={count} min={1} disabled={busy} onchange={(v) => (count = v)} /></div>
+    <div class="count"><SheetCount label={t("Sheets")} prompt="Sheets to add" value={count} min={1} disabled={busy} onchange={(v) => (count = v)} /></div>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <button class="btn btn-primary lg block" disabled={busy || !picked || width <= 0 || height <= 0} onclick={save}>
-      Add {plural(count, 'sheet')}
+      {t("Add")} {plural(count, 'sheet')}
     </button>
   </div>
 </Modal>

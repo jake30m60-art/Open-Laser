@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { access } from '../lib/access.svelte';
   import { api } from '../api/client';
   import { server } from '../stores/server.svelte';
@@ -22,12 +24,12 @@
   <div class="control-blocker">
     <div role="dialog" aria-modal="true" aria-labelledby="control-title" class="control-dialog">
       <div class="control-symbol"><i class="ic ic-target"></i></div>
-      <h1 id="control-title">{access.error ? 'Reconnecting to OpenLaser' : access.info.owner ? `${access.info.owner} has control` : 'Use OpenLaser here'}</h1>
-      <p>{access.error ? 'Your workspace will return when the connection is restored.' : moving ? 'Wait for motion to finish, or stop it here.' : 'Take control to use this screen.'}</p>
+      <h1 id="control-title">{access.error ? t("Reconnecting to OpenLaser") : access.info.owner ? t("{0} has control", access.info.owner) : t("Use OpenLaser here")}</h1>
+      <p>{access.error ? t("Your workspace will return when the connection is restored.") : moving ? t("Wait for motion to finish, or stop it here.") : t("Take control to use this screen.")}</p>
       {#if error}<p class="control-error" role="alert">{error}</p>{/if}
-      {#if access.error}<button class="take-control" onclick={() => access.refresh()}>Try again</button>
-      {:else}<button class="take-control" disabled={access.busy || moving} onclick={take}>{access.busy ? 'Switching…' : 'Take control'}</button>{/if}
-      {#if server.doc?.readiness.stop.ok && server.link}<button class="stop-motion" onclick={stop}><i class="ic ic-stop"></i>Stop motion</button>{/if}
+      {#if access.error}<button class="take-control" onclick={() => access.refresh()}>{t("Try again")}</button>
+      {:else}<button class="take-control" disabled={access.busy || moving} onclick={take}>{access.busy ? 'Switching…' : t("Take control")}</button>{/if}
+      {#if server.doc?.readiness.stop.ok && server.link}<button class="stop-motion" onclick={stop}><i class="ic ic-stop"></i>{t("Stop motion")}</button>{/if}
     </div>
   </div>
 {/if}

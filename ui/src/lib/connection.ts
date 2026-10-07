@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 import type { Document, LinkPhase } from '../api';
 import type { ConfirmRequest } from '../stores/ui.svelte';
 
@@ -9,9 +10,9 @@ const STEPS: Record<LinkPhase, string> = {
 
 /** One connection status label for every interface. */
 export function connectionLabel(doc: Document | null): string {
-  if (doc?.machine.connection.state === 'connected') return 'Connected';
+  if (doc?.machine.connection.state === 'connected') return t("Connected");
   if (doc && doc.link.phase !== 'idle' && doc.link.phase !== 'failed') return STEPS[doc.link.phase];
-  return doc?.machine.connection.state === 'faulted' ? 'Reconnect' : 'Connect';
+  return doc?.machine.connection.state === 'faulted' ? t("Reconnect") : t("Connect");
 }
 
 /** Disconnecting stops whatever runs first: ask before it ends a job or an operation. */
@@ -19,11 +20,11 @@ export async function confirmDisconnect(doc: Document | null, ask: (request: Con
   const program = doc?.machine.program?.state;
   if (!doc?.machine.operation && !['running', 'finishing', 'held'].includes(program ?? '')) return true;
   return ask({
-    title: 'Disconnect the machine?',
+    title: t("Disconnect the machine?"),
     body: program === 'held'
-      ? 'The paused job ends: the machine stops and the job can only restart from recovery.'
-      : 'The machine stops what it is doing before the link closes.',
-    confirm: 'Stop and disconnect',
+      ? t("The paused job ends: the machine stops and the job can only restart from recovery.")
+      : t("The machine stops what it is doing before the link closes."),
+    confirm: t("Stop and disconnect"),
     danger: true,
   });
 }

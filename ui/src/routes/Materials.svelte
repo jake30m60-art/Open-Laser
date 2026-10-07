@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { quantity } from '../lib/units.svelte';
   // The material library, full screen: the recipes as a tree on the
   // left and the selected recipe's values beside it. A recipe is one of
@@ -68,7 +70,7 @@
   async function discard(): Promise<void> {
     if (!recipe) return;
     const count = recipeEdits.count(recipe.id);
-    const confirmed = await ui.confirm({ title: 'Discard these recipe edits?', body: `${count} edited ${count === 1 ? 'value is' : 'values are'} thrown away; ${recipe.name} keeps its saved values.`, confirm: 'Discard edits', danger: true });
+    const confirmed = await ui.confirm({ title: 'Discard these recipe edits?', body: t("{0} edited {1} thrown away; {2} keeps its saved values.", count, count === 1 ? 'value is' : 'values are', recipe.name), confirm: t("Discard edits"), danger: true });
     if (confirmed) recipeEdits.discard(recipe.id);
   }
   function add(): void {
@@ -82,10 +84,10 @@
     const source = recipe;
     osk.number('New thickness', source.thickness_mm, 'mm', async (v) => {
       if (v <= 0) return;
-      if (recipes.some((r) => materialKey(r) === materialKey(source) && r.gas === source.gas && r.thickness_mm === v)) { ui.say(`${source.name} ${quantity(v, 'mm')} ${source.gas} is already there.`, true); return; }
+      if (recipes.some((r) => materialKey(r) === materialKey(source) && r.gas === source.gas && r.thickness_mm === v)) { ui.say(t("{0} {1} {2} is already there.", source.name, quantity(v, 'mm'), source.gas), true); return; }
       try {
         ui.selectedRecipe = (await api.duplicateRecipe(source.id, v)).id;
-        ui.say(`${source.name} ${quantity(v, 'mm')} added; tune its values.`);
+        ui.say(t("{0} {1} added; tune its values.", source.name, quantity(v, 'mm')));
       } catch (error) {
         ui.say(explain(error), true);
       }
@@ -94,7 +96,7 @@
 </script>
 
 {#if !compact || !editing}<Library {recipes} selected={compact ? null : recipe} selectOnExpand={!compact} onselect={select} onadd={add} />{/if}
-{#if compact && editing}<button class="btn btn-ghost" onclick={() => { editing = false; adding = false; }}>‹ Materials</button>{/if}
+{#if compact && editing}<button class="btn btn-ghost" onclick={() => { editing = false; adding = false; }}>{t("‹ Materials")}</button>{/if}
 {#if !compact || editing}
 {#if adding}
   <NewRecipe onclose={() => (adding = false)} onadded={(id) => { adding = false; ui.selectedRecipe = id; }} />
@@ -111,7 +113,7 @@
     <p class="muted">This recipe has {plural(pending, 'staged change')}. Save or discard them before opening {next.name} · {quantity(next.thickness_mm, 'mm')}.</p>
     <div class="row">
       <button class="btn btn-ghost" onclick={() => (leaving = null)}>Stay</button>
-      <button class="btn btn-ghost" onclick={() => { discard(); leaving = null; select(next); }}>Discard</button>
+      <button class="btn btn-ghost" onclick={() => { discard(); leaving = null; select(next); }}>{t("Discard")}</button>
       <button class="btn btn-primary" onclick={async () => { if (await save()) { leaving = null; select(next); } }}>Save and open</button>
     </div>
   </Modal>

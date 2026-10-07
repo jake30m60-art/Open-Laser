@@ -127,7 +127,7 @@ h3 { font-size: var(--t-sm); font-weight: 700; margin: 0; color: var(--ink-3); t
 .toolbar.head-row .search { min-width: 0; flex: 1 1 100px; }
 .toolbar.head-row .btn { padding: 0 14px; }
 .search { flex: 1; min-width: 200px; display: flex; align-items: center; gap: 10px; min-height: var(--touch); padding: 0 14px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); }
-.search input { flex: 1; border: 0; background: none; outline: none; min-height: 44px; font-size: var(--t-base); }
+.search input { min-width: 0; width: 100%; flex: 1; border: 0; background: none; outline: none; min-height: 44px; font-size: var(--t-base); }
 .seg { display: inline-flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 2px; }
 .seg button { min-height: 44px; min-width: 44px; padding: 0 16px; border: 0; border-radius: 9px; background: transparent; font-weight: 600; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
 .seg button.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
@@ -536,6 +536,7 @@ body.osk-open .app { padding-bottom: 0; }
 .path { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
 .path.travel { stroke: #317ac2; stroke-dasharray: 7 4; }
 .path.cut { stroke: var(--cut); }
+.dir-arrow { fill: var(--cut); stroke: none; opacity: .9; pointer-events: none; }
 .path.cut.mark { stroke-dasharray: 4 3; }
 .path.film { stroke: #d08a1e; stroke-dasharray: 2 2; }
 .path.lead_in { stroke: #8f52c5; stroke-width: 2.8; }

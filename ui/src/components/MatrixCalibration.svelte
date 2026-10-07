@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { distance, quantity, unitLabel } from '../lib/units.svelte';
   import { api } from '../api/client';
   import type { CorrectionView, LaserMode, Measurement } from '../api';
@@ -111,9 +113,9 @@
   }
   async function confirmApply(): Promise<void> {
     const ok = await ui.confirm({
-      title: 'Apply this correction?',
+      title: t("Apply this correction?"),
       body: `New ${laserLabel(mode)} DXF jobs are cut to these nine measurements. Saved jobs keep the correction they were made with.`,
-      confirm: 'Apply to new DXFs',
+      confirm: t("Apply to new DXFs"),
     });
     if (ok) run(apply);
   }
@@ -133,13 +135,13 @@
 <div class="calibration">
   <header>
     <p>Nine {distance(100)} × {quantity(100, 'mm')} squares</p>
-    <div class="seg" aria-label="Calibration laser">
+    <div class="seg" aria-label={t("Calibration laser")}>
       {#each ['fiber', 'co2'] as laser}
         <button class:on={mode === laser} disabled={busy} onclick={() => mode = laser as LaserMode}>{laserLabel(laser as LaserMode)}</button>
       {/each}
     </div>
   </header>
-  <nav aria-label="Calibration steps">
+  <nav aria-label={t("Calibration steps")}>
     {#each steps as step, index}
       <button class:current={page === index} disabled={busy} onclick={() => page = index}><span>{index + 1}</span>{step}</button>
     {/each}
@@ -177,7 +179,7 @@
           <h3>Nine positions. One square each.</h3>
           <p>Use your usual cutting settings.</p>
           <button class="btn btn-primary lg" disabled={busy} onclick={loadCoupon}>Load calibration job</button><button
-            class="text-action" disabled={busy} onclick={() => page = 1}>Already cut? Enter measurements →</button>
+            class="text-action" disabled={busy} onclick={() => page = 1}>{t("Already cut? Enter measurements →")}</button>
         {:else if page === 1}
           <span class="eyebrow">2 · Measure</span>
           <h3>Square {selected + 1}</h3>

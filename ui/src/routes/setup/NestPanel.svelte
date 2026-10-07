@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
+
   import { quantity as measure } from '../../lib/units.svelte';
   import { onDestroy, untrack } from 'svelte';
   import StockChooser from '../../components/StockChooser.svelte';
@@ -57,8 +59,8 @@
   /** What a source is, in words: a title and a line under it. */
   function describe(source: StockSource | undefined): { title: string; detail: string } {
     if (!source) return stock?.kind === 'outline'
-      ? { title: 'Drawing outline', detail: 'One sheet · not cut' }
-      : { title: 'No sheets yet', detail: 'Add the sheets to nest on' };
+      ? { title: t("Drawing outline"), detail: 'One sheet · not cut' }
+      : { title: t("No sheets yet"), detail: 'Add the sheets to nest on' };
     if (source.kind === 'remnant') {
       const sheet = library.remnants.find((r) => r.id === source.id);
       return { title: sheet?.name ?? 'Remnant', detail: sheet
@@ -69,7 +71,7 @@
       const item = library.stock.find((i) => i.id === source.id);
       return item
         ? { title: sheetLabel(item.width_mm, item.height_mm), detail: `Rack · ${source.count} of ${item.quantity}` }
-        : { title: 'Rack sheets', detail: 'No longer on the rack' };
+        : { title: t("Rack sheets"), detail: 'No longer on the rack' };
     }
     return { title: sheetLabel(source.width, source.height), detail: `New · ${plural(source.count, 'sheet')}` };
   }
@@ -78,7 +80,7 @@
     if (stock?.kind === 'outline') {
       try {
         await api.setStock({ kind: 'clear' });
-        ui.say('Outline replaced · Undo restores it');
+        ui.say(t("Outline replaced · Undo restores it"));
       } catch (e) { error = explain(e); return; }
     }
     edit([...plan, source]);
@@ -212,7 +214,7 @@
       invalidate();
       ui.selectionEpoch++;
       ui.setupPanel = null;
-      ui.say(`${plural(count, 'part')} on ${plural(sheets, 'sheet')} · Undo restores the previous layout`);
+      ui.say(t("{0} on {1} · Undo restores the previous layout", plural(count, 'part'), plural(sheets, 'sheet')));
     }
     catch (e) { error = explain(e); } finally { busy = false; }
   }
@@ -226,88 +228,88 @@
 
 <div class="nest-panel">
 <div class="feat-head">
-  <h2>{ready ? 'Review sheets' : 'Nest parts'}</h2>
-  <button class="btn btn-ghost" onclick={() => ui.setupPanel = null}>Close</button>
+  <h2>{ready ? t("Review sheets") : t("Nest parts")}</h2>
+  <button class="btn btn-ghost" onclick={() => ui.setupPanel = null}>{t("Close")}</button>
 </div>
 <div class="nest-scroll">
 {#if ready && result}
   <div class="result-summary">
     <strong>{plural(result.total, 'part')}</strong>
-    <span>Across {plural(result.sheets.length, 'sheet')} · every requested copy placed</span>
+    <span>{t("Across")} {plural(result.sheets.length, 'sheet')} · every requested copy placed</span>
   </div>
-  <div class="preview-pages" role="group" aria-label="Nesting preview sheets">
+  <div class="preview-pages" role="group" aria-label={t("Nesting preview sheets")}>
     {#each result.sheets as sheet, i}
       <button class:on={page === i} aria-pressed={page === i} disabled={busy} onclick={() => show(i)}>
-        <strong>Sheet {first + sheet.number}</strong>
+        <strong>{t("Sheet")} {first + sheet.number}</strong>
         <span>{plural(sheet.parts, 'part')} · {Math.round(sheet.coverage * 100)}%</span>
         <small>{describe(searched[sheet.source]).title}{origin(searched[sheet.source])}</small>
       </button>
     {/each}
   </div>
-  <p class="nest-note">After applying, switch sheets above the drawing.</p>
+  <p class="nest-note">{t("After applying, switch sheets above the drawing.")}</p>
 {:else if result?.running}
   <div class="searching" role="status">
-    <strong>{cancelling ? 'Cancelling…' : 'Arranging your sheets'}</strong>
-    <p>{result.placed < result.total ? `${result.placed} of ${result.total} parts placed` : 'All placed · packing tighter'}</p>
-    <div class="bar" class:working={!cancelling} role="progressbar" aria-label="Parts placed"
+    <strong>{cancelling ? t("Cancelling…") : t("Arranging your sheets")}</strong>
+    <p>{result.placed < result.total ? t("{0} of {1} parts placed", result.placed, result.total) : t("All placed · packing tighter")}</p>
+    <div class="bar" class:working={!cancelling} role="progressbar" aria-label={t("Parts placed")}
       aria-valuenow={result.placed} aria-valuemin={0} aria-valuemax={result.total}>
       <span style:width="{result.total ? Math.max(4, result.placed / result.total * 100) : 4}%"></span>
     </div>
     <p>{liveNote}</p>
-    <button class="btn lg block" disabled={cancelling} onclick={cancel}>Cancel nesting</button>
+    <button class="btn lg block" disabled={cancelling} onclick={cancel}>{t("Cancel nesting")}</button>
   </div>
 {:else}
   <fieldset disabled={busy}>
     <div class="stock-plan">
-      <h3>Sheets, filled in order</h3>
+      <h3>{t("Sheets, filled in order")}</h3>
       {#each plan.length ? plan : [undefined] as source, i}
         {@const said = describe(source)}
         <div class="plan-row">
           <span class="plan-name"><strong>{said.title}</strong>{#if said.detail}<small>{said.detail}</small>{/if}</span>
           {#if source?.kind === 'stock'}
-            <button class="plan-count" aria-label="Sheets to use"
+            <button class="plan-count" aria-label={t("Sheets to use")}
               onclick={() => osk.number('Rack sheets to use', source.count, 'sheets', (v) => setCount(i, v))}>{source.count}</button>
           {:else if source?.kind === 'sheet'}
-            <button class="plan-count" aria-label="New sheets to use"
+            <button class="plan-count" aria-label={t("New sheets to use")}
               onclick={() => osk.number('New sheets to use', source.count, 'sheets', (v) => setCount(i, v))}>{source.count}</button>
           {/if}
           {#if source}
-            <button class="plan-remove" aria-label="Leave out" onclick={() => edit(plan.filter((_, j) => j !== i))}><i class="ic ic-x"></i></button>
+            <button class="plan-remove" aria-label={t("Leave out")} onclick={() => edit(plan.filter((_, j) => j !== i))}><i class="ic ic-x"></i></button>
           {/if}
         </div>
       {/each}
-      <button class="btn btn-ghost add-sheets" onclick={() => stockOpen = true}><i class="ic ic-plus"></i>Add sheets</button>
+      <button class="btn btn-ghost add-sheets" onclick={() => stockOpen = true}><i class="ic ic-plus"></i>{t("Add sheets")}</button>
       {#if full && result}
         <div class="full" role="alert">
-          <strong>{result.placed} of {result.total} parts fit</strong>
-          <span>The sheets are full. Choose the next sheet for the rest.</span>
+          <strong>{result.placed} {t("of")} {result.total} {t("parts fit")}</strong>
+          <span>{t("The sheets are full. Choose the next sheet for the rest.")}</span>
           {#if more}
             {@const said = describe(plan.at(-1))}
-            <button class="btn btn-primary lg block" onclick={addOne}>Add one more {said.title}</button>
+            <button class="btn btn-primary lg block" onclick={addOne}>{t("Add one more")} {said.title}</button>
           {/if}
-          <button class="btn btn-ghost lg block" onclick={chooseNext}>Choose another sheet</button>
+          <button class="btn btn-ghost lg block" onclick={chooseNext}>{t("Choose another sheet")}</button>
         </div>
       {/if}
     </div>
     {#if ui.nestPicking}
-      <p class="pick-hint">Tap the closed sheet outline on the drawing.<button
-        class="btn btn-ghost" onclick={() => ui.nestPicking = false}>Cancel</button></p>
+      <p class="pick-hint">{t("Tap the closed sheet outline on the drawing.")}<button
+        class="btn btn-ghost" onclick={() => ui.nestPicking = false}>{t("Cancel")}</button></p>
     {/if}
     <div class="quantity">
       <span>{quantityTitle}<small>{quantityHint}</small></span>
       {#if selected === 1}
         <button class="number" onclick={() => { const key = part![0]!; number('Part quantity', quantity, 'copies', v => quantities[key] = v); }}>{quantity}</button>
       {:else}
-        <button class="btn btn-ghost" onclick={onselectall}>Select all</button>
+        <button class="btn btn-ghost" onclick={onselectall}>{t("Select all")}</button>
       {/if}
     </div>
     <div class="distances">
       <button class="value" onclick={() => number('Distance between parts', settings.spacing, 'mm', v => settings.spacing = v)}>
-        <span>Part spacing</span>
+        <span>{t("Part spacing")}</span>
         <strong>{measure(settings.spacing, 'mm')}</strong>
       </button>
       <button class="value" onclick={() => number('Sheet edge margin', settings.margin, 'mm', v => settings.margin = v)}>
-        <span>Edge margin</span>
+        <span>{t("Edge margin")}</span>
         <strong>{measure(settings.margin, 'mm')}</strong>
       </button>
     </div>
@@ -315,11 +317,11 @@
       <button
         class="value remnant-buffer"
         onclick={() => number('Extra remnant clearance', settings.remnant_clearance, 'mm', v => settings.remnant_clearance = v)}>
-        <span>Extra remnant clearance<small>Old cutouts + sheet edge</small></span>
+        <span>{t("Extra remnant clearance")}<small>{t("Old cutouts + sheet edge")}</small></span>
         <strong>{measure(settings.remnant_clearance, 'mm')}</strong>
       </button>
     {/if}
-    <h3>Rotation &amp; grain</h3>
+    <h3>{t("Rotation & grain")}</h3>
     <div class="rotations">
       {#each rotations as [rotation, title, detail]}
         <button aria-pressed={settings.rotation === rotation} onclick={() => setRotation(rotation)}>
@@ -329,34 +331,34 @@
       {/each}
     </div>
     <details class="search-options">
-      <summary>Search time · {seconds} sec</summary>
+      <summary>{t("Search time ·")} {seconds} {t("sec")}</summary>
       <div class="seg">
         {#each [5, 10, 30] as duration}
-          <button class:on={seconds === duration} onclick={() => setSeconds(duration)}>{duration} sec</button>
+          <button class:on={seconds === duration} onclick={() => setSeconds(duration)}>{duration} {t("sec")}</button>
         {/each}
       </div>
     </details>
   </fieldset>
-  {#if stale}<p class="error">The drawing changed. Preview again.</p>{/if}
+  {#if stale}<p class="error">{t("The drawing changed. Preview again.")}</p>{/if}
 {/if}
 {#if error}<p class="error" role="alert">{error}</p>{/if}
 <details class="credits">
-  <summary>Powered by Sparrow · credits</summary>
-  <p><a href="https://github.com/JeroenGar/sparrow" target="_blank" rel="noreferrer">Sparrow</a> and
-    <a href="https://github.com/JeroenGar/jagua-rs" target="_blank" rel="noreferrer">jagua-rs</a> by Jeroen Gardeyn, KU Leuven.
+  <summary>{t("Powered by Sparrow · credits")}</summary>
+  <p><a href="https://github.com/JeroenGar/sparrow" target="_blank" rel="noreferrer">Sparrow</a> {t("and")}
+    <a href="https://github.com/JeroenGar/jagua-rs" target="_blank" rel="noreferrer">jagua-rs</a> {t("by Jeroen Gardeyn, KU Leuven.")}
     <a href="/licenses/sparrow-MIT.txt" target="_blank" rel="noreferrer">MIT</a> /
     <a href="/licenses/jagua-rs-MPL-2.0.txt" target="_blank" rel="noreferrer">MPL-2.0</a>.</p>
 </details>
 </div>
 {#if ready && result}
   <div class="nest-actions">
-    <button class="btn btn-primary lg block primary" disabled={busy} onclick={apply}>Apply {applyLabel}</button>
-    <button class="btn btn-ghost lg block" disabled={busy} onclick={invalidate}>Back to nesting options</button>
+    <button class="btn btn-primary lg block primary" disabled={busy} onclick={apply}>{t("Apply")} {applyLabel}</button>
+    <button class="btn btn-ghost lg block" disabled={busy} onclick={invalidate}>{t("Back to nesting options")}</button>
   </div>
 {:else if !result?.running}
   <div class="nest-actions">
     <button class="btn btn-primary lg block primary" disabled={busy || ui.nestPicking} onclick={start}>
-      {busy ? 'Preparing…' : 'Preview sheets'}
+      {busy ? 'Preparing…' : t("Preview sheets")}
     </button>
   </div>
 {/if}

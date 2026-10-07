@@ -19,7 +19,9 @@ export function layerColor(layers: readonly DraftLayer[], name: string): string 
   if (layer.color) {
     const grey = Math.max(...layer.color) - Math.min(...layer.color) < 24;
     const level = Math.max(...layer.color);
-    return grey && (level > 230 || level < 40) ? null : hex(layer.color);
+    // White or black, as DXF layers often are, reads as no colour: such
+    // layers take the palette below, so each still looks its own.
+    if (!(grey && (level > 230 || level < 40))) return hex(layer.color);
   }
   // By name, so reordering or colouring the others leaves this one's colour.
   const at = layers.map((l) => l.name).sort((a, b) => a.localeCompare(b)).indexOf(name);

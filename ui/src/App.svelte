@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from './i18n/index';
+
   import Brand from './components/Brand.svelte';
   import WorkspaceOverlays from './components/WorkspaceOverlays.svelte';
   import { recipeEdits } from './lib/recipe-edits.svelte';
@@ -66,19 +68,19 @@
     <nav class="tabs">
       {#each WORKFLOW as { id: tab, number: num, label }}
         <button class="tab" class:active={ui.tab === tab} class:done={done[tab as 'parts' | 'setup'] ?? false} onclick={() => setTab(tab as Tab)}>
-          <span class="tab-num">{#if done[tab as 'parts' | 'setup']}<i class="ic ic-check"></i>{:else}{num}{/if}</span><span>{label}</span>
+          <span class="tab-num">{#if done[tab as 'parts' | 'setup']}<i class="ic ic-check"></i>{:else}{num}{/if}</span><span>{t(label)}</span>
         </button>
       {/each}
     </nav>
 
     <div class="topbar-actions">
-      {#if pending.count > 0}<button class="btn btn-ghost page-btn pending-btn" onclick={() => (ui.modal = 'pending')}>Pending changes<span class="badge">{pending.count}</span></button>{/if}
-      <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === 'sketch'} onclick={() => togglePage('sketch')} title="Sketch a part"><svg class="ic-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16zM14 7l3 3" /></svg><span>Sketch</span></button>
-      <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === 'materials'} onclick={() => togglePage('materials')} title="Material library"><i class="ic ic-layers"></i><span>Materials</span></button>
-      <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === SETTINGS.id} onclick={() => togglePage(SETTINGS.id)} title={SETTINGS.label}><i class="ic ic-gear"></i><span>{SETTINGS.label}</span></button>
-      <button class="btn btn-ghost icon-btn alarm" onclick={() => (ui.modal = 'alarms')} title="Alarms"><i class="ic ic-bell"></i><span>Alarms</span>{#if alarms > 0}<span class="badge">{alarms}</span>{/if}</button>
-      {#if connected}<button class="btn btn-stop topbar-stop" onclick={stop} disabled={!server.link || !doc?.readiness.stop.ok}><i class="ic ic-stop"></i><span>Stop</span></button>{/if}
-      <button class="btn btn-primary connect" class:connected class:busy onclick={connect} disabled={!server.link} title={link?.detail ?? ''}><span class="dot"></span><span>{label}</span>{#if busy}<span class="cancel">Cancel</span>{/if}</button>
+      {#if pending.count > 0}<button class="btn btn-ghost page-btn pending-btn" onclick={() => (ui.modal = 'pending')}>{t("Pending changes")}<span class="badge">{pending.count}</span></button>{/if}
+      <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === 'sketch'} onclick={() => togglePage('sketch')} title={t("Sketch a part")}><svg class="ic-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16zM14 7l3 3" /></svg><span>{t("Sketch")}</span></button>
+      <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === 'materials'} onclick={() => togglePage('materials')} title={t("Material library")}><i class="ic ic-layers"></i><span>{t("Materials")}</span></button>
+      <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === SETTINGS.id} onclick={() => togglePage(SETTINGS.id)} title={t(SETTINGS.label)}><i class="ic ic-gear"></i><span>{t(SETTINGS.label)}</span></button>
+      <button class="btn btn-ghost icon-btn alarm" onclick={() => (ui.modal = 'alarms')} title={t("Alarms")}><i class="ic ic-bell"></i><span>{t("Alarms")}</span>{#if alarms > 0}<span class="badge">{alarms}</span>{/if}</button>
+      {#if connected}<button class="btn btn-stop topbar-stop" onclick={stop} disabled={!server.link || !doc?.readiness.stop.ok}><i class="ic ic-stop"></i><span>{t("Stop")}</span></button>{/if}
+      <button class="btn btn-primary connect" class:connected class:busy onclick={connect} disabled={!server.link} title={link?.detail ?? ''}><span class="dot"></span><span>{t(label)}</span>{#if busy}<span class="cancel">{t("Cancel")}</span>{/if}</button>
     </div>
   </header>
 
@@ -86,7 +88,7 @@
 
   <main class="workspace" class:materials={ui.tab === 'materials'} class:sketch={ui.tab === 'sketch'}>
     {#if !doc}
-      <section class="panel main"><div class="empty"><h2>Waiting for the server</h2>Start <span class="mono">openlaser</span> and this page connects on its own.</div></section>
+      <section class="panel main"><div class="empty"><h2>{t("Waiting for the server")}</h2>{t("Start")} <span class="mono">openlaser</span> {t("and this page connects on its own.")}</div></section>
     {:else if ui.tab === 'parts'}
       <Parts />
     {:else if ui.tab === 'materials'}

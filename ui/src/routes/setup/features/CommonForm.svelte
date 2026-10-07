@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../../i18n/index';
+
   // Common edges: adjacent contours that share one cut.
   import Stepper from '../../../components/params/Stepper.svelte';
   import Toggle from '../../../components/params/Toggle.svelte';
@@ -26,8 +28,8 @@
   const setOvercut = (v: boolean) => set(f => { f.common!.allow_overcut = v; });
 </script>
 
-<div class="param"><div class="lbl">{summary}</div></div>
-<button class="btn btn-soft" disabled={!on || selectedContours.length < 2 || !!ui.picking} onclick={useSelected}>Use selected contours ({selectedContours.length})</button>
-<Stepper label="Matching tolerance" value={common.tolerance} unit="mm" step={0.01} disabled={!on} apply={setTolerance} />
-<Toggle label="Allow overcut between remaining spans" value={common.allow_overcut} disabled={!on} apply={setOvercut} />
+<div class="param"><div class="lbl">{t(summary)}</div></div>
+<button class="btn btn-soft" disabled={!on || selectedContours.length < 2 || !!ui.picking} onclick={useSelected}>{t("Use selected contours (")}{selectedContours.length})</button>
+<Stepper label={t("Matching tolerance")} value={common.tolerance} unit="mm" step={0.01} disabled={!on} apply={setTolerance} />
+<Toggle label={t("Allow overcut between remaining spans")} value={common.allow_overcut} disabled={!on} apply={setOvercut} />
 {#if error}<p class="warn-text">{error}</p>{/if}

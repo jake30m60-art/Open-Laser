@@ -35,6 +35,7 @@ pub mod job_parts;
 mod lan;
 pub mod layers;
 pub mod machine;
+pub mod manual_cut;
 mod machine_files;
 pub mod nesting;
 pub mod parameter_settings;

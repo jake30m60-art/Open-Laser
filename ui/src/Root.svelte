@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from './i18n/index';
+
   import { onMount } from 'svelte';
   import { access, layout } from './lib/access.svelte';
   import { subscribe } from './api/client';
@@ -29,8 +31,8 @@
 </script>
 
 {#if !access.info}
-  <div class="opening"><img src="/logo.svg" alt="OpenLaser" /><h1>{openingTitle}</h1>{#if access.error}<p>{access.error}</p><button
-    class="btn btn-primary" onclick={() => access.refresh()}>Try again</button>{/if}</div>
+  <div class="opening"><img src="/logo.svg" alt="OpenLaser" /><h1>{t(openingTitle)}</h1>{#if access.error}<p>{access.error}</p><button
+    class="btn btn-primary" onclick={() => access.refresh()}>{t("Try again")}</button>{/if}</div>
 {:else}
   <div class="interface-shell" inert={!access.canControl}>{#await shell}<div class="opening">Opening OpenLaser…</div>{:then { default: Shell }}<Shell />{/await}</div>
 {/if}

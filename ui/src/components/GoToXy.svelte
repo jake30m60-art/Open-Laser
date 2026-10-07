@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // Go to X/Y: type a position, then hold Go (DESIGN.md rule 1, held for
   // motion). Positions are in job coordinates when a job origin is set, or
   // machine coordinates; the server checks the target is on the bed.
@@ -24,7 +26,7 @@
   const gate = $derived(doc.readiness.position);
 
   function edit(axis: 0 | 1): void {
-    osk.number(`${frame === 'job' ? 'Job' : 'Machine'} ${axis === 0 ? 'X' : 'Y'}`, shown[axis], 'mm', (value) => {
+    osk.number(`${frame === 'job' ? t("Job") : t("Machine")} ${axis === 0 ? 'X' : 'Y'}`, shown[axis], 'mm', (value) => {
       const next: [number, number] = [...shown];
       next[axis] = value;
       target = next;
@@ -51,8 +53,8 @@
 <Modal title="Go to X/Y" {onclose}>
   <div class="goto">
     <div class="seg" role="group" aria-label="Coordinates">
-      <button class:on={frame === 'job'} aria-pressed={frame === 'job'} disabled={!origin} onclick={() => chooseFrame('job')}>Job</button>
-      <button class:on={frame === 'machine'} aria-pressed={frame === 'machine'} onclick={() => chooseFrame('machine')}>Machine</button>
+      <button class:on={frame === 'job'} aria-pressed={frame === 'job'} disabled={!origin} onclick={() => chooseFrame('job')}>{t("Job")}</button>
+      <button class:on={frame === 'machine'} aria-pressed={frame === 'machine'} onclick={() => chooseFrame('machine')}>{t("Machine")}</button>
     </div>
     <p class="muted">{frame === 'job' ? 'Measured from the job origin.' : origin ? 'Measured from the machine home.' : 'Measured from the machine home. Set a job origin to use job coordinates.'}</p>
     <div class="fields">

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // A control that moves the machine, fires the beam or sets a reference
   // acts only after a press is held (DESIGN.md, "Touch rules"). The fill
   // shows the hold; releasing early, dragging off or losing the pointer does
@@ -84,4 +86,4 @@
   onblur={hold.cancel}
   onclick={(event) => event.preventDefault()}
   oncontextmenu={(event) => event.preventDefault()}
->{@render children()}<small class="hold-hint">{hint}</small></button>
+>{@render children()}<small class="hold-hint">{t(hint)}</small></button>

@@ -4,6 +4,7 @@
 // temporary constraints that pull points towards the cursor as far as the
 // real constraints allow, as FreeCAD's and Fusion's sketchers do.
 import { make_gcs_wrapper, SolveStatus, type GcsWrapper, type SketchPrimitive } from '@salusoft89/planegcs';
+import { resizedFillets } from './fillet-resize';
 import { angleOf, dist, sweep } from './geometry';
 import { clone, constraintRefs, point, pointsOf, type Constraint, type Entity, type Id, type Sketch } from './model';
 
@@ -31,6 +32,8 @@ export const solverReady = (): boolean => wrapper !== null;
 export interface Pull { point: Id; x: number; y: number }
 
 export interface Solved {
+  /** A geometric edit that cannot preserve its reference contour. */
+  reason?: string;
   /** Whether every constraint holds. */
   ok: boolean;
   /** The sketch as solved; the input unchanged when solving failed. */
@@ -121,7 +124,15 @@ function translate(sketch: Sketch, c: Constraint): SketchPrimitive[] {
     }
     case 'tangent': {
       const [ka, kb] = [kind(c.a), kind(c.b)];
-      const joint = sharedEnd(sketch, c.a, c.b);
+      let joint = sharedEnd(sketch, c.a, c.b);
+      // A line meeting a circle at an on-curve endpoint is tangent there.
+      // Angle-at-contact avoids the degenerate combination of distance-to-line
+      // tangency and a second point-on-circle equation.
+      if (joint === null) {
+        const line = ka === 'line' ? entityOf(sketch,c.a) : kb === 'line' ? entityOf(sketch,c.b) : undefined;
+        const curve = ka === 'line' ? c.b : c.a;
+        if (line?.kind === 'line') joint = [line.a,line.b].find(p => sketch.constraints.some(on => on.kind === 'on' && on.point === p && on.curve === curve)) ?? null;
+      }
       if (joint !== null) {
         // Curves that meet end to end are tangent where they meet, as FreeCAD
         // makes them: their normals there at 0 or half a turn. Tangency to a
@@ -419,4 +430,103 @@ export function looseAfter(previous: Sketch, next: Sketch): Set<Id> {
   }
   for (const e of next.entities) if (!known.has(e.id)) addCurve(e.id);
   return loose;
+}
+
+/** Dimension edits prefer the older reference geometry without adding a permanent fix. */
+export function solveEdit(previous: Sketch, next: Sketch): Solved {
+  const fillets = resizedFillets(previous, next);
+  if (fillets.error) return {ok:false,sketch:next,conflicting:[],redundant:[],dof:-1,reason:fillets.error};
+  next = fillets.sketch;
+  const before = new Map(previous.constraints.map(c => [c.id, JSON.stringify(c)]));
+  const anchors = new Set<Id>();
+  const previousGroups = clusters(previous);
+  const oldGroup = new Map(previousGroups.flatMap((g, i) => g.points.map(p => [p.id, i] as const)));
+  const preserve = new Set<number>();
+  const known = new Set(previous.points.map(p => p.id));
+  for (const c of next.constraints) {
+    if (before.get(c.id) === JSON.stringify(c) || ('driven' in c && c.driven)) continue;
+    if (c.kind === 'distance') {
+      const earlier = Math.min(c.a, c.b), later = Math.max(c.a, c.b);
+      // Between separate objects preserve the earlier curve, not just its endpoint.
+      const curve = next.entities.find(e => pointsOf(e).includes(earlier));
+      const own = curve ? pointsOf(curve) : [earlier];
+      for (const id of own.includes(later) ? [earlier] : own) if (known.has(id)) anchors.add(id);
+    } else if (c.kind === 'offset') {
+      const line = entityOf(next, c.line);
+      const owner = next.entities.find(e => pointsOf(e).includes(c.point));
+      const reference = line && owner ? (line.id < owner.id ? line : owner) : line;
+      for (const id of reference ? pointsOf(reference) : [c.point]) if (known.has(id)) anchors.add(id);
+    } else if (c.kind === 'angle') {
+      const reference = entityOf(previous, Math.min(c.a, c.b));
+      const rotated = entityOf(previous, Math.max(c.a, c.b));
+      if (reference && rotated) {
+        const group = previousGroups[oldGroup.get(pointsOf(reference)[0]!)!];
+        const otherPoints = new Set(previous.entities.filter(e => e.id !== rotated.id).flatMap(pointsOf));
+        for (const p of group?.points ?? []) if (otherPoints.has(p.id)) anchors.add(p.id);
+      }
+    } else if (c.kind === 'radius' || c.kind === 'diameter') {
+      const curve = entityOf(next, c.curve);
+      if (curve?.kind === 'circle' && known.has(curve.c)) anchors.add(curve.c);
+    }
+  }
+    // An inter-object dimension should move the newer object as a whole, rather
+  // than resize the older outline around its anchored edge.
+  for (const c of next.constraints) {
+    if (before.get(c.id) === JSON.stringify(c) || ('driven' in c && c.driven)) continue;
+    if (!['distance', 'offset', 'angle'].includes(c.kind)) continue;
+    const groups = new Set(constraintRefs(c).flatMap(ref => {
+      const e = entityOf(previous, ref);
+      return (e ? pointsOf(e) : [ref]).flatMap(id => oldGroup.has(id) ? [oldGroup.get(id)!] : []);
+    }));
+    if (groups.size > 1) for (const id of anchors) {
+      const group = oldGroup.get(id); if (group !== undefined && groups.has(group)) preserve.add(group);
+    }
+  }
+  for (const group of preserve) for (const p of previousGroups[group]!.points) anchors.add(p.id);
+  for (const group of previousGroups) if (group.entities.some(e => fillets.curves.has(e.id))) {
+    for (const p of group.points) if (!fillets.moving.has(p.id)) anchors.add(p.id);
+  }
+  const loose = looseAfter(previous, next);
+  if (!anchors.size) return solve(next, [], new Map(), loose);
+  // No competing holds in the affected component: the reference stays put while
+  // its connected geometry changes size. Explicit sketch constraints still win.
+  for (const group of clusters(next)) if (group.points.some(p => anchors.has(p.id))) {
+    for (const p of group.points) loose.add(p.id);
+  }
+  const pulls = previous.points.filter(p => anchors.has(p.id)).map(p => ({ point: p.id, x: p.x, y: p.y }));
+  const referencePulls = [...pulls];
+  let angleChanged = false;
+  for (const c of next.constraints) {
+    if (c.kind !== 'angle' || c.driven || before.get(c.id) === JSON.stringify(c)) continue;
+    angleChanged = true;
+    const rotated = entityOf(previous, Math.max(c.a,c.b));
+    const reference = entityOf(previous, Math.min(c.a,c.b));
+    if (rotated?.kind !== 'line' || reference?.kind !== 'line') continue;
+    const a=point(previous,rotated.a), b=point(previous,rotated.b);
+    const ra=point(previous,reference.a), rb=point(previous,reference.b);
+    const sign=lineAngle(previous,c.a,c.b)<0?-1:1;
+    const delta=(c.a===reference.id?sign:-sign)*c.value*Math.PI/180;
+    const angle=angleOf(ra,rb)+delta, length=dist(a,b);
+    if (anchors.has(rotated.a) && !anchors.has(rotated.b))
+      pulls.push({point:rotated.b,x:a.x+length*Math.cos(angle),y:a.y+length*Math.sin(angle)});
+    else if (anchors.has(rotated.b) && !anchors.has(rotated.a))
+      pulls.push({point:rotated.a,x:b.x-length*Math.cos(angle),y:b.y-length*Math.sin(angle)});
+    else if (!anchors.has(rotated.a) && !anchors.has(rotated.b)) {
+      pulls.push({point:rotated.a,x:a.x,y:a.y});
+      pulls.push({point:rotated.b,x:a.x+length*Math.cos(angle),y:a.y+length*Math.sin(angle)});
+    }
+  }
+  let anchored = solve(next, pulls, new Map(), loose);
+  const referenceMoved = (result: Solved) => result.ok && previous.points.some(p => anchors.has(p.id) && dist(p,point(result.sketch,p.id))>1e-5);
+  if (angleChanged && (!anchored.ok || referenceMoved(anchored))) {
+    // A point constrained to an edge can slide; keeping the line's old length
+    // is secondary to keeping its reference contour unchanged.
+    anchored = solve(next, referencePulls, new Map(), loose);
+    if (!anchored.ok || referenceMoved(anchored)) return {ok:false,sketch:next,conflicting:anchored.conflicting,redundant:[],dof:-1,reason:'Dieser Winkel lässt sich mit den vorhandenen Verbindungen und Abhängigkeiten nicht ändern, ohne die Referenzkontur zu verformen.'};
+  }
+  if (fillets.curves.size) {
+    if (!anchored.ok || previous.points.some(p => anchors.has(p.id) && dist(p,point(anchored.sketch,p.id))>1e-5))
+      return {ok:false,sketch:next,conflicting:anchored.conflicting,redundant:[],dof:-1,reason:'Die Radiusänderung widerspricht der vorhandenen Kontur oder ihren Abhängigkeiten. Die Skizze bleibt unverändert.'};
+  }
+  return anchored.ok ? anchored : solve(next, [], new Map(), looseAfter(previous, next));
 }

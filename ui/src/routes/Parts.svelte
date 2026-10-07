@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import SkippedFiles from '../components/SkippedFiles.svelte';
   import SheetLibrary from '../components/SheetLibrary.svelte';
   import StockEditor from '../components/StockEditor.svelte';
@@ -33,10 +35,10 @@
   let favourites = $state(false);
   let filterOpen = $state(false);
   let filterMenu = $state<HTMLDivElement | null>(null);
-  const LASERS = [['all', 'All lasers'], ['fiber', 'Fiber'], ['co2', 'CO₂']] as const;
+  const LASERS = [['all', t("All lasers")], ['fiber', t("Fiber")], ['co2', 'CO₂']] as const;
   const laserName = $derived(LASERS.find(([k]) => k === laserFilter)![1]);
   const filtered = $derived(laserFilter !== 'all' || favourites);
-  const filterName = $derived(laserFilter !== 'all' ? laserName : 'Filter');
+  const filterName = $derived(laserFilter !== 'all' ? laserName : t("Filter"));
 
   // The filter menu closes on a tap outside it or on Escape.
   $effect(() => {
@@ -153,7 +155,7 @@
     if (card.kind === 'stock' || card.kind === 'remnant') { editingStock = card.id; return; }
     if (!picking) { ui.selected = card.id; return; }
     if (card.kind === 'job') {
-      ui.say('A saved job cuts its own parts. Pick parts to set up a new job.');
+      ui.say(t("A saved job cuts its own parts. Pick parts to set up a new job."));
       return;
     }
     ui.partPicks = togglePick(ui.partPicks ?? [], card.id);
@@ -202,32 +204,32 @@
 
   /** The kind tag on a card: a job says how many parts it cuts. */
   const kindTag = (c: Card): string =>
-    c.kind === 'job' ? (c.parts > 1 ? `Job · ${plural(c.parts, 'part')}` : 'Job')
-    : c.kind === 'stock' ? 'Sheets' : c.kind === 'remnant' ? 'Remnant' : 'Part';
+    c.kind === 'job' ? (c.parts > 1 ? `Job · ${plural(c.parts, 'part')}` : t("Job"))
+    : c.kind === 'stock' ? t("Sheets") : c.kind === 'remnant' ? t("Remnant") : 'Part';
 
-  const emptyTitle = $derived(q || filtered ? 'Nothing matches' : 'Empty folder');
+  const emptyTitle = $derived(q || filtered ? 'Nothing matches' : t("Empty folder"));
   const emptyHint = $derived(
     q ? 'Try a shorter word, a material, a size, or a folder name.'
     : filtered ? 'Clear the filter to see everything.'
-    : 'Import DXF or SVG, or move parts here.',
+    : t("Import DXF or SVG, or move parts here."),
   );
 </script>
 
 <section class="panel main" class:sheet-library-page={kindFilter === 'sheet'}>
   <div class="toolbar head-row parts-head">
-    <h1>Parts</h1>
+    <h1>{t("Parts")}</h1>
     {#if kindFilter !== 'sheet'}<div class="parts-actions">
       <button class="btn btn-ghost" class:on={picking} aria-pressed={picking} onclick={() => (ui.partPicks = picking ? null : [])}>
-        <i class="ic ic-check"></i>Pick parts
+        <i class="ic ic-check"></i>{t("Pick parts")}
       </button>
-      <button class="btn btn-ghost" onclick={newFolder}><i class="ic ic-folder-plus"></i>Folder</button>
+      <button class="btn btn-ghost" onclick={newFolder}><i class="ic ic-folder-plus"></i>{t("Folder")}</button>
       <ImportParts />
     </div>{/if}
   </div>
   <div class="toolbar parts-filters">
     <div class="seg" role="group" aria-label="Library type">
       {#each [['all', 'All'], ['part', 'Parts'], ['job', 'Jobs'], ['sheet', 'Sheets']] as [k, label]}
-        <button class:on={kindFilter === k} aria-pressed={kindFilter === k} onclick={() => (kindFilter = k as typeof kindFilter)}>{label}</button>
+        <button class:on={kindFilter === k} aria-pressed={kindFilter === k} onclick={() => (kindFilter = k as typeof kindFilter)}>{t(label)}</button>
       {/each}
     </div>
     {#if kindFilter !== 'sheet'}
@@ -241,27 +243,27 @@
           onclick={() => (filterOpen = !filterOpen)}>
           {filterName}{#if favourites}<i class="ic ic-star-fill"></i>{/if}<i class="ic ic-chev-down"></i>
         </button>
-        {#if filterOpen}<div class="filter-pop" role="group" aria-label="Filter">
+        {#if filterOpen}<div class="filter-pop" role="group" aria-label={t("Filter")}>
           <span class="filter-label">Laser</span>
           <div class="seg block">
             {#each LASERS as [k, label]}
               <button class:on={laserFilter === k} aria-pressed={laserFilter === k} onclick={() => (laserFilter = k)}>
-                {k === 'all' ? 'All' : label}
+                {k === 'all' ? t("All") : label}
               </button>
             {/each}
           </div>
           <button class="btn btn-ghost block fav-toggle" class:on={favourites} aria-pressed={favourites} onclick={() => (favourites = !favourites)}>
             <i class="ic {favourites ? 'ic-star-fill' : 'ic-star'}"></i>Favorites only
           </button>
-          {#if filtered}<button class="btn btn-ghost block" onclick={clearFilter}>Clear filter</button>{/if}
+          {#if filtered}<button class="btn btn-ghost block" onclick={clearFilter}>{t("Clear filter")}</button>{/if}
         </div>{/if}
       </div>
       <label class="search">
         <i class="ic ic-search"></i>
         <input
           type="search"
-          aria-label="Search parts and jobs"
-          placeholder="Search parts and jobs"
+          aria-label={t("Search parts and jobs")}
+          placeholder={t("Search parts and jobs")}
           bind:value={ui.search}
           onkeydown={clearSearchOnEscape}>
       </label>
@@ -276,7 +278,7 @@
     {:else if favourites}
       <span class="muted">Favorites in every folder</span>
     {:else}
-      <button class="crumb-btn" onclick={() => (ui.folder = null)}>All parts</button>
+      <button class="crumb-btn" onclick={() => (ui.folder = null)}>{t("All parts")}</button>
       {#each folderPath(ui.folder) as f}
         <i class="ic ic-chev-right sm"></i><button class="crumb-btn" onclick={() => (ui.folder = f.id)}>{f.name}</button>
       {/each}
@@ -344,14 +346,14 @@
   </div>
 
   <div class="panel-foot">
-    <button class="btn btn-ghost" onclick={() => (historyOpen = true)}>History</button>
+    <button class="btn btn-ghost" onclick={() => (historyOpen = true)}>{t("History")}</button>
     <span class="muted">{q ? plural(visible.length, 'result') : plural(total, 'item')}</span>
     <div class="pager">
-      <button onclick={() => (page = Math.max(0, page - 1))} disabled={page === 0} aria-label="Previous page">
+      <button onclick={() => (page = Math.max(0, page - 1))} disabled={page === 0} aria-label={t("Previous page")}>
         <i class="ic ic-chev-left"></i>
       </button>
       <span>{page + 1} / {pages}</span>
-      <button onclick={() => (page = Math.min(pages - 1, page + 1))} disabled={page >= pages - 1} aria-label="Next page">
+      <button onclick={() => (page = Math.min(pages - 1, page + 1))} disabled={page >= pages - 1} aria-label={t("Next page")}>
         <i class="ic ic-chev-right"></i>
       </button>
     </div>

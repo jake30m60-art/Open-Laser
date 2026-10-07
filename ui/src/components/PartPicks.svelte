@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // The parts picked on the Parts page, to set up as one job or to add to
   // the open one. They are laid out side by side in the order picked.
   import Preview from '../mobile/Preview.svelte';
@@ -35,7 +37,7 @@
 </script>
 
 <aside class="panel side picks">
-  <h2>{picks.length ? `${count(picks.length)} picked` : 'Pick parts'}</h2>
+  <h2>{picks.length ? t("{0} picked", count(picks.length)) : 'Pick parts'}</h2>
   <p class="muted">{picks.length ? 'They open side by side, in this order, as one job.' : 'Tap the parts to cut together. Saved jobs keep their own parts.'}</p>
   {#if picked.length}
     <ol class="pick-list">
@@ -52,11 +54,11 @@
   <div class="side-foot">
     {#if rest.length}<button class="btn btn-ghost lg block" disabled={busy} onclick={() => (ui.partPicks = [...picks, ...rest])}>Pick all {plural(shown.length, 'part')} here</button>{/if}
     {#if draft}
-      <button class="btn btn-ghost lg block add" disabled={busy || !picks.length || inDraft.length > 0} onclick={add}>Add to {draft.name}</button>
+      <button class="btn btn-ghost lg block add" disabled={busy || !picks.length || inDraft.length > 0} onclick={add}>{t("Add to")} {draft.name}</button>
       {#if inDraft.length}<p class="gate-reason">{inDraft[0]!.name} is already in {draft.name}; copy it on the sheet for more.</p>{/if}
     {/if}
     <button class="btn btn-primary lg block" disabled={busy || !picks.length} onclick={setUp}>{picks.length > 1 ? `Set up job with ${count(picks.length)} →` : 'Set up job →'}</button>
-    <button class="btn btn-ghost lg block" disabled={busy} onclick={() => (ui.partPicks = null)}>Cancel</button>
+    <button class="btn btn-ghost lg block" disabled={busy} onclick={() => (ui.partPicks = null)}>{t("Cancel")}</button>
   </div>
 </aside>
 

@@ -2,7 +2,8 @@
 import type { Id } from "./Id";
 
 /**
- * A calibration coupon: one field per speed, `COLUMNS` to a row.
+ * A calibration coupon: per speed, `BLOCKS` blocks of `LINES` lines side
+ * by side; `COLUMNS` speeds to a row.
  */
 export type ScanCoupon = {
 /**
@@ -14,6 +15,10 @@ recipe: Id,
  */
 angle: number,
 /**
+ * Multiple scan directions; empty uses the legacy single angle.
+ */
+angles: Array<number>,
+/**
  * The speeds to test, in millimetres per second.
  */
 speeds: Array<number>,
@@ -22,10 +27,10 @@ speeds: Array<number>,
  */
 origin: [number, number],
 /**
- * Side of each square field, in millimetres.
+ * Length of each line, in millimetres.
  */
-field: number,
+length: number,
 /**
- * Distance between scan lines, in millimetres.
+ * Distance between the lines of a block, in millimetres.
  */
 spacing: number, };

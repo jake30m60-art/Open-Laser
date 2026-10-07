@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   // A 2D sketch drawn as in Fusion: create, modify, constrain and dimension.
   // Draw with a tool, type a value to lock it (Tab moves on, Enter places);
   // constraints and dimensions are solved by FreeCAD's PlaneGCS, blue
@@ -26,40 +28,40 @@
 
   type Button<T> = { id: T; label: string; key?: string; icon?: string; glyph?: string };
   const CREATE: Button<ToolId | null>[] = [
-    { id: null, label: 'Select', key: 'Esc', icon: 'M6 3l12 9-5.5 1.2L16 20l-2.6 1.2-2.9-6.7L6 18z' },
-    { id: 'line', label: 'Line', key: 'L', icon: 'M5 19L19 5M5 19m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M19 5m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0' },
-    { id: 'rect2', label: '2-point rectangle', key: 'R', icon: 'M4 6h16v12H4zM4 18m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M20 6m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0' },
-    { id: 'rectc', label: 'Center rectangle', icon: 'M4 6h16v12H4zM4 6l16 12M20 6L4 18' },
-    { id: 'circle', label: 'Center diameter circle', key: 'C', icon: 'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16M12 12h8M12 12m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0' },
-    { id: 'circle2', label: '2-point circle', icon: 'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16M4 12h16' },
-    { id: 'arc3', label: '3-point arc', key: 'A', icon: 'M4 18A9 9 0 0 1 20 18M4 18m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M20 18m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M12 9m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0' },
-    { id: 'arcc', label: 'Center point arc', icon: 'M20 15A8 8 0 0 0 7 8.5M12 15h8M12 15L7 8.5M12 15m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0' },
-    { id: 'polygon', label: 'Inscribed polygon', key: 'P', icon: 'M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z' },
-    { id: 'slot', label: 'Center to center slot', icon: 'M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7M8 12h8' },
+    { id: null, label: t("Select"), key: 'Esc', icon: 'M6 3l12 9-5.5 1.2L16 20l-2.6 1.2-2.9-6.7L6 18z' },
+    { id: 'line', label: t("Line"), key: 'L', icon: 'M5 19L19 5M5 19m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M19 5m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0' },
+    { id: 'rect2', label: t("2-point rectangle"), key: 'R', icon: 'M4 6h16v12H4zM4 18m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M20 6m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0' },
+    { id: 'rectc', label: t("Center rectangle"), icon: 'M4 6h16v12H4zM4 6l16 12M20 6L4 18' },
+    { id: 'circle', label: t("Center diameter circle"), key: 'C', icon: 'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16M12 12h8M12 12m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0' },
+    { id: 'circle2', label: t("2-point circle"), icon: 'M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16M4 12h16' },
+    { id: 'arc3', label: t("3-point arc"), key: 'A', icon: 'M4 18A9 9 0 0 1 20 18M4 18m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M20 18m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M12 9m-1.6 0a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0' },
+    { id: 'arcc', label: t("Center point arc"), icon: 'M20 15A8 8 0 0 0 7 8.5M12 15h8M12 15L7 8.5M12 15m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0' },
+    { id: 'polygon', label: t("Inscribed polygon"), key: 'P', icon: 'M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z' },
+    { id: 'slot', label: t("Center to center slot"), icon: 'M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7M8 12h8' },
   ];
   const MODIFY: Button<ActionId>[] = [
-    { id: 'fillet', label: 'Fillet', icon: 'M4 20V12a8 8 0 0 1 8-8h8' },
-    { id: 'chamfer', label: 'Chamfer', icon: 'M4 20v-9l7-7h9' },
-    { id: 'trim', label: 'Trim', key: 'T', icon: 'M3 12h7M14 12h7M12 3v18M10 9l4 6M14 9l-4 6' },
-    { id: 'extend', label: 'Extend', icon: 'M3 12h12M15 9l4 3-4 3M20 4v16' },
-    { id: 'break', label: 'Break', icon: 'M3 12h7M14 12h7M12 5v14' },
-    { id: 'offset', label: 'Offset', key: 'O', icon: 'M5 19V9a4 4 0 0 1 4-4h10M9 19v-8a2 2 0 0 1 2-2h8' },
-    { id: 'mirror', label: 'Mirror', icon: 'M12 3v18M9 7L4 17h5zM15 7l5 10h-5z' },
-    { id: 'rpattern', label: 'Rectangular pattern', icon: 'M4 4h5v5H4zM15 4h5v5h-5zM4 15h5v5H4zM15 15h5v5h-5z' },
-    { id: 'cpattern', label: 'Circular pattern', icon: 'M12 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4M19 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4M12 17a2 2 0 1 0 0 4a2 2 0 1 0 0-4M5 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4' },
+    { id: 'fillet', label: t("Fillet"), icon: 'M4 20V12a8 8 0 0 1 8-8h8' },
+    { id: 'chamfer', label: t("Chamfer"), icon: 'M4 20v-9l7-7h9' },
+    { id: 'trim', label: t("Trim"), key: 'T', icon: 'M3 12h7M14 12h7M12 3v18M10 9l4 6M14 9l-4 6' },
+    { id: 'extend', label: t("Extend"), icon: 'M3 12h12M15 9l4 3-4 3M20 4v16' },
+    { id: 'break', label: t("Break"), icon: 'M3 12h7M14 12h7M12 5v14' },
+    { id: 'offset', label: t("Offset"), key: 'O', icon: 'M5 19V9a4 4 0 0 1 4-4h10M9 19v-8a2 2 0 0 1 2-2h8' },
+    { id: 'mirror', label: t("Mirror"), icon: 'M12 3v18M9 7L4 17h5zM15 7l5 10h-5z' },
+    { id: 'rpattern', label: t("Rectangular pattern"), icon: 'M4 4h5v5H4zM15 4h5v5h-5zM4 15h5v5H4zM15 15h5v5h-5z' },
+    { id: 'cpattern', label: t("Circular pattern"), icon: 'M12 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4M19 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4M12 17a2 2 0 1 0 0 4a2 2 0 1 0 0-4M5 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4' },
   ];
   const RELATE: Button<ActionId>[] = [
-    { id: 'coincident', label: 'Coincident', glyph: '•' },
-    { id: 'collinear', label: 'Collinear', glyph: '≡' },
-    { id: 'concentric', label: 'Concentric', glyph: '◎' },
-    { id: 'midpoint', label: 'Midpoint', glyph: 'Δ' },
-    { id: 'fix', label: 'Fix / unfix', glyph: '⚓' },
-    { id: 'parallel', label: 'Parallel', glyph: '∥' },
-    { id: 'perpendicular', label: 'Perpendicular', glyph: '⊥' },
-    { id: 'hv', label: 'Horizontal / vertical', glyph: 'H|V' },
-    { id: 'tangent', label: 'Tangent', glyph: 'T' },
-    { id: 'equal', label: 'Equal', glyph: '=' },
-    { id: 'symmetric', label: 'Symmetric', glyph: '⇔' },
+    { id: 'coincident', label: t("Coincident"), glyph: '•' },
+    { id: 'collinear', label: t("Collinear"), glyph: '≡' },
+    { id: 'concentric', label: t("Concentric"), glyph: '◎' },
+    { id: 'midpoint', label: t("Midpoint"), glyph: 'Δ' },
+    { id: 'fix', label: t("Fix / unfix"), glyph: '⚓' },
+    { id: 'parallel', label: t("Parallel"), glyph: '∥' },
+    { id: 'perpendicular', label: t("Perpendicular"), glyph: '⊥' },
+    { id: 'hv', label: t("Horizontal / vertical"), glyph: 'H|V' },
+    { id: 'tangent', label: t("Tangent"), glyph: 'T' },
+    { id: 'equal', label: t("Equal"), glyph: '=' },
+    { id: 'symmetric', label: t("Symmetric"), glyph: '⇔' },
   ];
   const TOOL_KEYS: Record<string, ToolId> = { l: 'line', r: 'rect2', c: 'circle', a: 'arc3', p: 'polygon' };
   const ACTION_KEYS: Record<string, ActionId> = { d: 'dimension', t: 'trim', o: 'offset' };
@@ -97,7 +99,7 @@
   const snapped = $derived.by((): Snap | null => {
     void store.toolRevision;
     if (!cursor || !tool) return null;
-    return snap(store.sketch, cursor, { reach, grid: store.gridSnap ? minor : 0, anchor: tool.anchor() });
+    return snap(store.sketch, cursor, { reach, grid: store.gridSnap ? minor : 0, anchor: tool.anchor(), tangent: tool.id === 'line' });
   });
   const resolved = $derived.by((): Snap | null => { void store.toolRevision; return tool && snapped ? tool.resolve(snapped, locked) : null; });
   const fields = $derived.by((): Field[] => {
@@ -198,7 +200,7 @@
     if (!store.view) requestAnimationFrame(fit);
     initSolver(wasmUrl)
       .then(() => { store.solverRevision++; store.refreshFreedom(); })
-      .catch((e) => ui.say(`The constraint solver did not load: ${explain(e)}`, true));
+      .catch((e) => ui.say(t("The constraint solver did not load: {0}", explain(e)), true));
   });
 
   // ---- Pointer input ---------------------------------------------------------------------------
@@ -248,11 +250,12 @@
     cursor = m;
     const original = store.sketch;
     const base = { kind: 'press' as const, x: at.x, y: at.y, start: m, moved: false, original, origins: new Map<Id, Vec>(), shift: e.shiftKey || e.ctrlKey || e.metaKey };
-    if (tool) { drag = { ...base, mode: 'tool', target: null }; return; }
     // A dimension's value answers a click or a double click whatever tool
     // is open, as in Fusion, so it can be changed at any time.
     const note = annotationAt(e);
     const dimension = note !== null && store.sketch.constraints.some((c) => c.id === note && isDimension(c));
+    if (dimension) { drag = { ...base, mode: 'label', target: note }; return; }
+    if (tool) { drag = { ...base, mode: 'tool', target: null }; return; }
     if (action && !(dimension && !action.busy)) { drag = { ...base, mode: 'action', target: null }; return; }
     if (note !== null) { drag = { ...base, mode: 'label', target: note }; return; }
     const p = hitPoint(original, m, reach);
@@ -393,10 +396,9 @@
   }
 
   function doubleClick(e: MouseEvent): void {
-    if (tool) return;
     const note = annotationAt(e);
     if (note !== null) { editDimension(note); return; }
-    if (action) return;
+    if (tool || action) return;
     const at = local(e);
     const id = hit(store.sketch, toModel(at.x, at.y), reach);
     if (id !== null) store.select(chain(store.sketch, id), e.shiftKey ? 'add' : 'replace');
@@ -406,10 +408,10 @@
   function editDimension(id: Id): void {
     const c = store.sketch.constraints.find((x) => x.id === id);
     if (!c || !isDimension(c)) return;
-    if (c.driven) { ui.say('A driven dimension follows the geometry; delete another dimension to drive this one.'); return; }
+    if (c.driven) { ui.say(t("A driven dimension follows the geometry; delete another dimension to drive this one.")); return; }
     const angle = c.kind === 'angle';
-    osk.number(angle ? 'Angle' : c.kind === 'diameter' ? 'Diameter' : c.kind === 'radius' ? 'Radius' : 'Distance', c.value, angle ? '°' : 'mm', (v) => {
-      if (!(v > 0)) { ui.say('A dimension must be above zero.', true); return; }
+    osk.number(angle ? t("Angle") : c.kind === 'diameter' ? t("Diameter") : c.kind === 'radius' ? t("Radius") : t("Distance"), c.value, angle ? '°' : 'mm', (v) => {
+      if (!(v > 0)) { ui.say(t("A dimension must be above zero."), true); return; }
       const problem = store.change((s) => { const x = s.constraints.find((k) => k.id === id); if (x && isDimension(x)) x.value = v; });
       if (problem) ui.say(problem, true);
     });
@@ -420,8 +422,8 @@
 
   function place(): void {
     if (!tool) return;
-    commitEditing();
-    const at = cursor ? tool.resolve(snap(store.sketch, cursor, { reach, grid: store.gridSnap ? minor : 0, anchor: tool.anchor() }), locked) : null;
+    if (!commitEditing()) return;
+    const at = cursor ? tool.resolve(snap(store.sketch, cursor, { reach, grid: store.gridSnap ? minor : 0, anchor: tool.anchor(), tangent: tool.id === 'line' }), locked) : null;
     if (!at) return;
     const draft = clone(store.sketch);
     const outcome = tool.click(draft, at, locked);
@@ -444,7 +446,7 @@
       if (problem?.includes('driven dimension')) ui.say(problem);
       else if (problem) ui.say(problem, true);
       else if (step.edit !== undefined) editDimension(step.edit);
-      else if (action && !MODIFY.some((m) => m.id === action.id)) ui.say(action.id === 'dimension' ? 'Dimension added' : `${RELATE.find((r) => r.id === action.id)?.label ?? 'Constraint'} added`);
+      else if (action && !MODIFY.some((m) => m.id === action.id)) ui.say(action.id === 'dimension' ? t("Dimension added") : t("{0} added", RELATE.find((r) => r.id === action.id)?.label ?? 'Constraint'));
       else {
         if (step.select) store.select(step.select);
         if (step.done) store.act(null);
@@ -457,7 +459,7 @@
    *  what the selection tools work on. */
   function act(at: Hit, shift: boolean): void {
     if (!action) return;
-    commitEditing();
+    if (!commitEditing()) return;
     if (shift && at.entity !== null && ['offset', 'mirror', 'rpattern', 'cpattern'].includes(action.id)) {
       store.select([at.entity], 'toggle');
       resetEntry();
@@ -467,7 +469,7 @@
   }
 
   function enter(): void {
-    commitEditing();
+    if (!commitEditing()) return;
     if (tool) place();
     else if (action && cursor) apply(action.enter(ctx, cursor, locked));
   }
@@ -480,12 +482,17 @@
     return v;
   }
 
-  function commitEditing(): void {
-    if (!editing) return;
+  function commitEditing(): boolean {
+    if (!editing) return true;
     const field = fields.find((f) => f.key === editing!.key);
     const v = field ? parsed(field, editing.text) : null;
-    if (field && v !== null) locked = { ...locked, [field.key]: v };
+    if (!field || v === null || !Number.isFinite(v)) {
+      ui.say(t("Enter a valid value before applying the tool."), true);
+      return false;
+    }
+    locked = { ...locked, [field.key]: v };
     editing = null;
+    return true;
   }
 
   function shown(field: Field): string {
@@ -528,6 +535,7 @@
     if (e.key === ' ') { spaceHeld = true; return; }
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) store.redo(); else store.undo(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); store.redo(); return; }
+    if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); store.select(store.sketch.entities.map(e => e.id)); return; }
     if (mod || e.altKey) return;
     if (e.key === 'Escape') { e.preventDefault(); escape(); return; }
     if (fields.length && (/^[0-9.,+\-*/()]$/.test(e.key) || (editing && e.key === 'Backspace'))) {
@@ -540,7 +548,7 @@
     if (e.key === 'Tab' && (tool || action)) {
       e.preventDefault();
       if (!fields.length) return;
-      commitEditing();
+      if (!commitEditing()) return;
       active = (Math.min(active, fields.length - 1) + (e.shiftKey ? fields.length - 1 : 1)) % fields.length;
       return;
     }
@@ -581,7 +589,7 @@
       if (server.doc?.draft) await api.addParts([id]);
       else await api.openPart(id);
       ui.tab = 'setup';
-      ui.say(warnings?.length ? `Sketch added as a part · ${warnings.join(' · ')}` : 'Sketch added as a part. Choose a material to prepare it for cutting.');
+      ui.say(warnings?.length ? t("Sketch added as a part · {0}", warnings.join(' · ')) : t("Sketch added as a part. Choose a material to prepare it for cutting."));
     } catch (reason) {
       ui.say(explain(reason), true);
     } finally {
@@ -627,10 +635,10 @@
     if (!store.sketch.entities.length) return 'Empty sketch';
     if (!free) return 'Checking…';
     const loose = store.sketch.entities.filter((e) => !defined(e, free)).length;
-    return loose ? `${loose} of ${store.sketch.entities.length} curves can still move (blue)` : 'Fully defined';
+    return loose ? t("{0} of {1} curves can still move (blue)", loose, store.sketch.entities.length) : t("Fully defined");
   });
 
-  const snapLabel: Record<string, string> = { end: 'Endpoint', center: 'Center', mid: 'Midpoint', intersection: 'Intersection', on: 'On curve', horizontal: 'Horizontal', vertical: 'Vertical', grid: 'Grid', free: '' };
+  const snapLabel: Record<string, string> = { end: 'Endpoint', center: 'Center', mid: 'Midpoint', intersection: 'Intersection', on: 'On curve', tangent: 'Tangential', horizontal: 'Horizontal', vertical: 'Vertical', grid: 'Grid', free: '' };
   const marker = $derived(dragSnap ?? resolved);
   const coords = $derived(resolved ?? cursor);
   const fixedGrid = $derived(store.gridStep !== null);
@@ -640,9 +648,9 @@
 <svelte:window onkeydown={key} onkeyup={keyUp} />
 
 <section class="panel main sketch-main">
-  <div class="sketch-bar" role="toolbar" aria-label="Sketch tools">
+  <div class="sketch-bar" role="toolbar" aria-label={t("Sketch tools")}>
     <div class="sk-group">
-      <span class="sk-title">Create</span>
+      <span class="sk-title">{t("Create")}</span>
       <div class="sk-tools">
         {#each CREATE as t (t.label)}
           <button class="sk-tool" class:on={!action && (tool?.id ?? null) === t.id} title={t.key ? `${t.label} (${t.key})` : t.label} aria-label={t.label} onclick={() => choose(t.id)}>
@@ -652,20 +660,20 @@
       </div>
     </div>
     <div class="sk-group">
-      <span class="sk-title">Modify</span>
+      <span class="sk-title">{t("Modify")}</span>
       <div class="sk-tools">
         {#each MODIFY as t (t.id)}
           <button class="sk-tool" class:on={action?.id === t.id} title={t.key ? `${t.label} (${t.key})` : t.label} aria-label={t.label} onclick={() => chooseAction(t.id)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} /></svg>
           </button>
         {/each}
-        <button class="sk-tool" title="Construction (X)" aria-label="Toggle construction" disabled={!selected.length} onclick={() => { const p = store.toggleConstruction(); if (p) ui.say(p, true); }}>
+        <button class="sk-tool" title={t("Construction (X)")} aria-label={t("Toggle construction")} disabled={!selected.length} onclick={() => { const p = store.toggleConstruction(); if (p) ui.say(p, true); }}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L20 4" stroke-dasharray="3 3" /></svg>
         </button>
       </div>
     </div>
     <div class="sk-group">
-      <span class="sk-title">Constraints</span>
+      <span class="sk-title">{t("Constraints")}</span>
       <div class="sk-tools">
         {#each RELATE as t (t.id)}
           <button class="sk-tool glyph" class:on={action?.id === t.id} title={t.label} aria-label={t.label} onclick={() => chooseAction(t.id)}>{t.glyph}</button>
@@ -673,26 +681,26 @@
       </div>
     </div>
     <div class="sk-group">
-      <span class="sk-title">Dimension</span>
+      <span class="sk-title">{t("Dimension")}</span>
       <div class="sk-tools">
-        <button class="sk-tool" class:on={action?.id === 'dimension'} title="Sketch dimension (D)" aria-label="Sketch dimension" onclick={() => chooseAction('dimension')}>
+        <button class="sk-tool" class:on={action?.id === 'dimension'} title={t("Sketch dimension (D)")} aria-label={t("Sketch dimension")} onclick={() => chooseAction('dimension')}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8v10M20 8v10M4 13h16M4 13l3-2M4 13l3 2M20 13l-3-2M20 13l-3 2" /></svg>
         </button>
       </div>
     </div>
     <div class="sk-group">
-      <span class="sk-title">Edit</span>
+      <span class="sk-title">{t("Edit")}</span>
       <div class="sk-tools">
-        <button class="sk-tool" title="Delete (Del)" aria-label="Delete" disabled={!store.selection.size} onclick={() => store.deleteSelection()}><i class="ic ic-trash"></i></button>
-        <button class="sk-tool" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!store.canUndo} onclick={() => store.undo()}><i class="ic ic-undo"></i></button>
-        <button class="sk-tool" title="Redo (Ctrl+Y)" aria-label="Redo" disabled={!store.canRedo} onclick={() => store.redo()}><i class="ic ic-redo"></i></button>
-        <button class="sk-tool" title="Fit (F)" aria-label="Fit" onclick={fit}><i class="ic ic-fit"></i></button>
+        <button class="sk-tool" title={t("Delete (Del)")} aria-label={t("Delete")} disabled={!store.selection.size} onclick={() => store.deleteSelection()}><i class="ic ic-trash"></i></button>
+        <button class="sk-tool" title={t("Undo (Ctrl+Z)")} aria-label={t("Undo")} disabled={!store.canUndo} onclick={() => store.undo()}><i class="ic ic-undo"></i></button>
+        <button class="sk-tool" title={t("Redo (Ctrl+Y)")} aria-label={t("Redo")} disabled={!store.canRedo} onclick={() => store.redo()}><i class="ic ic-redo"></i></button>
+        <button class="sk-tool" title={t("Fit (F)")} aria-label={t("Fit")} onclick={fit}><i class="ic ic-fit"></i></button>
       </div>
     </div>
   </div>
 
   <div class="sketch-canvas" bind:clientWidth={w} bind:clientHeight={h}>
-    <svg bind:this={svg} width={w} height={h} class:drawing={!!tool || !!action} role="application" aria-label="Sketch canvas"
+    <svg bind:this={svg} width={w} height={h} class:drawing={!!tool || !!action} role="application" aria-label={t("Sketch canvas")}
       onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={cancelPointer}
       onpointerleave={() => { if (!drag) { cursor = null; hover = null; } }} onwheel={wheel} ondblclick={doubleClick}
       oncontextmenu={(e) => { e.preventDefault(); escape(); }}>
@@ -709,7 +717,7 @@
       {/each}
 
       {#each dims as d (d.id)}
-        <g class="dim" class:selected={store.selection.has(d.id)}>
+        <g class="dim" class:selected={store.selection.has(d.id)} class:conflict={store.conflicts.has(d.id)}>
           <path class="dim-line" d={d.d} />
           {#each d.arrows as a, i (i)}<path class="dim-arrow" d={a} />{/each}
           <g data-constraint={d.id} class="dim-label">
@@ -719,7 +727,7 @@
         </g>
       {/each}
       {#each marks as m (`${m.id}-${m.x}-${m.y}`)}
-        <g class="glyph" class:selected={store.selection.has(m.id)} data-constraint={m.id}>
+        <g class="glyph" class:conflict={store.conflicts.has(m.id)} class:selected={store.selection.has(m.id)} data-constraint={m.id}>
           <rect x={m.x - 8} y={m.y - 8} width="16" height="16" rx="4" />
           <text x={m.x} y={m.y + 4} text-anchor="middle">{m.text}</text>
         </g>
@@ -741,13 +749,15 @@
           <text x={pendingDim.text.x} y={pendingDim.text.y + 4} text-anchor="middle">{pendingDim.label}</text>
         </g>
       {/if}
-      {#if anchor && resolved && (resolved.kind === 'horizontal' || resolved.kind === 'vertical')}
+      {#if anchor && resolved && (resolved.kind === 'horizontal' || resolved.kind === 'vertical' || resolved.kind === 'tangent')}
         {@const a = toScreen(anchor)}{@const b = toScreen(resolved)}<path class="inference" d={`M${a.x} ${a.y}L${b.x} ${b.y}`} />
       {/if}
       {#if marker && marker.kind !== 'free'}
         {@const q = toScreen(marker)}
         {#if marker.kind === 'end'}<rect class="snap" x={q.x - 6} y={q.y - 6} width="12" height="12" />
         {:else if marker.kind === 'center'}<circle class="snap" cx={q.x} cy={q.y} r="7" />
+        {:else if marker.kind === 'tangent'}<circle class="snap" cx={q.x} cy={q.y} r="6" /><path class="snap" d={`M${q.x - 8} ${q.y + 6}H${q.x + 8}`} />
+          {#if marker.tangent}{@const contact = toScreen(marker.tangent.contact)}<circle class="snap" cx={contact.x} cy={contact.y} r="4" />{/if}
         {:else if marker.kind === 'mid'}<path class="snap" d={`M${q.x} ${q.y - 7}L${q.x + 7} ${q.y + 5}H${q.x - 7}Z`} />
         {:else if marker.kind === 'intersection'}<path class="snap" d={`M${q.x - 6} ${q.y - 6}L${q.x + 6} ${q.y + 6}M${q.x + 6} ${q.y - 6}L${q.x - 6} ${q.y + 6}`} />
         {:else if marker.kind === 'on'}<path class="snap" d={`M${q.x} ${q.y - 7}L${q.x + 7} ${q.y}L${q.x} ${q.y + 7}L${q.x - 7} ${q.y}Z`} />
@@ -763,80 +773,80 @@
       <div class="hud" style:left={`${Math.min(q.x + 18, w - 170)}px`} style:top={`${Math.max(8, Math.min(q.y + 18, h - 44 * fields.length - 40))}px`}>
         {#each fields as f, i (f.key)}
           <button class="hud-field" class:active={i === Math.min(active, fields.length - 1)} class:locked={f.key in locked || editing?.key === f.key} data-numpad onclick={() => tapField(f, i)}>
-            <span class="hud-label">{f.label}</span><span class="hud-value">{shown(f)}{#if editing?.key === f.key}<span class="caret"></span>{/if}</span><span class="hud-unit">{suffix(f)}</span>
+            <span class="hud-label">{t(f.label)}</span><span class="hud-value">{shown(f)}{#if editing?.key === f.key}<span class="caret"></span>{/if}</span><span class="hud-unit">{suffix(f)}</span>
           </button>
         {/each}
       </div>
     {/if}
 
     <div class="sketch-status">
-      <span>{hint}</span>
-      <span class="sketch-coords">{#if marker && snapLabel[marker.kind]}<b>{snapLabel[marker.kind]}</b>{/if}{#if coords}X {displayNumber(coords.x, 'mm')} · Y {displayNumber(coords.y, 'mm')} {unitLabel('mm')}{/if}</span>
+      <span>{t(hint)}</span>
+      <span class="sketch-coords">{#if marker && snapLabel[marker.kind]}<b>{t(snapLabel[marker.kind])}</b>{/if}{#if coords}X {displayNumber(coords.x, 'mm')} · Y {displayNumber(coords.y, 'mm')} {unitLabel('mm')}{/if}</span>
     </div>
   </div>
 </section>
 
 <aside class="panel side sketch-side">
-  <div class="sk-name"><span>Name</span><button class="sk-name-field" onclick={() => osk.text('Sketch name', store.name, (v) => store.rename(v))}>{store.name}</button></div>
+  <div class="sk-name"><span>{t("Name")}</span><button class="sk-name-field" onclick={() => osk.text(t("Sketch name"), store.name, (v) => store.rename(v))}>{store.name}</button></div>
 
   <div class="sk-facts">
-    <h3>Sketch</h3>
-    <p class="sk-status" class:done={status === 'Fully defined'}>{status}</p>
+    <h3>{t("Sketch")}</h3>
+    <p class="sk-status" class:done={status === t("Fully defined")}>{t(status)}</p>
   </div>
 
   <div class="sk-facts">
-    <h3>Selection</h3>
+    <h3>{t("Selection")}</h3>
     {#if selectedNotes.length === 1 && !selected.length}
       {@const n = selectedNotes[0]!}
-      <dl><dt class="kind">{NOTE_NAME[n.kind]}</dt><dd>{#if isDimension(n)}{dimensionLabel(n.driven ? { ...n, value: measure(store.sketch, n) } : n, mm)}{/if}</dd></dl>
-      {#if isDimension(n)}<button class="btn btn-ghost block sk-small" onclick={() => editDimension(n.id)}>Change value</button>{/if}
-      <p class="muted">Del removes it.</p>
-    {:else if !selected.length && !selectedNotes.length}<p class="muted">{store.sketch.entities.length} curves. Nothing selected.</p>
+      <dl><dt class="kind">{t(NOTE_NAME[n.kind])}</dt><dd>{#if isDimension(n)}{dimensionLabel(n.driven ? { ...n, value: measure(store.sketch, n) } : n, mm)}{/if}</dd></dl>
+      {#if isDimension(n)}<button class="btn btn-ghost block sk-small" onclick={() => editDimension(n.id)}>{t("Change value")}</button>{/if}
+      <p class="muted">{t("Del removes it.")}</p>
+    {:else if !selected.length && !selectedNotes.length}<p class="muted">{store.sketch.entities.length} {t("curves. Nothing selected.")}</p>
     {:else if facts.length && !selectedNotes.length}
-      <dl>{#each facts as [k, v] (k)}{#if v}<dt>{k}</dt><dd>{v}</dd>{:else}<dt class="kind">{k}</dt><dd></dd>{/if}{/each}</dl>
-    {:else}<p>{selected.length} curves{selectedNotes.length ? `, ${selectedNotes.length} constraints` : ''} selected</p>{/if}
+      <dl>{#each facts as [k, v] (k)}{#if v}<dt>{t(k)}</dt><dd>{v}</dd>{:else}<dt class="kind">{t(k)}</dt><dd></dd>{/if}{/each}</dl>
+    {:else}<p>{selected.length} {t("curves")}{selectedNotes.length ? t(", {0} constraints", selectedNotes.length) : ''} {t("selected")}</p>{/if}
   </div>
 
   <div class="sk-facts">
-    <h3>Grid and display</h3>
+    <h3>{t("Grid and display")}</h3>
     <div class="sk-row">
-      <span>Grid</span>
-      <div class="seg" role="group" aria-label="Grid">
-        <button class:on={!fixedGrid} onclick={() => setGrid(null)}>Adaptive</button>
-        <button class:on={fixedGrid} onclick={() => setGrid(store.gridStep ?? minor)}>Fixed</button>
+      <span>{t("Grid")}</span>
+      <div class="seg" role="group" aria-label={t("Grid")}>
+        <button class:on={!fixedGrid} onclick={() => setGrid(null)}>{t("Adaptive")}</button>
+        <button class:on={fixedGrid} onclick={() => setGrid(store.gridStep ?? minor)}>{t("Fixed")}</button>
       </div>
     </div>
     {#if fixedGrid}
       <div class="sk-row">
-        <span>Spacing</span>
+        <span>{t("Spacing")}</span>
         <button class="sk-value" data-numpad onclick={() => osk.number('Grid spacing', store.gridStep ?? minor, 'mm', (v) => setGrid(v))}>{displayNumber(store.gridStep ?? minor, 'mm')} {unitLabel('mm')}</button>
       </div>
-    {:else}<p class="muted">Now {displayNumber(minor, 'mm')} {unitLabel('mm')}, following the zoom.</p>{/if}
-    <label class="sk-check"><input type="checkbox" bind:checked={store.gridSnap} /> Snap to grid (G)</label>
-    <label class="sk-check"><input type="checkbox" bind:checked={store.showConstraints} /> Show constraints</label>
-    <label class="sk-check"><input type="checkbox" bind:checked={store.showDimensions} /> Show dimensions</label>
+    {:else}<p class="muted">{t("Now")} {displayNumber(minor, 'mm')} {unitLabel('mm')}{t(", following the zoom.")}</p>{/if}
+    <label class="sk-check"><input type="checkbox" bind:checked={store.gridSnap} /> {t("Snap to grid (G)")}</label>
+    <label class="sk-check"><input type="checkbox" bind:checked={store.showConstraints} /> {t("Show constraints")}</label>
+    <label class="sk-check"><input type="checkbox" bind:checked={store.showDimensions} /> {t("Show dimensions")}</label>
   </div>
 
   <details class="sk-keys">
-    <summary>Keyboard</summary>
+    <summary>{t("Keyboard")}</summary>
     <dl>
-      <dt>L R C A P</dt><dd>Line, rectangle, circle, arc, polygon</dd>
-      <dt>D T O</dt><dd>Dimension, trim, offset</dd>
-      <dt>Type a number</dt><dd>Locks the highlighted value; 50/2 works</dd>
-      <dt>Tab · Enter</dt><dd>Next value · place or apply</dd>
-      <dt>Esc · right click</dt><dd>Clear values, end the tool, then Select</dd>
-      <dt>Double click</dt><dd>A dimension: change it. A curve: its profile</dd>
-      <dt>Shift+click</dt><dd>In offset, mirror and patterns: add to the selection</dd>
-      <dt>X · Del</dt><dd>Construction · delete curves, constraints, dimensions</dd>
-      <dt>F · G</dt><dd>Fit · grid snap</dd>
-      <dt>Wheel · middle drag</dt><dd>Zoom · pan (also Space+drag, two fingers)</dd>
+      <dt>L R C A P</dt><dd>{t("Line, rectangle, circle, arc, polygon")}</dd>
+      <dt>D T O</dt><dd>{t("Dimension, trim, offset")}</dd>
+      <dt>{t("Type a number")}</dt><dd>{t("Locks the highlighted value; 50/2 works")}</dd>
+      <dt>Tab · Enter</dt><dd>{t("Next value · place or apply")}</dd>
+      <dt>{t("Esc · right click")}</dt><dd>{t("Clear values, end the tool, then Select")}</dd>
+      <dt>{t("Double click")}</dt><dd>{t("A dimension: change it. A curve: its profile")}</dd>
+      <dt>Shift+click</dt><dd>{t("In offset, mirror and patterns: add to the selection")}</dd>
+      <dt>X · Del</dt><dd>{t("Construction · delete curves, constraints, dimensions")}</dd>
+      <dt>F · G</dt><dd>{t("Fit · grid snap")}</dd>
+      <dt>{t("Wheel · middle drag")}</dt><dd>{t("Zoom · pan (also Space+drag, two fingers)")}</dd>
     </dl>
   </details>
 
   <div class="sk-actions">
-    <button class="btn btn-primary lg block" disabled={sending || !hasCut(store.sketch)} onclick={send}>{sending ? 'Adding…' : 'Add to parts'}</button>
-    <button class="btn btn-ghost block" disabled={!hasCut(store.sketch)} onclick={download}>Download DXF</button>
-    <button class="btn btn-ghost block" disabled={!store.sketch.entities.length} onclick={() => store.clear()}>New sketch</button>
+    <button class="btn btn-primary lg block" disabled={sending || !hasCut(store.sketch)} onclick={send}>{sending ? t("Adding…") : t("Add to parts")}</button>
+    <button class="btn btn-ghost block" disabled={!hasCut(store.sketch)} onclick={download}>{t("Download DXF")}</button>
+    <button class="btn btn-ghost block" disabled={!store.sketch.entities.length} onclick={() => store.clear()}>{t("New sketch")}</button>
   </div>
 </aside>
 
@@ -881,6 +891,8 @@
   .dim.selected .dim-label rect { stroke: var(--accent); }
   .dim.pending .dim-line { stroke: var(--accent); stroke-dasharray: 4 3; }
   .dim.pending .dim-arrow, .dim.pending text { fill: var(--accent-2); }
+  .dim.conflict .dim-label rect, .glyph.conflict rect { stroke:var(--danger); stroke-width:2; }
+  .dim.conflict .dim-label text, .glyph.conflict text { fill:var(--danger); }
   .glyph { cursor: pointer; }
   .glyph rect { fill: color-mix(in srgb, var(--panel) 90%, transparent); stroke: var(--line-2); }
   .glyph text { font-size: 11px; font-weight: 700; fill: var(--ink-2); }
@@ -896,7 +908,7 @@
   .box { fill: var(--sketch-soft); stroke: var(--sketch); stroke-width: 1; }
   .box.crossing { fill: rgba(47, 143, 91, .08); stroke: var(--ok); stroke-dasharray: 5 3; }
   .hud { position: absolute; display: flex; flex-direction: column; gap: 4px; pointer-events: auto; }
-  .hud-field { display: grid; grid-template-columns: 72px 70px 22px; align-items: center; min-height: 40px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow); font-size: var(--t-sm); cursor: pointer; text-align: left; }
+  .hud-field { display: grid; grid-template-columns: minmax(100px, 1fr) 70px 22px; align-items: center; min-height: 40px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow); font-size: var(--t-sm); cursor: pointer; text-align: left; }
   .hud-field.active { border-color: var(--sketch); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sketch) 30%, transparent); }
   .hud-field.locked .hud-value { color: var(--accent-2); }
   .hud-label { color: var(--ink-3); }

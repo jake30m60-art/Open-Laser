@@ -82,6 +82,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/machine/correction/coupon", post(correction_coupon))
         .route("/api/machine/scan-offsets", get(scan_offsets_view).post(scan_offsets_save))
         .route("/api/machine/scan-offsets/coupon", post(scan_offsets_coupon))
+        .route("/api/draft/manual-cut", post(manual_cut))
         .route("/api/machine/settings/read", post(read_machine_settings))
         .route("/api/machine/settings/write", post(write_machine_settings))
         .route("/api/machine/soft", get(download_soft).post(import_soft))
@@ -1303,6 +1304,10 @@ async fn scan_offsets_save(
 ) -> Reply {
     shared.lock().await.save_scan_offsets(change)?;
     Ok(ok())
+}
+
+async fn manual_cut(State(shared): State<Shared>, Json(cut): Json<crate::manual_cut::ManualCut>) -> Reply {
+    edit(&shared, None, |c| { c.manual_cut(cut)?; Ok(Value::Null) }).await
 }
 
 async fn scan_offsets_coupon(

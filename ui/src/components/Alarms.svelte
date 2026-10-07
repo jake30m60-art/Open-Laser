@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { untrack } from 'svelte';
   import Modal from './Modal.svelte';
   import HoldButton from './HoldButton.svelte';
@@ -55,13 +57,13 @@
   }
 </script>
 
-<Modal title="Alarms" {onclose}>
+<Modal title={t("Alarms")} {onclose}>
   {#each setupAlarms(server.doc) as alarm (alarm.title)}
     <div class="alarm-item">
       <div class="bar"></div>
       <div class="alarm-text"><strong>{alarm.title}</strong><span class="fix">{alarm.fix}</span></div>
       <button class="btn btn-ghost" onclick={() => { ui.settingsQuery = ''; ui.machinePage = 1; ui.tab = 'machine'; onclose(); }}>Open Settings</button>
-      <details class="alarm-technical"><summary>Details</summary><span>{alarm.detail}</span></details>
+      <details class="alarm-technical"><summary>{t("Details")}</summary><span>{alarm.detail}</span></details>
     </div>
   {/each}
   {#if faulted}
@@ -76,11 +78,11 @@
         <strong>{titles[0]}</strong>
         {#if titles.length > 1}<span class="also">Also: {titles.slice(1).join(' · ')}</span>{/if}
         <span class="fix">{group.relief.moves_axes ? 'Home the head. Holding the button moves the head up to find its reference.' : first.fix}</span>
-        <span class="muted">{group.alarms.some((alarm) => alarm.active) ? 'Active now' : 'Condition cleared · reset to remove'}</span>
+        <span class="muted">{group.alarms.some((alarm) => alarm.active) ? t("Active now") : 'Condition cleared · reset to remove'}</span>
       </div>
       {#if group.relief.moves_axes}<HoldButton class="btn btn-move" disabled={resetting || !server.link} onhold={() => relieve(first.id)} title="Moves the Z head to establish its reference">{group.relief.label}</HoldButton>
       {:else}<button class="btn btn-ghost" disabled={resetting || !server.link} onclick={() => relieve(first.id)} title="Resets this alarm">{group.relief.label}</button>{/if}
-      <details class="alarm-technical"><summary>Details</summary>{#each group.alarms as alarm (keyOf(alarm.source, alarm.id))}<span>{alarm.label} · {alarm.source}{#if alarm.id !== null} · {alarm.id}{/if}</span>{/each}</details>
+      <details class="alarm-technical"><summary>{t("Details")}</summary>{#each group.alarms as alarm (keyOf(alarm.source, alarm.id))}<span>{alarm.label} · {alarm.source}{#if alarm.id !== null} · {alarm.id}{/if}</span>{/each}</details>
     </div>
   {:else}
     {#if !faulted && !setupAlarms(server.doc).length}<div class="all-clear"><i class="ic ic-check"></i><strong>No current alarms</strong></div>{/if}
@@ -96,7 +98,7 @@
   {#if error}<p class="warn-text" role="alert">{error}</p><button class="btn btn-ghost" onclick={() => load()}>Retry history</button>{/if}
   {#each page?.sessions.filter((session) => session.id === page?.current || session.alarms.length > 0) ?? [] as session (session.id)}
     <section class="history-session">
-      <div class="restart"><span>{session.id === page?.current ? 'This session' : 'App restart'} · {date(session.started)}</span></div>
+      <div class="restart"><span>{session.id === page?.current ? 'This session' : t("App restart")} · {date(session.started)}</span></div>
       {#each pastRows(session) as row (row.key)}
         <details class="past-alarm">
           <summary><span>{row.source === 'connection' ? 'Controller link lost' : row.label}</span><span class="when">{time(row.last)}{#if row.count > 1}<b>×{row.count}</b>{/if}</span></summary>

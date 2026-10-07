@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { displayNumber, quantity, unitLabel } from '../lib/units.svelte';
   import Modal from './Modal.svelte';
   import FontPicker from './FontPicker.svelte';
@@ -70,7 +72,7 @@
   }
 </script>
 
-<Modal title="Add text" wide onclose={close}>
+<Modal title={t("Add text")} wide onclose={close}>
   <div class="text-editor">
     <label class="text-label">Text<textarea aria-label="Text to cut" rows="4" bind:value disabled={creating} placeholder="Type or paste your text…"></textarea></label>
     <div class="text-controls">
@@ -80,9 +82,9 @@
         onclick={() => osk.number('Font size', size, 'mm', (next) => (size = next))}>{displayNumber(size, 'mm')} <small>{unitLabel('mm')}</small></button></div>
       {#if !font}<div class="text-choices text-weight">
         <button class:on={!bold} aria-pressed={!bold} disabled={creating} onclick={() => (bold = false)}>Regular</button>
-        <button class:on={bold} aria-pressed={bold} disabled={creating} onclick={() => (bold = true)}>Bold</button>
+        <button class:on={bold} aria-pressed={bold} disabled={creating} onclick={() => (bold = true)}>{t("Bold")}</button>
       </div>{:else}<p class="muted text-face-note">Weight and style come from the selected font.</p>{/if}
-      <div><div class="text-label">Align lines</div><div class="text-choices">
+      <div><div class="text-label">{t("Align lines")}</div><div class="text-choices">
         {#each ['left', 'center', 'right'] as side}
           <button class:on={alignment === side} aria-pressed={alignment === side} disabled={creating} onclick={() => (alignment = side as TextOptions['alignment'])}>{side[0]!.toUpperCase() + side.slice(1)}</button>
         {/each}
@@ -97,7 +99,7 @@
     {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
     {#each preview?.warnings ?? [] as warning}<p class="warn-text" role="status">{warning}</p>{/each}
     <div class="text-footer"><span class="muted">Overlapping letters are welded into cutting outlines.</span><button
-      class="btn btn-primary" disabled={creating || importing || pending || !preview} onclick={create}>{creating ? 'Adding…' : 'Add text'}</button></div>
+      class="btn btn-primary" disabled={creating || importing || pending || !preview} onclick={create}>{creating ? t("Adding…") : t("Add text")}</button></div>
   </div>
 </Modal>
 

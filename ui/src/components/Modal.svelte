@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import type { Snippet } from 'svelte';
 
   // A dialog closes on its button or a completed tap on the backdrop, never
@@ -12,7 +14,7 @@
   onpointerup={(e) => { if (pressed && dismissable && e.target === e.currentTarget) onclose(); pressed = false; }}>
   <div class="modal" class:wide role="dialog">
     <div class="modal-head"><h2>{title}</h2><div class="modal-head-actions">{#if actions}{@render actions()}{/if}<button
-      class="btn btn-ghost icon-only" onclick={onclose} disabled={!dismissable} aria-label="Close"><i class="ic ic-x"></i></button></div></div>
+      class="btn btn-ghost icon-only" onclick={onclose} disabled={!dismissable} aria-label={t("Close")}><i class="ic ic-x"></i></button></div></div>
     <div class="modal-body">{@render children()}</div>
   </div>
 </div>

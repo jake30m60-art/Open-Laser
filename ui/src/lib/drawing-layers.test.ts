@@ -11,12 +11,14 @@ const job: Features = {
 };
 
 describe('layers', () => {
-  it('draws the file colour, else the cut colour first and the palette after', () => {
+  it('draws the file colour, else the cut colour first and the palette after, white and black included', () => {
     const layers = [layer('0'), layer('Red', [255, 0, 0]), layer('Etch'), layer('White', [255, 255, 255]), layer('Blue', [0, 0, 255])];
     expect(layerColor(layers, '0')).toBeNull();
     expect(layerColor(layers, 'Red')).toBe('#ff0000');
     expect(layerColor(layers, 'Etch')).toBe('#d946ef');
-    expect(layerColor(layers, 'White')).toBeNull();
+    // White, as DXF layers often are, still gets a colour of its own.
+    expect(layerColor(layers, 'White')).not.toBeNull();
+    expect(layerColor(layers, 'White')).not.toBe(layerColor(layers, 'Etch'));
     expect(layerColor(layers, 'Blue')).toBe('#0000ff');
     // Another order keeps every colour.
     const turned = [...layers].reverse();

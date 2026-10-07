@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
   import CheckEditor from './CheckEditor.svelte';
@@ -65,7 +67,7 @@
 <Modal title={scope === 'postflight' ? 'Postflight defaults' : scope === 'pause' ? 'Pause defaults' : scope === 'defaults' ? 'Preflight defaults' : 'Job preflight'} onclose={close}>
   {#if preferences}
     {#if scope !== 'job'}
-      <div class="seg block"><button class:on={mode === 'fiber'} onclick={() => (mode = 'fiber')}>Fiber</button><button class:on={mode === 'co2'} onclick={() => (mode = 'co2')}>CO₂</button></div>
+      <div class="seg block"><button class:on={mode === 'fiber'} onclick={() => (mode = 'fiber')}>{t("Fiber")}</button><button class:on={mode === 'co2'} onclick={() => (mode = 'co2')}>CO₂</button></div>
       {#if scope === 'pause'}
         <label class="preflight-toggle"><input type="checkbox" bind:checked={preferences.pause[mode].enabled}>Show when paused and before Resume</label>
         <CheckEditor phase="pause" bind:steps={preferences.pause[mode].steps} />
@@ -80,7 +82,7 @@
       <div class="seg block"><button
           class:on={choice === 'inherit'} onclick={() => choose('inherit')}>Use defaults</button><button
           class:on={choice === 'custom'} onclick={() => choose('custom')}>Custom</button><button
-          class:on={choice === 'off'} onclick={() => choose('off')}>Off</button></div>
+          class:on={choice === 'off'} onclick={() => choose('off')}>{t("Off")}</button></div>
       {#if choice === 'custom'}
         <CheckEditor bind:steps={custom} />
       {:else if choice === 'inherit'}
@@ -90,7 +92,7 @@
         <p class="muted">This job's checklist is off.</p>
       {/if}
     {/if}
-    <div class="editor-footer"><button class="btn btn-ghost" onclick={close}>Close</button><button class="btn btn-primary" disabled={saving} onclick={save}>{saving ? 'Saving…' : scope !== 'job' ? 'Review changes' : 'Save'}</button></div>
+    <div class="editor-footer"><button class="btn btn-ghost" onclick={close}>{t("Close")}</button><button class="btn btn-primary" disabled={saving} onclick={save}>{saving ? 'Saving…' : scope !== 'job' ? 'Review changes' : t("Save")}</button></div>
   {:else if !error}<p class="muted">Loading checklist…</p>{/if}
   {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
 </Modal>

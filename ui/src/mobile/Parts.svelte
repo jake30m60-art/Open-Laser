@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
+
   import SkippedFiles from '../components/SkippedFiles.svelte';
   import { access } from '../lib/access.svelte';
   import { server } from '../stores/server.svelte';
@@ -53,7 +55,7 @@
       return;
     }
     if (type === 'jobs') {
-      ui.say('A saved job cuts its own parts. Pick parts to set up a new job.');
+      ui.say(t("A saved job cuts its own parts. Pick parts to set up a new job."));
       return;
     }
     ui.partPicks = togglePick(picks, id);
@@ -85,10 +87,10 @@
 </script>
 
 <div class="phone-page-title">
-  <h1>Parts</h1>
+  <h1>{t("Parts")}</h1>
   <div class="phone-title-actions">
     <button class="btn btn-ghost pick-toggle" aria-pressed={picking} disabled={blocked} onclick={() => (ui.partPicks = picking ? null : [])}>
-      {picking ? 'Cancel' : 'Pick parts'}
+      {picking ? t("Cancel") : 'Pick parts'}
     </button>
     <button class="phone-icon" aria-label="Library actions" onclick={() => actions = true}><i class="ic ic-plus"></i></button>
   </div>
@@ -96,7 +98,7 @@
 <SkippedFiles />
 <div class="phone-segments" role="group" aria-label="Library type">
   {#each [['all','All'],['parts','Parts'],['jobs','Jobs'],['sheets','Sheets']] as [id,label]}
-    <button aria-pressed={kind === id} onclick={() => kind = id as typeof kind}>{label}</button>
+    <button aria-pressed={kind === id} onclick={() => kind = id as typeof kind}>{t(label)}</button>
   {/each}
 </div>
 {#if kind === 'sheets'}
@@ -106,7 +108,7 @@
     <i class="ic ic-search"></i>
     <input type="search" aria-label="Search parts and jobs" placeholder="Search parts and jobs" bind:value={search} />
   </label>
-  {#if favorites}<div class="phone-filter-note">Favorites <button onclick={() => favorites = false}>Clear</button></div>{/if}
+  {#if favorites}<div class="phone-filter-note">Favorites <button onclick={() => favorites = false}>{t("Clear")}</button></div>{/if}
   <div class="phone-library-list">
     {#each items as { item, kind: type } (item.id)}
       {@const pick = picking && type === 'parts' ? picks.indexOf(item.id) : -1}
@@ -143,7 +145,7 @@
   <div class="phone-picks-bar">
     <p>{picksNote}</p>
     {#if doc.draft}
-      <button class="btn btn-ghost" disabled={busy || blocked || !picks.length || inDraft} onclick={() => finish(true)}>Add to {doc.draft.name}</button>
+      <button class="btn btn-ghost" disabled={busy || blocked || !picks.length || inDraft} onclick={() => finish(true)}>{t("Add to")} {doc.draft.name}</button>
       {#if inDraft}<p class="gate-reason">A picked part is already in {doc.draft.name}.</p>{/if}
     {/if}
     <button class="phone-primary" disabled={busy || blocked || !picks.length} onclick={() => finish(false)}>
