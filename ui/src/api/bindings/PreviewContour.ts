@@ -41,4 +41,8 @@ cooling: Array<[number, number]>,
 /**
  * The start of the cut, after the lead-in.
  */
-start: [number, number], };
+start: [number, number],
+/**
+ * Why the contour cannot be cut as drawn, found by looking at it alone.
+ */
+problem: string | null, };

@@ -29,6 +29,7 @@
 mod bridge;
 mod common;
 mod flying;
+pub mod heal;
 mod joints;
 mod leads;
 mod order;
@@ -38,7 +39,7 @@ pub mod simplify;
 mod topology;
 
 pub use bridge::project;
-pub use topology::groups;
+pub use topology::{groups, tangled};
 
 use openlaser_core::features::{Bridges, Features, LayerMode, Seam, Spot};
 use openlaser_core::geometry::{Contour, Drawing, Point, Transform};

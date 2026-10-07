@@ -70,6 +70,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/draft/replace-part", post(replace_draft_part))
         .route("/api/parts/{id}/duplicate", post(duplicate_part))
         .route("/api/parts/{id}/simplify", post(simplify_part))
+        .route("/api/parts/{id}/repair", post(repair_part))
         .route("/api/folders", post(add_folder))
         .route("/api/folders/{id}", post(update_folder).delete(remove_folder))
         .route("/api/recipes", post(add_recipe))
@@ -474,6 +475,23 @@ async fn simplify_part(
     .await
     .map_err(|error| Error::Refused(format!("simplify task: {error}")))??;
     let view = shared.lock().await.simplified_part(&id, result, request.save)?;
+    Ok(Json(serde_json::to_value(view).map_err(|e| Error::Refused(e.to_string()))?))
+}
+
+/// Repairs a part's contours off the coordinator lock, like simplifying it.
+async fn repair_part(
+    State(shared): State<Shared>,
+    Path(id): Path<String>,
+    Json(request): Json<SimplifyRequest>,
+) -> Reply {
+    let id = Id::from(id.as_str());
+    let drawing = shared.lock().await.library.part(&id).map_err(Error::from)?.drawing.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        openlaser_prep::heal::heal(&drawing, request.tolerance).map_err(Error::from)
+    })
+    .await
+    .map_err(|error| Error::Refused(format!("repair task: {error}")))??;
+    let view = shared.lock().await.repaired_part(&id, result, request.save)?;
     Ok(Json(serde_json::to_value(view).map_err(|e| Error::Refused(e.to_string()))?))
 }
 

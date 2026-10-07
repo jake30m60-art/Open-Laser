@@ -1126,6 +1126,12 @@ fn partial_preview(drawing: &Drawing, placed: &[Placed], features: &Features) ->
     let invalid: Vec<_> = sheet.contours.iter().enumerate().filter(|(_, c)|
         !features.skip_layers.contains(&c.layer) && openlaser_prep::crosses_itself(c))
         .map(|(i, _)| i).collect();
+    for &i in &invalid { display.contours[i].problem = Some("crosses itself".into()); }
+    for i in openlaser_prep::tangled(&sheet.contours) {
+        if !features.skip_layers.contains(&sheet.contours[i].layer) && display.contours[i].problem.is_none() {
+            display.contours[i].problem = Some("touches another contour".into());
+        }
+    }
     if !invalid.is_empty() {
         let mut valid_sheet = sheet.clone();
         let mut isolated = features.clone();
@@ -1257,6 +1263,7 @@ fn preview(toolpath: &Toolpath, bounds: Option<Bounds>) -> Preview {
                 paths,
                 cooling,
                 start,
+                problem: None,
             }
         })
         .collect();
@@ -1294,6 +1301,7 @@ fn plain(sheet: &Drawing) -> Preview {
             paths: vec![Path { kind: PathKind::Cut, points: polyline(&c.curves, 32) }],
             cooling: Vec::new(),
             start: c.start().map_or([0., 0.], Into::into),
+            problem: None,
         })
         .collect();
     Preview {
@@ -1598,6 +1606,51 @@ mod tests {
         assert!(contours.preview.engraving_regions.is_empty());
         assert_eq!(contours.preview.contours.len(), 2);
         assert!(contours.preview.contours.iter().all(|c| c.closed));
+    }
+
+    #[test]
+    fn every_crossing_contour_is_marked_though_the_error_names_one() {
+        let bow_tie = |dx: f64| Contour {
+            layer: "0".into(),
+            curves: [[0., 0.], [10., 10.], [0., 10.], [10., 0.]]
+                .iter()
+                .zip([[10., 10.], [0., 10.], [10., 0.], [0., 0.]])
+                .map(|(a, b)| Curve::Line {
+                    start: Point::new(a[0] + dx, a[1]),
+                    end: Point::new(b[0] + dx, b[1]),
+                })
+                .collect(),
+        };
+        let mut drawing = square();
+        drawing.contours.extend([bow_tie(20.), bow_tie(40.)]);
+        let mut draft = Draft::of(drawing.clone());
+        draft.prepare(&drawing);
+        assert!(draft.error.as_ref().unwrap().contains("crosses itself"));
+        let marked: Vec<_> = draft
+            .preview
+            .as_ref()
+            .unwrap()
+            .contours
+            .iter()
+            .filter(|c| c.problem.is_some())
+            .flat_map(|c| c.sources.clone())
+            .collect();
+        assert_eq!(marked, vec![1, 2]);
+    }
+
+    #[test]
+    fn contours_that_touch_are_marked_too() {
+        let mut drawing = square();
+        drawing.contours.extend([square_at([10., 10.]), square_at([40., 0.])]);
+        let mut draft = Draft::of(drawing.clone());
+        draft.prepare(&drawing);
+        assert!(draft.error.as_ref().unwrap().contains("cross or touch"));
+        let preview = draft.preview.as_ref().unwrap();
+        let problems: Vec<_> = preview.contours.iter().map(|c| c.problem.as_deref()).collect();
+        assert_eq!(
+            problems,
+            vec![Some("touches another contour"), Some("touches another contour"), None]
+        );
     }
 
     #[test]

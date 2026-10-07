@@ -714,6 +714,121 @@ async fn several_parts_nest_on_a_remnant_then_a_chosen_sheet() {
     server.close().await;
 }
 
+/// Repairing contours shows what it would do, saves the result as a new part
+/// that can stand in for the original in the open job, and keeps the original.
+#[tokio::test]
+async fn repairing_contours_saves_a_part_that_replaces_the_faulty_one() {
+    use openlaser_core::geometry::{Contour, Curve, Drawing};
+    let server = Server::start().await;
+    let polygon = |dx: f64, corners: &[[f64; 2]]| Contour {
+        layer: "Cut".into(),
+        curves: (0..corners.len())
+            .map(|i| Curve::Line {
+                start: [corners[i][0] + dx, corners[i][1]].into(),
+                end: [corners[(i + 1) % corners.len()][0] + dx, corners[(i + 1) % corners.len()][1]]
+                    .into(),
+            })
+            .collect(),
+    };
+    let square = [[0., 0.], [10., 0.], [10., 10.], [0., 10.]];
+    // A square whose bottom edge makes a tiny loop, as a careless trace does.
+    let curled = [[0., 0.], [4., 0.], [4.02, 0.02], [4.02, -0.02], [4., 0.], [10., 0.], [10., 10.], [0., 10.]];
+    let drawing = Drawing {
+        contours: vec![polygon(0., &square), polygon(20., &curled), polygon(40., &curled)],
+    };
+    let original = server
+        .shared
+        .lock()
+        .await
+        .library
+        .add_part("faulty.dxf", b"faulty", drawing.clone())
+        .unwrap()
+        .id;
+    let (status, response) =
+        server.request("POST", &format!("/api/draft/part/{original}"), None, &[]).await;
+    assert_eq!(status, 200, "{response}");
+    let marked = |draft: &serde_json::Value| -> Vec<u64> {
+        draft["preview"]["contours"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|c| !c["problem"].is_null())
+            .flat_map(|c| c["sources"].as_array().unwrap().iter().filter_map(|s| s.as_u64()))
+            .collect()
+    };
+    let state = |server: &Server| {
+        let shared = server.shared.clone();
+        async move {
+            common::until(&shared, 8, |d| {
+                d.draft.as_ref().is_some_and(|draft| {
+                    draft.preview.is_some() && draft.error.as_deref() != Some("preparing geometry")
+                })
+            })
+            .await;
+            let c = shared.lock().await;
+            serde_json::to_value(c.document()).unwrap()
+        }
+    };
+    let before = state(&server).await;
+    assert!(before["draft"]["error"].as_str().unwrap().contains("crosses itself"));
+    assert_eq!(marked(&before["draft"]), vec![1, 2], "both are marked, not only the first");
+
+    let path = format!("/api/parts/{original}/repair");
+    let ask = |save: bool| serde_json::json!({ "tolerance": 0.05, "save": save }).to_string();
+    let (status, response) = server.request("POST", &path, Some(&ask(false)), &[]).await;
+    assert_eq!(status, 200, "{response}");
+    let preview = response_json(&response);
+    assert_eq!(preview["faulty"], serde_json::json!([1, 2]));
+    assert_eq!((preview["split"].as_u64(), preview["specks"].as_u64()), (Some(2), Some(2)));
+    assert_eq!(preview["unresolved"], serde_json::json!([]));
+    assert_eq!(preview["contours_after"].as_u64(), Some(3));
+    assert!(preview["part"].is_null());
+    assert_eq!(server.shared.lock().await.library.parts().count(), 1, "a preview saves nothing");
+
+    let (status, response) = server.request("POST", &path, Some(&ask(true)), &[]).await;
+    assert_eq!(status, 200, "{response}");
+    let made = response_json(&response)["part"].as_str().unwrap().to_owned();
+    {
+        let c = server.shared.lock().await;
+        let repaired = c.library.part(&openlaser_library::Id::from(made.as_str())).unwrap();
+        assert_eq!(repaired.name, "faulty repaired");
+        assert!(openlaser_prep::heal::faulty(&repaired.drawing).is_empty());
+        assert_eq!(*c.library.part(&original).unwrap().drawing, drawing, "the original is kept");
+    }
+    server.edit("replace-part", serde_json::json!({ "old": original, "new": made })).await;
+    let after = state(&server).await;
+    assert!(after["draft"]["error"].is_null(), "{}", after["draft"]["error"]);
+
+    // A drawing with nothing wrong has nothing to save.
+    let clean = server
+        .shared
+        .lock()
+        .await
+        .library
+        .add_part("clean.dxf", b"clean", Drawing { contours: vec![polygon(0., &square)] })
+        .unwrap()
+        .id;
+    let (status, response) =
+        server.request("POST", &format!("/api/parts/{clean}/repair"), Some(&ask(true)), &[]).await;
+    assert_ne!(status, 200, "{response}");
+
+    // Where the loops would only meet in a point, the part is not called fixed.
+    let bow_tie = [[0., 0.], [10., 10.], [0., 10.], [10., 0.]];
+    let bow = server
+        .shared
+        .lock()
+        .await
+        .library
+        .add_part("bow.dxf", b"bow", Drawing { contours: vec![polygon(0., &bow_tie)] })
+        .unwrap()
+        .id;
+    let (status, response) =
+        server.request("POST", &format!("/api/parts/{bow}/repair"), Some(&ask(false)), &[]).await;
+    assert_eq!(status, 200, "{response}");
+    assert_eq!(response_json(&response)["unresolved"], serde_json::json!([0, 1]));
+    server.close().await;
+}
+
 /// Simplifying a drawing shows what it would do, saves the result as a new
 /// part once, and leaves the part and its jobs as they are.
 #[tokio::test]

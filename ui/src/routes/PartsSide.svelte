@@ -3,6 +3,7 @@
 
   import { editPart } from '../lib/sketch-workflow';
   import SimplifyPart from '../components/SimplifyPart.svelte';
+  import RepairPart from '../components/RepairPart.svelte';
   import { api } from '../api/client';
   import { server } from '../stores/server.svelte';
   import { ui } from '../stores/ui.svelte';
@@ -76,7 +77,7 @@
   }
 
   const outline = $derived(item?.outline ?? []);
-  let simplifying = $state(false);
+  let simplifying = $state(false), repairing = $state(false);
   const thumb = $derived.by(() => { const box = boxOf(outline); return box ? viewBoxFor(box, 160, 100) : '0 0 160 100'; });
 </script>
 
@@ -111,7 +112,8 @@
       <button class="btn btn-ghost" onclick={remove}>{t("Delete")}</button>
     </div>
     {#if part}<button class="btn btn-ghost block" onclick={() => editPart(part.id)}>{t("Edit drawing in sketch")}</button>
-    <button class="btn btn-ghost block" onclick={() => (simplifying = true)}>Simplify drawing…</button>{/if}
+    <button class="btn btn-ghost block" onclick={() => (simplifying = true)}>Simplify drawing…</button>
+    <button class="btn btn-ghost block" onclick={() => (repairing = true)}>{t("Repair contours…")}</button>{/if}
     </div>
     <div class="side-foot">
       {#if job}
@@ -125,6 +127,7 @@
   {/if}
 </aside>
 {#if simplifying && part}<SimplifyPart {part} onclose={() => (simplifying = false)} />{/if}
+{#if repairing && part}<RepairPart {part} onclose={() => (repairing = false)} onsaved={(id) => { ui.selected = id; }} />{/if}
 
 <style>
   /* Details scroll on a short screen; the actions at the foot stay in reach. */

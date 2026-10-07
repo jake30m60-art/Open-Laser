@@ -14,6 +14,7 @@
   import ToolBar, { type Tool } from './ToolBar.svelte';
   import LayerAssign from './LayerAssign.svelte';
   import PickBar from './PickBar.svelte';
+  import RepairPart from '../../components/RepairPart.svelte';
   import SelectionHud from './SelectionHud.svelte';
   import { Viewport } from '../../lib/viewport.svelte';
   import { api } from '../../api/client';
@@ -72,7 +73,16 @@
   const preview = $derived(engravingPreview?.preview ?? (!updating && ui.picking?.revision === draft?.revision ? (ui.picking?.preview ?? scene?.preview ?? null) : scene?.preview ?? null));
   const geometryError = $derived(engravingPreview?.error ?? draft?.error);
   const invalidSources = $derived(issueSources(geometryError));
-  const invalidContours = $derived((preview?.contours ?? []).filter(c => c.sources.some(s => invalidSources.has(s))));
+  /** Every contour that cannot be cut as drawn: named by the error, or found faulty on its own. */
+  const invalidContours = $derived((preview?.contours ?? []).filter(c => c.problem || c.sources.some(s => invalidSources.has(s))));
+  const invalidNumber = (contour: PreviewContour) => contour.sources.find(s => invalidSources.has(s)) ?? contour.sources[0];
+  /** The job's parts that hold a faulty contour: what the repair tool can be offered for. */
+  const faultyParts = $derived((draft?.parts ?? []).filter(part => invalidContours.some(c => c.sources.some(s => s >= part.first && s < part.first + part.contours))));
+  let repairing = $state<{ id: string; name: string } | null>(null);
+  const partName = (id: string) => doc.library.parts.find(p => p.id === id)?.name ?? id;
+  async function swapRepaired(old: string, repaired: string): Promise<void> {
+    if (draft) await api.replaceDraftPart(old, repaired, draft.revision);
+  }
   function focusError(contour: PreviewContour) {
     const bounds = boxOf(contour.paths.map(p => p.points));
     if (!bounds) return;
@@ -858,6 +868,7 @@
         <path d="M{leadDrag.handle.anchor.join(' ')}L{leadDrag.point.join(' ')}" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" />
       {/if}
       {#each invalidContours as contour}
+        <path class="error-halo" d={contourPath(contour)} vector-effect="non-scaling-stroke" />
         <path class="error-outline" d={contourPath(contour)} vector-effect="non-scaling-stroke" />
         <circle class="error-location" cx={contour.start[0]} cy={contour.start[1]} r={mark*3} vector-effect="non-scaling-stroke" />
       {/each}
@@ -870,7 +881,8 @@
     {#snippet overlay()}
       {#if geometryError && geometryError !== 'preparing geometry'}
         <div class="geometry-error" role="alert"><span>{t("Geometry error")}: {geometryError}</span>
-          {#each invalidContours as contour}<button class="btn btn-ghost" onclick={() => focusError(contour)}>{t("Show error · contour {0}", contour.sources.find(s => invalidSources.has(s)))}</button>{/each}
+          {#if invalidContours.length}<div class="error-chips">{#each invalidContours as contour}{@const label = `${t("Show error · contour {0}", invalidNumber(contour))}${contour.problem ? ` · ${t(contour.problem)}` : ''}`}<button class="btn btn-ghost" title={label} aria-label={label} onclick={() => focusError(contour)}>{invalidNumber(contour)}</button>{/each}</div>{/if}
+          {#each faultyParts as part}<button class="btn btn-primary" onclick={() => (repairing = { id: part.id, name: partName(part.id) })}>{t("Repair contours…")} · {partName(part.id)}</button>{/each}
         </div>
       {/if}
       {#if ui.picking}
@@ -888,10 +900,15 @@
 <ToolBar class="drawing-toolbar" label="Drawing tools" tools={DRAW_TOOLS} order={ui.drawBar} save={(order) => ui.setDrawBar(order)}
   bind:editing={ui.editDrawBar} selected={!!selection} />
 {#if assigning}<LayerAssign contours={assigning} {layers} onclose={() => (assigning = null)} />{/if}
+{#if repairing}{@const old = repairing.id}<RepairPart part={repairing} onclose={() => (repairing = null)} onsaved={(repaired) => swapRepaired(old, repaired)} />{/if}
 
 <style>
 .geometry-error { position:absolute; left:12px; bottom:52px; max-width:min(440px,calc(100% - 24px)); display:grid; gap:6px; padding:10px; background:var(--bg); border:2px solid #ef4444; border-radius:10px; font-size:var(--t-sm); pointer-events:auto; }
+.geometry-error { max-height:calc(100% - 110px); overflow:auto; }
 .geometry-error .btn { min-height:44px; }
+.error-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.error-chips .btn { min-width:44px; padding:0 10px; border:1px solid #ef4444; color:#ef4444; font-weight:700; }
 .error-outline { fill:none; stroke:#ef4444; stroke-width:3; pointer-events:none; }
+.error-halo { fill:none; stroke:#ef4444; stroke-width:12; stroke-opacity:.28; stroke-linejoin:round; pointer-events:none; }
 .error-location { fill:none; stroke:#ef4444; stroke-width:2; pointer-events:none; }
 </style>

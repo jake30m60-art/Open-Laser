@@ -3,7 +3,7 @@ import { pickArea, fillAreas, editableContours } from './viewer-geometry';
 import { selectContour } from './picking';
 import { simulationSegments, orderPosition } from './cut-order';
 import type { Preview, PreviewContour } from '../api';
-const box = (id: number, lo: number, hi: number, layer = '0'): PreviewContour => ({ sources:[id], layer, closed:true, lead_target:null, matching_contour:null, depth:0, start:[lo,lo], cooling:[], paths:[{kind:'cut',points:[[lo,lo],[hi,lo],[hi,hi],[lo,hi],[lo,lo]]}] });
+const box = (id: number, lo: number, hi: number, layer = '0'): PreviewContour => ({ sources:[id], layer, closed:true, lead_target:null, matching_contour:null, problem:null, depth:0, start:[lo,lo], cooling:[], paths:[{kind:'cut',points:[[lo,lo],[hi,lo],[hi,hi],[lo,hi],[lo,lo]]}] });
 describe('engraving connected faces and simulation', () => {
   it('chooses the ring or the inner face independently, including a nested island', () => {
     const outer=box(0,0,10), hole=box(1,2,8), island=box(2,4,6); const shapes=new Map([[0,[outer,hole,island]]]);

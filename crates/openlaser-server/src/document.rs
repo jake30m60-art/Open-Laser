@@ -902,6 +902,32 @@ pub struct SimplifyView {
     pub part: Option<Id>,
 }
 
+/// What repairing a part's contours does, and the part it made once saved.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RepairView {
+    /// Contours before.
+    pub contours_before: usize,
+    /// Contours after.
+    pub contours_after: usize,
+    /// Gaps closed between ends that nearly met.
+    pub gaps: usize,
+    /// Contours dropped for repeating another on the same layer.
+    pub duplicates: usize,
+    /// Contours that crossed themselves and were split into simple loops.
+    pub split: usize,
+    /// Loops dropped for being smaller than the tolerance.
+    pub specks: usize,
+    /// Contours of the result that still cross themselves, or cross or touch
+    /// another contour, by index.
+    pub unresolved: Vec<usize>,
+    /// Contours of the part that cross themselves, or cross or touch another
+    /// contour, by index.
+    pub faulty: Vec<usize>,
+    /// The repaired part, once saved.
+    pub part: Option<Id>,
+}
+
 /// One part of the job being set up and its contours in the job's drawing.
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -955,6 +981,8 @@ pub struct PreviewContour {
     /// The start of the cut, after the lead-in.
     #[serde(serialize_with = "crate::display_path::micrometres")]
     pub start: [f64; 2],
+    /// Why the contour cannot be cut as drawn, found by looking at it alone.
+    pub problem: Option<String>,
 }
 
 /// A polyline and the process it is cut with.

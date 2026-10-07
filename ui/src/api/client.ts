@@ -9,7 +9,7 @@ import type {
 import { server } from '../stores/server.svelte';
 import type { SheetPage, SheetView, SaveRemnant, NestSheetPreview, CorrectionView, CorrectionChange, NestRequest, NestView, StockChoice } from './index';
 import type { LayerChange, NewStock, SheetSize, StockChange } from './index';
-import type { PlacementChange, SimplifyView, ImportOptions, ImportReview, Move } from './index';
+import type { PlacementChange, RepairView, SimplifyView, ImportOptions, ImportReview, Move } from './index';
 import type { Calibration, FlowEstimate, GasCosts, GasKind, Nozzle, RunRecord } from './index';
 import type { ManualCut } from './bindings/ManualCut';
 import type { ScanCoupon, ScanOffsetsChange, ScanOffsetsView } from './index';
@@ -202,6 +202,7 @@ export const api = {
   duplicatePart: (id: string) => post<{ ok: true; id: string }>(`/api/parts/${id}/duplicate`),
   /** What simplifying a part's drawing within `tolerance` mm does; `save` keeps it as a new part. */
   simplifyPart: (id: string, tolerance: number, save: boolean) => post<SimplifyView>(`/api/parts/${id}/simplify`, { tolerance, save }),
+  repairPart: (id: string, tolerance: number, save: boolean) => post<RepairView>(`/api/parts/${id}/repair`, { tolerance, save }),
   removePart: (id: string) => del(`/api/parts/${id}`),
   addFolder: (name: string, parent: string | null) => post<{ ok: true; id: string }>('/api/folders', { name, parent }),
   updateFolder: (id: string, change: ItemChange) => post(`/api/folders/${id}`, change),

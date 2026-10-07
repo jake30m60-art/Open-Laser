@@ -910,6 +910,42 @@ impl Coordinator {
         Ok(view)
     }
 
+    /// What repairing a part's contours did; with `save`, the result is kept
+    /// as a new part beside it, and the part itself stays as it is for the
+    /// jobs that use it.
+    pub fn repaired_part(
+        &mut self,
+        id: &Id,
+        result: openlaser_prep::heal::Healed,
+        save: bool,
+    ) -> Result<crate::document::RepairView> {
+        let part = self.library.part(id)?;
+        let base = format!("{} repaired", part.name.chars().take(100).collect::<String>());
+        let name = (1..=999)
+            .map(|n| if n == 1 { base.clone() } else { format!("{base} {n}") })
+            .find(|name| !self.library.parts().any(|p| &p.name == name))
+            .unwrap_or(base);
+        let mut view = crate::document::RepairView {
+            contours_before: part.drawing.contours.len(),
+            contours_after: result.drawing.contours.len(),
+            gaps: result.gaps,
+            duplicates: result.duplicates,
+            split: result.split,
+            specks: result.specks,
+            unresolved: result.unresolved.clone(),
+            faulty: openlaser_prep::heal::faulty(&part.drawing),
+            part: None,
+        };
+        if save {
+            if !result.changed {
+                return Err(Error::Refused("there is nothing to repair at this tolerance".into()));
+            }
+            view.part = Some(self.library.add_derived_part(id, &name, result.drawing)?.id);
+            self.library_changed();
+        }
+        Ok(view)
+    }
+
     /// Renames, moves or stars a part.
     pub fn update_part(&mut self, id: &Id, change: ItemChange) -> Result<()> {
         self.library.update_part(id, |part| {

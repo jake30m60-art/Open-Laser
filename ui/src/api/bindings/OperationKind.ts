@@ -3,4 +3,4 @@
 /**
  * What kind of operation is active.
  */
-export type OperationKind = "home" | "calibrate" | "motion" | "mode_switch" | "relief" | "outputs" | "program" | "parameters";
+export type OperationKind = "home" | "calibrate" | "motion" | "mode_switch" | "relief" | "outputs" | "program" | "parameters" | "head";

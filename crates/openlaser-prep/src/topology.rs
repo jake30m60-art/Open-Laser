@@ -175,6 +175,34 @@ pub(crate) fn depths_with(
     Ok(depth)
 }
 
+/// The closed contours that cross or touch another one, which leaves it
+/// open which of them lies inside the other. Contours that cross themselves
+/// are not looked at here.
+#[must_use]
+pub fn tangled(contours: &[Contour]) -> Vec<usize> {
+    let polylines: Vec<Option<Polyline>> = contours.iter().map(|c| polyline(c).ok()).collect();
+    let topology = Topology::new(polylines);
+    let mut found = vec![false; contours.len()];
+    for i in 0..contours.len() {
+        for j in topology.candidates(i).into_iter().filter(|&j| j > i) {
+            if topology.contours[i].is_none() || topology.contours[j].is_none() {
+                continue;
+            }
+            if matches!(
+                topology.contains(i, j),
+                PlineContainsResult::Pline1InsidePline2
+                    | PlineContainsResult::Pline2InsidePline1
+                    | PlineContainsResult::Disjoint
+            ) {
+                continue;
+            }
+            found[i] = true;
+            found[j] = true;
+        }
+    }
+    found.iter().enumerate().filter(|(_, tangled)| **tangled).map(|(i, _)| i).collect()
+}
+
 /// The contours that move together: each closed contour inside no other,
 /// with everything it encloses; every other contour on its own. A pair
 /// that crosses counts as apart, so the drawing stays selectable.
