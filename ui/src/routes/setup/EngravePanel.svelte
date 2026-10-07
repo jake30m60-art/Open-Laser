@@ -1,0 +1,146 @@
+<script lang="ts">
+  // Engraving, in one place on the Setup page: shapes picked on the drawing
+  // go to an engraving layer; each engraving layer has its recipe and its
+  // scan fill, shows or hides on the drawing, and shows its run-ups and
+  // what it engraves when paths are on.
+  import { t as tr } from '../../i18n/index';
+  import { api } from '../../api/client';
+  import { server } from '../../stores/server.svelte';
+  import { ui } from '../../stores/ui.svelte';
+  import { featureEdits } from '../../stores/feature-edits';
+  import { scanOffsets } from '../../stores/scan-offsets.svelte';
+  import { explain } from '../../lib/format';
+  import { defaultFill, setFill, swatchColor } from '../../lib/drawing-layers';
+  import { fillOf, isEngraving, offsetAt } from '../../lib/engraving';
+  import FillSettings from './FillSettings.svelte';
+  import type { DraftLayer, Fill, LayerChange, RecipeView } from '../../api';
+
+  let { selectedContours }: { selectedContours: number[] } = $props();
+  const draft = $derived(server.doc!.draft!);
+  const NAME = 'Engraving';
+  const order = $derived(draft.layers.map((l) => l.name));
+  const marked = $derived(draft.layers.filter((l) => l.mode === 'mark'));
+  const cutting = $derived(draft.layers.filter((l) => l.mode !== 'mark'));
+  const laser = $derived(draft.recipe?.laser ?? server.doc?.mode ?? 'fiber');
+  const recipes = $derived((server.doc?.library.recipes ?? []).filter((r) => r.laser === laser && isEngraving(r)));
+  const fills = $derived(featureEdits.value(draft).layers ?? []);
+  const fillOfLayer = (name: string): Fill | null => fills.find((l) => l.name === name)?.machining?.fill ?? null;
+  let busy = $state(false);
+
+  async function change(...edits: LayerChange[]): Promise<void> {
+    busy = true;
+    try { for (const edit of edits) await api.changeLayers(edit); }
+    catch (error) { ui.say(explain(error), true); throw error; }
+    finally { busy = false; }
+  }
+  function writeFill(layer: string, next: Fill | null): void {
+    featureEdits.change((f) => setFill(f, layer, next, order)).catch((error) => ui.say(explain(error), true));
+  }
+  /** A layer engraves: marked, filled, with the first engraving recipe when it has none. */
+  async function engrave(layer: string, recipe: RecipeView | null = recipes[0] ?? null): Promise<void> {
+    const edits: LayerChange[] = [{ kind: 'mode', layer, mode: 'mark' }, { kind: 'output', layer, on: true }];
+    const current = draft.layers.find((l) => l.name === layer);
+    if (recipe && !current?.recipe) edits.push({ kind: 'recipe', layer, recipe: recipe.id });
+    await change(...edits);
+    if (!fillOfLayer(layer)) writeFill(layer, recipe ? fillOf(recipe.attributes) : defaultFill());
+  }
+  /** The selected shapes onto the engraving layer, which then engraves. */
+  async function engraveSelection(): Promise<void> {
+    const contours = [...selectedContours];
+    if (!contours.length) return;
+    try {
+      await change({ kind: 'assign', contours, layer: NAME });
+      await engrave(NAME);
+      ui.say(tr("{0} shapes engrave on {1} · Undo moves them back", contours.length, NAME));
+    } catch { /* said */ }
+  }
+  async function useRecipe(layer: DraftLayer, recipe: RecipeView): Promise<void> {
+    try {
+      await change({ kind: 'recipe', layer: layer.name, recipe: recipe.id });
+      writeFill(layer.name, fillOf(recipe.attributes));
+    } catch { /* said */ }
+  }
+  const backToCut = (layer: string) => change({ kind: 'mode', layer, mode: 'cut' }).catch(() => undefined);
+  const speedOf = (layer: DraftLayer): number | null => {
+    const v = Number((layer.recipe ?? draft.recipe)?.attributes['CutSpeed']);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  };
+  const offsetOf = (layer: DraftLayer, fill: Fill): number | null => {
+    const speed = speedOf(layer);
+    return speed ? offsetAt(scanOffsets.entries(laser), speed, fill.angle) : null;
+  };
+  const close = () => (ui.setupPanel = null);
+</script>
+
+<div class="feat-head">
+  <h2 class="feat-title"><i class="ic ic-tool-engrave"></i>{tr("Engrave")}</h2>
+  <button class="btn btn-ghost" onclick={close}>{tr("Close")}</button>
+</div>
+<p class="feat-desc">{tr("Engraving marks the surface line by line. Pick the shapes to engrave on the drawing, then set the lines here.")}</p>
+
+<div class="stack">
+  <button class="btn btn-primary block" disabled={busy || !selectedContours.length} onclick={engraveSelection}>
+    {selectedContours.length ? tr("Engrave the selection ({0} shapes)", selectedContours.length) : tr("Select shapes to engrave")}
+  </button>
+  <div class="paths">
+    <span><strong>{tr("Show tool paths")}</strong><small>{tr("Run-ups and turns dashed, engraved stretches solid")}</small></span>
+    <button class="switch" class:on={ui.layerShown('travel')} aria-label={tr("Show tool paths")} onclick={() => ui.toggleLayer('travel')}></button>
+  </div>
+
+  {#each marked as layer (layer.name)}
+    {@const fill = fillOfLayer(layer.name)}
+    {@const hidden = ui.drawingLayerHidden(layer.name)}
+    <section class="layer" class:hidden>
+      <header>
+        <span class="layer-swatch mark" style:--layer={swatchColor(draft.layers, layer.name)}></span>
+        <strong>{layer.name}</strong>
+        <small>{layer.contours === 1 ? tr("1 shape") : tr("{0} shapes", layer.contours)}</small>
+        <button class="icon-btn" aria-label={hidden ? tr("Show on the drawing") : tr("Hide on the drawing")} onclick={() => ui.toggleDrawingLayer(layer.name)}>
+          <i class="ic {hidden ? 'ic-eye-off' : 'ic-eye'}"></i>
+        </button>
+      </header>
+      <div class="recipes" role="group" aria-label={tr("Engraving recipes")}>
+        {#each recipes as r (r.id)}
+          <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {r.gas}</button>
+        {:else}
+          <p class="muted">{tr("No engraving recipe yet: in Materials, open a recipe and choose Make it an engraving recipe.")}</p>
+        {/each}
+        <button class="link" onclick={() => (ui.layerSheet = layer.name)}>{tr("All layer settings")}</button>
+      </div>
+      {#if fill}
+        <FillSettings {fill} apply={(c) => writeFill(layer.name, { ...fill, ...c })} speed={speedOf(layer)} offset={offsetOf(layer, fill)} />
+      {:else}
+        <button class="btn btn-soft block" disabled={busy} onclick={() => writeFill(layer.name, defaultFill())}>{tr("Fill the shapes line by line")}</button>
+      {/if}
+      <button class="link" disabled={busy} onclick={() => backToCut(layer.name)}>{tr("Cut this layer instead")}</button>
+    </section>
+  {/each}
+
+  {#if cutting.length}
+    <h3 class="other">{tr("Engrave a whole layer")}</h3>
+    <div class="recipes">
+      {#each cutting as layer (layer.name)}
+        <button class="chip" disabled={busy} onclick={() => engrave(layer.name).catch(() => undefined)}>
+          <span class="layer-swatch" style:--layer={swatchColor(draft.layers, layer.name)}></span>{layer.name}
+        </button>
+      {/each}
+    </div>
+  {/if}
+</div>
+
+<style>
+  .stack > .btn { white-space:normal; height:auto; min-height:48px; }
+  .paths { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0; }
+  .paths small { display:block; font-size:var(--t-sm); color:var(--ink-3); }
+  .layer { border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:grid; gap:8px; }
+  .layer.hidden { opacity:.6; }
+  .layer header { display:flex; align-items:center; gap:8px; }
+  .layer header strong { flex:1; }
+  .layer header small { color:var(--ink-3); font-size:var(--t-sm); }
+  .icon-btn { width:44px; height:44px; display:grid; place-items:center; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); color:var(--ink-2); cursor:pointer; }
+  .recipes { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .recipes .chip { min-height:44px; }
+  .layer-swatch { flex:none; width:14px; height:14px; border-radius:4px; background:var(--layer, var(--cut)); }
+  .layer-swatch.mark { background:transparent; border:2px dashed var(--layer, var(--cut)); }
+  .other { margin:8px 0 0; font-size:var(--t-sm); color:var(--ink-2); }
+</style>

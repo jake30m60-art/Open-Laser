@@ -22,7 +22,9 @@
   import { orderPosition, orderSegments } from '../../lib/cut-order';
   import { copiedLeadOverrides, setLeadOverrides } from '../../lib/lead-overrides';
   import { draggedLead, leadHandlesOf, type LeadHandle } from '../../lib/lead-handles';
+  import { t } from '../../i18n/index';
   import { arrowAlong } from '../../lib/direction';
+  import { hatchStride, thinFill } from '../../lib/engraving';
   import { pasteBatch, pasteable, type CopiedShapes, type PasteSettings } from '../../lib/copy-paste';
   import { server } from '../../stores/server.svelte';
   import { ui } from '../../stores/ui.svelte';
@@ -51,6 +53,17 @@
   const marked = $derived(new Set(layers.filter((l) => l.mode === 'mark').map((l) => l.name)));
   /** Each layer's colour; none draws in the screen's cut colour. */
   const colors = $derived(new Map(layers.map((l) => [l.name, layerColor(layers, l.name)])));
+  /** Marked layers with a scan fill, by name: their line spacing. */
+  const filled = $derived(new Map((draft?.features.layers ?? []).flatMap((l) => (l.mode === 'mark' && l.machining?.fill ? [[l.name, l.machining.fill.spacing] as const] : []))));
+  /** How many fill lines to step over so drawn lines stay apart on screen, by layer. */
+  const strides = $derived(new Map([...filled].map(([name, spacing]) => [name, hatchStride(spacing, view.shownMmPerPixel)])));
+  const thinnest = $derived(Math.max(1, ...strides.values()));
+  /** A contour's paths as drawn: a fill thinned to what the screen can show. */
+  function shownPaths(contour: PreviewContour): PreviewContour['paths'] {
+    const spacing = filled.get(contour.layer);
+    if (contour.closed || spacing === undefined) return contour.paths;
+    return thinFill(contour.paths, spacing, strides.get(contour.layer) ?? 1);
+  }
   const preview = $derived(!updating && ui.picking?.revision === draft?.revision ? (ui.picking?.preview ?? scene?.preview ?? null) : scene?.preview ?? null);
   const groups = $derived(scene?.groups ?? []);
   const stockOutline = $derived(ui.nestPreview ? ui.nestStock?.outline ?? scene?.stock_outline ?? [] : ui.nestLive?.stock_outline ?? scene?.stock_outline ?? []);
@@ -663,7 +676,11 @@
         {@const picked = contour.sources.length === 1 && pickSet.has(contour.sources[0]!)}
         <g class="contour" class:picked>
         {#if picked}<path class="halo strong" d={contourPath(contour)} vector-effect="non-scaling-stroke"/>{/if}
-        {#each contour.paths as path}
+        {#if contour.closed && filled.has(contour.layer)}
+          <!-- What a fill engraves: the shape tinted under its lines. -->
+          <path class="engrave-area" d={contourPath(contour)} style:fill={colors.get(contour.layer)} />
+        {/if}
+        {#each shownPaths(contour) as path}
           {#if ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)}
             style:stroke={path.kind === 'cut' ? colors.get(contour.layer) : null} d={drawingPath(path.points)} vector-effect="non-scaling-stroke"/>{/if}
         {/each}
@@ -771,7 +788,7 @@
       {/if}
       {#if picks.length && selectionShown}<div class="hint top">{plural(picks.length, 'shape')} · tap or drag a box to add</div>
       {:else if wholePart && selectionShown}<div class="hint top">Whole part · tap a shape to take it alone</div>{/if}
-      {#if preview?.warnings.length}<div class="hint">{preview.warnings[0]}</div>{/if}
+      {#if preview?.warnings.length}<div class="hint">{preview.warnings[0]}</div>{:else if thinnest > 1}<div class="hint">{t("Engraving: every {0}th line shown; zoom in to see them all", thinnest)}</div>{/if}
       {#if selection && selectionShown && !picks.length}
         <SelectionHud {selection} {zero} disabled={updating} onplace={typed} onturn={turnBy} onresize={resize} />
       {/if}

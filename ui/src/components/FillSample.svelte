@@ -1,6 +1,7 @@
 <script lang="ts">
   // A few millimetres of a scan fill, drawn at scale, so the line spacing,
   // the angle and each pass show: what the fill numbers mean on the work.
+  import { t } from '../i18n/index';
   import type { Fill } from '../api';
 
   let { fill, size = 4 }: { fill: Fill; size?: number } = $props();
@@ -31,7 +32,7 @@
       {#each lines as line, i (i)}<path class="line pass{line.pass}" d={line.d} />{/each}
     </g>
   </svg>
-  <figcaption>{size} × {size} mm at scale · {fill.passes > 1 ? `${fill.passes} passes in colours` : 'one pass'}{fill.spacing < size / 120 ? ' · lines closer than shown' : ''}</figcaption>
+  <figcaption>{t("{0} × {0} mm at scale", size)} · {fill.passes > 1 ? t("{0} passes in colours", fill.passes) : t("one pass")}{fill.spacing < size / 120 ? ` · ${t("lines closer than shown")}` : ''}</figcaption>
 </figure>
 
 <style>

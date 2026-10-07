@@ -12,6 +12,7 @@
   import { foldedScanAngle, scanTestLayout, scanEnvelope, envelopeFits } from '../lib/scan-calibration';
   import { t as tr } from '../i18n/index';
   import { api } from '../api/client';
+  import { scanOffsets } from '../stores/scan-offsets.svelte';
   import type { LaserMode, RecipeView, ScanOffsetsView } from '../api';
   import { server } from '../stores/server.svelte';
   import { ui } from '../stores/ui.svelte';
@@ -119,7 +120,7 @@
     busy = true; error = ''; saved = '';
     try { await action(); } catch (e) { error = explain(e); } finally { busy = false; }
   }
-  const reload = async () => { data = await api.scanOffsets(mode); };
+  const reload = async () => { data = await api.scanOffsets(mode); scanOffsets.refresh(mode); };
 
   function addSpeed(): void {
     osk.number(tr("Test speed"), speeds.length ? speeds.at(-1)! + 50 : 100, 'mm/s', (v) => {
