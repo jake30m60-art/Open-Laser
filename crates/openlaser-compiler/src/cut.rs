@@ -354,8 +354,36 @@ fn nodes(segments: &[PreparedSegment<Segment>]) -> Vec<Node> {
     nodes
 }
 
+/// The image level at `fraction` of the contour's length, in percent of the
+/// step's power, where the segment there carries levels.
+pub(crate) fn level_at(
+    segments: &[PreparedSegment<Segment>],
+    boundaries: &[f64],
+    fraction: f64,
+) -> Option<u8> {
+    let source =
+        boundaries.partition_point(|b| *b <= fraction).saturating_sub(1).min(segments.len() - 1);
+    let levels = segments[source].process.levels.as_ref().filter(|l| !l.is_empty())?;
+    let (start, end) = (boundaries[source], boundaries[source + 1]);
+    let within = if end > start { ((fraction - start) / (end - start)).clamp(0., 1.) } else { 0. };
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss,
+        reason = "a fraction of a short list"
+    )]
+    let index = ((within * levels.len() as f64) as usize).min(levels.len() - 1);
+    Some(levels[index].min(100))
+}
+
+/// `power` scaled by an image level in percent, rounded.
+pub(crate) fn leveled(power: u8, level: u8) -> u8 {
+    let scaled = (u16::from(power) * u16::from(level.min(100)) + 50) / 100;
+    u8::try_from(scaled).unwrap_or(u8::MAX)
+}
+
 /// Where each segment starts and ends, as fractions of the original length.
-fn boundaries(segments: &[PreparedSegment<Segment>]) -> Vec<f64> {
+pub(crate) fn boundaries(segments: &[PreparedSegment<Segment>]) -> Vec<f64> {
     let original_length: f64 = segments.iter().map(|s| s.curve.length()).sum();
     let mut boundaries = vec![0.];
     let mut distance = 0.;
@@ -473,9 +501,13 @@ fn tag_samples(
             tag.power = None;
             tag.speed = None;
         }
-        let applied = settings::sample_power(&tag, base)?;
+        let mut applied = settings::sample_power(&tag, base)?;
         // The writer stores the analog level before the edge overrides.
-        let analog = settings::sample_power(&tag, analog)?;
+        let mut analog = settings::sample_power(&tag, analog)?;
+        if let Some(level) = level_at(segments, boundaries, distance / length) {
+            applied = leveled(applied, level);
+            analog = leveled(analog, level);
+        }
         sampled.tags.push(tag);
         sampled.samples.push(Sample {
             analog,
@@ -725,6 +757,36 @@ pub(crate) mod tests {
 
     fn line(start: Point, end: Point) -> Segment {
         Segment::Line { start, end }
+    }
+
+    /// An image's levels change the power step by step along one segment
+    /// without a new piece: the left half at full power, the right half at
+    /// a quarter, of the recipe's 40 %.
+    #[test]
+    fn levels_shade_a_segment_without_new_pieces() {
+        let levels =
+            SegmentProcess { levels: Some(vec![100, 100, 25, 25].into()), ..Default::default() };
+        let contour = Contour {
+            segments: tagged(vec![levels], vec![line([0., 0.], [40., 0.])]),
+            overrides: Overrides::default(),
+        };
+        let mut recipe = settings();
+        recipe.power = 40;
+        let motion = plan(&contour, &recipe, 100_000).unwrap();
+        assert_eq!(motion.pieces.len(), 1);
+        let piece = &motion.pieces[0];
+        let (mut full, mut quarter) = (0, 0);
+        for (i, sample) in piece.samples.iter().enumerate() {
+            let x = piece.plan.points[i + 1][0];
+            if x < 19.5 {
+                assert_eq!(sample.power, 40, "at {x}");
+                full += 1;
+            } else if x > 20.5 {
+                assert_eq!(sample.power, 10, "at {x}");
+                quarter += 1;
+            }
+        }
+        assert!(full > 10 && quarter > 10);
     }
 
     /// A single line yields one piece whose first step is a zero increment,

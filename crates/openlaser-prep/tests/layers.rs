@@ -120,6 +120,7 @@ fn a_filled_mark_engraves_one_zigzag_and_keeps_its_outlines() {
         pass_angle: 0.,
         pass_shift: 0.,
         calibrated: Vec::new(),
+        image: None,
     };
     let logo = Layer {
         machining: Some(Machining { fill: Some(fill.clone()), ..Machining::default() }),

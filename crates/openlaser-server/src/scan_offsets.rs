@@ -596,6 +596,7 @@ impl Coordinator {
             pass_angle: 0.,
             pass_shift: 0.,
             calibrated: Vec::new(),
+            image: None,
         };
         draft.current.features.layers = names
             .iter()

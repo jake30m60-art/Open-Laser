@@ -955,6 +955,25 @@ pub struct Preview {
     pub length_mm: f64,
     /// Preparation warnings.
     pub warnings: Vec<String>,
+    /// The images engraved, where they lie.
+    pub rasters: Vec<RasterView>,
+}
+
+/// Where an image lies on the sheet: its top-left corner and the edges from
+/// it, along the top and down the side, in drawing coordinates.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RasterView {
+    /// The part whose image it is, to fetch the picture by.
+    pub part: Id,
+    /// The placed contour framing it.
+    pub contour: usize,
+    /// The top-left corner.
+    pub origin: [f64; 2],
+    /// From the top-left corner to the top-right one.
+    pub across: [f64; 2],
+    /// From the top-left corner to the bottom-left one.
+    pub down: [f64; 2],
 }
 
 /// One prepared contour.

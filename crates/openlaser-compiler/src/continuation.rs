@@ -112,9 +112,17 @@ fn trim(
     }
     rest.start = rest.pieces[0].plan.points[0];
     let mut offset = rest.consumed;
+    // An engraved image's levels follow the place along the contour.
+    let bounds = crate::cut::boundaries(&compiled.contour.segments);
+    let whole = compiled.consumed + total;
+    let level = |distance: f64| {
+        (whole > 0.)
+            .then(|| crate::cut::level_at(&compiled.contour.segments, &bounds, distance / whole))
+            .flatten()
+    };
     for piece in &mut rest.pieces {
         let length = length(piece);
-        retime(piece, &compiled.settings, offset, compiled.consumed + total, budget)?;
+        retime(piece, &compiled.settings, offset, whole, budget, &level)?;
         budget =
             budget.checked_sub(piece.samples.len()).ok_or(Error::Budget("continuation samples"))?;
         offset += length;
@@ -181,6 +189,7 @@ fn retime(
     offset: f64,
     total: f64,
     budget: usize,
+    level: &dyn Fn(f64) -> Option<u8>,
 ) -> Result<()> {
     if piece.process.cool_ms > 0 || length(piece) <= 1e-12 {
         if piece.samples.len() > budget {
@@ -208,7 +217,14 @@ fn retime(
         points.push(next);
         let step = if i == 0 { scheduled.get(1).map_or(0., |next| next - d) } else { d - previous };
         let speed = step.max(0.) / piece.plan.interval;
-        samples.push(retimed_sample(s, &piece.process, &curves, speed, offset + d, total)?);
+        let mut sample = retimed_sample(s, &piece.process, &curves, speed, offset + d, total)?;
+        if piece.process.levels.is_some()
+            && let Some(level) = level(offset + d)
+        {
+            sample.analog = crate::cut::leveled(sample.analog, level);
+            sample.power = crate::cut::leveled(sample.power, level);
+        }
+        samples.push(sample);
         previous = d;
     }
     let mut measured = Vec::with_capacity(scheduled.len() + 1);

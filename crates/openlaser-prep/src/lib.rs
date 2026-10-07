@@ -43,6 +43,7 @@ pub use topology::{groups, tangled};
 
 use openlaser_core::features::{Bridges, Features, LayerMode, Seam, Spot};
 use openlaser_core::geometry::{Contour, Drawing, Point, Transform};
+use openlaser_core::raster::Raster;
 use openlaser_core::toolpath::{PreparedContour, Toolpath};
 
 /// Why a drawing could not be prepared.
@@ -248,6 +249,7 @@ pub fn pick(
 /// Prepares `drawing` under `features`.
 pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     validate_drawing(drawing, features)?;
+    check_images(drawing, features)?;
     let mut bridged = bridge::apply(&kept(drawing, features), features.bridges.as_ref())?;
     if let Some(only) = &features.only_contours {
         if bridged.iter().any(|c| c.sources.iter().any(|s| only.contains(s)) && !c.sources.iter().all(|s| only.contains(s))) {
@@ -379,7 +381,13 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
         }
         let shapes: Vec<&PreparedContour> = contours.iter().filter(|c| c.layer == *name && c.closed
             && !c.sources.iter().any(|s| explicit.iter().any(|r| r.contour == *s || r.holes.contains(s)))).collect();
-        paths.extend(flying::fill(&shapes, fill)?);
+        // A shape that frames an image engraves that image, on its own.
+        let (pictures, plain): (Vec<_>, Vec<_>) =
+            shapes.into_iter().partition(|c| image_of(features, c).is_some());
+        for picture in pictures {
+            paths.extend(flying::fill_framing(&[picture], fill, image_of(features, picture))?);
+        }
+        paths.extend(flying::fill(&plain, fill)?);
         zigzags.push(paths);
     }
     let mut out = Vec::with_capacity(contours.len() + zigzags.len());
@@ -390,11 +398,44 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
             continue;
         };
         out.append(&mut zigzags[at]);
-        if filled[at].1.outline {
+        // An image's frame is where the picture ends, never a line of its own.
+        if filled[at].1.outline && image_of(features, &contour).is_none() {
             out.push(contour);
         }
     }
     Ok(out)
+}
+
+/// The image a prepared contour frames, if it frames one.
+fn image_of<'a>(features: &'a Features, contour: &PreparedContour) -> Option<&'a Raster> {
+    features.rasters.iter().find(|r| contour.sources.contains(&r.contour)).map(|r| &r.raster)
+}
+
+/// An image engraves only by a fill on a marking layer: its frame must
+/// never be cut, nor traced as a line.
+fn check_images(drawing: &Drawing, features: &Features) -> Result<()> {
+    for placed in &features.rasters {
+        placed.raster.check().map_err(|reason| feature("image", reason))?;
+        let Some(frame) = drawing.contours.get(placed.contour) else {
+            return Err(feature("image", "the image's frame is missing"));
+        };
+        if features.skip_layers.contains(&frame.layer) {
+            continue;
+        }
+        let filled = features.layer(&frame.layer).is_some_and(|l| {
+            l.mode == LayerMode::Mark && l.machining.as_ref().is_some_and(|m| m.fill.is_some())
+        });
+        if !filled || !frame.is_closed() {
+            return Err(feature(
+                "image",
+                format!(
+                    "the image on layer {} engraves only on an engraving layer with a fill",
+                    frame.layer
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_drawing(drawing: &Drawing, features: &Features) -> Result<()> {

@@ -23,6 +23,8 @@ pub struct JobDrawing {
     /// The colours the parts' files give their layers, the first part's
     /// first where two name the same layer.
     colors: Vec<crate::LayerColor>,
+    /// The images the parts engrave, by the joined contour that frames each.
+    images: Vec<(usize, openlaser_core::raster::Raster)>,
 }
 
 impl JobDrawing {
@@ -41,7 +43,25 @@ impl JobDrawing {
                 contours: parts.iter().flat_map(|(_, d)| d.contours.iter().cloned()).collect(),
             }),
         };
-        Self { parts, starts, drawing, colors: Vec::new() }
+        Self { parts, starts, drawing, colors: Vec::new(), images: Vec::new() }
+    }
+
+    /// With the parts' images, one entry per part in order.
+    #[must_use]
+    pub fn with_images(mut self, images: Vec<Option<crate::PartImage>>) -> Self {
+        self.images = images
+            .into_iter()
+            .zip(&self.starts)
+            .filter_map(|(image, &start)| image.map(|i| (start + i.frame, i.raster)))
+            .filter(|(frame, _)| *frame < self.drawing.contours.len())
+            .collect();
+        self
+    }
+
+    /// The images the parts engrave, each with the joined contour framing it.
+    #[must_use]
+    pub fn images(&self) -> &[(usize, openlaser_core::raster::Raster)] {
+        &self.images
     }
 
     /// With the colours the parts' files give their layers.
@@ -124,7 +144,13 @@ impl JobDrawing {
                 parts.push(part.clone());
             }
         }
-        (Self::new(parts), map)
+        let mut kept = Self::new(parts);
+        kept.images = self
+            .images
+            .iter()
+            .filter_map(|(frame, raster)| Some((map.get(*frame).copied().flatten()?, raster.clone())))
+            .collect();
+        (kept, map)
     }
 }
 
@@ -152,7 +178,8 @@ impl Library {
         let parts = parts.iter().map(|id| self.part(id)).collect::<Result<Vec<_>>>()?;
         let colors = parts.iter().flat_map(|p| p.colors.iter().cloned()).collect();
         let drawings = parts.iter().map(|p| (p.id.clone(), p.drawing.clone())).collect();
-        Ok(JobDrawing::new(drawings).with_colors(colors))
+        let images = parts.iter().map(|p| p.image.clone()).collect();
+        Ok(JobDrawing::new(drawings).with_colors(colors).with_images(images))
     }
 }
 

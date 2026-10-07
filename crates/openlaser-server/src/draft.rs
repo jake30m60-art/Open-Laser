@@ -406,13 +406,16 @@ impl Draft {
                         .filter(|target| owners[target.contour] == 1 && contour.sources.len() == 1)
                         .and_then(|target| matching[target.contour]);
                 }
+                Arc::make_mut(&mut prepared.preview).rasters = self.raster_views();
                 join_groups(&mut self.groups, &prepared.preview.contours);
                 self.preview = Some(prepared.preview.clone());
                 self.prepared = Some(Arc::new(prepared));
                 self.error = None;
             }
             Err(error) => {
-                self.preview = Some(Arc::new(partial_preview(drawing, &self.current.placed, &features)));
+                let mut partial = partial_preview(drawing, &self.current.placed, &features);
+                partial.rasters = self.raster_views();
+                self.preview = Some(Arc::new(partial));
                 self.prepared = None;
                 self.error = Some(error.to_string());
             }
@@ -1035,9 +1038,74 @@ pub fn pick(
 }
 
 impl Draft {
-    /// The features with each filled layer's measured scan offsets.
-    fn calibrated_features(&self) -> Features {
+    /// The layers holding image frames, after the operator's layer moves.
+    pub(crate) fn image_layers(&self) -> Vec<String> {
+        let Some(sources) = self.sources() else { return Vec::new() };
+        if sources.images().is_empty() {
+            return Vec::new();
+        }
+        let drawing =
+            crate::layers::relayered(sources.drawing(), &self.current.features.layer_edits);
+        let mut names: Vec<String> = sources
+            .images()
+            .iter()
+            .filter_map(|(frame, _)| drawing.contours.get(*frame).map(|c| c.layer.clone()))
+            .collect();
+        names.sort();
+        names.dedup();
+        names
+    }
+
+    /// The features with every image layer that has no entry of its own
+    /// engraving the image, as an image layer starts out.
+    pub(crate) fn features_with_images(&self) -> Features {
         let mut features = self.current.features.clone();
+        engrave_images(&mut features, &self.image_layers());
+        features
+    }
+
+    /// The images on the placed contours that frame them, placed.
+    fn placed_rasters(&self) -> Vec<openlaser_core::raster::PlacedRaster> {
+        let Some(sources) = self.sources() else { return Vec::new() };
+        self.current
+            .placed
+            .iter()
+            .enumerate()
+            .filter_map(|(contour, placed)| {
+                let (_, raster) = sources.images().iter().find(|(frame, _)| *frame == placed.source)?;
+                Some(openlaser_core::raster::PlacedRaster {
+                    contour,
+                    raster: raster.transformed(&placed.transform),
+                })
+            })
+            .collect()
+    }
+
+    /// Where each placed image lies, for the canvas.
+    fn raster_views(&self) -> Vec<crate::document::RasterView> {
+        let Some(sources) = self.sources() else { return Vec::new() };
+        self.placed_rasters()
+            .into_iter()
+            .filter_map(|placed| {
+                let source = self.current.placed.get(placed.contour)?.source;
+                let part = sources.parts().nth(sources.part_of(source)?)?.clone();
+                let r = &placed.raster;
+                Some(crate::document::RasterView {
+                    part,
+                    contour: placed.contour,
+                    origin: r.origin.into(),
+                    across: r.across.into(),
+                    down: r.down.into(),
+                })
+            })
+            .collect()
+    }
+
+    /// The features with each filled layer's measured scan offsets, the
+    /// image layers' defaults and the placed images.
+    fn calibrated_features(&self) -> Features {
+        let mut features = self.features_with_images();
+        features.rasters = self.placed_rasters();
         for layer in &mut features.layers {
             if let Some(fill) = layer.machining.as_mut().and_then(|m| m.fill.as_mut()) {
                 if let Some(table) = self.scan_tables.get(&layer.name) {
@@ -1049,6 +1117,22 @@ impl Draft {
             }
         }
         features
+    }
+}
+
+/// Gives each of `layers` without an entry of its own the engraving an
+/// image layer starts with, so a picture's frame is never cut.
+pub(crate) fn engrave_images(features: &mut Features, layers: &[String]) {
+    use openlaser_core::features::{Fill, Layer, LayerMode, Machining};
+    for name in layers {
+        if features.layer(name).is_none() {
+            features.layers.push(Layer {
+                name: name.clone(),
+                mode: LayerMode::Mark,
+                color: None,
+                machining: Some(Machining { fill: Some(Fill::for_image()), ..Machining::default() }),
+            });
+        }
     }
 }
 
@@ -1281,6 +1365,7 @@ fn preview(toolpath: &Toolpath, bounds: Option<Bounds>) -> Preview {
             .map(|s| s.curve.length())
             .sum(),
         warnings: toolpath.warnings.clone(),
+        rasters: Vec::new(),
     }
 }
 
@@ -1310,6 +1395,7 @@ fn plain(sheet: &Drawing) -> Preview {
         bounds: sheet.bounds(),
         length_mm: sheet.contours.iter().map(Contour::length).sum(),
         warnings: Vec::new(),
+        rasters: Vec::new(),
     }
 }
 

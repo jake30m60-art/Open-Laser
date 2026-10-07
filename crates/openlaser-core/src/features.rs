@@ -59,6 +59,11 @@ pub struct Features {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "typescript", ts(optional))]
     pub only_contours: Option<Vec<usize>>,
+    /// Images on placed contours. Filled in by the server when it
+    /// prepares, from the parts; never saved.
+    #[serde(skip)]
+    #[cfg_attr(feature = "typescript", ts(skip))]
+    pub rasters: Vec<crate::raster::PlacedRaster>,
 }
 
 /// One explicitly chosen engraving area. Hole boundaries retain their own
@@ -351,6 +356,69 @@ pub struct Fill {
     /// Half the measured shift between the two directions.
     #[serde(default)]
     pub scan_offset: f64,
+    /// How an image framed by the shapes becomes power; left out of the
+    /// file when the defaults apply. Shapes without an image ignore it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub image: Option<ImageFill>,
+}
+
+impl Fill {
+    /// What an image layer engraves with until the operator says otherwise:
+    /// lines 0.1 mm apart, both ways, with a short overscan.
+    #[must_use]
+    pub fn for_image() -> Self {
+        Self {
+            spacing: 0.1,
+            angle: 0.,
+            run_up: 2.,
+            outline: false,
+            bidirectional: true,
+            passes: 1,
+            pass_angle: 0.,
+            pass_shift: 0.,
+            calibrated: Vec::new(),
+            scan_offset: 0.,
+            image: Some(ImageFill::default()),
+        }
+    }
+}
+
+/// How an image's gray levels become laser power.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageMode {
+    /// Power follows the gray level, between the least and the most.
+    #[default]
+    Grayscale,
+    /// Dots at full power, spread by error diffusion to give the gray.
+    Dither,
+    /// Full power where darker than middle gray, none elsewhere.
+    Threshold,
+}
+
+/// An image engraving's settings.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImageFill {
+    /// How gray becomes power.
+    pub mode: ImageMode,
+    /// Power for the lightest gray engraved, in percent of the layer's power.
+    pub min_power: f64,
+    /// Power for black, in percent of the layer's power.
+    pub max_power: f64,
+    /// Engrave the light parts instead of the dark ones.
+    pub invert: bool,
+    /// Midtone correction: above 1 lightens them, below 1 darkens them.
+    pub gamma: f64,
+}
+
+impl Default for ImageFill {
+    fn default() -> Self {
+        Self { mode: ImageMode::Grayscale, min_power: 10., max_power: 100., invert: false, gamma: 1. }
+    }
 }
 
 const fn yes() -> bool {
@@ -807,6 +875,7 @@ mod tests {
             layer_edits: vec![LayerEdit { contour: 2, layer: "Etch".into() }],
             fill_regions: vec![FillRegion { contour:2, holes:vec![3] }],
             only_contours: Some(vec![2]),
+            rasters: Vec::new(),
             layers: vec![Layer {
                 name: "Etch".into(),
                 mode: LayerMode::Mark,

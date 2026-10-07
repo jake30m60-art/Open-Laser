@@ -714,6 +714,121 @@ async fn several_parts_nest_on_a_remnant_then_a_chosen_sheet() {
     server.close().await;
 }
 
+/// An imported image engraves: its layer starts as a filled engraving, the
+/// program's power follows the picture's gray, and the simulated machine
+/// runs it to the end.
+#[tokio::test]
+#[allow(clippy::too_many_lines, reason = "one operator journey from the image to the finished run")]
+async fn an_image_engraves_in_shades_of_gray_and_runs_to_the_end() {
+    use openlaser_controller::state::ProgramState;
+    use openlaser_core::LaserMode;
+    use openlaser_server::coordinator::{NewRecipe, Values};
+    use serde_json::json;
+    let server = Server::start().await;
+    openlaser_server::connect::connect(&server.shared).await.unwrap();
+    // 64 by 16 pixels, black on the left fading to white on the right, 32 by 8 mm.
+    let pixels: Vec<u8> = (0..16)
+        .flat_map(|_| (0..64).map(|x| u8::try_from(x * 4).unwrap()))
+        .collect();
+    let (status, response) = server
+        .request_bytes(
+            "POST",
+            "/api/parts/image?name=fade.png&width=64&height=16&width_mm=32&height_mm=8",
+            Some(&pixels),
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200, "{response}");
+    let part = response_json(&response)["id"].as_str().unwrap().to_owned();
+    {
+        let c = server.shared.lock().await;
+        let stored = c.library.part(&openlaser_library::Id::from(part.as_str())).unwrap();
+        let image = stored.image.as_ref().expect("the part keeps its image");
+        assert_eq!((image.raster.width, image.raster.height), (64, 16));
+        assert!(image.raster.bitmap().starts_with(b"BM"), "the canvas gets a bitmap");
+    }
+
+    let recipe = server
+        .shared
+        .lock()
+        .await
+        .add_recipe(&NewRecipe {
+            name: "Steel".into(),
+            laser: LaserMode::Fiber,
+            thickness_mm: 1.,
+            values: Values::Bank(1),
+            gas: None,
+        })
+        .unwrap()
+        .id;
+    let (status, response) =
+        server.request("POST", &format!("/api/draft/part/{part}"), None, &[]).await;
+    assert_eq!(status, 200, "{response}");
+    let response = server.edit(&format!("recipe/{recipe}"), json!(null)).await;
+    let draft = &response["draft"];
+    assert!(draft["error"].is_null(), "{}", draft["error"]);
+    assert_eq!(draft["layers"][0]["name"], "Image");
+    assert_eq!(draft["layers"][0]["mode"], "mark", "an image layer starts as engraving");
+    assert_eq!(draft["preview"]["rasters"][0]["part"], part.as_str());
+    assert!(draft["compiled"].is_object(), "{response}");
+
+    let powers = |server: &Server| {
+        let shared = server.shared.clone();
+        async move {
+            let c = shared.lock().await;
+            let compiled = c.draft.as_ref().unwrap().compiled.clone().unwrap();
+            let mut powers: Vec<u8> = compiled
+                .job
+                .passes
+                .iter()
+                .flat_map(|pass| &pass.pieces)
+                .flat_map(|piece| piece.samples.iter().map(|s| s.power))
+                .filter(|&p| p > 0)
+                .collect();
+            powers.sort_unstable();
+            powers.dedup();
+            powers
+        }
+    };
+    let shades = powers(&server).await;
+    assert!(shades.len() >= 10, "the power follows the gray: {shades:?}");
+
+    openlaser_server::machine::home(&server.shared).await.unwrap();
+    common::until(&server.shared, 10, |d| d.machine.session.homed && d.machine.operation.is_none())
+        .await;
+    openlaser_server::machine::calibrate(&server.shared).await.unwrap();
+    common::until(&server.shared, 10, |d| d.calibration.current && d.machine.operation.is_none())
+        .await;
+    // Into the bed, so the overscan either side of the picture has room.
+    for axis in 0..2 {
+        openlaser_server::machine::jog(
+            &server.shared,
+            openlaser_server::machine::JogRequest {
+                axis,
+                positive: true,
+                step_mm: Some(20.),
+                fast: false,
+                diagonal: None,
+            },
+            None,
+        )
+        .await
+        .unwrap();
+        common::until(&server.shared, 10, |d| d.machine.operation.is_none()).await;
+    }
+    let placed = server.edit("placement", json!({"kind":"set_origin"})).await;
+    assert!(placed["draft"]["compiled"].is_object());
+    assert_eq!(powers(&server).await, shades, "placing the sheet keeps the shades");
+    common::run(&server.shared).await.unwrap();
+    common::until(&server.shared, 60, |d| {
+        d.machine.program.as_ref().is_some_and(|p| p.state == ProgramState::Completed)
+            && d.machine.operation.is_none()
+    })
+    .await;
+    assert_eq!(server.simulator.control().view().alarms, [0; 3]);
+    server.close().await;
+}
+
 /// Repairing contours shows what it would do, saves the result as a new part
 /// that can stand in for the original in the open job, and keeps the original.
 #[tokio::test]

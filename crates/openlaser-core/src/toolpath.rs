@@ -36,6 +36,11 @@ pub struct SegmentProcess {
     /// cut's or a fill's run-up and turn: shown as an overscan, never cut.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub run_up: bool,
+    /// Power along the segment in percent of each step's power, spaced
+    /// evenly from its start to its end: an engraved image's pixels along
+    /// one scan line. The steps change power without a new piece.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub levels: Option<std::sync::Arc<[u8]>>,
 }
 
 /// The interval of a placed contour retained by a prepared segment.

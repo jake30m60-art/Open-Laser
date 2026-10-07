@@ -126,6 +126,12 @@ pub(crate) fn part(part: &Part, library: &Library) -> Result<()> {
     {
         return Err(Error::Invalid("the drawing is empty, invalid or discontinuous".into()));
     }
+    if let Some(image) = &part.image {
+        image.raster.check().map_err(Error::Invalid)?;
+        if !part.drawing.contours.get(image.frame).is_some_and(|c| c.is_closed()) {
+            return Err(Error::Invalid("an image must be framed by a closed contour".into()));
+        }
+    }
     Ok(())
 }
 

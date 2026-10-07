@@ -17,9 +17,12 @@
 //! single zigzag.
 
 use crate::{EPS, Error, Result, feature, float};
-use openlaser_core::features::{Fill, FlyCut};
+use openlaser_core::features::{Fill, FlyCut, ImageFill, ImageMode};
 use openlaser_core::geometry::{Curve, Point};
+use openlaser_core::raster::Raster;
 use openlaser_core::toolpath::{PreparedContour, PreparedSegment, SegmentProcess};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 /// The smallest uncut web between two cuts on one line, in millimetres.
 /// Below it the beam's switching at speed could cut through.
@@ -30,6 +33,8 @@ const MAX_EDGES: usize = 50_000;
 const MAX_SCAN_LINES: usize = 100_000;
 /// The most segments one fill makes.
 const MAX_FILL_SEGMENTS: usize = 400_000;
+/// The most image cells one fill engraves, all passes together.
+const MAX_IMAGE_CELLS: usize = 60_000_000;
 /// The most scan lines joined into one path. Every turn costs the motion
 /// planner two of its 2048 profile builds per contour.
 const LINES_PER_PATH: usize = 250;
@@ -47,6 +52,9 @@ struct Line {
     origin: Point,
     direction: Point,
     spans: Vec<(f64, f64)>,
+    /// An engraved image's power along each span, from its start; empty
+    /// when the spans are cut at the layer's power.
+    levels: Vec<Arc<[u8]>>,
 }
 
 impl Line {
@@ -56,19 +64,21 @@ impl Line {
 
     /// The run-up, the cuts and gaps, and the run-out, forwards or reversed.
     fn segments(&self, run_up: f64, reverse: bool) -> Vec<PreparedSegment> {
-        let mut pieces: Vec<(f64, f64, bool)> = Vec::with_capacity(self.spans.len() * 2 + 1);
+        // Each piece: from, to, and the span it cuts, if any.
+        let mut pieces: Vec<(f64, f64, Option<usize>)> =
+            Vec::with_capacity(self.spans.len() * 2 + 1);
         let (first, last) = (self.spans[0].0, self.spans[self.spans.len() - 1].1);
         if run_up > 0. {
-            pieces.push((first - run_up, first, false));
+            pieces.push((first - run_up, first, None));
         }
         for (i, &(a, b)) in self.spans.iter().enumerate() {
             if i > 0 {
-                pieces.push((self.spans[i - 1].1, a, false));
+                pieces.push((self.spans[i - 1].1, a, None));
             }
-            pieces.push((a, b, true));
+            pieces.push((a, b, Some(i)));
         }
         if run_up > 0. {
-            pieces.push((last, last + run_up, false));
+            pieces.push((last, last + run_up, None));
         }
         if reverse {
             pieces.reverse();
@@ -79,9 +89,18 @@ impl Line {
         pieces
             .into_iter()
             .filter(|(a, b, _)| (b - a).abs() > EPS)
-            .map(|(a, b, cut)| {
+            .map(|(a, b, span)| {
                 let curve = Curve::Line { start: self.at(a), end: self.at(b) };
-                PreparedSegment::new(curve, if cut { SegmentProcess::default() } else { off() })
+                let process = match span {
+                    None => off(),
+                    Some(i) => SegmentProcess {
+                        levels: self.levels.get(i).map(|levels| {
+                            if reverse { levels.iter().rev().copied().collect() } else { levels.clone() }
+                        }),
+                        ..SegmentProcess::default()
+                    },
+                };
+                PreparedSegment::new(curve, process)
             })
             .collect()
     }
@@ -254,7 +273,7 @@ fn passes(
             reverse = false;
             previous_family = Some(f);
         }
-        let line = Line { origin: group.origin, direction: group.direction, spans };
+        let line = Line { origin: group.origin, direction: group.direction, spans, levels: Vec::new() };
         let mut sources: Vec<usize> =
             group.members.iter().flat_map(|&i| contours[i].sources.iter().copied()).collect();
         sources.sort_unstable();
@@ -457,6 +476,7 @@ fn scan(polygons: &[Vec<Point>], spacing: f64, angle: f64, shift: f64) -> Result
                 origin: Point::new(0., y).rotated(angle),
                 direction: Point::direction(angle),
                 spans: merged(spans),
+                levels: Vec::new(),
             });
         }
     }
@@ -480,6 +500,7 @@ fn zigzag(
             origin: line.origin,
             direction: line.direction,
             spans: line.spans.iter().map(|&(a, b)| (a + back, b + back)).collect(),
+            levels: line.levels.clone(),
         };
         let part = line.segments(fill.run_up, reverse);
         if let (Some(last), Some(next)) = (segments.last(), part.first()) {
@@ -493,13 +514,114 @@ fn zigzag(
     }
 }
 
+fn check_image(image: &ImageFill) -> Result<()> {
+    let percent = |v: f64| v.is_finite() && (0. ..=100.).contains(&v);
+    if !percent(image.min_power) || !percent(image.max_power) || image.min_power > image.max_power
+    {
+        return Err(feature("image", "the powers must be 0 to 100 %, the least no more than the most"));
+    }
+    if !(image.gamma.is_finite() && (0.1..=10.).contains(&image.gamma)) {
+        return Err(feature("image", "the gamma must be 0.1 to 10"));
+    }
+    Ok(())
+}
+
+/// How dark the image is at a gray level, 0 to 1, after inversion and
+/// gamma: what the beam should do there.
+fn darkness(gray: f64, image: &ImageFill) -> f64 {
+    let dark = if image.invert { gray } else { 1. - gray };
+    dark.clamp(0., 1.).powf(image.gamma)
+}
+
+/// A power level in whole percent.
+fn percent(value: f64) -> u8 {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "clamped")]
+    let level = value.round().clamp(0., 100.) as u8;
+    level
+}
+
+/// Turns the lines' spans into image cells `pitch` long, aligned across
+/// the lines, each with the power the image calls for under its middle.
+/// Cells with no power at either end of a span are dropped, and so is a span
+/// with none at all. Dithering carries each cell's error to its right and
+/// to the next line, the lines taken in order. Returns how many cells.
+fn shade(lines: &mut [Line], raster: &Raster, image: &ImageFill, pitch: f64) -> usize {
+    let (low, high) = (image.min_power, image.max_power);
+    let mut cells = 0;
+    let mut carry: HashMap<i64, f64> = HashMap::new();
+    for line in lines.iter_mut() {
+        let mut next: HashMap<i64, f64> = HashMap::new();
+        let mut spans = Vec::with_capacity(line.spans.len());
+        let mut levels = Vec::with_capacity(line.spans.len());
+        for &(a, b) in &line.spans {
+            #[allow(clippy::cast_possible_truncation, reason = "bounded by the scan's length")]
+            let (first, end) = ((a / pitch).ceil() as i64, (b / pitch).floor() as i64);
+            if end <= first {
+                continue;
+            }
+            let mut row: Vec<u8> = Vec::new();
+            for k in first..end {
+                #[allow(clippy::cast_precision_loss, reason = "cell indices stay small")]
+                let middle = line.at((k as f64 + 0.5) * pitch);
+                let dark = darkness(raster.gray_at(middle).unwrap_or(1.), image);
+                row.push(match image.mode {
+                    ImageMode::Grayscale if dark < 0.01 => 0,
+                    ImageMode::Grayscale => percent(low + (high - low) * dark),
+                    ImageMode::Threshold => if dark >= 0.5 { percent(high) } else { 0 },
+                    ImageMode::Dither => {
+                        let value = dark + carry.remove(&k).unwrap_or(0.);
+                        let on = value >= 0.5;
+                        let error = value - if on { 1. } else { 0. };
+                        *carry.entry(k + 1).or_default() += error * 7. / 16.;
+                        *next.entry(k - 1).or_default() += error * 3. / 16.;
+                        *next.entry(k).or_default() += error * 5. / 16.;
+                        *next.entry(k + 1).or_default() += error / 16.;
+                        if on { percent(high) } else { 0 }
+                    }
+                });
+            }
+            let (Some(from), Some(to)) =
+                (row.iter().position(|&l| l > 0), row.iter().rposition(|&l| l > 0))
+            else {
+                continue;
+            };
+            #[allow(clippy::cast_precision_loss, reason = "cell indices stay small")]
+            let at = |cell: usize| (first + cell as i64) as f64 * pitch;
+            spans.push((at(from), at(to + 1)));
+            cells += to + 1 - from;
+            levels.push(Arc::from(&row[from..=to]));
+        }
+        line.spans = spans;
+        line.levels = levels;
+        carry = next;
+    }
+    cells
+}
+
 /// Fills the closed contours with scan lines, the beam on inside them, once
 /// per pass, each pass turned and moved across from the one before. The
 /// lines are joined into paths of at most [`LINES_PER_PATH`] lines, so the
 /// motion planner's per-contour budget holds; every path enters at speed
 /// with the beam off. Empty when no line crosses the shapes.
+///
 pub(crate) fn fill(shapes: &[&PreparedContour], fill: &Fill) -> Result<Vec<PreparedContour>> {
+    fill_framing(shapes, fill, None)
+}
+
+/// [`fill`], the shapes framing `image` when there is one: every line is
+/// shaded cell by cell, the cells as long as the lines are apart, and only
+/// where the image calls for power.
+pub(crate) fn fill_framing(
+    shapes: &[&PreparedContour],
+    fill: &Fill,
+    image: Option<&Raster>,
+) -> Result<Vec<PreparedContour>> {
     check_fill(fill)?;
+    let shading = fill.image.unwrap_or_default();
+    if image.is_some() {
+        check_image(&shading)?;
+    }
+    let mut cells = 0;
     let polygons: Vec<Vec<Point>> =
         shapes.iter().map(|c| polygon(c)).filter(|p| p.len() >= 3).collect();
     let mut sources: Vec<usize> = shapes.iter().flat_map(|c| c.sources.iter().copied()).collect();
@@ -513,7 +635,16 @@ pub(crate) fn fill(shapes: &[&PreparedContour], fill: &Fill) -> Result<Vec<Prepa
         let shift = (k * fill.pass_shift).fract();
         let angle = fill.angle + k * fill.pass_angle;
         let offset = fill.scan_offset + calibrated_at(&fill.calibrated, angle);
-        let lines = scan(&polygons, fill.spacing, angle, shift)?;
+        let mut lines = scan(&polygons, fill.spacing, angle, shift)?;
+        if let Some(raster) = image {
+            cells += shade(&mut lines, raster, &shading, fill.spacing);
+            if cells > MAX_IMAGE_CELLS {
+                return Err(Error::Limit(format!(
+                    "the image needs more than {MAX_IMAGE_CELLS} cells; widen the line spacing"
+                )));
+            }
+            lines.retain(|line| !line.spans.is_empty());
+        }
         for chunk in lines.chunks(LINES_PER_PATH) {
             let mut segments = Vec::new();
             let mut traced = Vec::new();
@@ -591,6 +722,7 @@ mod tests {
             pass_angle: 0.,
             pass_shift: 0.,
             calibrated: Vec::new(),
+            image: None,
         }
     }
 
@@ -909,5 +1041,79 @@ mod tests {
         }
         // Every selected contour is on a marked layer: nothing can fly.
         assert!(fly(cells, &settings(vec![0, 1]), &["Mark"], &mut Vec::new()).is_err());
+    }
+
+    /// A 20 by 10 mm image, black on the left half and white on the right.
+    fn halves() -> Raster {
+        Raster::upright(2, 1, vec![0, 255], [20., 10.]).unwrap()
+    }
+
+    /// The lit segments of the paths, with their levels.
+    fn lit(paths: &[PreparedContour]) -> Vec<&PreparedSegment> {
+        paths.iter().flat_map(|p| &p.segments).filter(|s| !s.process.joint).collect()
+    }
+
+    #[test]
+    fn an_image_shades_its_lines_and_skips_the_white() {
+        let frame = rect(0, 0., 0., 20., 10.);
+        let paths = fill_framing(&[&frame], &fill_of(1., 0., 2.), Some(&halves())).unwrap();
+        let lit = lit(&paths);
+        assert_eq!(lit.len(), 10, "one lit stretch per line");
+        for segment in &lit {
+            let levels = segment.process.levels.as_ref().expect("levels");
+            let (a, b) = (segment.curve.start().x, segment.curve.end().x);
+            let (left, right) = (a.min(b), a.max(b));
+            assert!(left.abs() < 1e-9, "starts at the black edge");
+            // Bilinear gray reaches white at the right pixel's middle, 15 mm.
+            assert!((14. ..=15.).contains(&right), "ends before the white: {right}");
+            #[allow(clippy::cast_precision_loss, reason = "a short list")]
+            let cells = levels.len() as f64;
+            assert!((cells - (right - left)).abs() < 1e-9, "one cell per millimetre");
+            let first = if a < b { levels[0] } else { levels[levels.len() - 1] };
+            assert_eq!(first, 100, "black is full power");
+            assert!(levels.iter().all(|&l| (10..=100).contains(&l)));
+        }
+    }
+
+    #[test]
+    fn a_mirrored_image_engraves_mirrored() {
+        let frame = rect(0, -20., 0., 20., 10.);
+        let mirrored = halves().transformed(&openlaser_core::geometry::Transform([
+            -1., 0., 0., 1., 0., 0.,
+        ]));
+        let paths = fill_framing(&[&frame], &fill_of(1., 0., 2.), Some(&mirrored)).unwrap();
+        for segment in lit(&paths) {
+            let (a, b) = (segment.curve.start().x, segment.curve.end().x);
+            assert!(a.max(b).abs() < 1e-9, "the black now lies on the right");
+        }
+    }
+
+    #[test]
+    fn dithering_spreads_dots_for_a_mid_gray() {
+        let frame = rect(0, 0., 0., 20., 20.);
+        let gray = Raster::upright(1, 1, vec![128], [20., 20.]).unwrap();
+        let settings = Fill {
+            image: Some(ImageFill { mode: ImageMode::Dither, ..ImageFill::default() }),
+            ..fill_of(0.5, 0., 2.)
+        };
+        let paths = fill_framing(&[&frame], &settings, Some(&gray)).unwrap();
+        let levels: Vec<u8> =
+            lit(&paths).iter().flat_map(|s| s.process.levels.as_ref().unwrap().to_vec()).collect();
+        assert!(levels.iter().all(|&l| l == 0 || l == 100), "dots are on or off");
+        let on = levels.iter().filter(|&&l| l == 100).count();
+        // About half of the 1600 cells; trimming drops some off cells.
+        assert!((700..=900).contains(&on), "{on} dots on");
+    }
+
+    #[test]
+    fn bad_image_settings_are_refused() {
+        let frame = rect(0, 0., 0., 20., 10.);
+        let image = |min_power, max_power, gamma| Fill {
+            image: Some(ImageFill { min_power, max_power, gamma, ..ImageFill::default() }),
+            ..fill_of(1., 0., 2.)
+        };
+        for settings in [image(60., 40., 1.), image(0., 120., 1.), image(0., 100., 0.)] {
+            assert!(fill_framing(&[&frame], &settings, Some(&halves())).is_err());
+        }
     }
 }

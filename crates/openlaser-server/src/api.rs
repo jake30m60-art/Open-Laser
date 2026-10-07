@@ -63,6 +63,8 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/stock/{id}", post(change_stock).delete(remove_stock))
         .route("/api/jobs/{id}/cut-sheet", post(report_cut_sheet))
         .route("/api/parts", post(import_part))
+        .route("/api/parts/image", post(import_image))
+        .route("/api/parts/{id}/image", get(part_image))
         .route("/api/parts/review", post(review_part))
         .route("/api/parts/{id}", post(update_part).delete(remove_part))
         .route("/api/parts/{id}/drawing", get(part_drawing))
@@ -295,6 +297,57 @@ async fn import_part(
     let warnings = import.notices();
     let part = shared.lock().await.import_drawing(&request.name, &body, import)?;
     Ok(Json(json!({ "ok": true, "id": part.id, "warnings": warnings })))
+}
+
+#[derive(Deserialize)]
+struct ImageImport {
+    name: String,
+    /// Pixels across and down.
+    width: u32,
+    height: u32,
+    /// Millimetres across and down.
+    width_mm: f64,
+    height_mm: f64,
+}
+
+/// Imports an image to engrave. The body is its gray pixels, row by row
+/// from the top, as the browser decoded the file.
+async fn import_image(
+    State(shared): State<Shared>,
+    Query(request): Query<ImageImport>,
+    body: axum::body::Bytes,
+) -> Reply {
+    let size = [request.width_mm, request.height_mm];
+    if !size.iter().all(|v| v.is_finite() && (0.1..=5000.).contains(v)) {
+        return Err(Error::Request("an image is 0.1 to 5000 mm on each side".into()).into());
+    }
+    let mut c = shared.lock().await;
+    let part = c
+        .library
+        .add_image_part(&request.name, &body, (request.width, request.height), body.to_vec(), size)
+        .map_err(Error::from)?;
+    c.library_changed();
+    Ok(Json(json!({ "ok": true, "id": part.id })))
+}
+
+/// A part's image as a gray bitmap, for the canvas.
+async fn part_image(State(shared): State<Shared>, Path(id): Path<String>) -> Response {
+    let result = shared
+        .lock()
+        .await
+        .library
+        .part(&Id::from(id.as_str()))
+        .map_err(Error::from)
+        .and_then(|part| {
+            part.image
+                .as_ref()
+                .map(|image| image.raster.bitmap())
+                .ok_or_else(|| Error::Missing("the part has no image".into()))
+        });
+    match result {
+        Ok(bytes) => ([(header::CONTENT_TYPE, "image/bmp")], bytes).into_response(),
+        Err(error) => Failure(error).into_response(),
+    }
 }
 
 /// What importing a file would make, without keeping it.

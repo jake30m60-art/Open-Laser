@@ -39,6 +39,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// The layer an imported image's frame lies on.
+pub const IMAGE_LAYER: &str = "Image";
+
 const fn one() -> u32 {
     1
 }
@@ -167,6 +170,15 @@ pub struct LayerColor {
     pub color: [u8; 3],
 }
 
+/// An image a part engraves and the contour of the part that frames it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PartImage {
+    /// The framing contour, by its index in the part's drawing.
+    pub frame: usize,
+    /// The image, in the part's own coordinates.
+    pub raster: openlaser_core::raster::Raster,
+}
+
 /// An imported drawing.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Part {
@@ -194,6 +206,9 @@ pub struct Part {
     /// Editable sketch document, including dimensions and constraints.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sketch: Option<serde_json::Value>,
+    /// The image the part engraves, framed by one of its contours.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<PartImage>,
     /// The colours the file gives its layers.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub colors: Vec<LayerColor>,
@@ -634,6 +649,7 @@ impl Library {
             sha256,
             drawing: std::sync::Arc::new(drawing),
             sketch: None,
+            image: None,
             colors,
             favourite: false,
             created: now,
@@ -641,6 +657,69 @@ impl Library {
         };
         validation::part(&part, self)?;
         store::commit(&self.path("parts", &part.id), &mut self.parts, part)
+    }
+
+    /// Imports an image to engrave: `pixels` gray, row by row from the
+    /// top, laid upright `size` millimetres wide and high, framed by a
+    /// rectangle on the layer `Image`. `original` is the file it came from.
+    pub fn add_image_part(
+        &mut self,
+        file_name: &str,
+        original: &[u8],
+        (width, height): (u32, u32),
+        pixels: Vec<u8>,
+        size: [f64; 2],
+    ) -> Result<Part> {
+        let raster = openlaser_core::raster::Raster::upright(width, height, pixels, size)
+            .map_err(Error::Invalid)?;
+        let corners = [[0., 0.], [size[0], 0.], [size[0], size[1]], [0., size[1]]];
+        let frame = openlaser_core::geometry::Contour {
+            layer: IMAGE_LAYER.into(),
+            curves: (0..4)
+                .map(|i| openlaser_core::geometry::Curve::Line {
+                    start: corners[i].into(),
+                    end: corners[(i + 1) % 4].into(),
+                })
+                .collect(),
+        };
+        let image = PartImage { frame: 0, raster };
+        let drawing = Drawing { contours: vec![frame] };
+        let sha256 = self.keep_original(original)?;
+        if let Some(existing) = self.parts.values().find(|p| {
+            p.sha256 == sha256 && *p.drawing == drawing && p.image.as_ref() == Some(&image)
+        }) {
+            return Ok(existing.clone());
+        }
+        let mut part = self.add_part_with(file_name, sha256, drawing)?;
+        part.image = Some(image);
+        validation::part(&part, self)?;
+        store::commit(&self.path("parts", &part.id), &mut self.parts, part)
+    }
+
+    /// A new part of `drawing` from the original kept as `sha256`, not yet
+    /// stored.
+    fn add_part_with(&self, file_name: &str, sha256: String, drawing: Drawing) -> Result<Part> {
+        let name = clean_name(
+            Path::new(file_name).file_stem().and_then(|s| s.to_str()).unwrap_or(file_name),
+        )?;
+        let now = now();
+        Ok(Part {
+            tags: Vec::new(),
+            notes: String::new(),
+            quantity: 1,
+            id: Id::generate(),
+            name,
+            folder: None,
+            file_name: file_name.to_owned(),
+            sha256,
+            drawing: std::sync::Arc::new(drawing),
+            sketch: None,
+            image: None,
+            colors: Vec::new(),
+            favourite: false,
+            created: now,
+            updated: now,
+        })
     }
 
     /// Keeps `bytes` by their hash, once, and returns the hash.
@@ -688,6 +767,12 @@ impl Library {
             return Ok(existing.clone());
         }
         let mut part = source.clone();
+        // The image goes along with its frame, wherever that frame now is.
+        part.image = source.image.as_ref().and_then(|image| {
+            let frame = source.drawing.contours.get(image.frame)?;
+            let at = drawing.contours.iter().position(|c| c == frame)?;
+            Some(PartImage { frame: at, raster: image.raster.clone() })
+        });
         part.id = Id::generate();
         part.name = clean_name(name)?;
         part.drawing = std::sync::Arc::new(drawing);

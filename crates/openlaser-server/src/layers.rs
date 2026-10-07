@@ -127,14 +127,16 @@ pub(crate) fn view(draft: &Draft) -> Vec<DraftLayer> {
     let current = &draft.current;
     let sheet = sheet(drawing, current);
     let colors = draft.sources().map_or(&[][..], |s| s.colors());
-    let order = openlaser_prep::layer_order(&sheet, &current.features);
-    let outputs = order.iter().filter(|name| !current.features.skip_layers.contains(name)).count();
+    // An image layer engraves until the operator says otherwise.
+    let features = draft.features_with_images();
+    let order = openlaser_prep::layer_order(&sheet, &features);
+    let outputs = order.iter().filter(|name| !features.skip_layers.contains(name)).count();
     order
         .into_iter()
         .map(|name| {
-            let output = !current.features.skip_layers.contains(&name);
+            let output = !features.skip_layers.contains(&name);
             let choice = current.layers.iter().find(|c| c.layer == name);
-            let table = current.features.layer(&name);
+            let table = features.layer(&name);
             let mode = table.map_or(LayerMode::Cut, |l| l.mode);
             DraftLayer {
                 contours: sheet.contours.iter().filter(|c| c.layer == name).count(),
@@ -271,6 +273,8 @@ impl Coordinator {
             self.draft.as_mut().ok_or_else(|| Error::Refused("open a part first".into()))?;
         let drawing = draft.drawing()?.clone();
         let mut next = draft.current.clone();
+        // An image layer keeps engraving when another of its settings changes.
+        crate::draft::engrave_images(&mut next.features, &draft.image_layers());
         let sheet = sheet(&drawing, &next);
         match change {
             LayerChange::Assign { contours, layer } => {

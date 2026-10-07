@@ -175,6 +175,7 @@ pub(crate) fn split(
                         .max()
                         .unwrap_or(0),
                     run_up: false,
+                    levels: None,
                 },
             ));
             after_joint = joint;
