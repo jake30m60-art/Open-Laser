@@ -9,7 +9,9 @@ export function fromDrawing(drawing: SourceDrawing): Sketch {
     const key = x.toFixed(8)+','+y.toFixed(8);
     let id = points.get(key); if (id === undefined) { id = addPoint(sketch,x,y); points.set(key,id); } return id;
   };
-  for (const contour of drawing.contours) for (const curve of contour.curves) {
+  for (const contour of drawing.contours) {
+    points.clear();
+    for (const curve of contour.curves) {
     const layer = contour.layer;
     if (curve.type === 'line') addEntity(sketch,{kind:'line',a:endpoint(curve.start.x,curve.start.y),b:endpoint(curve.end.x,curve.end.y),layer});
     else {
@@ -21,6 +23,7 @@ export function fromDrawing(drawing: SourceDrawing): Sketch {
         addEntity(sketch,{kind:'arc',c,a:endpoint(curve.center.x+curve.radius*Math.cos(start),curve.center.y+curve.radius*Math.sin(start)),b:endpoint(curve.center.x+curve.radius*Math.cos(end),curve.center.y+curve.radius*Math.sin(end)),layer});
       }
     }
+  }
   }
   return sketch;
 }

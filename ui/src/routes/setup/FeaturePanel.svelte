@@ -11,7 +11,7 @@
   import { ago, explain, recipeLabel } from '../../lib/format';
   import { TOOLS, defaultBridges, defaultCommon, defaultCooling, defaultFly, defaultJoints, defaultKerf, defaultLeads, isOn, toggled } from '../../lib/features';
   import Tabs from '../../components/params/Tabs.svelte';
-  import CutOrderPreview from './CutOrderPreview.svelte';
+  import OrderTree from './OrderTree.svelte';
   import BridgesForm from './features/BridgesForm.svelte';
   import CommonForm from './features/CommonForm.svelte';
   import FlyForm from './features/FlyForm.svelte';
@@ -25,11 +25,11 @@
   import type { Features } from '../../api';
   import { hasOwn, LAYER_MACHINING, scoped, setOwn, swatchColor } from '../../lib/drawing-layers';
 
-  let { id, ontoggle, selectedContours, orderProgress = $bindable(0), compact = false }: {
+  let { id, ontoggle, selectedContours, onfocus = () => {}, compact = false }: {
     id: FeatureId;
     ontoggle: () => void;
     selectedContours: number[];
-    orderProgress?: number;
+    onfocus?: (source:number) => void;
     compact?: boolean;
   } = $props();
   const doc = $derived(server.doc!);
@@ -113,7 +113,7 @@
     <p class="muted scope-note">Layers marked · keep their own settings.</p>
   {/if}
 {/if}
-{#if id === 'order'}<CutOrderPreview preview={draft.preview} error={draft.error} disabled={!!ui.picking} bind:progress={orderProgress} />{/if}
+{#if id === 'order'}<OrderTree preview={draft.preview} {features} {set} {onfocus} />{/if}
 {#if featureEdits.error}
   <p class="muted">{featureEdits.error} <button class="link" onclick={() => featureEdits.discard()}>{t("Discard refused edits")}</button></p>
 {/if}

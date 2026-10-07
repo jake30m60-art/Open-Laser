@@ -1,4 +1,5 @@
 <script lang="ts">
+  import JobOverview from './setup/JobOverview.svelte';
   import { t } from '../i18n/index';
 
   import SheetStrip from '../components/SheetStrip.svelte';
@@ -39,7 +40,7 @@
   let selectedContours = $state<number[]>([]);
   let engravingAreas = $state<Array<{ contour: number; holes: number[] }>>([]);
   let engraveMode = $state<'area' | 'contour'>('area');
-  let orderProgress = $state(0);
+
   let simulationProgress = $state(0);
   let simulationMode = $state<'all' | 'cut' | 'mark'>('all');
   let canvas = $state<{ paste: (count?: number) => Promise<void>; selectAll: () => void; clearSelection: () => void; focusContour: (source:number) => void; removeEngraving: (source:number) => void; selectPart: (first: number, count: number) => void }>();
@@ -112,7 +113,7 @@
     {#if draft.features.only_contours}<strong role="status">{t("Output limited to {0} selected contours. Work all restores the complete job.",draft.features.only_contours.length)}</strong>{/if}
   </div>{/if}
   <SheetStrip />
-  <Canvas {engraveMode} bind:engravingAreas bind:this={canvas} bind:selectedContours bind:clipboard bind:pasting {pasteSettings} {orderProgress} {simulationProgress} {simulationMode} />
+  <Canvas {engraveMode} bind:engravingAreas bind:this={canvas} bind:selectedContours bind:clipboard bind:pasting {pasteSettings} {simulationProgress} {simulationMode} />
 </section>
 
 <aside class="panel side" class:spread={ui.setupPanel === null} bind:this={settingsPanel}>
@@ -134,7 +135,7 @@
   {:else if ui.setupPanel === 'nest'}
     <NestPanel {selectedContours} onselectall={() => canvas?.selectAll()} />
   {:else if ui.setupPanel}
-    <FeaturePanel id={ui.setupPanel} {selectedContours} {compact} bind:orderProgress ontoggle={() => toggle(ui.setupPanel!)} />
+    <FeaturePanel id={ui.setupPanel} {selectedContours} {compact} onfocus={source => canvas?.focusContour(source)} ontoggle={() => toggle(ui.setupPanel!)} />
   {:else}
     <JobPanel onselectpart={(first, count) => canvas?.selectPart(first, count)} />
   {/if}

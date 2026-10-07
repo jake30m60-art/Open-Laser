@@ -193,3 +193,29 @@ Die übrigen Aufgaben aus der Übergabe bleiben offen.
   Grafische Screenshotprüfung war wegen Tool-Timeouts nicht möglich.
 
 - Finaler Release-Build installiert; Release-/Installationshash identisch. Sicherung: C:\Users\joe\OpenLaser-App\OpenLaser-vor-simulation-20261007-125110.exe. API an isolierter aktueller Auftragskopie: eine Gravurfläche, nach Abwahl null, nur ausgewählter Schnitt genau eine Kontur; Revision unverändert. Quellzeichnungs-API liefert beide Originalkonturen. Eigener Simulator auf Port 8097 beendet. Keine Maschinenausführung.
+
+## Fortsetzung Codex – 2026-10-07: Konturbaum und Auftragsübersicht
+
+- Wiedergabe/Schieberegler aus Schnittreihenfolge entfernt; Canvas-Wiedergabe nur
+  noch im Simulationstab. Schnittreihenfolge zeigt Konturbaum nach Ebenen mit
+  Nummern, Teil/Kopie, Innen-/Außenkontur, Suchfeld und Konturfokus.
+- Drag-and-drop innerhalb einer Ebene sowie Hoch/Runter und Alt+Pfeil speichern
+  echte manuelle Reihenfolge. Zusammengeführte Konturen bleiben eine Einheit;
+  wiederholte Gravurabschnitte erscheinen einmal. Manuelles Verschieben deaktiviert
+  Innen-zuerst/Kreise-zuerst/Wärmeverteilung, damit die Eingabe wirksam wird.
+  Innen nach außen kann anschließend bewusst wieder aktiviert werden. Revision
+  vom Dragstart wird beim Drop geprüft; Fehleraufträge sind für Reihenfolge gesperrt.
+- Auftragsübersicht bleibt bei allen Vorbereitungswerkzeugen sichtbar: Teile,
+  Schnitt/Gravur/Ausschlüsse, Ebenen mit Rezept-/Ausgabestatus, Simulationzugang,
+  Auswahlmodus. Ebenenreihenfolge über Pfeile tatsächlich änderbar.
+- Nur Auswahl bearbeiten war bereits im vorherigen Stand eingebaut und begrenzt
+  Prepared vor Kompilierung. machine.rs kompiliert genau diese Prepared-Daten.
+  Run zeigt jetzt zusätzlich ausdrücklich die Begrenzung für den aktuellen Draft
+  (nicht fälschlich für eine separat angezeigte ausgeführte/wiederhergestellte Arbeit).
+- DXF-Skizzenbearbeitung: zufällig übereinander liegende Endpunkte unabhängiger
+  Konturen werden nicht länger miteinander verbunden. Regressionstest ergänzt.
+- 242 UI-Tests bestanden; Svelte-Prüfung ohne Fehler/Warnungen, UI-Build erfolgreich.
+  Keine Maschinenausführung. Weitere alte Übergabeaufgaben und Ersetzen eines
+  bearbeiteten Originalteils im bestehenden Mehrteilauftrag bleiben offen.
+
+- Finale EXE installiert, Hash identisch. Vorversion: C:\Users\joe\OpenLaser-App\OpenLaser-vor-konturbaum-20261007-131219.exe. Laufende Joe-Instanzen nicht beendet: Neustart zum Laden erforderlich. Isolierter Simulator mit Auswahl nur Kontur 1 (UI-Nummer 2): kompiliertes Programm ein Schnittdurchgang mit genau source=1, vier Moves, keine Gravur, error=null. Dafür nur in Diagnosekopie Material gewählt; echter Auftrag unverändert. Simulator beendet.

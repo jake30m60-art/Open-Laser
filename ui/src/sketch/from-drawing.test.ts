@@ -9,3 +9,8 @@ it('edits exact source lines, clockwise arcs and circles, retaining their layers
   const arc=s.entities[2]!; if(arc.kind==='arc') { expect(point(s,arc.a).y).toBeCloseTo(8); expect(point(s,arc.b).x).toBeCloseTo(12); }
   const dxf=toDxf(s); expect(dxf).toContain('8\r\nCut\r\n'); expect(dxf).toContain('8\r\nMark\r\n'); expect(dxf).toContain('CIRCLE');
 });
+
+it('does not link coincident endpoints of independent contours',()=>{
+ const curve={type:'line' as const,start:{x:0,y:0},end:{x:5,y:0}}; const s=fromDrawing({contours:[{layer:'Cut',curves:[curve]},{layer:'Mark',curves:[curve]}]});
+ const a=s.entities[0]!,b=s.entities[1]!; if(a.kind==='line'&&b.kind==='line')expect(a.a).not.toBe(b.a);
+});

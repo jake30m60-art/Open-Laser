@@ -219,6 +219,7 @@
   <div class="panel-head compact">
     <div class="crumb">
       <strong>{jobName}</strong>
+      {#if !displayed && !recovering && draft?.features.only_contours}<span class="run-msg" role="status">{t("Output limited to {0} selected contours",draft.features.only_contours.length)}</span>{/if}
       <span class="run-msg run-material">{material ? `${recipeLabel(material)} · ${laserLabel(material.laser)}` : t("No material")}</span>
       {#if material}<button class="values-toggle" aria-expanded={valuesOpen} onclick={() => (valuesOpen = !valuesOpen)}>{valuesOpen ? 'Hide values' : 'Values'}</button>{/if}
       {#if draft?.calibration}

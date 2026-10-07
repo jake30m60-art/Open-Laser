@@ -42,8 +42,8 @@
   } from '../../lib/viewer-geometry';
   import type { Features, PreviewContour, Spot, Transform } from '../../api';
 
-  let { simulationProgress = 0, simulationMode = 'all', engraveMode = 'area', engravingAreas = $bindable([]), selectedContours = $bindable([]), orderProgress = 0, clipboard = $bindable(null), pasting = $bindable(false), pasteSettings }: {
-    simulationProgress?: number; simulationMode?: 'all' | 'cut' | 'mark'; engraveMode?: 'area' | 'contour'; engravingAreas?: Array<{ contour: number; holes: number[] }>; selectedContours?: number[]; orderProgress?: number; clipboard?: CopiedShapes | null; pasting?: boolean; pasteSettings: PasteSettings;
+  let { simulationProgress = 0, simulationMode = 'all', engraveMode = 'area', engravingAreas = $bindable([]), selectedContours = $bindable([]), clipboard = $bindable(null), pasting = $bindable(false), pasteSettings }: {
+    simulationProgress?: number; simulationMode?: 'all' | 'cut' | 'mark'; engraveMode?: 'area' | 'contour'; engravingAreas?: Array<{ contour: number; holes: number[] }>; selectedContours?: number[]; clipboard?: CopiedShapes | null; pasting?: boolean; pasteSettings: PasteSettings;
   } = $props();
 
   const doc = $derived(server.doc!);
@@ -689,8 +689,8 @@
   let leadDrag = $state<{ handle: LeadHandle; targets: Spot[]; point: Point; revision: number } | null>(null);
   const excluded = $derived(excludedSources(geometryError,draft?.features.only_contours,preview?.contours.flatMap(c=>c.sources) ?? []));
   const orderPaths = $derived(ui.setupPanel === 'simulation' ? simulationSegments(preview, marked, simulationMode, excluded) : orderSegments(preview, excluded));
-  const playbackProgress = $derived(simulationDistanceProgress(orderPaths, ui.setupPanel === 'simulation' ? simulationProgress : orderProgress, i => preview?.contours[i]?.layer ?? ''));
-  const playback = $derived((ui.setupPanel === 'order' || ui.setupPanel === 'simulation') ? orderPosition(orderPaths, playbackProgress) : null);
+  const playbackProgress = $derived(simulationDistanceProgress(orderPaths, simulationProgress, i => preview?.contours[i]?.layer ?? ''));
+  const playback = $derived(ui.setupPanel === 'simulation' ? orderPosition(orderPaths, playbackProgress) : null);
   /** What the playback has run so far, coloured over the drawing. */
   const trail = $derived(playback && playbackProgress > 0 ? orderTrail(orderPaths, playbackProgress) : null);
 
