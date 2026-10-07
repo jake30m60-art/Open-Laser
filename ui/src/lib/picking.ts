@@ -9,6 +9,12 @@ export class LatestPick {
   }
 }
 
+/** A contour click toggles the sole selection; Shift toggles one member. */
+export function selectContour(current: readonly number[], source: number, additive: boolean): number[] {
+  if (additive) return current.includes(source) ? current.filter(c => c !== source) : [...current, source];
+  return current.length === 1 && current[0] === source ? [] : [source];
+}
+
 /** A joined path takes all its source instances together; split paths share a rank. */
 export function orderGroups(contours: readonly PreviewContour[], hidden: readonly string[]): number[][] {
   const groups: number[][] = [];

@@ -1019,12 +1019,11 @@ pub fn prepare(drawing: &Drawing, placed: &[Placed], features: &Features) -> Res
     let sheet = place(&drawing, placed);
     let features = placed_bridges(&sheet, features, placed)?;
     let toolpath = openlaser_prep::prepare(&sheet, &features)?;
-    let mut display = preview(&toolpath, sheet.bounds());
-    display.engraving_regions = plain(&sheet).contours.into_iter().filter(|c| {
-        c.closed && features.layers.iter().any(|l| l.name == c.layer
-            && l.mode == openlaser_core::features::LayerMode::Mark
-            && l.machining.as_ref().is_some_and(|m| m.fill.is_some()))
-    }).collect();
+    let bounds = if let Some(ids) = &features.only_contours {
+        Drawing { contours: sheet.contours.iter().enumerate().filter(|(i,c)| ids.contains(i) && !features.skip_layers.contains(&c.layer)).map(|(_,c)| c.clone()).collect() }.bounds()
+    } else { sheet.bounds() };
+    let mut display = preview(&toolpath, bounds);
+    display.engraving_regions = area_boundaries(&sheet, &features);
     Ok(Prepared {
         contours: contours(&toolpath),
         film: toolpath.contours.iter().map(|c| film_runs(&c.film)).collect(),
@@ -1056,6 +1055,26 @@ pub fn prepare(drawing: &Drawing, placed: &[Placed], features: &Features) -> Res
     })
 }
 
+fn area_boundaries(sheet: &Drawing, features: &Features) -> Vec<PreviewContour> {
+    let originals = plain(sheet).contours;
+    originals.iter().filter(|c| c.closed && !features.skip_layers.contains(&c.layer)
+        && features.only_contours.as_ref().is_none_or(|ids| ids.contains(&c.sources[0]))
+        && features.layers.iter().any(|l| l.name == c.layer
+            && l.mode == openlaser_core::features::LayerMode::Mark
+            && l.machining.as_ref().is_some_and(|m| m.fill.is_some()))
+        && (!features.fill_regions.iter().any(|r| r.holes.contains(&c.sources[0]))
+            || features.fill_regions.iter().any(|r| r.contour == c.sources[0])))
+        .map(|c| {
+            let mut region = c.clone();
+            if let Some(chosen) = features.fill_regions.iter().find(|r| r.contour == c.sources[0]) {
+                for &hole in &chosen.holes {
+                    if let Some(boundary) = originals.get(hole) { region.paths.extend(boundary.paths.clone()); }
+                }
+            }
+            region
+        }).collect()
+}
+
 /// Keep editable outlines on a failed job, and show each valid filled marking
 /// layer independently. This is display geometry only: no Prepared is retained,
 /// so the original error continues to block compilation and execution.
@@ -1063,6 +1082,26 @@ fn partial_preview(drawing: &Drawing, placed: &[Placed], features: &Features) ->
     let relayered = crate::layers::relayered(drawing, &features.layer_edits);
     let sheet = place(&relayered, placed);
     let mut display = plain(&sheet);
+    let invalid: Vec<_> = sheet.contours.iter().enumerate().filter(|(_, c)|
+        !features.skip_layers.contains(&c.layer) && openlaser_prep::crosses_itself(c))
+        .map(|(i, _)| i).collect();
+    if !invalid.is_empty() {
+        let mut valid_sheet = sheet.clone();
+        let mut isolated = features.clone();
+        let excluded = "__openlaser_invalid_preview__";
+        isolated.skip_layers.push(excluded.into());
+        for &i in &invalid { valid_sheet.contours[i].layer = excluded.into(); }
+        let result = placed_bridges(&valid_sheet, &isolated, placed)
+            .and_then(|f| openlaser_prep::prepare(&valid_sheet, &f).map_err(crate::Error::from));
+        if let Err(error) = &result { display.warnings.push(format!("Partial preview: {error}")); }
+        if let Ok(toolpath) = result {
+            let mut valid = preview(&toolpath, sheet.bounds());
+            valid.engraving_regions = area_boundaries(&sheet, features).into_iter()
+                .filter(|r| !invalid.contains(&r.sources[0])).collect();
+            valid.contours.extend(invalid.iter().map(|&i| display.contours[i].clone()));
+            return valid;
+        }
+    }
     for layer in features.layers.iter().filter(|l| {
         l.mode == openlaser_core::features::LayerMode::Mark
             && l.machining.as_ref().is_some_and(|m| m.fill.is_some())
@@ -1567,6 +1606,69 @@ mod tests {
         assert!(draft.error.is_some());
         assert!(draft.prepared.is_none());
         assert!(draft.preview.as_ref().unwrap().engraving_regions.is_empty());
+        drawing.contours.push(square_at([20.,20.]));
+        let mut cuts = Draft::of(drawing.clone());
+        cuts.current.features.leads = Some(serde_json::from_value(serde_json::json!({
+            "entry":{"shape":"line","length":2.,"radius":1.,"angle":45.},
+            "exit":{"shape":"line","length":3.,"radius":1.,"angle":45.},
+            "side":"auto","closed_only":true,"overrides":[]
+        })).unwrap());
+        cuts.prepare(&drawing);
+        assert!(cuts.prepared.is_none());
+        let paths:Vec<_> = cuts.preview.as_ref().unwrap().contours.iter().filter(|c|c.sources==vec![2]).flat_map(|c|&c.paths).collect();
+        assert!(paths.iter().any(|p|p.kind==PathKind::LeadIn));
+        assert!(paths.iter().any(|p|p.kind==PathKind::LeadOut));
+    }
+
+    #[test]
+    fn selection_output_is_exact_and_keeps_the_waste_side_of_an_inner_contour() {
+        let mut drawing = square();
+        let mut hole = square_at([2.,2.]);
+        for curve in &mut hole.curves { if let Curve::Line {start,end} = curve {
+            *start=Point::new(2.+(start.x-2.)*0.6,2.+(start.y-2.)*0.6);
+            *end=Point::new(2.+(end.x-2.)*0.6,2.+(end.y-2.)*0.6);
+        }}
+        drawing.contours.push(hole);
+        let mut f=Features::default(); f.only_contours=Some(vec![1]);
+        let selected=prepare(&drawing,&Placed::all(2),&f).unwrap();
+        assert_eq!(selected.preview.contours.len(),1);
+        assert_eq!(selected.preview.contours[0].sources,vec![1]);
+        assert_eq!(selected.preview.contours[0].depth,1);
+        f.only_contours=None;
+        assert_eq!(prepare(&drawing,&Placed::all(2),&f).unwrap().preview.contours.len(),2);
+    }
+
+    #[test]
+    fn explicit_face_subtracts_cut_hole_and_inner_face_can_be_filled_alone() {
+        use openlaser_core::features::{FillRegion, Fill, Layer, LayerMode, Machining};
+        let mut drawing = square();
+        let mut hole = square_at([2., 2.]);
+        for curve in &mut hole.curves { if let Curve::Line { start, end } = curve {
+            *start = Point::new(2. + (start.x-2.)*0.6, 2. + (start.y-2.)*0.6);
+            *end = Point::new(2. + (end.x-2.)*0.6, 2. + (end.y-2.)*0.6);
+        }}
+        drawing.contours.push(hole);
+        let mut f = Features::default();
+        f.layer_edits = serde_json::from_value(serde_json::json!([{ "contour":0,"layer":"Engraving" }])).unwrap();
+        f.layers.push(Layer { name:"Engraving".into(), mode:LayerMode::Mark, color:None,
+            machining:Some(Machining { fill:Some(serde_json::from_value::<Fill>(serde_json::json!({"spacing":1.,"angle":0.,"run_up":2.,"outline":false})).unwrap()), ..Machining::default() }) });
+        f.fill_regions.push(FillRegion { contour:0, holes:vec![1] });
+        let ring = prepare(&drawing,&Placed::all(2),&f).unwrap();
+        assert_eq!(ring.preview.engraving_regions.len(),1);
+        assert_eq!(ring.preview.engraving_regions[0].paths.len(),2);
+        assert!(ring.preview.contours.iter().any(|c|c.layer=="0" && c.sources==vec![1] && c.closed));
+        let marks:Vec<_> = ring.preview.contours.iter().filter(|c|c.layer=="Engraving").flat_map(|c|&c.paths).filter(|p|p.kind==PathKind::Cut).collect();
+        assert!(!marks.is_empty());
+        for path in marks { for span in path.points.windows(2) {
+            let x=(span[0][0]+span[1][0])/2.; let y=(span[0][1]+span[1][1])/2.;
+            assert!(!(x>2.0001 && x<7.9999 && y>2.0001 && y<7.9999));
+        }}
+        f.layer_edits[0].contour=1; f.fill_regions=vec![FillRegion {contour:1,holes:vec![]}];
+        let disk=prepare(&drawing,&Placed::all(2),&f).unwrap();
+        assert_eq!(disk.preview.engraving_regions[0].sources,vec![1]);
+        assert!(disk.preview.contours.iter().filter(|c|c.layer=="Engraving").flat_map(|c|&c.paths).filter(|p|p.kind==PathKind::Cut).all(|p|p.points.iter().all(|p|p[0]>=2. && p[0]<=8. && p[1]>=2. && p[1]<=8.)));
+        f.fill_regions[0].holes=vec![0];
+        assert!(prepare(&drawing,&Placed::all(2),&f).is_err());
     }
 
     #[test]

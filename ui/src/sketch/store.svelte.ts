@@ -9,18 +9,19 @@ import { freedom, solveEdit, solve, solverReady } from './solver';
 const KEY = 'ol-sketch';
 const LIMIT = 200;
 
-function restored(): { name: string; sketch: Sketch } {
+function restored(): { name: string; sketch: Sketch; target: 'new' | 'add' } {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null') as { name?: unknown; sketch?: unknown } | null;
-    if (raw && isSketch(raw.sketch)) return { name: typeof raw.name === 'string' ? raw.name : 'Sketch', sketch: raw.sketch };
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null') as { name?: unknown; sketch?: unknown; target?: unknown } | null;
+    if (raw && isSketch(raw.sketch)) return { name: typeof raw.name === 'string' ? raw.name : 'Sketch', sketch: raw.sketch, target: raw.target === 'new' ? 'new' : 'add' };
   } catch { /* A fresh sketch needs no storage. */ }
-  return { name: 'Sketch', sketch: emptySketch() };
+  return { name: 'Sketch', sketch: emptySketch(), target: 'add' };
 }
 
 class SketchStore {
   /** The sketch as shown; replaced, never mutated in place, so views follow it. */
   sketch = $state.raw<Sketch>(emptySketch());
   name = $state('Sketch');
+  target = $state<'new' | 'add'>('add');
   selection = $state.raw<ReadonlySet<Id>>(new Set());
   /** The drawing tool in hand, or null for selecting. */
   tool = $state.raw<Tool | null>(null);
@@ -47,13 +48,14 @@ class SketchStore {
   canRedo = $state(false);
 
   constructor() {
-    const { name, sketch } = restored();
+    const { name, sketch, target } = restored();
+    this.target = target;
     this.name = name;
     this.sketch = sketch;
   }
 
   private save(): void {
-    try { localStorage.setItem(KEY, JSON.stringify({ name: this.name, sketch: this.sketch })); } catch { /* storage full or private */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ name: this.name, sketch: this.sketch, target: this.target })); } catch { /* storage full or private */ }
   }
 
   private history(): void {
@@ -207,6 +209,15 @@ class SketchStore {
     this.tool = null;
     this.action = id ? createAction(id) : null;
     this.toolRevision++;
+  }
+
+  begin(sketch: Sketch, name: string, target: 'new' | 'add'): void {
+    this.target = target;
+    this.name = name;
+    this.use(null);
+    this.view = null;
+    this.commit(sketch);
+    this.selection = new Set();
   }
 
   clear(): void {

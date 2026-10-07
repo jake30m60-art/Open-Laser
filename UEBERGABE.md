@@ -153,3 +153,43 @@ Offen am Auftrag: Kontur 41 auf Ebene 0 besitzt vier Bögen und zwei mikroskopis
 kurze Linien bei ungefähr X=35 mm / Y=-54 mm. Den Import/Umriss gezielt untersuchen
 und geometrisch korrigieren, bevor der Gesamtauftrag ausgeführt wird.
 Die übrigen Aufgaben aus der Übergabe bleiben offen.
+
+## Fortsetzung Codex – 2026-10-07: Gravurflächen, Konturliste und Simulation
+
+- Gravurtab zeigt die aktuelle Auswahl als Konturliste: Anzeigen fokussiert die Kontur,
+  Aus Gravur entfernen entfernt ihre Vorschau, Geometrie bearbeiten öffnet die
+  Originalzeichnung als Skizze mit der betreffenden Kontur ausgewählt. Übernehmen
+  speichert die Gravurzuweisung; Schließen verwirft nicht übernommene Änderungen.
+- Live-Vorschau wird auf einer Draft-Kopie berechnet; Änderungen überschreiben den
+  Auftrag erst beim Übernehmen. Flächenauswahl definiert Eigentümerkontur und direkte
+  Löcher ausdrücklich: Ring einer 0 und Innenfläche lassen sich getrennt gravieren.
+  Konturmodus graviert den Umriss. Ebenensichtbarkeit und Auswahl leeren ergänzt.
+- Ein Klick wählt auch außerhalb des Gravurkontexts eine Kontur. Ganzes Teil ist eine
+  eigene Aktion. Nur ausgewählte bearbeiten begrenzt echte vorbereitete Ausgabe;
+  Alle bearbeiten stellt den gesamten Auftrag wieder her. Innere Konturen behalten
+  ihren topologischen Kontext und ihre Abfallseite. Teilweise ausgewählte Brücken
+  werden abgewiesen. Die Auswahl wird im Draft gespeichert.
+- Simulation hat eigenen Tab mit Gravur/Schnitt/Alles, Tempo, Wiedergabe, Fortschritt
+  und anklickbarer Bearbeitungsreihenfolge. Schnittreihenfolge bleibt vorhanden;
+  Innen nach außen ausdrücklich beschriftet. Geometrische Wiedergabe verteilt Zeit
+  auf Ebenen, damit ein kurzer Schnitt nach langer Gravur sichtbar bleibt; keine
+  Schätzung der tatsächlichen Maschinenzeit.
+- Aktueller gespeicherter Auftrag ist inzwischen eine neue Skizze mit zwei Konturen,
+  nicht mehr OPH Logo: 17 Gravurabschnitte mit ca. 459734 mm gegenüber ca. 470 mm
+  Schnitt. In der alten distanzbasierten 20-s-Wiedergabe erschien der Schnitt nur
+  ca. 0,02 s. OPH-Kontur 41 ist weiterhin nicht geometrisch korrigiert.
+- Fehlerbanner, rote Konturmarkierung und Fehlerfokus ergänzt. Teilvorschau enthält
+  auch gültige Schnitte inklusive Anschnitt/Auslauf. Gesamtfehler blockiert weiterhin
+  die vollständige Ausgabe. Brücken zeigen Breite/Position und werden vor Übernahme
+  auf einer Kopie geometrisch geprüft.
+- Neues Projekt/Neue Skizze und Bearbeiten geöffneter DXF ergänzt. Quelllinien/Bögen
+  und Ebenen werden in den Skizzeneditor übernommen. Speichern einer bearbeiteten
+  Zeichnung erstellt eine Kopie als neues Teil/neues Projekt; ersetzt das Original
+  im vorhandenen Mehrteilauftrag noch nicht. Neue Skizze im Auftrag kann hinzugefügt
+  werden. Keine Original-DXF oder vorhandenen Auftragsdaten für Tests verändert.
+- Prüfung: 240 UI-Tests, Svelte-Prüfung ohne Fehler/Warnungen, UI-Build erfolgreich;
+  23 Core-, 48 Prep- und 76 Server-Lib-Tests bestanden. Tests für Ring/Innenfläche,
+  Auswahl und Teilvorschau, Wiedergabereihenfolge und exakte Skizzenübernahme.
+  Grafische Screenshotprüfung war wegen Tool-Timeouts nicht möglich.
+
+- Finaler Release-Build installiert; Release-/Installationshash identisch. Sicherung: C:\Users\joe\OpenLaser-App\OpenLaser-vor-simulation-20261007-125110.exe. API an isolierter aktueller Auftragskopie: eine Gravurfläche, nach Abwahl null, nur ausgewählter Schnitt genau eine Kontur; Revision unverändert. Quellzeichnungs-API liefert beide Originalkonturen. Eigener Simulator auf Port 8097 beendet. Keine Maschinenausführung.

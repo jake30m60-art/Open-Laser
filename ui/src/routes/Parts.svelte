@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from '../i18n/index';
 
+  import { beginProject } from '../lib/sketch-workflow';
   import SkippedFiles from '../components/SkippedFiles.svelte';
   import SheetLibrary from '../components/SheetLibrary.svelte';
   import StockEditor from '../components/StockEditor.svelte';
@@ -223,6 +224,7 @@
         <i class="ic ic-check"></i>{t("Pick parts")}
       </button>
       <button class="btn btn-ghost" onclick={newFolder}><i class="ic ic-folder-plus"></i>{t("Folder")}</button>
+      <button class="btn btn-ghost" onclick={() => beginProject()}>{t("New project")}</button>
       <ImportParts />
     </div>{/if}
   </div>

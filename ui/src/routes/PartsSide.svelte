@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from '../i18n/index';
 
+  import { editPart } from '../lib/sketch-workflow';
   import SimplifyPart from '../components/SimplifyPart.svelte';
   import { api } from '../api/client';
   import { server } from '../stores/server.svelte';
@@ -109,7 +110,8 @@
       <button class="btn btn-ghost" onclick={rename}>{t("Rename")}</button>
       <button class="btn btn-ghost" onclick={remove}>{t("Delete")}</button>
     </div>
-    {#if part}<button class="btn btn-ghost block" onclick={() => (simplifying = true)}>Simplify drawing…</button>{/if}
+    {#if part}<button class="btn btn-ghost block" onclick={() => editPart(part.id)}>{t("Edit drawing in sketch")}</button>
+    <button class="btn btn-ghost block" onclick={() => (simplifying = true)}>Simplify drawing…</button>{/if}
     </div>
     <div class="side-foot">
       {#if job}

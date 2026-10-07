@@ -37,7 +37,7 @@
   const tool = $derived(TOOLS.find((t) => t.id === id)!);
   const base = $derived(featureEdits.value(draft));
   /** Leads, joints, cooling, kerf and start can be a layer's own. */
-  const perLayer = $derived((LAYER_MACHINING as readonly string[]).includes(id) && draft.layers.length > 1);
+  const perLayer = $derived((LAYER_MACHINING as readonly string[]).includes(id) && (draft.layers.length > 1 || draft.layers.some(l => l.mode === 'mark')));
   const scope = $derived(perLayer && draft.layers.some((l) => l.name === ui.machiningLayer) ? ui.machiningLayer : null);
   const features = $derived(scope ? scoped(base, scope) : base);
   const own = $derived(scope ? hasOwn(base, scope) : false);
@@ -113,11 +113,15 @@
     <p class="muted scope-note">Layers marked · keep their own settings.</p>
   {/if}
 {/if}
-{#if id === 'order'}<CutOrderPreview preview={draft.preview} disabled={!!ui.picking} bind:progress={orderProgress} />{/if}
+{#if id === 'order'}<CutOrderPreview preview={draft.preview} error={draft.error} disabled={!!ui.picking} bind:progress={orderProgress} />{/if}
 {#if featureEdits.error}
   <p class="muted">{featureEdits.error} <button class="link" onclick={() => featureEdits.discard()}>{t("Discard refused edits")}</button></p>
 {/if}
 {#if id === 'leads'}<Tabs names={['Entry', 'Exit']} bind:active={tab} />{/if}
+{#if id === 'leads' && scope && base.layers?.find(l => l.name === scope)?.machining?.fill}
+  <p class="muted">{t("Filled engraving uses scan run-ups at every hatch line. Entry and exit leads apply to contour paths.")}</p>
+  <button class="btn btn-soft" onclick={() => (ui.setupPanel = 'engrave')}>{t("Edit engraving run-ups")}</button>
+{/if}
 {#if id === 'leads'}<p class="muted lead-hint">{t("Drag a lead to edit it. Selected copies update the matching lead.")}</p>{/if}
 {#if id === 'joints' || id === 'start'}<Tabs names={['Basic', 'More']} bind:active={tab} />{/if}
 <div class="stack" style="opacity:{on ? 1 : 0.45}">

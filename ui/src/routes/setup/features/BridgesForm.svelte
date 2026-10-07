@@ -21,6 +21,7 @@
   const undoLast = () => set((f) => { f.bridges!.connections.pop(); });
 </script>
 
+<p class="muted">{t("After the first endpoint, the shaded band previews the channel width. Click the second endpoint to inspect the actual cut; Apply saves it, Cancel discards it.")}</p>
 <Stepper label={t("Channel width")} value={bridges.width} unit="mm" step={0.5} disabled={!on} apply={setWidth} />
 <Placed count={bridges.connections.length} what="bridge" disabled={!on} onclear={clear} onpick={() => pick('bridges')} />
 <div class="param">

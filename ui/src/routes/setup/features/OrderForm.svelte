@@ -58,6 +58,7 @@
   </div>
 {/if}
 <button class="btn btn-soft" onclick={typedOrder}>Enter contour order…</button>
-<Toggle label={t("Inner contours first")} value={order.inner_first} disabled={!on} apply={setInnerFirst} />
+<p class="muted">{t("Inside to outside: cut nested inner contours before their enclosing outline.")}</p>
+<Toggle label={t("Inside to outside")} value={order.inner_first} disabled={!on} apply={setInnerFirst} />
 <Toggle label={t("Circles first")} value={order.circles_first} disabled={!on} apply={setCirclesFirst} />
 <Toggle label={t("Spread heat")} value={order.spread_heat} disabled={!on} apply={setSpreadHeat} />

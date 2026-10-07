@@ -13,9 +13,12 @@
   import { defaultFill, setFill, swatchColor } from '../../lib/drawing-layers';
   import { fillOf, isEngraving, offsetAt } from '../../lib/engraving';
   import FillSettings from './FillSettings.svelte';
+  import { editPart } from '../../lib/sketch-workflow';
+  import { engravingFeatures } from '../../lib/engraving-preview';
+  import type { Features, FillRegion } from '../../api';
   import type { DraftLayer, Fill, LayerChange, RecipeView } from '../../api';
 
-  let { selectedContours }: { selectedContours: number[] } = $props();
+  let { selectedContours, regions, pickMode = $bindable('area'), onclear, onfocus, onremove }: { selectedContours: number[]; regions: FillRegion[]; pickMode?: 'area' | 'contour'; onclear: () => void; onfocus: (source:number) => void; onremove: (source:number) => void } = $props();
   const draft = $derived(server.doc!.draft!);
   const NAME = 'Engraving';
   const order = $derived(draft.layers.map((l) => l.name));
@@ -28,6 +31,29 @@
   const fills = $derived(featureEdits.value(draft).layers ?? []);
   const fillOfLayer = (name: string): Fill | null => fills.find((l) => l.name === name)?.machining?.fill ?? null;
   let busy = $state(false);
+  let previewBusy = $state(false);
+  let pendingFill = $state<Fill | null>(null);
+  const areaFill = $derived(pendingFill ?? fillOfLayer(NAME) ?? { ...defaultFill(), outline: false });
+  const staged = $derived(engravingFeatures(draft, selectedContours, regions, pickMode === 'area' ? areaFill : null));
+  const shownError = $derived(ui.engravingPreview?.error ?? draft.error);
+  const refusedPreview = $derived(!!ui.engravingPreview?.error && ui.engravingPreview.error !== draft.error);
+  let sequence = 0;
+  $effect(() => {
+    const features = structuredClone($state.snapshot(staged)) as Features;
+    const revision = draft.revision;
+    const ticket = ++sequence;
+    previewBusy = true;
+    const timer = setTimeout(() => {
+      api.previewFeatures(features, revision).then(reply => {
+        if (ticket === sequence && server.doc?.draft?.revision === revision) {
+          ui.engravingPreview = { preview: reply.preview, features, error: reply.error, revision };
+        }
+      }).catch(error => { if (ticket === sequence) ui.say(explain(error), true); })
+        .finally(() => { if (ticket === sequence) previewBusy = false; });
+    }, 80);
+    return () => { clearTimeout(timer); sequence++; };
+  });
+  $effect(() => () => { ui.engravingPreview = null; });
 
   async function change(...edits: LayerChange[]): Promise<void> {
     busy = true;
@@ -52,13 +78,17 @@
   }
   /** The selected shapes onto the engraving layer, which then engraves. */
   async function engraveSelection(): Promise<void> {
-    const contours = [...selectedContours];
-    if (!contours.length) return;
+    const snapshot = ui.engravingPreview;
+    if (previewBusy || refusedPreview || !snapshot || snapshot.revision !== draft.revision) return;
+    busy = true;
     try {
-      await change({ kind: 'assign', contours, layer: NAME });
-      await engrave(NAME);
-      ui.say(tr("{0} shapes engrave on {1} · Undo moves them back", contours.length, NAME));
-    } catch { /* said */ }
+      await api.setFeatures(snapshot.features, snapshot.revision);
+      if (selectedContours.length && !draft.layers.find(l => l.name === NAME)?.recipe && recipes[0]) {
+        await api.changeLayers({ kind: 'recipe', layer: NAME, recipe: recipes[0].id });
+      }
+      ui.say(tr("Engraving selection saved. Undo restores the previous engraving."));
+    } catch (error) { ui.say(explain(error), true); }
+    finally { busy = false; }
   }
   async function useRecipe(layer: DraftLayer, recipe: RecipeView): Promise<void> {
     try {
@@ -89,6 +119,12 @@
       ui.say(tr("{0} shapes are cut on {1} again · Undo takes it back", contours.length, layer));
     } catch { /* said */ }
   }
+  let focused = $state<number | null>(null);
+  function editGeometry(source: number) {
+    const placed=draft.placed[source]; if(!placed) return;
+    const part=draft.parts.find(p=>placed.source>=p.first && placed.source<p.first+p.contours);
+    if(part) void editPart(part.id,placed.source-part.first);
+  }
   const close = () => (ui.setupPanel = null);
 </script>
 
@@ -99,11 +135,34 @@
 <p class="feat-desc">{tr("Engraving marks the surface line by line. Pick the shapes to engrave on the drawing, then set the lines here.")}</p>
 
 <div class="stack">
-  {#if busy || draft.error === 'preparing geometry'}<p role="status">{tr("Updating engraving preview…")}</p>{/if}
-  <p class="muted">{tr("Selected now: {0} contours", selectedContours.length)}<br />{tr("Click a contour to select only it. Shift-click adds or removes contours.")}</p>
-  <button class="btn btn-primary block" disabled={busy || !selectedContours.length} onclick={engraveSelection}>
-    {selectedContours.length ? tr("Engrave the selection ({0} shapes)", selectedContours.length) : tr("Select shapes to engrave")}
+  <div class="recipes" role="group" aria-label={tr("Select engraving geometry")}>
+    <button class="chip" class:on={pickMode === 'area'} onclick={() => (pickMode = 'area')}>{tr("Select areas")}</button>
+    <button class="chip" class:on={pickMode === 'contour'} onclick={() => (pickMode = 'contour')}>{tr("Select contours")}</button>
+  </div>
+  <p class="muted">{tr("Area: click the face to fill. A 0 ring keeps its hole clear; click the hole to fill only that inner face. Contour: trace only the clicked outline.")}</p>
+  <p class="muted">{tr("Click adds to the engraving preview; click again removes it. Apply saves the selection; Close cancels unsaved selection changes.")}</p>
+  {#if previewBusy || busy || draft.error === 'preparing geometry'}<p role="status">{tr("Updating engraving preview…")}</p>{/if}
+  <p class="muted">{tr("Selected now: {0} contours", selectedContours.length)}</p>
+  <h3>{tr("Contours in engraving preview")}</h3>
+  <ol class="contour-list">
+    {#each selectedContours as source}<li class:focused={focused === source}>
+      <button class="btn btn-ghost" onclick={() => { focused=source; onfocus(source); }}>{tr("Show contour {0}",source+1)}</button>
+      <div class="row"><button class="btn btn-ghost" onclick={() => editGeometry(source)}>{tr("Edit geometry")}</button><button class="btn btn-ghost" onclick={() => onremove(source)}>{tr("Remove from engraving")}</button></div>
+    </li>{:else}<li class="muted">{tr("No contours selected for engraving.")}</li>{/each}
+  </ol>
+  <button class="btn btn-ghost block" disabled={!selectedContours.length} onclick={onclear}>{tr("Clear selection")}</button>
+  <button class="btn btn-primary block" disabled={busy || previewBusy || refusedPreview || !ui.engravingPreview} onclick={engraveSelection}>
+    {tr("Apply engraving selection")}
   </button>
+  {#if pickMode === 'area'}<FillSettings fill={areaFill} apply={c => (pendingFill = { ...areaFill, ...c })} speed={speedOf(draft.layers.find(l => l.name === NAME) ?? draft.layers[0]!)} />{/if}
+  <h3>{tr("Layer visibility")}</h3>
+  <div class="stack">
+    {#each [...new Set([...draft.layers.map(l => l.name), ...(selectedContours.length ? [NAME] : [])])] as name}
+      <button class="btn btn-ghost block" aria-pressed={!ui.drawingLayerHidden(name)} onclick={() => ui.toggleDrawingLayer(name)}>
+        <i class="ic {ui.drawingLayerHidden(name) ? 'ic-eye-off' : 'ic-eye'}"></i>{name} · {tr(ui.drawingLayerHidden(name) ? "Show layer" : "Hide layer")}
+      </button>
+    {/each}
+  </div>
   {#if engravedSelection.length && cutting.length}
     <div class="back">
       <span>{tr("Stop engraving the selected shapes ({0}), cut them on:", engravedSelection.length)}</span>
@@ -121,8 +180,8 @@
     <button class="switch" class:on={ui.layerShown('travel')} aria-label={tr("Show tool paths")} onclick={() => ui.toggleLayer('travel')}></button>
   </div>
 
-  {#if draft.error && draft.error !== 'preparing geometry'}
-    <p class="warn-box" role="alert">{tr("The hatching cannot be shown: {0}", draft.error)}<br />{tr("The complete job could not be prepared. Valid engraving layers are previewed separately; fix the geometry error before running.")}</p>
+  {#if shownError && shownError !== 'preparing geometry'}
+    <p class="warn-box" role="alert">{tr("Job geometry error: {0}", shownError)}<br />{tr("The complete job could not be prepared. Valid engraving layers are previewed separately; fix the geometry error before running.")}</p>
   {/if}
   {#if !draft.recipe}
     <p class="warn-box">{tr("No job recipe selected. Layers with their own recipe can still engrave; choose a recipe for the other layers before running.")}</p>
@@ -140,12 +199,6 @@
           <i class="ic {hidden ? 'ic-eye-off' : 'ic-eye'}"></i>
         </button>
       </header>
-      <div class="recipes" role="group" aria-label={tr("Engraving mode")}>
-        <button class="chip" class:on={!fill} aria-pressed={!fill} disabled={busy} onclick={() => writeFill(layer.name, null)}>{tr("Contours only")}</button>
-        <button class="chip" class:on={!!fill && !fill.outline} aria-pressed={!!fill && !fill.outline} disabled={busy} onclick={() => writeFill(layer.name, { ...(fill ?? defaultFill()), outline: false })}>{tr("Fill area")}</button>
-        <button class="chip" class:on={!!fill && fill.outline} aria-pressed={!!fill && fill.outline} disabled={busy} onclick={() => writeFill(layer.name, { ...(fill ?? defaultFill()), outline: true })}>{tr("Fill and contours")}</button>
-      </div>
-      <p class="muted">{tr("Applies to every shape on this layer. Contours only traces the selected outlines; fill scans closed areas and leaves holes clear.")}</p>
       {#if !layer.chosen}
         <p class="warn-box">{tr("This layer has no recipe yet, so nothing on it is worked out or engraved. Choose one:")}</p>
       {/if}
@@ -166,7 +219,7 @@
       {#if fill && draft.recipe && !draft.error && closed === 0}
         <p class="warn-box">{tr("No closed shape on this layer: a fill engraves inside closed outlines only. Close the outlines in the sketch, or the lines are traced as they are.")}</p>
       {/if}
-      {#if fill}
+      {#if fill && layer.name !== NAME}
         <FillSettings {fill} apply={(c) => writeFill(layer.name, { ...fill, ...c })} speed={speedOf(layer)} offset={offsetOf(layer, fill)} />
 
       {/if}
@@ -187,6 +240,11 @@
 </div>
 
 <style>
+  .contour-list { list-style:none; padding:0; margin:0; display:grid; gap:8px; max-height:300px; overflow:auto; }
+  .contour-list li { border:1px solid var(--line); border-radius:8px; padding:6px; }
+  .contour-list .focused { border-color:var(--accent); }
+  .contour-list .row { flex-wrap:wrap; }
+  .contour-list .btn { height:auto; min-height:44px; white-space:normal; }
   .stack > .btn { white-space:normal; height:auto; min-height:48px; }
   .recipe-picker summary { cursor:pointer; padding:10px 0; overflow-wrap:anywhere; }
   .paths { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0; }

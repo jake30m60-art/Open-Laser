@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { server } from '../../stores/server.svelte';
   import { t } from '../../i18n/index';
 
   // While a feature asks for places on the drawing: what to tap, and the
@@ -23,6 +24,7 @@
       case 'order': return `Tap the contours in cutting order · ${picked} of ${total}`;
     }
   });
+  const draftError = $derived(server.doc?.draft?.error);
   function cancelBridgeEnd(): void {
     if (ui.picking) ui.picking = { ...ui.picking, first: null };
   }
@@ -33,9 +35,10 @@
 
 <div class="pick-bar">
   <span>{t(hint)}</span>
+  {#if picking.error && picking.error !== draftError}<span role="alert">{picking.error}</span>{/if}
   {#if picking.feature === 'bridges' && picking.first}
     <button class="btn btn-ghost" onclick={cancelBridgeEnd}>{t("Cancel end")}</button>
   {/if}
   <button class="btn btn-ghost" onclick={cancel}>{t("Cancel")}</button>
-  <button class="btn btn-primary" disabled={busy || !!picking.first} onclick={onfinish}>Finish</button>
+  <button class="btn btn-primary" disabled={busy || !!picking.first || !!picking.error && picking.error !== draftError} onclick={onfinish}>{t("Apply")}</button>
 </div>

@@ -20,6 +20,7 @@ export type FeatureId = (typeof FEATURE_IDS)[number];
 
 /** What a tap on the drawing places while a panel asks for it. */
 export interface Picking {
+  error?: string | null;
   features: Features;
   preview?: Preview;
   marks: [number, number][];
@@ -35,10 +36,10 @@ export interface Picking {
 }
 
 /** The drawing bar's default order: view tools, then editing tools, then history. */
-const DRAW_BAR = ['fit', 'zoom-in', 'zoom-out', 'snap', 'grid', 'layer', 'mirror-x', 'mirror-y', 'turn', 'scale', 'center', 'reset', 'group', 'ungroup', 'copy', 'paste', 'delete', 'deselect', 'undo', 'redo'];
+const DRAW_BAR = ['fit', 'zoom-in', 'zoom-out', 'snap', 'grid', 'layer', 'mirror-x', 'mirror-y', 'turn', 'scale', 'center', 'reset', 'group', 'ungroup', 'copy', 'paste', 'delete', 'whole-part', 'deselect', 'undo', 'redo'];
 
 /** The machining bar's default order: every machining tool, then nesting and copying. */
-const MACHINING_BAR = [...FEATURE_IDS, 'engrave', 'nest', 'copy'];
+const MACHINING_BAR = [...FEATURE_IDS, 'engrave', 'nest', 'simulation', 'copy'];
 
 /** A saved order keeps only known tools and gains tools added since it was saved. */
 function withAll(order: string[], all: string[]): string[] {
@@ -87,7 +88,7 @@ class Ui {
    *  the library is not picking. */
   partPicks = $state<string[] | null>(null);
   selectedRecipe = $state<string | null>(null);
-  setupPanel = $state<FeatureId | 'copy' | 'clipboard' | 'nest' | 'engrave' | null>(null);
+  setupPanel = $state<FeatureId | 'copy' | 'clipboard' | 'nest' | 'engrave' | 'simulation' | null>(null);
   /** The layer the machining panels edit; none edits the job's own. */
   machiningLayer = $state<string | null>(null);
   /** The layer whose settings sheet is open. */
@@ -101,6 +102,7 @@ class Ui {
   get nestShown(): boolean { return !!this.nestPreview || !!this.nestLive; }
   nestPicking = $state(false);
   selectionEpoch = $state(0);
+  engravingPreview = $state.raw<{ preview: Preview; features: Features; error: string | null; revision: number } | null>(null);
   picking = $state<Picking | null>(null);
   /** Drawing layers hidden on the canvas, for this session. */
   hiddenDrawingLayers = $state<string[]>([]);

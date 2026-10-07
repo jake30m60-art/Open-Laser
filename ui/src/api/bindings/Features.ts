@@ -3,6 +3,7 @@ import type { Bridges } from "./Bridges";
 import type { CommonEdges } from "./CommonEdges";
 import type { Cooling } from "./Cooling";
 import type { CutOrder } from "./CutOrder";
+import type { FillRegion } from "./FillRegion";
 import type { FlyCut } from "./FlyCut";
 import type { Joints } from "./Joints";
 import type { Kerf } from "./Kerf";
@@ -70,4 +71,13 @@ layer_edits?: Array<LayerEdit>,
  * The layers in the order they run, with what each does and its own
  * colour and machining. Empty until the operator changes a layer.
  */
-layers?: Array<Layer>, };
+layers?: Array<Layer>,
+/**
+ * Explicit engraving areas: the owner boundary minus its direct holes,
+ * by placed contour identity. Empty preserves the legacy layer fill rule.
+ */
+fill_regions?: Array<FillRegion>,
+/**
+ * Work only these placed contours; None works every active contour.
+ */
+only_contours?: Array<number>, };

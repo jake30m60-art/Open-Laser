@@ -586,7 +586,7 @@
       const bytes = new TextEncoder().encode(toDxf(store.sketch));
       const { id, warnings } = await api.importPart(fileName, bytes.buffer as ArrayBuffer);
       ui.selected = id;
-      if (server.doc?.draft) await api.addParts([id]);
+      if (store.target === 'add' && server.doc?.draft) await api.addParts([id]);
       else await api.openPart(id);
       ui.tab = 'setup';
       ui.say(warnings?.length ? t("Sketch added as a part · {0}", warnings.join(' · ')) : t("Sketch added as a part. Choose a material to prepare it for cutting."));
@@ -844,7 +844,8 @@
   </details>
 
   <div class="sk-actions">
-    <button class="btn btn-primary lg block" disabled={sending || !hasCut(store.sketch)} onclick={send}>{sending ? t("Adding…") : t("Add to parts")}</button>
+    <p class="muted">{t(store.target === 'new' ? "Creates a new project from this sketch. Existing jobs remain available." : "Adds this sketch to the open project.")}</p>
+    <button class="btn btn-primary lg block" disabled={sending || !hasCut(store.sketch)} onclick={send}>{sending ? t("Adding…") : t(store.target === 'new' ? "Create project from sketch" : "Add to parts")}</button>
     <button class="btn btn-ghost block" disabled={!hasCut(store.sketch)} onclick={download}>{t("Download DXF")}</button>
     <button class="btn btn-ghost block" disabled={!store.sketch.entities.length} onclick={() => store.clear()}>{t("New sketch")}</button>
   </div>

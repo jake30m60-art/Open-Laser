@@ -18,8 +18,8 @@
   import { Viewport } from '../../lib/viewport.svelte';
   import { api } from '../../api/client';
   import { featureEdits } from '../../stores/feature-edits';
-  import { LatestPick, orderGroups } from '../../lib/picking';
-  import { orderPosition, orderSegments, orderTrail } from '../../lib/cut-order';
+  import { LatestPick, orderGroups, selectContour } from '../../lib/picking';
+  import { orderPosition, orderSegments, orderTrail, simulationSegments, simulationDistanceProgress } from '../../lib/cut-order';
   import { copiedLeadOverrides, setLeadOverrides } from '../../lib/lead-overrides';
   import { draggedLead, leadHandlesOf, type LeadHandle } from '../../lib/lead-handles';
   import { t } from '../../i18n/index';
@@ -33,15 +33,17 @@
   import { explain, plural } from '../../lib/format';
   import { withBusy } from '../../lib/busy';
   import { apply, centre, mirror, mirrorVertical, rotation, scaling, svgMatrix, translate, type Point } from '../../lib/transform';
-  import { pathOf, type Box } from '../../lib/svg';
+  import { channelBand } from '../../lib/bridge-preview';
+  import { issueSources, excludedSources } from '../../lib/geometry-issues';
+  import { boxOf, pathOf, type Box } from '../../lib/svg';
   import { layerColor } from '../../lib/drawing-layers';
   import {
-    drawingPath, contourPath, groupPath, boundsOfShapes, nearestShape, marqueeContours, marqueeGroups, pickLine, unionBounds, axisAlignedBounds, transformedBounds, BoundsIndex, inverseBounds,
+    drawingPath, contourPath, editableContours, fillAreas, pickArea, groupPath, boundsOfShapes, nearestShape, marqueeContours, marqueeGroups, pickLine, unionBounds, axisAlignedBounds, transformedBounds, BoundsIndex, inverseBounds,
   } from '../../lib/viewer-geometry';
   import type { Features, PreviewContour, Spot, Transform } from '../../api';
 
-  let { selectedContours = $bindable([]), orderProgress = 0, clipboard = $bindable(null), pasting = $bindable(false), pasteSettings }: {
-    selectedContours?: number[]; orderProgress?: number; clipboard?: CopiedShapes | null; pasting?: boolean; pasteSettings: PasteSettings;
+  let { simulationProgress = 0, simulationMode = 'all', engraveMode = 'area', engravingAreas = $bindable([]), selectedContours = $bindable([]), orderProgress = 0, clipboard = $bindable(null), pasting = $bindable(false), pasteSettings }: {
+    simulationProgress?: number; simulationMode?: 'all' | 'cut' | 'mark'; engraveMode?: 'area' | 'contour'; engravingAreas?: Array<{ contour: number; holes: number[] }>; selectedContours?: number[]; orderProgress?: number; clipboard?: CopiedShapes | null; pasting?: boolean; pasteSettings: PasteSettings;
   } = $props();
 
   const doc = $derived(server.doc!);
@@ -49,23 +51,34 @@
   const scene = $derived(server.canvasDraft);
   const updating = $derived(draft?.error === 'preparing geometry');
   const layers = $derived(draft?.layers ?? []);
+  const engravingPreview = $derived(ui.setupPanel === 'engrave' && ui.engravingPreview?.revision === draft?.revision ? ui.engravingPreview : null);
+  const displayFeatures = $derived(engravingPreview?.features ?? draft?.features);
   /** Marked layers draw dashed: traced on the surface, not cut through. */
-  const marked = $derived(new Set(layers.filter((l) => l.mode === 'mark').map((l) => l.name)));
+  const marked = $derived(new Set((displayFeatures?.layers ?? layers).filter((l) => l.mode === 'mark').map((l) => l.name)));
   /** Each layer's colour; none draws in the screen's cut colour. */
   const colors = $derived(new Map(layers.map((l) => [l.name, layerColor(layers, l.name)])));
   /** Marked layers with a scan fill, by name: their line spacing. */
-  const filled = $derived(new Map((draft?.features.layers ?? []).flatMap((l) => (l.mode === 'mark' && l.machining?.fill ? [[l.name, l.machining.fill.spacing] as const] : []))));
+  const filled = $derived(new Map((displayFeatures?.layers ?? []).flatMap((l) => (l.mode === 'mark' && l.machining?.fill ? [[l.name, l.machining.fill.spacing] as const] : []))));
   /** How many fill lines to step over so drawn lines stay apart on screen, by layer. */
   const strides = $derived(new Map([...filled].map(([name, spacing]) => [name, hatchStride(spacing, view.shownMmPerPixel)])));
   const thinnest = $derived(Math.max(1, ...strides.values()));
   /** A contour's paths as drawn: a fill thinned to what the screen can show. */
   function shownPaths(contour: PreviewContour): PreviewContour['paths'] {
-    if (preview?.engraving_regions?.includes(contour)) return [];
+    if (contour.closed && filled.has(contour.layer) && preview?.engraving_regions?.some(r => r.sources[0] === contour.sources[0] && r.layer === contour.layer)) return [];
     const spacing = filled.get(contour.layer);
     if (contour.closed || spacing === undefined) return contour.paths;
     return thinFill(contour.paths, spacing, strides.get(contour.layer) ?? 1);
   }
-  const preview = $derived(!updating && ui.picking?.revision === draft?.revision ? (ui.picking?.preview ?? scene?.preview ?? null) : scene?.preview ?? null);
+  const preview = $derived(engravingPreview?.preview ?? (!updating && ui.picking?.revision === draft?.revision ? (ui.picking?.preview ?? scene?.preview ?? null) : scene?.preview ?? null));
+  const geometryError = $derived(engravingPreview?.error ?? draft?.error);
+  const invalidSources = $derived(issueSources(geometryError));
+  const invalidContours = $derived((preview?.contours ?? []).filter(c => c.sources.some(s => invalidSources.has(s))));
+  function focusError(contour: PreviewContour) {
+    const bounds = boxOf(contour.paths.map(p => p.points));
+    if (!bounds) return;
+    if (ui.drawingLayerHidden(contour.layer)) ui.toggleDrawingLayer(contour.layer);
+    view.fit({minX:bounds.minX+zero[0]-2,maxX:bounds.maxX+zero[0]+2,minY:bounds.minY+zero[1]-2,maxY:bounds.maxY+zero[1]+2});
+  }
   const groups = $derived(scene?.groups ?? []);
   const stockOutline = $derived(ui.nestPreview ? ui.nestStock?.outline ?? scene?.stock_outline ?? [] : ui.nestLive?.stock_outline ?? scene?.stock_outline ?? []);
   const stockCutouts = $derived(ui.nestPreview ? ui.nestStock?.cutouts ?? [] : ui.nestLive?.stock_cutouts ?? scene?.stock_cutouts ?? []);
@@ -107,8 +120,7 @@
   const shapes = $derived.by(() => {
     const by = new Map<number, PreviewContour[]>();
     const paths = preview?.contours ?? [];
-    const original = (preview?.engraving_regions ?? []).filter(region => !paths.some(c => c.closed && c.sources.length === 1 && c.sources[0] === region.sources[0]));
-    for (const contour of [...paths, ...original]) {
+    for (const contour of editableContours(paths, preview?.engraving_regions ?? [])) {
       // A path made from several shapes, as a fill's lines, a flying cut's
       // passes or a shared edge, belongs to none of them alone: drawn apart,
       // so a tap on it does not take the first of its shapes.
@@ -120,8 +132,8 @@
     }
     return by;
   });
-  /** Paths made from several shapes, drawn apart from any one shape. */
-  const shared = $derived((preview?.contours ?? []).filter((c) => c.sources.length > 1));
+  /** Computed fills and joined paths are drawn apart from editable boundaries. */
+  const shared = $derived((preview?.contours ?? []).filter((c) => c.sources.length > 1 || (!c.closed && filled.has(c.layer) && (preview?.engraving_regions ?? []).some(r => r.sources.some(s => c.sources.includes(s))))));
   const contoursOf = (gs: number[]) => gs.flatMap((g) => groups[g] ?? []);
   const pointsOf = (g: number): Point[][] => (shapes.get(g) ?? []).flatMap((c) => c.paths.map((p) => p.points as Point[]));
   const groupBounds = $derived(boundsOfShapes(shapes));
@@ -146,6 +158,27 @@
   });
   const pickSet = $derived(new Set(picks));
   $effect(() => { selectedContours = updating ? [] : picks.length ? picks : contoursOf(selected); });
+  $effect(() => {
+    const next = fillAreas([...shapes.values()].flat(), selectedContours);
+    if (JSON.stringify(next) !== JSON.stringify(engravingAreas)) engravingAreas = next;
+  });
+  const opened = $derived(`${draft?.generation ?? ''}/${draft?.job ?? ''}`);
+  $effect(() => { void opened; untrack(() => { selected = []; picks = []; local = null; }); });
+  let engravingJob = '';
+  let inEngrave = false;
+  $effect(() => {
+    const open = ui.setupPanel === 'engrave';
+    if (open && (!inEngrave || engravingJob !== opened)) untrack(() => {
+      const existing = [...shapes.values()].flat().filter(c => marked.has(c.layer) && c.sources.length === 1);
+      const definitions = draft?.features.fill_regions ?? [];
+      const owners = new Set(definitions.map(r => r.contour));
+      const holes = new Set(fillAreas(existing, existing.map(c => c.sources[0]!)).flatMap(r => r.holes));
+      picks = existing.filter(c => !filled.has(c.layer) || owners.has(c.sources[0]!) || !holes.has(c.sources[0]!)).map(c => c.sources[0]!);
+      selected = [...new Set(picks.flatMap(c => { const g = groupOf.get(c); return g === undefined ? [] : [g]; }))];
+    });
+    engravingJob = opened;
+    inEngrave = open;
+  });
   let local = $state<{ groups: number[]; m: Transform } | null>(null);
   const movingSet = $derived(new Set(local?.groups ?? []));
   const movingAll = $derived(!!local && movingSet.size === groups.length);
@@ -174,8 +207,7 @@
   });
   // Another part or job starts unselected; the selection survives every
   // other document update.
-  const opened = $derived(`${draft?.generation ?? ''}/${draft?.job ?? ''}`);
-  $effect(() => { void opened; untrack(() => { selected = []; local = null; }); });
+
   let known = '';
   $effect.pre(() => {
     // Keep the release position until the replacement geometry is drawn,
@@ -201,8 +233,19 @@
 
   // The clipboard snapshots the selection; one add request pastes a whole batch.
   let pending = $state<number[] | null>(null);
+  export function removeEngraving(source: number): void {
+    picks = picks.filter(c => c !== source);
+    selected = [...new Set(picks.flatMap(c => { const g=groupOf.get(c); return g === undefined ? [] : [g]; }))];
+  }
+  export function focusContour(source: number): void {
+    const contour=[...shapes.values()].flat().find(c=>c.sources.length===1 && c.sources[0]===source);
+    if(contour) focusError(contour);
+  }
+  export function clearSelection(): void {
+    selected = []; picks = []; local = null;
+  }
   export function selectAll(): void {
-    if (!updating && !pasting && !ui.picking) selected = groups.map((_, g) => g);
+    if (!updating && !pasting && !ui.picking) { picks = []; selected = groups.map((_, g) => g); }
   }
   /** Selects every shape drawn from the part whose contours are `first`
    *  to `first + count` in the job's drawing. */
@@ -296,9 +339,10 @@
       label: 'Delete', title: 'Take the selection off the sheet', when: 'selected', icon: 'ic-trash',
       disabled: () => selectionLocked, run: () => remove(),
     },
+    'whole-part': { label: 'Select whole part', when: 'selected', icon: 'ic-layers', disabled: () => canvasBusy || !picks.length || ui.setupPanel === 'engrave', run: () => { picks = []; } },
     deselect: {
       label: 'Deselect', title: 'Clear the selection', when: 'selected', icon: 'ic-x',
-      disabled: () => !selectionShown, run: () => { selected = []; },
+      disabled: () => !selectionShown, run: clearSelection,
     },
     undo: { label: 'Undo', title: 'Undo the last edit', when: 'always', icon: 'ic-undo', disabled: () => !draft?.past, run: () => history(true) },
     redo: { label: 'Redo', title: 'Do the edit undone again', when: 'always', icon: 'ic-redo', disabled: () => !draft?.future, run: () => history(false) },
@@ -495,26 +539,17 @@
     // the hole; outside every shape it is a fingertip wide. A tap again on a
     // selected part takes the one shape under the finger; while shapes are
     // taken one by one, a tap adds or drops a shape, of any part.
-    const hit = pickLine(shapes, boundsIndex, at, HALO * view.mmPerPixel, (c) => !hidden(c.layer));
+    const hit = ui.setupPanel === 'engrave' && engraveMode === 'area'
+      ? pickArea(shapes, at, c => !hidden(c.layer))
+      : pickLine(shapes, boundsIndex, at, HALO * view.mmPerPixel, c => !hidden(c.layer));
     if (!hit) { if (!additive) { selected = []; picks = []; } return; }
     const n = hit.group;
     const one = hit.contour.sources.length === 1 ? hit.contour.sources[0]! : null;
-    if (ui.setupPanel === 'engrave' && one !== null) {
-      picks = additive ? (pickSet.has(one) ? picks.filter(c => c !== one) : [...picks, one]) : [one];
+    if (one !== null) {
+      picks = selectContour(picks, one, ui.setupPanel === 'engrave' || additive);
       selected = [...new Set(picks.flatMap(c => { const g = groupOf.get(c); return g === undefined ? [] : [g]; }))];
-      return;
     }
-    if (one !== null && picks.length) {
-      picks = pickSet.has(one) ? picks.filter((c) => c !== one) : [...picks, one];
-      if (!selected.includes(n)) selected = [...selected, n];
-      return;
-    }
-    if (!additive && one !== null && selected.length === 1 && selected[0] === n && (groups[n]?.length ?? 0) > 1) {
-      picks = [one];
-      return;
-    }
-    picks = [];
-    selected = additive ? (selected.includes(n) ? selected.filter((x) => x !== n) : [...selected, n]) : [n];
+
   }
 
   function onmarquee(swept: Box, additive: boolean): void {
@@ -525,7 +560,7 @@
       const taken = marqueeContours(shapes, boundsIndex, box, (c) => !hidden(c.layer));
       if (!taken.length) return;
       picks = [...new Set([...(additive ? picks : []), ...taken.map((t) => t.source)])];
-      selected = [...new Set([...selected, ...taken.map((t) => t.group)])];
+      selected = [...new Set(picks.flatMap(c => { const g = groupOf.get(c); return g === undefined ? [] : [g]; }))];
       return;
     }
     const inside = marqueeGroups(shapes, boundsIndex, box);
@@ -538,7 +573,7 @@
     const onKey = (e: KeyboardEvent) => {
       const typing = (e.target as HTMLElement | null)?.closest('input, textarea, [contenteditable]');
       if (typing || canvasTaken || ui.modal || osk.open) return;
-      if (e.key === 'Escape') { selected = []; return; }
+      if (e.key === 'Escape') { clearSelection(); return; }
       const meta = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
       if (meta && key === 'z') { e.preventDefault(); history(!e.shiftKey); return; }
@@ -604,7 +639,7 @@
       const staged = { ...(ui.picking ?? picking), features: f, marks: [...picking.marks, point] };
       ui.picking = staged;
       const reply = await api.previewFeatures(f, ticket.revision);
-      if (ui.picking === staged && server.doc?.draft?.revision === ticket.revision) ui.picking = { ...staged, preview: reply.preview };
+      if (ui.picking === staged && server.doc?.draft?.revision === ticket.revision) ui.picking = { ...staged, preview: reply.preview, error: reply.error };
     } catch (error) {
       ui.say(explain(error), true);
     } finally { pickBusy = false; }
@@ -612,6 +647,7 @@
   async function finishPicks(): Promise<void> {
     const picking = ui.picking;
     if (updating || !picking || pickBusy) return;
+    if (picking.error && picking.error !== draft?.error) { ui.say(picking.error, true); return; }
     if (picking.first) { ui.say('Complete or cancel the pending bridge end first.', true); return; }
     await withBusy((b) => (pickBusy = b), async () => {
       await api.setFeatures(picking.features, picking.revision);
@@ -619,6 +655,8 @@
     });
   }
 
+  let bridgeCursor = $state<Point | null>(null);
+  const bridgeBand = $derived.by(() => firstEnd && bridgeCursor && ui.picking?.feature === 'bridges' ? channelBand(firstEnd,bridgeCursor,ui.picking.features.bridges?.width ?? 0) : '');
   /** The first end of a bridge being placed, where its contour now lies. */
   const firstEnd = $derived.by((): Point | null => {
     const first = ui.picking?.first;
@@ -649,10 +687,12 @@
     return leadHandlesOf(preview?.contours ?? [], new Set(contoursOf(selected)), draft?.features.leads ?? null);
   });
   let leadDrag = $state<{ handle: LeadHandle; targets: Spot[]; point: Point; revision: number } | null>(null);
-  const orderPaths = $derived(orderSegments(preview));
-  const playback = $derived(ui.setupPanel === 'order' ? orderPosition(orderPaths, orderProgress) : null);
+  const excluded = $derived(excludedSources(geometryError,draft?.features.only_contours,preview?.contours.flatMap(c=>c.sources) ?? []));
+  const orderPaths = $derived(ui.setupPanel === 'simulation' ? simulationSegments(preview, marked, simulationMode, excluded) : orderSegments(preview, excluded));
+  const playbackProgress = $derived(simulationDistanceProgress(orderPaths, ui.setupPanel === 'simulation' ? simulationProgress : orderProgress, i => preview?.contours[i]?.layer ?? ''));
+  const playback = $derived((ui.setupPanel === 'order' || ui.setupPanel === 'simulation') ? orderPosition(orderPaths, playbackProgress) : null);
   /** What the playback has run so far, coloured over the drawing. */
-  const trail = $derived(playback && orderProgress > 0 ? orderTrail(orderPaths, orderProgress) : null);
+  const trail = $derived(playback && playbackProgress > 0 ? orderTrail(orderPaths, playbackProgress) : null);
 
   /** Shapes on their way to a layer, while their layer is chosen. */
   let assigning = $state<number[] | null>(null);
@@ -676,7 +716,7 @@
   // Non-scaling round strokes keep the same dot size without rewriting a
   // radius on every contour during zoom. Recompute only with canvas size.
   const markPixels = $derived(Math.min(view.pixelWidth, Math.round(view.shown.h / view.shownMmPerPixel)) / 120);
-  $effect(() => { void ui.selectionEpoch; untrack(() => { selected = []; local = null; }); });
+  $effect(() => { void ui.selectionEpoch; untrack(clearSelection); });
 </script>
 
 {#snippet shape(g: number, moved: string)}
@@ -698,11 +738,11 @@
         {@const picked = contour.sources.length === 1 && pickSet.has(contour.sources[0]!)}
         <g class="contour" class:picked>
         {#if picked}<path class="halo strong" d={contourPath(contour)} vector-effect="non-scaling-stroke"/>{/if}
-        {#if preview?.engraving_regions?.includes(contour)}
+        {#if filled.has(contour.layer) && preview?.engraving_regions?.some(r => r.sources[0] === contour.sources[0] && r.layer === contour.layer)}
           <path class="engrave-boundary" d={contourPath(contour)} style:stroke={colors.get(contour.layer)} vector-effect="non-scaling-stroke" />
         {/if}
         {#each shownPaths(contour) as path}
-          {#if ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)} class:fill-line={!contour.closed && filled.has(contour.layer)}
+          {#if (path.kind === 'cut' && ui.setupPanel === 'engrave' && filled.has(contour.layer)) || ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)} class:fill-line={!contour.closed && filled.has(contour.layer)}
             style:stroke={path.kind === 'cut' ? colors.get(contour.layer) : null} d={drawingPath(path.points)} vector-effect="non-scaling-stroke"/>{/if}
         {/each}
         {#if details && ui.layerShown('cut') && (contour.closed || !marked.has(contour.layer))}
@@ -750,7 +790,7 @@
 
 <div class="canvas-wrap">
 
-  <Stage {view} bed={frame.bed} head={frame.head} origin={ui.nestShown ? null : frame.origin} {grab} {ondrag} {ondragend} {ontap} {onmarquee}
+  <Stage {view} bed={frame.bed} head={frame.head} origin={ui.nestShown ? null : frame.origin} onhover={point => { bridgeCursor = ui.picking?.first && point ? toDrawing(point) : null; }} {grab} {ondrag} {ondragend} {ontap} {onmarquee}
     lift={lifting && local ? [local.m[4], local.m[5]] : null} lifted={liftedShapes}>
     <g transform="translate({zero[0]} {zero[1]})">
     {#if stockOutline.length}
@@ -786,7 +826,7 @@
         {#each shared as contour}
           {#if !hidden(contour.layer)}
             {#each shownPaths(contour) as path}
-              {#if ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)} class:fill-line={filled.has(contour.layer)}
+              {#if (path.kind === 'cut' && ui.setupPanel === 'engrave' && filled.has(contour.layer)) || ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)} class:fill-line={filled.has(contour.layer)}
                 style:stroke={path.kind === 'cut' ? colors.get(contour.layer) : null} d={drawingPath(path.points)} vector-effect="non-scaling-stroke"/>{/if}
             {/each}
           {/if}
@@ -798,7 +838,7 @@
       </g>
       {#each ui.picking?.marks ?? [] as [x, y]}<circle class="mark bridge" cx={x} cy={y} r={mark} />{/each}
       {#if trail}
-        <path class="trail-moved" d={trail.moved} vector-effect="non-scaling-stroke" />
+        {#if ui.layerShown('travel')}<path class="trail-moved" d={trail.moved} vector-effect="non-scaling-stroke" />{/if}
         <path class="trail-cut" d={trail.cut} vector-effect="non-scaling-stroke" />
       {/if}
       {#if playback}
@@ -812,16 +852,26 @@
       {#if leadDrag}
         <path d="M{leadDrag.handle.anchor.join(' ')}L{leadDrag.point.join(' ')}" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" />
       {/if}
+      {#each invalidContours as contour}
+        <path class="error-outline" d={contourPath(contour)} vector-effect="non-scaling-stroke" />
+        <circle class="error-location" cx={contour.start[0]} cy={contour.start[1]} r={mark*3} vector-effect="non-scaling-stroke" />
+      {/each}
+      {#if bridgeBand}<path d={bridgeBand} fill="var(--accent)" fill-opacity=".25" stroke="var(--accent)" vector-effect="non-scaling-stroke" />{/if}
       {#if firstEnd}<circle class="mark bridge" cx={firstEnd[0]} cy={firstEnd[1]} r={mark * 1.5} vector-effect="non-scaling-stroke"/>{/if}
       {#if selection && selectionShown && !picks.length && !lifting}{@render gizmo(selection)}{/if}
     {/if}
     </g>
     <g class="guide">{#each guides as [x1, y1, x2, y2]}<line {x1} {y1} {x2} {y2} vector-effect="non-scaling-stroke"/>{/each}</g>
     {#snippet overlay()}
+      {#if geometryError && geometryError !== 'preparing geometry'}
+        <div class="geometry-error" role="alert"><span>{t("Geometry error")}: {geometryError}</span>
+          {#each invalidContours as contour}<button class="btn btn-ghost" onclick={() => focusError(contour)}>{t("Show error · contour {0}", contour.sources.find(s => invalidSources.has(s)))}</button>{/each}
+        </div>
+      {/if}
       {#if ui.picking}
         <PickBar picking={ui.picking} picked={pickedCount} total={candidates.length} busy={updating || pickBusy} onfinish={finishPicks} />
       {/if}
-      {#if picks.length && selectionShown}<div class="hint top">{plural(picks.length, 'shape')} · tap or drag a box to add</div>
+      {#if picks.length && selectionShown}<div class="hint top">{t("Selected contours: {0}. Click again to deselect.", picks.length)}</div>
       {:else if wholePart && selectionShown}<div class="hint top">Whole part · tap a shape to take it alone</div>{/if}
       {#if preview?.warnings.length}<div class="hint">{preview.warnings[0]}</div>{:else if thinnest > 1}<div class="hint">{t("Engraving: every {0}th line shown; zoom in to see them all", thinnest)}</div>{/if}
       {#if selection && selectionShown && !picks.length}
@@ -833,3 +883,10 @@
 <ToolBar class="drawing-toolbar" label="Drawing tools" tools={DRAW_TOOLS} order={ui.drawBar} save={(order) => ui.setDrawBar(order)}
   bind:editing={ui.editDrawBar} selected={!!selection} />
 {#if assigning}<LayerAssign contours={assigning} {layers} onclose={() => (assigning = null)} />{/if}
+
+<style>
+.geometry-error { position:absolute; left:12px; bottom:52px; max-width:min(440px,calc(100% - 24px)); display:grid; gap:6px; padding:10px; background:var(--bg); border:2px solid #ef4444; border-radius:10px; font-size:var(--t-sm); pointer-events:auto; }
+.geometry-error .btn { min-height:44px; }
+.error-outline { fill:none; stroke:#ef4444; stroke-width:3; pointer-events:none; }
+.error-location { fill:none; stroke:#ef4444; stroke-width:2; pointer-events:none; }
+</style>

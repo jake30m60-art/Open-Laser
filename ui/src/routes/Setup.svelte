@@ -10,12 +10,14 @@
   import ClipboardPanel from './setup/ClipboardPanel.svelte';
   import NestPanel from './setup/NestPanel.svelte';
   import EngravePanel from './setup/EngravePanel.svelte';
+  import SimulationPanel from './setup/SimulationPanel.svelte';
   import CreateText from '../components/CreateText.svelte';
   import { featureEdits } from '../stores/feature-edits';
   import { server } from '../stores/server.svelte';
   import { ui } from '../stores/ui.svelte';
   import { explain } from '../lib/format';
   import { pasteable, type CopiedShapes, type PasteSettings } from '../lib/copy-paste';
+  import { editableContours, fillAreas } from '../lib/viewer-geometry';
   import { TOOLS, isOn, stateOf, toggled } from '../lib/features';
   import ToolBar, { type Tool } from './setup/ToolBar.svelte';
 
@@ -32,17 +34,42 @@
   const doc = $derived(server.doc!);
   const draft = $derived(doc.draft);
 
-  const EXTRA = [{ id: 'engrave', short: t("Engrave") }, { id: 'nest', short: t("Nest parts") }, { id: 'copy', short: t("Copy job") }];
+  const EXTRA = [{ id: 'simulation', short: t("Simulation") }, { id: 'engrave', short: t("Engrave") }, { id: 'nest', short: t("Nest parts") }, { id: 'copy', short: t("Copy job") }];
   let texting = $state(false);
   let selectedContours = $state<number[]>([]);
+  let engravingAreas = $state<Array<{ contour: number; holes: number[] }>>([]);
+  let engraveMode = $state<'area' | 'contour'>('area');
   let orderProgress = $state(0);
-  let canvas = $state<{ paste: (count?: number) => Promise<void>; selectAll: () => void; selectPart: (first: number, count: number) => void }>();
+  let simulationProgress = $state(0);
+  let simulationMode = $state<'all' | 'cut' | 'mark'>('all');
+  let canvas = $state<{ paste: (count?: number) => Promise<void>; selectAll: () => void; clearSelection: () => void; focusContour: (source:number) => void; removeEngraving: (source:number) => void; selectPart: (first: number, count: number) => void }>();
   let clipboard = $state<CopiedShapes | null>(null);
   let pasting = $state(false);
   let pasteSettings = $state<PasteSettings>({ count: 1, gap: 10, direction: 'right' });
 
+  async function scopeOutput(only: boolean): Promise<void> {
+    const ids = [...selectedContours];
+    if (only && !ids.length) return;
+    try {
+      await featureEdits.change(features => {
+        features.only_contours = only ? ids : undefined;
+        if (only && draft?.preview) {
+          const boundaries = editableContours(draft.preview.contours,draft.preview.engraving_regions);
+          const filled = new Set(draft.layers.filter(l=>l.mode==='mark' && features.layers?.find(f=>f.name===l.name)?.machining?.fill).map(l=>l.name));
+          const regions = fillAreas(boundaries,ids).filter(r=>boundaries.some(c=>c.sources[0]===r.contour && filled.has(c.layer)));
+          features.fill_regions = [...new Map([...(features.fill_regions ?? []),...regions].map(r=>[r.contour,r])).values()];
+        }
+      });
+    } catch (error) { ui.say(explain(error),true); }
+  }
+
   function runTool(id: string): void {
     ui.setupPanel = ui.setupPanel === id ? null : (id as typeof ui.setupPanel);
+    if (id === 'leads' && ui.setupPanel === 'leads') {
+      const names = new Set((draft?.preview?.contours ?? []).filter(c => c.sources.some(s => selectedContours.includes(s))).map(c => c.layer));
+      ui.machiningLayer = names.size === 1 ? [...names][0]! : null;
+      for (const kind of ['lead_in', 'lead_out']) if (!ui.layerShown(kind)) ui.toggleLayer(kind);
+    }
   }
 
   async function toggle(id: string): Promise<void> {
@@ -69,7 +96,7 @@
       on: () => ui.setupPanel === t.id, set: () => !!draft && isOn(draft.features, t.id), disabled: () => false, run: () => runTool(t.id),
     }]),
     ...EXTRA.map((t): [string, Tool] => [t.id, {
-      label: t.short, when: 'always', icon: t.id === 'nest' ? 'ic-tool-nest' : t.id === 'engrave' ? 'ic-tool-engrave' : 'ic-copy', on: () => ui.setupPanel === t.id, disabled: () => false, run: () => runTool(t.id),
+      label: t.short, when: 'always', icon: t.id === 'simulation' ? 'ic-tool-order' : t.id === 'nest' ? 'ic-tool-nest' : t.id === 'engrave' ? 'ic-tool-engrave' : 'ic-copy', on: () => ui.setupPanel === t.id, disabled: () => false, run: () => runTool(t.id),
     }]),
   ]));
 
@@ -79,8 +106,13 @@
   <ToolBar class="setup-head" variant="names" label="Machining tools" tools={BAR_TOOLS} order={ui.bar} save={(order) => ui.setBar(order)}
     bind:editing={ui.editBar} corner={!compact} />
 
+  {#if draft}<div class="selection-output">
+    <button class="btn btn-ghost" disabled={featureEdits.busy || !selectedContours.length} onclick={() => scopeOutput(true)}>{t("Work selected contours only")}</button>
+    <button class="btn btn-ghost" disabled={featureEdits.busy || !draft.features.only_contours} onclick={() => scopeOutput(false)}>{t("Work all contours")}</button>
+    {#if draft.features.only_contours}<strong role="status">{t("Output limited to {0} selected contours. Work all restores the complete job.",draft.features.only_contours.length)}</strong>{/if}
+  </div>{/if}
   <SheetStrip />
-  <Canvas bind:this={canvas} bind:selectedContours bind:clipboard bind:pasting {pasteSettings} {orderProgress} />
+  <Canvas {engraveMode} bind:engravingAreas bind:this={canvas} bind:selectedContours bind:clipboard bind:pasting {pasteSettings} {orderProgress} {simulationProgress} {simulationMode} />
 </section>
 
 <aside class="panel side" class:spread={ui.setupPanel === null} bind:this={settingsPanel}>
@@ -96,7 +128,9 @@
       disabled={draft.error === 'preparing geometry' || !pasteable(clipboard, draft) || !!ui.picking || ui.nestShown || ui.nestPicking}
       onpaste={() => { void canvas?.paste(pasteSettings.count); }} />
   {:else if ui.setupPanel === 'engrave'}
-    <EngravePanel {selectedContours} />
+    <EngravePanel {selectedContours} regions={engravingAreas} bind:pickMode={engraveMode} onclear={() => canvas?.clearSelection()} onfocus={source => canvas?.focusContour(source)} onremove={source => canvas?.removeEngraving(source)} />
+  {:else if ui.setupPanel === 'simulation'}
+    <SimulationPanel bind:progress={simulationProgress} bind:mode={simulationMode} />
   {:else if ui.setupPanel === 'nest'}
     <NestPanel {selectedContours} onselectall={() => canvas?.selectAll()} />
   {:else if ui.setupPanel}
@@ -113,9 +147,11 @@
 <style>
   /* The machining bar runs along the top and down the left; the drawing bar spans the foot. */
   .canvas-panel.corner {
-    display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
-    grid-template-areas: 'top top' 'side strip' 'side canvas' 'bottom bottom';
+    display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas: 'top top' 'side scope' 'side strip' 'side canvas' 'bottom bottom';
   }
+  .selection-output { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px; font-size:var(--t-sm); }
+  .canvas-panel.corner > .selection-output { grid-area:scope; }
   .canvas-panel.corner > :global(.sheet-strip) { grid-area: strip; }
   .canvas-panel.corner > :global(.canvas-wrap) { grid-area: canvas; }
   .canvas-panel.corner > :global(.drawing-toolbar) { grid-area: bottom; }

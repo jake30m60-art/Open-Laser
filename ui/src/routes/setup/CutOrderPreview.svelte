@@ -1,12 +1,13 @@
 <script lang="ts">
   import { t } from '../../i18n/index';
-  import { orderPosition, orderSegments } from '../../lib/cut-order';
+  import { issueSources } from '../../lib/geometry-issues';
+  import { orderPosition, orderSegments, simulationDistanceProgress } from '../../lib/cut-order';
   import type { Preview } from '../../api';
 
-  let { preview, disabled = false, progress = $bindable(0) }: { preview: Preview | null; disabled?: boolean; progress?: number } = $props();
+  let { preview, error = null, disabled = false, progress = $bindable(0) }: { preview: Preview | null; error?: string | null; disabled?: boolean; progress?: number } = $props();
   let playing = $state(false);
-  const segments = $derived(orderSegments(preview));
-  const position = $derived(orderPosition(segments, progress));
+  const segments = $derived(orderSegments(preview, issueSources(error)));
+  const position = $derived(orderPosition(segments,simulationDistanceProgress(segments,progress,i=>preview?.contours[i]?.layer ?? '')));
   $effect(() => { void preview; playing = false; progress = 0; });
   $effect(() => { if (disabled) playing = false; });
   $effect(() => {

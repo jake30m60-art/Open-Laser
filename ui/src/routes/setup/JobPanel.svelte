@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from '../../i18n/index';
 
+  import { beginProject, editPart } from '../../lib/sketch-workflow';
   import { plain } from '../../lib/plain';
   import { displayNumber, quantity, unitLabel } from '../../lib/units.svelte';
   import MaterialSheet from './MaterialSheet.svelte';
@@ -67,10 +68,13 @@
   <div class="card2-head">
     <div><h3>{t("Parts")}</h3><span class="muted">{partsLabel}</span></div>
     <div class="parts-actions">
+      <button class="btn btn-ghost" onclick={() => beginProject()}>{t("New project")}</button>
+      <button class="btn btn-ghost" onclick={() => beginProject('add')}>{t("New sketch")}</button>
       <button class="btn btn-ghost" onclick={() => (texting = true)}>{t("Add text")}</button>
       <button class="btn btn-ghost" onclick={() => (adding = true)}>{t("Add parts")}</button>
     </div>
   </div>
+  {#each draft.parts as part (part.id)}<button class="btn btn-ghost block" onclick={() => editPart(part.id)}>{t("Edit drawing in sketch")}: {nameOf(part.id)}</button>{/each}
   {#if draft.parts.length > 1}
     <ul class="job-parts">
       {#each draft.parts as part (part.id)}

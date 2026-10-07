@@ -65,6 +65,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/parts", post(import_part))
         .route("/api/parts/review", post(review_part))
         .route("/api/parts/{id}", post(update_part).delete(remove_part))
+        .route("/api/parts/{id}/drawing", get(part_drawing))
         .route("/api/parts/{id}/duplicate", post(duplicate_part))
         .route("/api/parts/{id}/simplify", post(simplify_part))
         .route("/api/folders", post(add_folder))
@@ -426,6 +427,13 @@ async fn duplicate_recipe(
 async fn duplicate_part(State(shared): State<Shared>, Path(id): Path<String>) -> Reply {
     let copy = shared.lock().await.duplicate_part(&Id::from(id.as_str()))?;
     Ok(Json(json!({ "ok": true, "id": copy.id })))
+}
+
+/// Original source curves for editing, never flattened preview or compensated cuts.
+async fn part_drawing(State(shared): State<Shared>, Path(id): Path<String>) -> Reply {
+    let c = shared.lock().await;
+    let part = c.library.part(&Id::from(id.as_str())).map_err(Error::from)?;
+    Ok(Json(json!({ "name": part.name, "drawing": part.drawing })))
 }
 
 /// How closely a simplified drawing follows its part, and whether to keep it.
@@ -847,17 +855,18 @@ async fn preview_features(
     Query(v): Query<Revision>,
     Json(features): Json<Features>,
 ) -> Reply {
-    let (drawing, placed) = {
+    let (drawing, mut draft) = {
         let c = shared.lock().await;
         c.check_draft(v.revision)?;
         let d = c.draft.as_ref().ok_or_else(|| Error::Refused("open a part first".into()))?;
-        (d.drawing()?.clone(), d.current.placed.clone())
+        (d.drawing()?.clone(), d.clone())
     };
-    let prepared =
-        tokio::task::spawn_blocking(move || crate::draft::prepare(&drawing, &placed, &features))
-            .await
-            .map_err(|e| Error::Refused(e.to_string()))??;
-    Ok(Json(json!({ "preview": prepared.preview, "revision": v.revision })))
+    draft.current.features = features;
+    let draft = tokio::task::spawn_blocking(move || { draft.prepare(&drawing); draft })
+        .await.map_err(|e| Error::Refused(e.to_string()))?;
+    let error = draft.preview.as_ref().and_then(|p| p.warnings.iter()
+        .find_map(|w| w.strip_prefix("Partial preview: ").map(str::to_owned))).or(draft.error);
+    Ok(Json(json!({ "preview": draft.preview, "error": error, "revision": v.revision })))
 }
 
 #[derive(Deserialize)]

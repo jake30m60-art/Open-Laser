@@ -13,6 +13,8 @@ export interface Point {
 
 interface Curve {
   id: Id;
+  /** Source DXF layer retained when editing imported geometry. */
+  layer?: string;
   /** Construction geometry guides the drawing and is never cut. */
   construction?: boolean;
 }

@@ -247,9 +247,25 @@ pub fn pick(
 /// Prepares `drawing` under `features`.
 pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     validate_drawing(drawing, features)?;
-    let bridged = bridge::apply(&kept(drawing, features), features.bridges.as_ref())?;
+    let mut bridged = bridge::apply(&kept(drawing, features), features.bridges.as_ref())?;
+    if let Some(only) = &features.only_contours {
+        if bridged.iter().any(|c| c.sources.iter().any(|s| only.contains(s)) && !c.sources.iter().all(|s| only.contains(s))) {
+            return Err(feature("selection", "select the entire bridged contour"));
+        }
+        // Unselected invalid outlines do not determine the waste side. Valid
+        // enclosing outlines remain context, so a selected hole keeps its depth.
+        bridged.retain(|c| c.sources.iter().any(|s| only.contains(s)) || !crosses_itself(&c.contour));
+    }
+    let all_depths = prepared_depths(drawing, &bridged, features)?;
+    let mut depths = Vec::new();
+    let mut active = Vec::new();
+    for (c, depth) in bridged.into_iter().zip(all_depths) {
+        if features.only_contours.as_ref().is_none_or(|ids| c.sources.iter().all(|s| ids.contains(s))) {
+            active.push(c); depths.push(depth);
+        }
+    }
+    let bridged = active;
     let mapped = provenance::remap(drawing, &bridged, features)?;
-    let depths = prepared_depths(drawing, &bridged, features)?;
     // Each layer with a table entry has its machining worked out once.
     let layered = features
         .layers
@@ -281,7 +297,13 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     // Layers run in their order; within a layer, the cutting order holds.
     let ranks = layer_order(drawing, features);
     let rank = |layer: &str| ranks.iter().position(|l| l == layer).unwrap_or(ranks.len());
-    let mut sequence = order::arrange(&items, &features.order)?;
+    let mut selected_order = features.order.clone();
+    if features.only_contours.is_some() {
+        if let openlaser_core::features::OrderStrategy::Manual(ids) = &mut selected_order.strategy {
+            ids.retain(|i| items.iter().any(|item| item.sources.contains(i)));
+        }
+    }
+    let mut sequence = order::arrange(&items, &selected_order)?;
     sequence.sort_by_key(|&i| rank(&prepared[i].layer));
     let ordered: Vec<_> = sequence.into_iter().map(|i| prepared[i].clone()).collect();
     let contours = if let Some(common) = &features.common {
@@ -302,7 +324,7 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
         }
         None => contours,
     };
-    let contours = fills(contours, features)?;
+    let contours = fills(contours, features, drawing)?;
     let segments: usize = contours.iter().map(|c| c.segments.len()).sum();
     if segments > MAX_PREPARED_CURVES {
         return Err(Error::Limit(format!(
@@ -315,7 +337,7 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
 /// Each marked layer with a fill of its own: its closed shapes become one
 /// scan zigzag where the first of them ran, followed by the shapes
 /// themselves when the fill keeps its outlines.
-fn fills(contours: Vec<PreparedContour>, features: &Features) -> Result<Vec<PreparedContour>> {
+fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing) -> Result<Vec<PreparedContour>> {
     let filled: Vec<(&str, &openlaser_core::features::Fill)> = features
         .layers
         .iter()
@@ -327,9 +349,37 @@ fn fills(contours: Vec<PreparedContour>, features: &Features) -> Result<Vec<Prep
     }
     let mut zigzags = Vec::with_capacity(filled.len());
     for (name, fill) in &filled {
-        let shapes: Vec<&PreparedContour> =
-            contours.iter().filter(|c| c.layer == *name && c.closed).collect();
-        zigzags.push(flying::fill(&shapes, fill)?);
+        let explicit: Vec<_> = features.fill_regions.iter().filter(|r|
+            drawing.contours.get(r.contour).is_some_and(|c| c.layer == *name)
+            && contours.iter().any(|c| c.sources.contains(&r.contour))).collect();
+        let mut paths = Vec::new();
+        for region in &explicit {
+            let ids: Vec<_> = std::iter::once(region.contour).chain(region.holes.iter().copied()).collect();
+            let boundaries: Vec<_> = ids.iter().map(|&i| drawing.contours.get(i)
+                .ok_or_else(|| feature("engraving area", "a boundary is missing")))
+                .collect::<Result<_>>()?;
+            if boundaries.iter().any(|c| !c.is_closed()) {
+                return Err(feature("engraving area", "every boundary must be closed"));
+            }
+            let depths = topology::depths_with(&boundaries, |_, _| false)?;
+            if depths.first() != Some(&0) || depths.iter().skip(1).any(|&d| d != 1) {
+                return Err(feature("engraving area", "holes must lie directly inside their area"));
+            }
+            let raw: Vec<_> = ids.iter().zip(&boundaries).map(|(&i, c)| PreparedContour {
+                sources: vec![i], lead_target: None, layer: (*name).to_owned(), closed: true, depth: 0,
+                segments: c.curves.iter().map(|&curve| openlaser_core::toolpath::PreparedSegment::new(
+                    curve, openlaser_core::toolpath::SegmentProcess::default())).collect(), film: Vec::new(),
+            }).collect();
+            let refs: Vec<_> = raw.iter().collect();
+            let mut filled = flying::fill(&refs, fill)?;
+            // Referenced holes do not become the selection/placement owner of a fill.
+            for path in &mut filled { path.sources = vec![region.contour]; }
+            paths.extend(filled);
+        }
+        let shapes: Vec<&PreparedContour> = contours.iter().filter(|c| c.layer == *name && c.closed
+            && !c.sources.iter().any(|s| explicit.iter().any(|r| r.contour == *s || r.holes.contains(s)))).collect();
+        paths.extend(flying::fill(&shapes, fill)?);
+        zigzags.push(paths);
     }
     let mut out = Vec::with_capacity(contours.len() + zigzags.len());
     for contour in contours {
@@ -361,14 +411,29 @@ fn validate_drawing(drawing: &Drawing, features: &Features) -> Result<()> {
              so split the parts over more sheets or simplify dense curves"
         )));
     }
+    if features.only_contours.as_ref().is_some_and(|ids| ids.iter().any(|&i| i >= contours)) {
+        return Err(feature("selection", "select existing contours again"));
+    }
     for (index, contour) in kept(drawing, features) {
-        validate(index, contour)?;
+        if features.only_contours.as_ref().is_none_or(|ids| ids.contains(&index)) { validate(index, contour)?; }
     }
     for layer in features.layers.iter().filter(|l| l.machining.is_some()) {
         check(&features.for_layer(&layer.name))?;
     }
     if features.fly.as_ref().is_some_and(|f| f.contours.iter().any(|&i| i >= contours)) {
         return Err(feature("flying cut", "select the contours again: the drawing has changed"));
+    }
+    let mut owners = std::collections::HashSet::new();
+    for region in &features.fill_regions {
+        if region.contour >= contours || !owners.insert(region.contour) {
+            return Err(feature("engraving area", "select each existing area only once"));
+        }
+        let mut boundaries = std::collections::HashSet::from([region.contour]);
+        for &hole in &region.holes {
+            if hole >= contours || !boundaries.insert(hole) {
+                return Err(feature("engraving area", "select each existing hole only once"));
+            }
+        }
     }
     check(features)
 }

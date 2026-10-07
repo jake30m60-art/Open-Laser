@@ -48,6 +48,7 @@ export type { FifoView } from './bindings/FifoView';
 export type { FileView } from './bindings/FileView';
 export type { FilesView } from './bindings/FilesView';
 export type { Fill } from './bindings/Fill';
+export type { FillRegion } from './bindings/FillRegion';
 export type { Flow } from './bindings/Flow';
 export type { FlowEstimate } from './bindings/FlowEstimate';
 export type { FlyCut } from './bindings/FlyCut';

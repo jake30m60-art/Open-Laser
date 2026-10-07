@@ -50,6 +50,27 @@ pub struct Features {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[cfg_attr(feature = "typescript", ts(as = "Option<Vec<Layer>>", optional))]
     pub layers: Vec<Layer>,
+    /// Explicit engraving areas: the owner boundary minus its direct holes,
+    /// by placed contour identity. Empty preserves the legacy layer fill rule.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "typescript", ts(as = "Option<Vec<FillRegion>>", optional))]
+    pub fill_regions: Vec<FillRegion>,
+    /// Work only these placed contours; None works every active contour.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub only_contours: Option<Vec<usize>>,
+}
+
+/// One explicitly chosen engraving area. Hole boundaries retain their own
+/// cutting or marking layer; they only subtract from this region's scan.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FillRegion {
+    /// The placed contour enclosing the selected face.
+    pub contour: usize,
+    /// Directly nested placed boundaries excluded from the selected face.
+    #[serde(default)]
+    pub holes: Vec<usize>,
 }
 
 /// What a layer does to the sheet.
@@ -178,6 +199,7 @@ impl Features {
     pub fn reusable(&self) -> Self {
         let mut features = self.renumbered_locations(|_| None);
         features.common = None;
+        features.only_contours = None;
         if matches!(features.start.position, StartPosition::Manual(_)) {
             features.start.position = StartPosition::default();
         }
@@ -199,6 +221,11 @@ impl Features {
     #[must_use]
     pub fn renumbered_locations(&self, renumber: impl Fn(usize) -> Option<usize>) -> Self {
         let mut features = self.clone();
+        features.only_contours = self.only_contours.as_ref().map(|ids| ids.iter().filter_map(|&i| renumber(i)).collect());
+        features.fill_regions = self.fill_regions.iter().filter_map(|r| {
+            Some(FillRegion { contour: renumber(r.contour)?,
+                holes: r.holes.iter().filter_map(|&i| renumber(i)).collect() })
+        }).collect();
         let keep = |spots: &mut Vec<Spot>| {
             spots.retain_mut(|spot| match renumber(spot.contour) {
                 Some(contour) => {
@@ -778,6 +805,8 @@ mod tests {
             },
             skip_layers: vec!["NOTES".into()],
             layer_edits: vec![LayerEdit { contour: 2, layer: "Etch".into() }],
+            fill_regions: vec![FillRegion { contour:2, holes:vec![3] }],
+            only_contours: Some(vec![2]),
             layers: vec![Layer {
                 name: "Etch".into(),
                 mode: LayerMode::Mark,
@@ -819,6 +848,8 @@ mod tests {
                     Bridge { first: pick(0), second: pick(2) },
                 ],
             }),
+            only_contours: Some(vec![0,1,2]),
+            fill_regions: vec![FillRegion { contour:0, holes:vec![1,2] }, FillRegion { contour:1, holes:vec![] }],
             start: Start { spots: vec![spot(2)], ..Start::default() },
             order: CutOrder {
                 strategy: OrderStrategy::Manual(vec![2, 1, 0]),
@@ -838,5 +869,9 @@ mod tests {
         assert_eq!(renumbered.bridges, features.bridges);
         assert_eq!(renumbered.start.spots, vec![Spot { contour: 1, fraction: 0.5 }]);
         assert_eq!(renumbered.order.strategy, OrderStrategy::Manual(vec![1, 0]));
+        assert_eq!(renumbered.fill_regions, vec![FillRegion { contour:0, holes:vec![1] }]);
+        assert!(features.reusable().fill_regions.is_empty());
+        assert_eq!(renumbered.only_contours, Some(vec![0,1]));
+        assert!(features.reusable().only_contours.is_none());
     }
 }

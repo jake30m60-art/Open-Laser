@@ -21,6 +21,7 @@
     ondragend,
     ontap,
     onmarquee,
+    onhover,
     children,
     lift = null,
     lifted,
@@ -42,6 +43,7 @@
     ontap?: (at: Point, target: Element, additive: boolean) => void;
     /** A marquee swept over empty space, in drawing coordinates. */
     onmarquee?: (box: Box, additive: boolean) => void;
+    onhover?: (point: Point | null) => void;
     children?: Snippet;
     /** How far the lifted layer has moved, in drawing millimetres, while it shows. */
     lift?: Point | null;
@@ -191,6 +193,7 @@
   }
 
   function move(e: PointerEvent): void {
+    if (svg) onhover?.(toDrawing(e.clientX, e.clientY));
     if (!gesture || !pointers.has(e.pointerId) || !svg) return;
     pointers.set(e.pointerId, [e.clientX, e.clientY]);
     pendingMove = e;
@@ -268,7 +271,7 @@
 <div class="canvas {variant}">
   <svg
     bind:this={svg} viewBox={view.viewBox} style:transform={lag} preserveAspectRatio="xMidYMid meet" role="application" aria-label="Drawing"
-    onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={cancel}
+    onpointerleave={() => onhover?.(null)} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={cancel}
     onlostpointercapture={(e) => { if (pointers.has(e.pointerId)) cancel(); }} onwheel={wheel} oncontextmenu={(e) => e.preventDefault()}>
     <defs>
       <pattern id="fine-{uid}" width={grid} height={grid} patternUnits="userSpaceOnUse"><path d="M{grid} 0H0V{grid}" fill="none" stroke="var(--grid)" stroke-width={view.shownMmPerPixel * 0.5}/></pattern>

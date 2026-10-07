@@ -18,6 +18,46 @@ export function contourPath(contour: PreviewContour): string {
   if (path === undefined) { path = contour.paths.map(p => drawingPath(p.points)).join(' '); contourPaths.set(contour, path); }
   return path;
 }
+/** Pick the original boundaries of filled contours, never their computed scan
+ * lines. In particular an inner letter contour remains independently editable. */
+export function editableContours(contours: readonly PreviewContour[], regions: readonly PreviewContour[]): PreviewContour[] {
+  const original = new Set(regions.flatMap(c => c.sources.length === 1 ? c.sources : []));
+  return [...contours.filter(c => c.sources.length === 1 && !original.has(c.sources[0]!)),
+    ...regions.filter(c => c.sources.length === 1).map(c => ({ ...c, paths: c.paths.slice(0, 1) }))];
+}
+
+function polygonArea(c: PreviewContour): number {
+  const points = c.paths.find(p => p.kind === 'cut')?.points ?? [];
+  return Math.abs(points.reduce((area, p, i) => { const q = points[(i + 1) % points.length]!; return area + p[0]! * q[1]! - q[0]! * p[1]!; }, 0)) / 2;
+}
+export function pickArea(shapes: Map<number, PreviewContour[]>, at: [number, number], shown: (c: PreviewContour) => boolean = () => true): { group: number; contour: PreviewContour } | null {
+  let best: { group: number; contour: PreviewContour } | null = null, size = Infinity;
+  for (const [group, contours] of shapes) for (const contour of contours) {
+    if (!contour.closed || !shown(contour) || !contour.paths.some(p => p.kind === 'cut' && encloses(p.points, ...at))) continue;
+    const area = polygonArea(contour);
+    if (area > 0 && area < size) { size = area; best = { group, contour }; }
+  }
+  return best;
+}
+/** A connected face: its enclosing contour minus directly nested contours. */
+export function fillAreas(contours: readonly PreviewContour[], selected: readonly number[]): Array<{ contour: number; holes: number[] }> {
+  const closed = contours.filter(c => c.closed && c.sources.length === 1);
+  const sizes = new Map(closed.map(c => [c, polygonArea(c)]));
+  const parent = new Map<number, number>();
+  for (const child of closed) {
+    const point = child.paths.find(p => p.kind === 'cut')?.points[0];
+    if (!point) continue;
+    let owner: PreviewContour | null = null;
+    for (const candidate of closed) {
+      if ((sizes.get(candidate) ?? 0) <= (sizes.get(child) ?? 0) || owner && sizes.get(candidate)! >= sizes.get(owner)!) continue;
+      if (candidate.paths.some(p => p.kind === 'cut' && encloses(p.points, point[0]!, point[1]!))) owner = candidate;
+    }
+    if (owner) parent.set(child.sources[0]!, owner.sources[0]!);
+  }
+  return selected.filter(i => closed.some(c => c.sources[0] === i)).map(contour => ({ contour,
+    holes: [...parent].filter(([, p]) => p === contour).map(([child]) => child) }));
+}
+
 /** A part's shown contours as one SVG path, so its selection halo is one
  *  stroke rather than one blended stroke a contour. `shown` names what is
  *  shown, for the cache. */

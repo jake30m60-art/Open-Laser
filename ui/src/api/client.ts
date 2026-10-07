@@ -196,6 +196,7 @@ export const api = {
   importFont: (name: string, bytes: ArrayBuffer) => request<{ ok: true; fonts: FontFace[]; existing: boolean }>('POST', `/api/fonts?name=${encodeURIComponent(name)}`, undefined, bytes),
   createText: (name: string, text: TextOptions) => post<{ ok: true; id: string; warnings: string[] }>('/api/parts/text', { name, text }),
   updatePart: (id: string, change: ItemChange) => post(`/api/parts/${id}`, change),
+  partDrawing: (id: string) => request<{ name: string; drawing: import('../sketch/from-drawing').SourceDrawing }>('GET', `/api/parts/${encodeURIComponent(id)}/drawing`),
   duplicatePart: (id: string) => post<{ ok: true; id: string }>(`/api/parts/${id}/duplicate`),
   /** What simplifying a part's drawing within `tolerance` mm does; `save` keeps it as a new part. */
   simplifyPart: (id: string, tolerance: number, save: boolean) => post<SimplifyView>(`/api/parts/${id}/simplify`, { tolerance, save }),
@@ -244,7 +245,7 @@ export const api = {
   /** A tap on the drawing snapped to a contour within `tolerance` millimetres, or `null`. */
   pick: (point: [number, number], tolerance: number, bridging: boolean, revision: number, features?: Features) =>
     post<{ ok: true; pick: PickView | null; revision: number }>(`/api/draft/pick?revision=${revision}`, { point, tolerance, bridging, features }),
-  previewFeatures: (features: Features, revision: number) => post<{ preview: Preview; revision: number }>(`/api/draft/preview?revision=${revision}`, features),
+  previewFeatures: (features: Features, revision: number) => post<{ preview: Preview; error: string | null; revision: number }>(`/api/draft/preview?revision=${revision}`, features),
   /** Which point of the part the origin stands for. */
   setAnchor: (anchor: Anchor) => draftPost('/api/draft/anchor', { anchor }),
   /** Puts the part's anchor point at machine coordinates, or where the head is. */
