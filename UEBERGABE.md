@@ -1,4 +1,6 @@
-# Übergabe – OpenLaser-Fork von Joe (Stand 2026-10-07, 10:30)
+# Übergabe – OpenLaser-Fork von Joe
+
+> Aktueller Gesamtstand und offene Aufgaben: zuerst CLAUDE_UEBERGABE.md lesen (7. Oktober 2026, Implementierungscommit def904f). Die folgenden frühen Statusangaben sind historisch; die letzte Fortsetzung und ALPHA_PRUEFUNG.md enthalten den aktuellen Prüfstand.
 
 Für die nächste Sitzung (ChatGPT/Codex oder Claude). Branch `skizze` in `C:\Users\joe\OpenLaser`.
 Installiertes Programm: `C:\Users\joe\OpenLaser-App\OpenLaser.exe` (Stand e0756c5, 10:18).
