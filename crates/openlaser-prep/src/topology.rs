@@ -13,14 +13,26 @@ use openlaser_core::features::{Kerf, Side};
 use openlaser_core::geometry::{Contour, Curve, Point};
 use std::f64::consts::PI;
 
+/// A line shorter than this is a join between neighbours, not a segment.
+const MICRO: f64 = 1e-4;
+
 /// A closed contour as a polyline. Arcs of more than a half turn are split
 /// so every bulge stays finite.
 pub(crate) fn polyline(contour: &Contour) -> std::result::Result<Polyline, String> {
     if !contour.is_closed() {
         return Err("is not closed".into());
     }
+    // Import bridges a gap of a few micrometres between two arcs with a line
+    // that short. As a polyline vertex it makes the two arcs cross at their
+    // tip, so the contour would be refused for a crossing it does not have.
+    // Such a line carries no geometry; its neighbours meet at the next vertex.
+    let real = |curve: &&Curve| !matches!(curve, Curve::Line { .. }) || curve.length() > MICRO;
+    let curves: Vec<&Curve> = match contour.curves.iter().filter(real).count() {
+        0..=2 => contour.curves.iter().collect(),
+        _ => contour.curves.iter().filter(real).collect(),
+    };
     let mut polyline = Polyline::new_closed();
-    for curve in &contour.curves {
+    for curve in curves {
         let (pieces, bulge) = match *curve {
             Curve::Arc { sweep, .. } => {
                 #[allow(
@@ -321,6 +333,93 @@ mod tests {
         let (expected_groups, expected_depths) = exhaustive(contours);
         assert_eq!(groups(contours), expected_groups);
         assert_eq!(depths(&contours.iter().collect::<Vec<_>>()), expected_depths);
+    }
+
+    /// The tip of a thin lens in the OPH logo: two arcs that meet within
+    /// micrometres, joined by an import line a few micrometres long.
+    fn lens() -> Contour {
+        let arc = |cx: f64, cy: f64, radius: f64, start_angle: f64, sweep: f64| Curve::Arc {
+            center: Point::new(cx, cy),
+            radius,
+            start_angle,
+            sweep,
+        };
+        let join = |a: (f64, f64), b: (f64, f64)| Curve::Line {
+            start: Point::new(a.0, a.1),
+            end: Point::new(b.0, b.1),
+        };
+        let curves = vec![
+            arc(
+                36.362_512_115_400_9,
+                -55.124_487_783_890_6,
+                2.064_585_564_494_471_7,
+                1.799_636_934_996_594_4,
+                0.273_526_648_613_839_2,
+            ),
+            arc(
+                36.109_545_875_722_574,
+                -55.243_574_515_883_74,
+                2.066_086_372_158_379,
+                1.937_686_696_746_880_2,
+                0.273_318_472_034_715_8,
+            ),
+            join(
+                (34.875_342_447_626_74, -53.586_633_118_219_03),
+                (34.875_344_891_960_57, -53.586_631_983_673_66),
+            ),
+            arc(
+                34.406_815_917_433_58,
+                -51.575_444_495_692_22,
+                2.065_041_043_607_703_6,
+                -1.341_917_188_670_028,
+                0.273_461_616_195_717_7,
+            ),
+            arc(
+                34.659_708_325_139_42,
+                -51.456_295_203_868_9,
+                2.066_629_950_433_7,
+                -1.203_879_939_565_421_6,
+                0.273_250_190_605_497_4,
+            ),
+            join(
+                (35.894_166_428_611_06, -53.113_724_702_465_16),
+                (35.894_163_956_879_11, -53.113_725_849_814_81),
+            ),
+        ];
+        Contour { layer: "0".into(), curves }
+    }
+
+    #[test]
+    fn a_micrometre_join_between_arcs_is_not_a_crossing() {
+        assert!(lens().is_closed());
+        assert!(polyline(&lens()).is_ok());
+        // A square with such a join still reads as a square.
+        let at = |x: f64, y: f64| Point::new(x, y);
+        let line = |a: Point, b: Point| Curve::Line { start: a, end: b };
+        let joined = Contour {
+            layer: "0".into(),
+            curves: vec![
+                line(at(0., 0.), at(10., 0.)),
+                line(at(10., 0.), at(10., 2e-6)),
+                line(at(10., 2e-6), at(10., 10.)),
+                line(at(10., 10.), at(0., 10.)),
+                line(at(0., 10.), at(0., 0.)),
+            ],
+        };
+        assert!(polyline(&joined).is_ok());
+        // A real crossing is still one.
+        let bow = Contour {
+            layer: "0".into(),
+            curves: [(0., 0.), (4., 4.), (4., 0.), (0., 4.)]
+                .iter()
+                .zip([(4., 4.), (4., 0.), (0., 4.), (0., 0.)])
+                .map(|(a, b)| Curve::Line {
+                    start: Point::new(a.0, a.1),
+                    end: Point::new(b.0, b.1),
+                })
+                .collect(),
+        };
+        assert!(polyline(&bow).is_err());
     }
 
     #[test]
