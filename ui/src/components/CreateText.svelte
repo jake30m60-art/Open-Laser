@@ -11,7 +11,7 @@
   import { explain, plural } from '../lib/format';
   import { boxOf, pathOf, viewBoxFor } from '../lib/svg';
 
-  let { onclose }: { onclose: () => void } = $props();
+  let { onclose, oncreated }: { onclose: () => void; oncreated?: (id:string)=>Promise<void> } = $props();
   let value = $state('OpenLaser');
   let family = $state<TextOptions['family']>('sans');
   let font = $state<string | undefined>();
@@ -54,6 +54,7 @@
     try {
       const name = value.trim().split(/\r?\n/)[0]!.replace(/[\\/]/g, ' ').slice(0, 80);
       const { id } = await api.createText(name || 'Text', options);
+      if(oncreated){await oncreated(id);onclose();return;}
       ui.selected = id;
       // With a job open the text joins it beside the sheet; otherwise it opens as the job.
       if (server.doc?.draft) {

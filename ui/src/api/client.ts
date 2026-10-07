@@ -196,7 +196,9 @@ export const api = {
   importFont: (name: string, bytes: ArrayBuffer) => request<{ ok: true; fonts: FontFace[]; existing: boolean }>('POST', `/api/fonts?name=${encodeURIComponent(name)}`, undefined, bytes),
   createText: (name: string, text: TextOptions) => post<{ ok: true; id: string; warnings: string[] }>('/api/parts/text', { name, text }),
   updatePart: (id: string, change: ItemChange) => post(`/api/parts/${id}`, change),
-  partDrawing: (id: string) => request<{ name: string; drawing: import('../sketch/from-drawing').SourceDrawing }>('GET', `/api/parts/${encodeURIComponent(id)}/drawing`),
+  savePartSketch: (id:string,sketch:import('../sketch/model').Sketch)=>post('/api/parts/'+encodeURIComponent(id)+'/sketch',sketch),
+  replaceDraftPart: (old:string,next:string,revision:number)=>draftPost('/api/draft/replace-part',{old,new:next},revision),
+  partDrawing: (id: string) => request<{ name: string; drawing: import('../sketch/from-drawing').SourceDrawing; sketch?: import('../sketch/model').Sketch }>('GET', `/api/parts/${encodeURIComponent(id)}/drawing`),
   duplicatePart: (id: string) => post<{ ok: true; id: string }>(`/api/parts/${id}/duplicate`),
   /** What simplifying a part's drawing within `tolerance` mm does; `save` keeps it as a new part. */
   simplifyPart: (id: string, tolerance: number, save: boolean) => post<SimplifyView>(`/api/parts/${id}/simplify`, { tolerance, save }),

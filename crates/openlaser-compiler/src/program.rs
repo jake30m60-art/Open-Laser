@@ -136,7 +136,9 @@ impl Kind {
 
     /// The section kind of a cutting piece.
     fn of_piece(piece: &Piece) -> Self {
-        if piece.process.cool_ms > 0 {
+        if piece.process.run_up {
+            Self::Travel
+        } else if piece.process.cool_ms > 0 {
             Self::Cooling
         } else if piece.process.joint {
             Self::Joint
@@ -2600,4 +2602,18 @@ mod tests {
         assert_eq!(pass.omitted_cooling, 3);
         assert_eq!(retained, 2);
     }
+    #[test]
+    fn laser_off_scan_ramps_display_as_travel_without_changing_motion() {
+        let mut ramp=SegmentProcess::default(); ramp.joint=true; ramp.power=Some(0.); ramp.run_up=true;
+        let contours=[Contour{segments:tagged(vec![ramp.clone(),SegmentProcess::default(),ramp],vec![
+            Segment::Line{start:[0.,0.],end:[2.,0.]},Segment::Line{start:[2.,0.],end:[8.,0.]},Segment::Line{start:[8.,0.],end:[10.,0.]}]),overrides:Overrides::default()}];
+        let s=settings(); let program=Job::schedule_prepared(&s,&contours,None).unwrap().program(bound()).unwrap();
+        assert!(program.sections.iter().any(|section|section.kind==Kind::Cut));
+        assert!(!program.sections.iter().any(|section|section.kind==Kind::Joint));
+        assert!(program.sections.iter().any(|section|section.kind==Kind::Travel && section.points.len()>1));
+        let mut ordinary=contours.clone(); for segment in &mut ordinary[0].segments {segment.process.run_up=false;}
+        let previous=Job::schedule_prepared(&s,&ordinary,None).unwrap().program(bound()).unwrap();
+        assert_eq!(program.records,previous.records,"display classification must not change machine records");
+    }
+
 }

@@ -1404,5 +1404,21 @@
   "Parts in this job": "Teile in diesem Auftrag",
   "Recipe missing": "Rezept fehlt",
   "Output off": "Ausgabe aus",
-  "Parts and saved jobs": "Teile und gespeicherte Aufträge"
+  "Parts and saved jobs": "Teile und gespeicherte Aufträge",
+  "Add bridge": "Brücke hinzufügen",
+  "Undo last bridge": "Letzte Brücke zurücknehmen",
+  "Stencil bridge: connect the outer boundary to the inner hole. Keep separate bridges farther apart than their width.": "Schablonenbrücke: Außenkontur mit dem Innenloch verbinden. Getrennte Brücken weiter auseinander platzieren als ihre Breite.",
+  "Bridge {0} is invalid: {1}": "Brücke {0} ist ungültig: {1}",
+  "Bridge {0}": "Brücke {0}",
+  "Remove this and subsequent bridges": "Diese und folgende Brücken entfernen",
+  "Saved sketches": "Gespeicherte Skizzen",
+  "Clear this sketch": "Diese Skizze leeren",
+  "Replace part in job": "Teil im Auftrag ersetzen",
+  "The edited job changed. Open the part again before replacing it.": "Der bearbeitete Auftrag hat sich geändert. Teil vor dem Ersetzen erneut öffnen.",
+  "Saving replaces the part in this job. Undo restores the original; changed contour features need review.": "Speichern ersetzt das Teil in diesem Auftrag. Rückgängig stellt das Original wieder her; Einstellungen geänderter Konturen bitte prüfen.",
+  "Editing source geometry as a new library part.": "Quellgeometrie als neues Bibliotheksteil bearbeiten.",
+  "Replaces this part in the open job. Original stays available; Undo restores it. Bridges are cleared and changed contour settings must be reviewed.": "Ersetzt dieses Teil im offenen Auftrag. Original bleibt erhalten; Rückgängig stellt es wieder her. Brücken werden zurückgesetzt; Einstellungen geänderter Konturen bitte prüfen.",
+  "Text with fonts": "Text mit Schriftauswahl",
+  "Import DXF / SVG": "DXF / SVG importieren",
+  "Manual separation cut": "Manueller Trennschnitt"
 }

@@ -628,6 +628,47 @@ impl Draft {
         Ok(())
     }
 
+    /// Replaces one source part as one undoable edit, retaining each copy's placement.
+    pub(crate) fn replace_part(&mut self, sources: Arc<JobDrawing>, index: usize) -> Result<()> {
+        if self.current.sheets.is_some() || self.current.nesting.is_some() {
+            return Err(crate::Error::Refused("edit source geometry before nesting or assigning multiple sheets".into()));
+        }
+        let old=self.sources().ok_or_else(||crate::Error::Refused("source drawing missing".into()))?.clone();
+        let before=old.range(index); let after=sources.range(index);
+        let mut placed=Vec::new(); let mut map=vec![None;self.current.placed.len()];
+        let mut copies=std::collections::BTreeSet::new();
+        for (i,p) in self.current.placed.iter().enumerate() {
+            if before.contains(&p.source) {
+                if copies.insert(p.copy) {
+                    let start=placed.len();
+                    for source in after.clone() {
+                        let equivalent=self.current.placed.iter().enumerate().find(|(_,q)| q.copy==p.copy && before.contains(&q.source) && old.drawing().contours[q.source]==sources.drawing().contours[source]);
+                        let transform=equivalent.map_or(p.transform,|(_,q)|q.transform);
+                        if let Some((old_index,_))=equivalent {map[old_index]=Some(placed.len());}
+                        placed.push(Placed{source,copy:p.copy,transform});
+                    }
+                    debug_assert_eq!(placed.len()-start,after.len());
+                }
+            } else {
+                map[i]=Some(placed.len()); let mut next=*p;
+                if next.source>=before.end {next.source=next.source-before.len()+after.len();}
+                placed.push(next);
+            }
+        }
+        if placed.len()>openlaser_core::geometry::MAX_PLACED_CONTOURS {return Err(crate::Error::Request("too many placed contours".into()));}
+        self.remember();
+        self.current.features=self.current.features.renumbered_locations(|i|map.get(i).copied().flatten());
+        // Evolving bridge references cannot safely survive changed source topology.
+        if let Some(bridges)=&mut self.current.features.bridges {bridges.connections.clear();}
+        if let OrderStrategy::Manual(order)=&mut self.current.features.order.strategy {
+            for i in 0..placed.len(){if !order.contains(&i){order.push(i);}}
+        }
+        self.current.grouping=self.current.grouping.remapped(|i|map.get(i).copied().flatten());
+        self.current.placed=placed; self.current.parts=sources.parts().cloned().collect();
+        self.source_count=sources.contours(); self.sources=Some(sources); self.prepared=None; self.compiled=None;
+        Ok(())
+    }
+
     /// Appends the parts `sources` adds to the draft's, their contours at
     /// `placed`, as one edit. Everything already placed keeps its index.
     pub(crate) fn add_parts(
@@ -1995,4 +2036,24 @@ mod tests {
         );
         assert!(prepared.shifted([100_001., 0.]).is_err());
     }
+    #[test]
+    fn editing_a_part_keeps_other_parts_copies_and_undo() {
+        let a=Id::generate();let b=Id::generate();let replacement=Id::generate();
+        let mut drawing=square(); drawing.contours.push(square_at([20.,0.]));
+        let old=Arc::new(JobDrawing::new(vec![(a.clone(),Arc::new(drawing.clone())),(b.clone(),Arc::new(Drawing{contours:vec![square_at([50.,0.])]}))]));
+        let mut draft=Draft::new(old.clone());
+        draft.current.placed=vec![Placed::drawn(0),Placed::drawn(1),Placed::drawn(2),Placed{source:0,copy:1,transform:Transform::translation(Point::new(100.,0.))},Placed{source:1,copy:1,transform:Transform::translation(Point::new(100.,0.))}];
+        draft.current.features.only_contours=Some(vec![2]);
+        draft.current.features.order.strategy=OrderStrategy::Manual(vec![2,0,1,3,4]);
+        let original=draft.current.clone();
+        drawing.contours[1]=square_at([25.,0.]);drawing.contours.push(square_at([40.,0.]));
+        let new=Arc::new(JobDrawing::new(vec![(replacement.clone(),Arc::new(drawing)),(b.clone(),Arc::new(Drawing{contours:vec![square_at([50.,0.])]}))]));
+        draft.replace_part(new.clone(),0).unwrap();
+        assert_eq!(draft.current.parts,vec![replacement,b]); assert_eq!(draft.current.placed.len(),7);
+        assert_eq!(draft.current.placed[3].source,3);assert_eq!(draft.current.features.only_contours,Some(vec![3]));
+        assert_eq!(draft.current.placed[4].transform,original.placed[3].transform);
+        let edited=draft.current.clone();draft.undo().unwrap();draft.attach(old).unwrap();assert_eq!(draft.current,original);
+        draft.redo().unwrap();draft.attach(new).unwrap();assert_eq!(draft.current,edited);
+    }
+
 }

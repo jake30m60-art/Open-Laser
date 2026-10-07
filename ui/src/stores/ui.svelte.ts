@@ -21,6 +21,7 @@ export type FeatureId = (typeof FEATURE_IDS)[number];
 /** What a tap on the drawing places while a panel asks for it. */
 export interface Picking {
   error?: string | null;
+  previewPending?: boolean;
   features: Features;
   preview?: Preview;
   marks: [number, number][];

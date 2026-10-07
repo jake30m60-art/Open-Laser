@@ -601,7 +601,7 @@
   let pickBusy = $state(false);
   async function pickAt(at: Point): Promise<void> {
     let picking = ui.picking;
-    if (updating || !picking || !draft || pickBusy) return;
+    if (updating || !picking || !draft || pickBusy || picking.previewPending) return;
     if (featureEdits.busy) { ui.say('Wait for the feature edit to finish.'); return; }
     if (picking.revision !== draft.revision) {
       ui.say('The drawing changed. Start the picking session again.', true); ui.picking = null; return;
@@ -646,7 +646,7 @@
   }
   async function finishPicks(): Promise<void> {
     const picking = ui.picking;
-    if (updating || !picking || pickBusy) return;
+    if (updating || !picking || pickBusy || picking.previewPending) return;
     if (picking.error && picking.error !== draft?.error) { ui.say(picking.error, true); return; }
     if (picking.first) { ui.say('Complete or cancel the pending bridge end first.', true); return; }
     await withBusy((b) => (pickBusy = b), async () => {

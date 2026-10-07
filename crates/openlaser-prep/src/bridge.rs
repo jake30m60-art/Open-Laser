@@ -71,6 +71,9 @@ pub(crate) fn resolve(
             std::mem::swap(&mut a, &mut b);
             std::mem::swap(&mut pick_a, &mut pick_b);
         }
+        if a != b && list[a].contour.layer != list[b].contour.layer {
+            return Err(fail("both ends must be on the same processing layer; a bridge cannot merge cutting and engraving".into()));
+        }
         let second = (a != b).then(|| &list[b].contour);
         let pieces =
             splice(&list[a].contour, second, [pick_a, pick_b], bridges.width.0).map_err(fail)?;
@@ -551,4 +554,25 @@ mod tests {
         assert!(point.distance(Point::new(0., 5.)) < 1e-9);
         assert!((fraction - 0.25).abs() < 1e-9);
     }
+    #[test]
+    fn nested_stencil_boundaries_keep_a_material_bridge() {
+        let outer=square(10.,Point::ORIGIN); let inner=square(4.,Point::new(3.,3.));
+        for hole in [inner.clone(),Contour {layer:inner.layer.clone(),curves:inner.curves.iter().rev().map(|c|c.reversed()).collect()}] {
+            let result=splice(&outer,Some(&hole),[Point::new(10.,5.),Point::new(7.,5.)],2.).unwrap();
+            assert_eq!(result.len(),1); assert!(result[0].is_closed());
+            assert!((result[0].signed_area().abs()-78.).abs()<1e-8,"area {}",result[0].signed_area());
+        }
+        let outer=Contour{layer:"0".into(),curves:vec![Curve::circle(Point::ORIGIN,10.)]};
+        let inner=Contour{layer:"0".into(),curves:vec![Curve::circle(Point::ORIGIN,5.)]};
+        let result=splice(&outer,Some(&inner),[Point::new(10.,0.),Point::new(5.,0.)],1.).unwrap();
+        assert!(result[0].is_closed()); assert!(result[0].signed_area().abs()<75.*std::f64::consts::PI);
+    }
+
+    #[test]
+    fn a_bridge_never_merges_different_processing_layers() {
+        let a=square(10.,Point::ORIGIN);let mut b=square(10.,Point::new(14.,0.));b.layer="Engraving".into();
+        let f=Bridges{width:Millimeters(2.),connections:vec![Bridge{first:Pick{contour:0,point:Point::new(10.,5.)},second:Pick{contour:1,point:Point::new(14.,5.)}}]};
+        assert!(apply(&[(0,&a),(1,&b)],Some(&f)).err().unwrap().to_string().contains("same processing layer"));
+    }
+
 }

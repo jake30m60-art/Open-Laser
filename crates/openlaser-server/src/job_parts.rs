@@ -47,6 +47,18 @@ impl Coordinator {
         Ok(())
     }
 
+    /// Replaces a part reference; original library geometry remains available to undo and other jobs.
+    pub fn replace_draft_part(&mut self, old: &Id, new: &Id) -> Result<()> {
+        if old==new {return Ok(());}
+        let draft=self.draft.as_ref().ok_or_else(||Error::Refused("open a job first".into()))?;
+        let index=draft.current.parts.iter().position(|p|p==old).ok_or_else(||Error::Refused("the edited part is no longer in this job".into()))?;
+        let mut parts=draft.current.parts.clone(); parts[index]=new.clone();
+        if parts.iter().collect::<std::collections::BTreeSet<_>>().len()!=parts.len(){return Err(Error::Refused("the replacement already belongs to this job".into()));}
+        let sources=Arc::new(self.library.job_drawing(&parts)?);
+        self.draft.as_mut().unwrap().replace_part(sources,index)?;
+        self.reprepare(); Ok(())
+    }
+
     /// Adds parts to the open job, beside what is on the sheet, as one
     /// undoable edit.
     pub fn add_parts(&mut self, parts: &[Id]) -> Result<()> {

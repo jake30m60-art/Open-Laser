@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { api } from '../../api/client';
+  import { explain } from '../../lib/format';
   import { server } from '../../stores/server.svelte';
   import { t } from '../../i18n/index';
 
@@ -28,6 +30,12 @@
   function cancelBridgeEnd(): void {
     if (ui.picking) ui.picking = { ...ui.picking, first: null };
   }
+  async function undoBridge(): Promise<void> {
+    const current=ui.picking; if(!current?.features.bridges || busy)return;
+    const features=structuredClone($state.snapshot(current.features)); features.bridges!.connections.pop();
+    const staged={...current,features,first:null,marks:current.marks.slice(0,-1),preview:undefined,error:null,previewPending:true}; ui.picking=staged;
+    try{const reply=await api.previewFeatures(features,current.revision); if(ui.picking===staged)ui.picking={...staged,preview:reply.preview,error:reply.error,previewPending:false};}catch(e){ui.say(explain(e),true);}
+  }
   function cancel(): void {
     ui.picking = null;
   }
@@ -39,6 +47,7 @@
   {#if picking.feature === 'bridges' && picking.first}
     <button class="btn btn-ghost" onclick={cancelBridgeEnd}>{t("Cancel end")}</button>
   {/if}
+  {#if picking.feature === 'bridges' && picking.features.bridges?.connections.length}<button class="btn btn-ghost" disabled={busy} onclick={undoBridge}>{t("Undo last bridge")}</button>{/if}
   <button class="btn btn-ghost" onclick={cancel}>{t("Cancel")}</button>
-  <button class="btn btn-primary" disabled={busy || !!picking.first || !!picking.error && picking.error !== draftError} onclick={onfinish}>{t("Apply")}</button>
+  <button class="btn btn-primary" disabled={busy || picking.previewPending || !!picking.first || !!picking.error && picking.error !== draftError} onclick={onfinish}>{t("Apply")}</button>
 </div>

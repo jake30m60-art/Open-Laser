@@ -1014,3 +1014,26 @@ async fn hold_times_are_shared_checked_and_published() {
     assert_eq!(server.shared.lock().await.document().hold.move_ms, 1500);
     server.close().await;
 }
+
+#[tokio::test]
+async fn sketches_and_replaced_job_parts_survive_the_http_boundary() {
+    use openlaser_core::geometry::{Contour,Curve,Drawing};
+    let server=Server::start().await;
+    let drawing=|x:f64|Drawing{contours:vec![Contour{layer:"0".into(),curves:vec![Curve::Line{start:[x,0.].into(),end:[x+10.,0.].into()}]}]};
+    let (a,b,new)={let mut c=server.shared.lock().await;
+        let a=c.library.add_part("a.dxf",b"a",drawing(0.)).unwrap().id;
+        let b=c.library.add_part("b.dxf",b"b",drawing(30.)).unwrap().id;
+        let new=c.library.add_part("edited.dxf",b"edit",drawing(2.)).unwrap().id;
+        c.open_parts(&[a.clone(),b.clone()]).unwrap();(a,b,new)};
+    let sketch=serde_json::json!({"points":[{"id":1,"x":2,"y":0},{"id":2,"x":12,"y":0}],"entities":[{"id":3,"kind":"line","a":1,"b":2}],"constraints":[{"id":4,"kind":"horizontal","line":3}],"next":5});
+    let (status,response)=server.request("POST",&format!("/api/parts/{new}/sketch"),Some(&sketch.to_string()),&[]).await;assert_eq!(status,200,"{response}");
+    let (status,response)=server.request("GET",&format!("/api/parts/{new}/drawing"),None,&[]).await;assert_eq!(status,200,"{response}");assert_eq!(response_json(&response)["sketch"],sketch);
+    let original=server.shared.lock().await.draft.as_ref().unwrap().current.parts.clone();
+    server.edit("replace-part",serde_json::json!({"old":a,"new":new})).await;
+    assert_eq!(server.shared.lock().await.draft.as_ref().unwrap().current.parts,vec![new.clone(),b]);
+    server.edit("undo",serde_json::json!({})).await;
+    assert_eq!(server.shared.lock().await.draft.as_ref().unwrap().current.parts,original);
+    let (status,_)=server.request("POST",&format!("/api/parts/{new}/sketch"),Some("{}"),&[]).await;assert_ne!(status,200);
+    assert_eq!(server.shared.lock().await.library.part(&new).unwrap().sketch,Some(sketch));
+    server.close().await;
+}

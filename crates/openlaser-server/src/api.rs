@@ -66,6 +66,8 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/parts/review", post(review_part))
         .route("/api/parts/{id}", post(update_part).delete(remove_part))
         .route("/api/parts/{id}/drawing", get(part_drawing))
+        .route("/api/parts/{id}/sketch", post(save_part_sketch))
+        .route("/api/draft/replace-part", post(replace_draft_part))
         .route("/api/parts/{id}/duplicate", post(duplicate_part))
         .route("/api/parts/{id}/simplify", post(simplify_part))
         .route("/api/folders", post(add_folder))
@@ -433,10 +435,24 @@ async fn duplicate_part(State(shared): State<Shared>, Path(id): Path<String>) ->
 async fn part_drawing(State(shared): State<Shared>, Path(id): Path<String>) -> Reply {
     let c = shared.lock().await;
     let part = c.library.part(&Id::from(id.as_str())).map_err(Error::from)?;
-    Ok(Json(json!({ "name": part.name, "drawing": part.drawing })))
+    Ok(Json(json!({ "name": part.name, "drawing": part.drawing, "sketch": part.sketch })))
 }
 
-/// How closely a simplified drawing follows its part, and whether to keep it.
+/// Retain editable sketch geometry, constraints and dimensions with the part.
+async fn save_part_sketch(State(shared): State<Shared>, Path(id): Path<Id>, Json(sketch): Json<Value>) -> Reply {
+    if !["points","entities","constraints"].iter().all(|key|sketch.get(key).is_some_and(Value::is_array)) || sketch.get("next").and_then(Value::as_u64).is_none() {
+        return Err(Error::Request("invalid sketch document".into()).into());
+    }
+    let mut c=shared.lock().await;
+    c.library.update_part(&id,|part|part.sketch=Some(sketch)).map_err(Error::from)?;
+    c.library_changed(); Ok(ok())
+}
+#[derive(Deserialize)]
+struct ReplacePart { old: Id, new: Id }
+async fn replace_draft_part(State(shared): State<Shared>, Query(v): Query<Revision>, Json(request): Json<ReplacePart>) -> Reply {
+    edit(&shared,Some(v.revision),|c|{c.replace_draft_part(&request.old,&request.new)?;Ok(json!({"ok":true}))}).await
+}
+
 #[derive(Deserialize)]
 struct SimplifyRequest {
     /// Millimetres.

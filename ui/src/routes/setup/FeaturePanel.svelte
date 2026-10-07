@@ -67,7 +67,9 @@
    *  picked on the drawing are the job's, whichever layer they are on. */
   function pick(feature: PickFeature): void {
     if (scope) { ui.say(t("Places picked on the drawing apply to every layer. Choose All layers to pick them.")); return; }
-    ui.picking = { feature, first: null, order: [], revision: draft.revision, features: structuredClone($state.snapshot(features)), marks: [] };
+    const staged = structuredClone($state.snapshot(features));
+    if (feature === 'bridges' && !staged.bridges) staged.bridges = defaultBridges();
+    ui.picking = { feature, first: null, order: [], revision: draft.revision, features: staged, marks: [] };
   }
 
   function reset(): void {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ManualCut from '../components/ManualCut.svelte';
   import JobOverview from './setup/JobOverview.svelte';
   import { t } from '../i18n/index';
 
@@ -37,6 +38,7 @@
 
   const EXTRA = [{ id: 'simulation', short: t("Simulation") }, { id: 'engrave', short: t("Engrave") }, { id: 'nest', short: t("Nest parts") }, { id: 'copy', short: t("Copy job") }];
   let texting = $state(false);
+  let manualCutOpen=$state(false);
   let selectedContours = $state<number[]>([]);
   let engravingAreas = $state<Array<{ contour: number; holes: number[] }>>([]);
   let engraveMode = $state<'area' | 'contour'>('area');
@@ -117,6 +119,7 @@
 </section>
 
 <aside class="panel side" class:spread={ui.setupPanel === null} bind:this={settingsPanel}>
+  {#if draft}<JobOverview onmanualcut={()=>manualCutOpen=true} onselectpart={(first,count)=>canvas?.selectPart(first,count)} />{/if}
   {#if !draft}
     <h2>No part open</h2>
     <p class="muted">Pick a part or a saved job on the Parts page, or start from text.</p>
@@ -140,6 +143,7 @@
     <JobPanel onselectpart={(first, count) => canvas?.selectPart(first, count)} />
   {/if}
 </aside>
+{#if manualCutOpen}<ManualCut onclose={()=>manualCutOpen=false} />{/if}
 {#if texting}<CreateText onclose={() => (texting = false)} />{/if}
 {#if ui.layerSheet && draft}{#key ui.layerSheet}<LayerSheet name={ui.layerSheet} onclose={() => (ui.layerSheet = null)} />{/key}{/if}
 

@@ -6,6 +6,8 @@ import { createTool, type Tool, type ToolId } from './tools';
 import { createAction, type Action, type ActionId } from './actions';
 import { freedom, solveEdit, solve, solverReady } from './solver';
 
+import { readDocuments, type SketchDocument, type SketchTarget } from './documents';
+const ARCHIVE='ol-sketch-documents';
 const KEY = 'ol-sketch';
 const LIMIT = 200;
 
@@ -17,11 +19,15 @@ function restored(): { name: string; sketch: Sketch; target: 'new' | 'add' } {
   return { name: 'Sketch', sketch: emptySketch(), target: 'add' };
 }
 
-class SketchStore {
+export class SketchStore {
   /** The sketch as shown; replaced, never mutated in place, so views follow it. */
   sketch = $state.raw<Sketch>(emptySketch());
   name = $state('Sketch');
-  target = $state<'new' | 'add'>('add');
+  target = $state<SketchTarget>('add');
+  documents = $state.raw<SketchDocument[]>([]);
+  activeDocument = $state('');
+  sourcePart = $state<string | undefined>();
+  jobKey = $state<string | undefined>();
   selection = $state.raw<ReadonlySet<Id>>(new Set());
   /** The drawing tool in hand, or null for selecting. */
   tool = $state.raw<Tool | null>(null);
@@ -52,10 +58,16 @@ class SketchStore {
     this.target = target;
     this.name = name;
     this.sketch = sketch;
+    try {this.documents=readDocuments(localStorage.getItem(ARCHIVE));}catch{}
+    const current=this.documents.at(-1);
+    this.activeDocument=current?.id ?? 'sketch-'+Date.now().toString(36);
+    if(current){this.sketch=clone(current.sketch);this.name=current.name;this.target=current.target;this.sourcePart=current.sourcePart;this.jobKey=current.jobKey;}
   }
 
   private save(): void {
-    try { localStorage.setItem(KEY, JSON.stringify({ name: this.name, sketch: this.sketch, target: this.target })); } catch { /* storage full or private */ }
+    const document:SketchDocument={id:this.activeDocument,name:this.name,sketch:clone(this.sketch),target:this.target,sourcePart:this.sourcePart,jobKey:this.jobKey};
+    this.documents=[...this.documents.filter(d=>d.id!==this.activeDocument),document];
+    try { localStorage.setItem(ARCHIVE,JSON.stringify(this.documents)); localStorage.setItem(KEY, JSON.stringify({ name: this.name, sketch: this.sketch, target: this.target })); } catch { /* storage full or private */ }
   }
 
   private history(): void {
@@ -211,12 +223,24 @@ class SketchStore {
     this.toolRevision++;
   }
 
-  begin(sketch: Sketch, name: string, target: 'new' | 'add'): void {
+  bindPart(id:string): void {this.sourcePart=id;this.save();}
+
+  openDocument(id:string): void {
+    this.save(); const doc=this.documents.find(d=>d.id===id); if(!doc)return;
+    this.activeDocument=doc.id;this.name=doc.name;this.target=doc.target;this.sourcePart=doc.sourcePart;this.jobKey=doc.jobKey;
+    this.use(null);this.sketch=clone(doc.sketch);this.past=[];this.future=[];this.history();this.selection=new Set();this.view=null;this.save();this.refreshFreedom();
+  }
+
+  begin(sketch: Sketch, name: string, target: SketchTarget, sourcePart?:string, jobKey?:string): void {
+    this.save();
+    this.activeDocument='sketch-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+    this.sourcePart=sourcePart; this.jobKey=jobKey;
+    this.past=[];this.future=[];this.history();
     this.target = target;
     this.name = name;
     this.use(null);
     this.view = null;
-    this.commit(sketch);
+    this.sketch=clone(sketch);this.save();this.refreshFreedom();
     this.selection = new Set();
   }
 

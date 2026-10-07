@@ -1,5 +1,6 @@
 import { sketchStore } from '../sketch/store.svelte';
-import { emptySketch } from '../sketch/model';
+import { server } from '../stores/server.svelte';
+import { emptySketch, isSketch } from '../sketch/model';
 import { fromDrawing } from '../sketch/from-drawing';
 import { api } from '../api/client';
 import { ui } from '../stores/ui.svelte';
@@ -11,13 +12,15 @@ export function beginProject(target: 'new' | 'add' = 'new'): void {
 }
 export async function editPart(id: string, contour?: number): Promise<void> {
   try {
-    const {name,drawing} = await api.partDrawing(id);
-    sketchStore.begin(fromDrawing(drawing),name+' – '+t('Edited'),'new');
-    if(contour !== undefined && drawing.contours[contour]) {
+    const {name,drawing,sketch} = await api.partDrawing(id);
+    const current=server.doc?.draft;
+    const replacement=!!current?.parts.some(p=>p.id===id);
+    sketchStore.begin(isSketch(sketch)?sketch:fromDrawing(drawing),name,replacement?'replace':'new',id,replacement?current?.key:undefined);
+    if(!sketch && contour !== undefined && drawing.contours[contour]) {
       const first=drawing.contours.slice(0,contour).reduce((n,c)=>n+c.curves.length,0);
       sketchStore.select(sketchStore.sketch.entities.slice(first,first+drawing.contours[contour]!.curves.length).map(e=>e.id));
     }
     ui.setupPanel = null; ui.tab = 'sketch';
-    ui.say(t('Editing source geometry. Save creates a new part and opens a new project; the original remains available.'));
+    ui.say(t(replacement?'Saving replaces the part in this job. Undo restores the original; changed contour features need review.':'Editing source geometry as a new library part.'));
   } catch (error) { ui.say(explain(error),true); }
 }

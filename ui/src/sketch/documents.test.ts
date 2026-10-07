@@ -1,0 +1,2 @@
+import {it,expect} from 'vitest';import {readDocuments} from './documents';import {emptySketch} from './model';
+it('restores independent named sketch documents and ignores malformed storage',()=>{const sketch=emptySketch();const docs=[{id:'a',name:'A',sketch,target:'new'},{id:'b',name:'B',sketch,target:'replace',sourcePart:'part',jobKey:'job'}];expect(readDocuments(JSON.stringify(docs))).toEqual(docs);expect(readDocuments('{')).toEqual([]);expect(readDocuments(JSON.stringify([...docs,{id:'bad',name:'Bad',sketch:null,target:'new'}]))).toHaveLength(2);});

@@ -191,6 +191,9 @@ pub struct Part {
     pub sha256: String,
     /// The geometry in millimetres.
     pub drawing: std::sync::Arc<Drawing>,
+    /// Editable sketch document, including dimensions and constraints.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sketch: Option<serde_json::Value>,
     /// The colours the file gives its layers.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub colors: Vec<LayerColor>,
@@ -630,6 +633,7 @@ impl Library {
             file_name: file_name.to_owned(),
             sha256,
             drawing: std::sync::Arc::new(drawing),
+            sketch: None,
             colors,
             favourite: false,
             created: now,
@@ -687,6 +691,7 @@ impl Library {
         part.id = Id::generate();
         part.name = clean_name(name)?;
         part.drawing = std::sync::Arc::new(drawing);
+        part.sketch = None;
         part.favourite = false;
         part.created = now();
         part.updated = part.created;

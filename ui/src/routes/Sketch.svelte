@@ -1,4 +1,7 @@
 <script lang="ts">
+  import CreateText from '../components/CreateText.svelte';
+  import { appendDrawing } from '../sketch/append-drawing';
+  import { beginProject } from '../lib/sketch-workflow';
   import { t } from '../i18n/index';
 
   // A 2D sketch drawn as in Fusion: create, modify, constrain and dimension.
@@ -25,6 +28,12 @@
   import { draw as drawDimension, glyphs, label as dimensionLabel, measure } from '../sketch/annotations';
   import { hasCut, toDxf } from '../sketch/dxf';
   import { evaluate } from '../sketch/expression';
+
+  let textOpen=$state(false), importing=$state(false);
+  let toolGroup=$state<'create'|'modify'|'constraints'|'dimension'>('create');
+  let importInput:HTMLInputElement;
+  async function insertPart(id:string){const {drawing}=await api.partDrawing(id);let ids:number[]=[];const error=store.change(s=>{ids=appendDrawing(s,drawing);});if(error)throw new Error(error);store.select(ids);fit();}
+  async function importDrawing(event:Event){const input=event.currentTarget as HTMLInputElement,file=input.files?.[0];if(!file)return;importing=true;try{const {id,warnings}=await api.importPart(file.name,await file.arrayBuffer());await insertPart(id);if(warnings?.length)ui.say(warnings.join(' · '));}catch(e){ui.say(explain(e),true);}finally{importing=false;input.value='';}}
 
   type Button<T> = { id: T; label: string; key?: string; icon?: string; glyph?: string };
   const CREATE: Button<ToolId | null>[] = [
@@ -583,13 +592,17 @@
     if (sending || !hasCut(store.sketch)) return;
     sending = true;
     try {
+      if(store.target==='replace' && (!store.sourcePart || store.jobKey!==server.doc?.draft?.key))throw new Error(t('The edited job changed. Open the part again before replacing it.'));
       const bytes = new TextEncoder().encode(toDxf(store.sketch));
       const { id, warnings } = await api.importPart(fileName, bytes.buffer as ArrayBuffer);
+      await api.savePartSketch(id,$state.snapshot(store.sketch));
       ui.selected = id;
-      if (store.target === 'add' && server.doc?.draft) await api.addParts([id]);
+      if(store.target==='replace' && store.sourcePart && server.doc?.draft) await api.replaceDraftPart(store.sourcePart,id,server.doc.draft.revision);
+      else if (store.target === 'add' && server.doc?.draft) await api.addParts([id]);
       else await api.openPart(id);
+      store.bindPart(id);
       ui.tab = 'setup';
-      ui.say(warnings?.length ? t("Sketch added as a part · {0}", warnings.join(' · ')) : t("Sketch added as a part. Choose a material to prepare it for cutting."));
+      ui.say(store.target === 'replace' ? 'Teil im Auftrag gespeichert. Einstellungen geänderter Konturen bitte prüfen.' : warnings?.length ? t("Sketch added as a part · {0}", warnings.join(' · ')) : t("Sketch added as a part. Choose a material to prepare it for cutting."));
     } catch (reason) {
       ui.say(explain(reason), true);
     } finally {
@@ -645,13 +658,18 @@
   function setGrid(step: number | null): void { store.gridStep = step && step > 0 ? step : null; }
 </script>
 
+{#if textOpen}<CreateText onclose={()=>textOpen=false} oncreated={insertPart} />{/if}
 <svelte:window onkeydown={key} onkeyup={keyUp} />
 
 <section class="panel main sketch-main">
   <div class="sketch-bar" role="toolbar" aria-label={t("Sketch tools")}>
-    <div class="sk-group">
+    <div class="sk-group">{#each [["create","Create"],["modify","Modify"],["constraints","Constraints"],["dimension","Dimension"]] as [group,label]}<button class="btn btn-ghost" class:on={toolGroup===group} onclick={()=>toolGroup=group as typeof toolGroup}>{t(label!)}</button>{/each}</div>
+    <div class="sk-group" hidden={toolGroup!=='create'}>
       <span class="sk-title">{t("Create")}</span>
       <div class="sk-tools">
+        <button class="btn btn-soft" onclick={()=>textOpen=true}>{t("Text with fonts")}</button>
+        <button class="btn btn-soft" disabled={importing} onclick={()=>importInput.click()}>{t("Import DXF / SVG")}</button>
+        <input bind:this={importInput} type="file" accept=".dxf,.svg" hidden onchange={importDrawing} />
         {#each CREATE as t (t.label)}
           <button class="sk-tool" class:on={!action && (tool?.id ?? null) === t.id} title={t.key ? `${t.label} (${t.key})` : t.label} aria-label={t.label} onclick={() => choose(t.id)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} /></svg>
@@ -659,7 +677,7 @@
         {/each}
       </div>
     </div>
-    <div class="sk-group">
+    <div class="sk-group" hidden={toolGroup!=='modify'}>
       <span class="sk-title">{t("Modify")}</span>
       <div class="sk-tools">
         {#each MODIFY as t (t.id)}
@@ -672,7 +690,7 @@
         </button>
       </div>
     </div>
-    <div class="sk-group">
+    <div class="sk-group" hidden={toolGroup!=='constraints'}>
       <span class="sk-title">{t("Constraints")}</span>
       <div class="sk-tools">
         {#each RELATE as t (t.id)}
@@ -680,7 +698,7 @@
         {/each}
       </div>
     </div>
-    <div class="sk-group">
+    <div class="sk-group" hidden={toolGroup!=='dimension'}>
       <span class="sk-title">{t("Dimension")}</span>
       <div class="sk-tools">
         <button class="sk-tool" class:on={action?.id === 'dimension'} title={t("Sketch dimension (D)")} aria-label={t("Sketch dimension")} onclick={() => chooseAction('dimension')}>
@@ -787,6 +805,8 @@
 </section>
 
 <aside class="panel side sketch-side">
+  <label>{t("Saved sketches")}<select value={store.activeDocument} onchange={e=>{store.openDocument(e.currentTarget.value);fit();}}>{#each store.documents as document}<option value={document.id}>{document.name}</option>{/each}</select></label>
+  <button class="btn btn-ghost" onclick={()=>beginProject('new')}>{t("New sketch")}</button>
   <div class="sk-name"><span>{t("Name")}</span><button class="sk-name-field" onclick={() => osk.text(t("Sketch name"), store.name, (v) => store.rename(v))}>{store.name}</button></div>
 
   <div class="sk-facts">
@@ -844,14 +864,16 @@
   </details>
 
   <div class="sk-actions">
-    <p class="muted">{t(store.target === 'new' ? "Creates a new project from this sketch. Existing jobs remain available." : "Adds this sketch to the open project.")}</p>
-    <button class="btn btn-primary lg block" disabled={sending || !hasCut(store.sketch)} onclick={send}>{sending ? t("Adding…") : t(store.target === 'new' ? "Create project from sketch" : "Add to parts")}</button>
+    <p class="muted">{t(store.target === 'replace' ? "Replaces this part in the open job. Original stays available; Undo restores it. Bridges are cleared and changed contour settings must be reviewed." : store.target === 'new' ? "Creates a new project from this sketch. Existing jobs remain available." : "Adds this sketch to the open project.")}</p>
+    <button class="btn btn-primary lg block" disabled={sending || !hasCut(store.sketch)} onclick={send}>{sending ? t("Adding…") : t(store.target === 'replace' ? "Replace part in job" : store.target === 'new' ? "Create project from sketch" : "Add to parts")}</button>
     <button class="btn btn-ghost block" disabled={!hasCut(store.sketch)} onclick={download}>{t("Download DXF")}</button>
-    <button class="btn btn-ghost block" disabled={!store.sketch.entities.length} onclick={() => store.clear()}>{t("New sketch")}</button>
+    <button class="btn btn-ghost block" disabled={!store.sketch.entities.length} onclick={() => store.clear()}>{t("Clear this sketch")}</button>
   </div>
 </aside>
 
 <style>
+  .sk-group[hidden]{display:none!important}
+  .sketch-side select{width:100%;min-height:44px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);padding:8px;margin:6px 0}
   .sketch-main { position: relative; }
   .sketch-bar { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
   .sk-group { display: flex; flex-direction: column; gap: 2px; }
