@@ -149,3 +149,61 @@ fn a_filled_mark_engraves_one_zigzag_and_keeps_its_outlines() {
     let toolpath = openlaser_prep::prepare(&drawing, &features).unwrap();
     assert_eq!(toolpath.contours.iter().filter(|c| c.layer == "Logo").count(), 1);
 }
+
+/// Chosen engraving areas are engraved together: one zigzag runs line by
+/// line across all of them, the beam off between them and over every hole,
+/// rather than one area after another.
+#[test]
+fn chosen_areas_are_engraved_together_line_by_line() {
+    use openlaser_core::features::{Fill, FillRegion};
+    let drawing = Drawing {
+        contours: vec![
+            circle("Logo", 15., 30., 10.),
+            circle("Logo", 15., 30., 4.),
+            circle("Logo", 45., 30., 10.),
+        ],
+    };
+    let fill = Fill {
+        spacing: 0.5,
+        angle: 0.,
+        run_up: 2.,
+        outline: false,
+        bidirectional: true,
+        scan_offset: 0.,
+        passes: 1,
+        pass_angle: 0.,
+        pass_shift: 0.,
+        calibrated: Vec::new(),
+        image: None,
+    };
+    let logo = Layer {
+        machining: Some(Machining { fill: Some(fill.clone()), ..Machining::default() }),
+        ..layer("Logo", LayerMode::Mark)
+    };
+    let features = Features {
+        layers: vec![logo],
+        fill_regions: vec![
+            FillRegion { contour: 0, holes: vec![1] },
+            FillRegion { contour: 2, holes: Vec::new() },
+        ],
+        ..Features::default()
+    };
+    let toolpath = openlaser_prep::prepare(&drawing, &features).unwrap();
+    let zigzags: Vec<_> = toolpath.contours.iter().filter(|c| c.layer == "Logo").collect();
+    assert_eq!(zigzags.len(), 1, "one engraving across both areas");
+    assert_eq!(zigzags[0].sources, [0, 2], "owned by the chosen areas, not the hole");
+    // The line nearest both middles lights both discs and leaves the hole dark.
+    let lit_segments: Vec<_> = zigzags[0].segments.iter().filter(|s| !s.process.joint).collect();
+    let nearest = lit_segments
+        .iter()
+        .map(|s| s.curve.start().y)
+        .min_by(|a, b| (a - 30.).abs().total_cmp(&(b - 30.).abs()))
+        .unwrap();
+    let middle: Vec<_> =
+        lit_segments.iter().filter(|s| (s.curve.start().y - nearest).abs() < 1e-9).collect();
+    assert_eq!(middle.len(), 3, "left of the hole, right of it, and the second disc");
+    let lit: f64 =
+        zigzags[0].segments.iter().filter(|s| !s.process.joint).map(|s| s.curve.length()).sum();
+    let area = std::f64::consts::PI * (100. - 16. + 100.);
+    assert!((lit * fill.spacing - area).abs() < area * 0.02, "covers both, not the hole: {lit}");
+}

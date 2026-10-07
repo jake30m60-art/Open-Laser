@@ -356,6 +356,9 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
             drawing.contours.get(r.contour).is_some_and(|c| c.layer == *name)
             && contours.iter().any(|c| c.sources.contains(&r.contour))).collect();
         let mut paths = Vec::new();
+        // Every chosen area's boundary and holes, checked area by area.
+        let mut boundaries_all: Vec<PreparedContour> = Vec::new();
+        let mut owners: Vec<usize> = Vec::new();
         for region in &explicit {
             let ids: Vec<_> = std::iter::once(region.contour).chain(region.holes.iter().copied()).collect();
             let boundaries: Vec<_> = ids.iter().map(|&i| drawing.contours.get(i)
@@ -368,16 +371,13 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
             if depths.first() != Some(&0) || depths.iter().skip(1).any(|&d| d != 1) {
                 return Err(feature("engraving area", "holes must lie directly inside their area"));
             }
-            let raw: Vec<_> = ids.iter().zip(&boundaries).map(|(&i, c)| PreparedContour {
+            boundaries_all.extend(ids.iter().zip(&boundaries).map(|(&i, c)| PreparedContour {
                 sources: vec![i], lead_target: None, layer: (*name).to_owned(), closed: true, depth: 0,
                 segments: c.curves.iter().map(|&curve| openlaser_core::toolpath::PreparedSegment::new(
                     curve, openlaser_core::toolpath::SegmentProcess::default())).collect(), film: Vec::new(),
-            }).collect();
-            let refs: Vec<_> = raw.iter().collect();
-            let mut filled = flying::fill(&refs, fill)?;
+            }));
             // Referenced holes do not become the selection/placement owner of a fill.
-            for path in &mut filled { path.sources = vec![region.contour]; }
-            paths.extend(filled);
+            owners.push(region.contour);
         }
         let shapes: Vec<&PreparedContour> = contours.iter().filter(|c| c.layer == *name && c.closed
             && !c.sources.iter().any(|s| explicit.iter().any(|r| r.contour == *s || r.holes.contains(s)))).collect();
@@ -387,7 +387,19 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
         for picture in pictures {
             paths.extend(flying::fill_framing(&[picture], fill, image_of(features, picture))?);
         }
-        paths.extend(flying::fill(&plain, fill)?);
+        // The chosen areas and the layer's other shapes are engraved together,
+        // line by line across all of them, the beam off between them, not one
+        // area after another. Even-odd keeps every hole clear.
+        owners.extend(plain.iter().flat_map(|c| c.sources.iter().copied()));
+        owners.sort_unstable();
+        owners.dedup();
+        let mut together: Vec<&PreparedContour> = boundaries_all.iter().collect();
+        together.extend(plain.iter().copied());
+        let mut combined = flying::fill(&together, fill)?;
+        for path in &mut combined {
+            path.sources.clone_from(&owners);
+        }
+        paths.extend(combined);
         zigzags.push(paths);
     }
     let mut out = Vec::with_capacity(contours.len() + zigzags.len());

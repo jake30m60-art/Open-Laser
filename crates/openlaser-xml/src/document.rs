@@ -398,11 +398,19 @@ fn parse_xml(text: &str) -> Result<Vec<Element>> {
     Ok(elements)
 }
 
+/// A literal value as the vendor's reader keeps it, except that a Windows
+/// line end, CR LF, reads as the LF a file saved elsewhere has. Any other
+/// whitespace stays as written, a lone CR included, and a `&#13;`
+/// reference is never literal.
+fn push_literal(output: &mut String, literal: &str) {
+    output.push_str(&literal.replace("\r\n", "\n"));
+}
+
 fn decode_entities(text: &str, offset: usize) -> Result<String> {
     let mut output = String::new();
     let mut rest = text;
     while let Some(index) = rest.find('&') {
-        output.push_str(&rest[..index]);
+        push_literal(&mut output, &rest[..index]);
         let entity = &rest[index..];
         let end = entity.find(';').ok_or(malformed(offset, "unterminated entity"))?;
         let name = &entity[1..end];
@@ -428,7 +436,7 @@ fn decode_entities(text: &str, offset: usize) -> Result<String> {
         output.push(c);
         rest = &entity[end + 1..];
     }
-    output.push_str(rest);
+    push_literal(&mut output, rest);
     Ok(output)
 }
 
@@ -451,6 +459,18 @@ mod tests {
         assert!(text.contains("untouched=\"0.0000001\""));
         assert!(text.contains("v='x&lt;&amp;&apos;&quot;&#10;'"));
         assert!(matches!(doc.with_attribute("/ParameterRoot/Y", "v", "1"), Err(Error::Missing(_))));
+    }
+
+    /// A note saved on Windows reads as the same value as one saved
+    /// elsewhere; a lone or referenced carriage return stays one.
+    #[test]
+    fn literal_line_breaks_read_alike_on_every_system() {
+        let windows = "<ParameterRoot><X Note=\"NOZZLE\r\nSINGLE\rEND\" Ref=\"a&#13;b\"/></ParameterRoot>";
+        let doc = Document::parse(Kind::Backup, windows.as_bytes()).unwrap();
+        let values = doc.attributes("/ParameterRoot/X").unwrap();
+        assert_eq!(values["Note"], "NOZZLE\nSINGLE\rEND");
+        assert_eq!(values["Ref"], "a\rb");
+        assert_eq!(doc.original(), windows.as_bytes(), "the file itself is kept as it was");
     }
 
     /// Two roots, unseparated attributes, a raw less-than, a bad comment,
