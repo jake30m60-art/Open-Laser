@@ -76,7 +76,7 @@ const machineFileQuery = (name: string, expected?: string): string =>
 
 /** The machine actions the server accepts. */
 export type MachineAction =
-  | 'pulse' | 'gas-test' | 'gas-calibration' | 'table' | 'connect' | 'cancel' | 'disconnect' | 'home' | 'calibrate' | 'jog' | 'go-origin'
+  | 'pulse' | 'gas-test' | 'gas-calibration' | 'table' | 'connect' | 'cancel' | 'disconnect' | 'home' | 'calibrate' | 'follow' | 'raise-head' | 'jog' | 'go-origin'
   | 'go-xy' | 'frame' | 'release' | 'heartbeat' | 'outputs' | 'mode' | 'relieve' | 'run' | 'resume' | 'hold' | 'stop';
 
 /** What a machine action may carry. */

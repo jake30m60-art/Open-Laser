@@ -81,6 +81,8 @@
   const originGate = $derived(readiness.position.ok && !origin ? { ok: false, reason: 'set a job origin first' } : readiness.position);
 
   const canJog = $derived(readiness.xy_jog.some(axis => axis.some(direction => direction.ok)));
+  /** The head controller is following the sheet: the Follow button, or a cut. */
+  const following = $derived(feedback ? [104, 117].includes(feedback.head.command) : false);
   const jogTitle = $derived(canJog ? '' : plain(readiness.jog.reason).text);
   const jogSpeed = $derived(doc.bindings?.jog_speed[ui.jogFast ? 1 : 0]);
   const jogSpeedText = $derived(jogSpeed != null
@@ -148,6 +150,18 @@
       disabled={!readiness.calibrate.ok}
       title={plain(readiness.calibrate.reason).text}
     >{t("Calibrate Z")}</HoldButton>
+    {#if following}
+      <button class="btn btn-move follow on" onclick={() => call(() => api.machine('raise-head'))}
+        title={t("The head follows the sheet; tap to raise it")}><i class="ic ic-arrow-up"></i>{t("Head up")}</button>
+    {:else}
+      <HoldButton
+        class="btn btn-move follow"
+        label={t("Follow")}
+        onhold={() => call(() => api.machine('follow'))}
+        disabled={!readiness.calibrate.ok}
+        title={readiness.calibrate.ok ? t("Hold: the head goes down to the cut height and follows the sheet") : plain(readiness.calibrate.reason).text}
+      ><i class="ic ic-arrow-down"></i>{t("Follow")}</HoldButton>
+    {/if}
   </div>
   <div class="frame-row">
     <HoldButton
@@ -218,6 +232,8 @@
   .run-side-scroll { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:2px; }
   .run-side-scroll > :global(*) { flex-shrink:0; }
   .motion-actions :global(.btn) { min-width:0; padding:0 6px; font-size:var(--t-sm); }
+  .motion-actions { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; }
+  .motion-actions :global(.follow.on) { background:var(--accent); color:var(--accent-ink); border-color:transparent; }
   .dro .cell { container-type:inline-size; padding:6px 8px; height:76px; gap:1px; }
   .dro .val { font-size:max(var(--t-sm), min(var(--t-xl), calc(100cqw / var(--characters) / .64))); line-height:1.15; overflow:visible; white-space:nowrap; }
   .dro .mach { font-size:var(--t-sm); line-height:1.2; color:var(--ink-3); text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }

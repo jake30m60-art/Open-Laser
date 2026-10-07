@@ -15,6 +15,7 @@ use crate::config::Config;
 use crate::lease::{Lease, Leases};
 use crate::link::{Link, LinkError};
 use crate::operations::calibrate::Calibrate;
+use crate::operations::head::{Head, HeadAction};
 use crate::operations::home::{self, Home};
 use crate::operations::mode::Switch;
 use crate::operations::motion::{self, Motion};
@@ -69,6 +70,7 @@ enum Command {
     Configure(Box<Bindings>, Reply<()>),
     Home { head_only: bool, reply: Reply<()> },
     Calibrate(Reply<Quality>),
+    Head(HeadAction, Reply<()>),
     Travel(motion::Request, Travel, Option<Lease>, Reply<()>, Reply<()>),
     Run(Box<Program>, Reply<Ending>, Reply<()>),
     SwitchMode(Reply<()>),
@@ -90,6 +92,7 @@ impl Command {
             self,
             Command::Home { .. }
                 | Command::Calibrate(..)
+                | Command::Head(..)
                 | Command::Travel(..)
                 | Command::Run(..)
                 | Command::SwitchMode(..)
@@ -124,6 +127,7 @@ impl Command {
             | Self::Stop(reply)
             | Self::Shutdown(reply) => drop(reply.send(Err(error))),
             Self::Calibrate(reply) => drop(reply.send(Err(error))),
+            Self::Head(_, reply) => drop(reply.send(Err(error))),
             Self::Travel(_, _, _, reply, admitted) | Self::Outputs(_, _, reply, admitted) => {
                 drop(admitted.send(Err(error.clone())));
                 drop(reply.send(Err(error)));
@@ -236,6 +240,12 @@ impl Machine {
     /// Calibrates the head; answers with the quality it reports.
     pub async fn calibrate(&self) -> Result<Quality> {
         self.ask(Command::Calibrate).await
+    }
+
+    /// Lowers the head to follow the sheet, or retracts it: the Follow
+    /// button. Answers once the head controller took the command.
+    pub async fn head(&self, action: HeadAction) -> Result<()> {
+        self.ask(|reply| Command::Head(action, reply)).await
     }
 
     /// A jog or a positioning move; answers when the axes are stationary at
@@ -414,6 +424,7 @@ impl Machine {
 enum Job {
     Home(Home, Reply<()>),
     Calibrate(Calibrate, Reply<Quality>),
+    Head(Head, Reply<()>),
     Motion(Box<Motion>, Reply<()>),
     Mode(Switch, Reply<()>),
     Relief(Relief, Option<u32>, Reply<()>),
@@ -427,6 +438,7 @@ impl Job {
         match self {
             Self::Home(op, _) => op,
             Self::Calibrate(op, _) => op,
+            Self::Head(op, _) => op,
             Self::Motion(op, _) => op.as_mut(),
             Self::Mode(op, _) => op,
             Self::Relief(op, _, _) => op,
@@ -440,6 +452,7 @@ impl Job {
         match self {
             Self::Home(op, _) => op,
             Self::Calibrate(op, _) => op,
+            Self::Head(op, _) => op,
             Self::Motion(op, _) => op.as_ref(),
             Self::Mode(op, _) => op,
             Self::Relief(op, _, _) => op,
@@ -476,7 +489,8 @@ impl Job {
             | Self::Motion(_, reply)
             | Self::Mode(_, reply)
             | Self::Relief(_, _, reply)
-            | Self::Outputs(_, reply) => drop(reply.send(Err(error))),
+            | Self::Outputs(_, reply)
+            | Self::Head(_, reply) => drop(reply.send(Err(error))),
             Self::Calibrate(_, reply) => drop(reply.send(Err(error))),
             Self::Run(_, reply) => drop(reply.send(Err(error))),
             Self::Parameters(_, _, reply) => drop(reply.send(Err(error))),
@@ -670,6 +684,9 @@ impl Task {
                     self.session.calibration = None;
                 }
                 self.launch(prepared, reply, Job::Calibrate);
+            }
+            Command::Head(action, reply) => {
+                self.launch(self.prepare_head(action), reply, Job::Head);
             }
             Command::Travel(request, table, lease, reply, admitted) => {
                 let prepared = self
@@ -871,6 +888,26 @@ impl Task {
             return Err(Error::Refused("no head controller is configured".into()));
         }
         Ok(Calibrate::new())
+    }
+
+    fn prepare_head(&self, action: HeadAction) -> Result<Head> {
+        let (_, bindings) = self.ready()?;
+        if !bindings.head_enabled {
+            return Err(Error::Refused("no head controller is configured".into()));
+        }
+        let action = match action {
+            HeadAction::Raise => {
+                let raise = bindings.shutdown.raise.ok_or_else(|| {
+                    Error::Refused("this machine does not raise the head on its own".into())
+                })?;
+                HeadAction::Retract {
+                    speed_tenths: raise.speed_tenths,
+                    height_thousandths: raise.height_thousandths,
+                }
+            }
+            action => action,
+        };
+        Ok(Head::new(action))
     }
 
     fn prepare_travel(
@@ -1574,7 +1611,9 @@ impl Task {
                     Err(Error::Failed("the calibration reported no quality".into())),
                 ),
             },
-            Job::Motion(_, reply) | Job::Outputs(_, reply) => self.answer(reply, Ok(())),
+            Job::Motion(_, reply) | Job::Outputs(_, reply) | Job::Head(_, reply) => {
+                self.answer(reply, Ok(()));
+            }
             Job::Mode(switch, reply) => {
                 self.session.mode_applied(switch.mode());
                 if !self.xy_referenced() {

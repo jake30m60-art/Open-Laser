@@ -183,6 +183,8 @@ pub enum OperationKind {
     Program,
     /// Reading or applying the controller's parameter banks.
     Parameters,
+    /// The head following the sheet or retracting, from the Follow button.
+    Head,
 }
 
 impl OperationKind {
@@ -198,6 +200,7 @@ impl OperationKind {
             Self::Outputs => "a manual output",
             Self::Program => "a program",
             Self::Parameters => "the parameter operation",
+            Self::Head => "the head command",
         }
     }
 }

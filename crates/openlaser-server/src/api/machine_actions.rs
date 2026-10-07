@@ -67,6 +67,8 @@ pub(super) fn routes() -> Router<Shared> {
         .route("/api/machine/disconnect", post(disconnect))
         .route("/api/machine/home", post(home))
         .route("/api/machine/calibrate", post(calibrate))
+        .route("/api/machine/follow", post(follow))
+        .route("/api/machine/raise-head", post(raise_head))
         .route("/api/machine/jog", post(jog))
         .route("/api/machine/table", post(table))
         .route("/api/machine/pulse", post(pulse))
@@ -115,6 +117,18 @@ async fn home(State(shared): State<Shared>, body: Body) -> Reply {
 async fn calibrate(State(shared): State<Shared>, body: Body) -> Reply {
     input(&shared, body)?;
     machine::calibrate(&shared).await?;
+    Ok(ok())
+}
+
+async fn follow(State(shared): State<Shared>, body: Body) -> Reply {
+    input(&shared, body)?;
+    machine::follow(&shared).await?;
+    Ok(ok())
+}
+
+async fn raise_head(State(shared): State<Shared>, body: Body) -> Reply {
+    input(&shared, body)?;
+    machine::raise_head(&shared).await?;
     Ok(ok())
 }
 

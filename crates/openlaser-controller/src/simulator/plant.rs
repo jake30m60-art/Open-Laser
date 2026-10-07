@@ -592,6 +592,12 @@ impl Plant {
                     false,
                 );
             }
+            [104, speed, height] => {
+                // The Follow button: down to the sheet and following it, as
+                // FIFO opcode 0x68.
+                self.head_sequence.clear();
+                self.head_move(104, *speed, SURFACE - f64::from(height & 0xffff), false);
+            }
             [103, speed, height] => {
                 // An absolute height below the origin, like FIFO opcode 0x67.
                 self.head_sequence.clear();

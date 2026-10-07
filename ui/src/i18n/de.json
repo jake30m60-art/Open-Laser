@@ -1302,5 +1302,15 @@
   "layer": "Ebene",
   "layers": "Ebenen",
   "line": "Linie",
-  "lines": "Linien"
+  "lines": "Linien",
+  "Follow": "Folgen",
+  "Head up": "Kopf hoch",
+  "The head follows the sheet; tap to raise it": "Der Kopf folgt dem Blech; antippen zum Hochfahren",
+  "Hold: the head goes down to the cut height and follows the sheet": "Halten: Der Kopf fährt auf Schnitthöhe und folgt dem Blech",
+  "Choose a material first: the hatching is worked out, and shown, once the job has a recipe.": "Zuerst ein Material wählen: Die Schraffur wird erst berechnet und angezeigt, wenn der Auftrag ein Rezept hat.",
+  "The hatching cannot be shown: {0}": "Die Schraffur kann nicht angezeigt werden: {0}",
+  "No closed shape on this layer: a fill engraves inside closed outlines only. Close the outlines in the sketch, or the lines are traced as they are.": "Keine geschlossene Form auf dieser Ebene: Eine Füllung graviert nur innerhalb geschlossener Umrisse. Umrisse in der Skizze schließen, sonst werden die Linien nur nachgefahren.",
+  "Stop engraving the selected shapes ({0}), cut them on:": "Ausgewählte Formen ({0}) nicht mehr gravieren, sondern schneiden auf:",
+  "{0} shapes are cut on {1} again · Undo takes it back": "{0} Formen werden wieder auf {1} geschnitten · Rückgängig nimmt es zurück",
+  "This layer has no recipe yet, so nothing on it is worked out or engraved. Choose one:": "Diese Ebene hat noch kein Rezept, deshalb wird darauf nichts berechnet oder graviert. Bitte eines wählen:"
 }

@@ -431,6 +431,29 @@ pub async fn calibrate(shared: &Shared) -> Result<()> {
     Ok(())
 }
 
+/// The Follow button: the head goes down to the job recipe's cut height and
+/// follows the sheet, as a cut's follow record sends it. The head
+/// controller keeps following until the head is raised or stopped.
+pub async fn follow(shared: &Shared) -> Result<()> {
+    shared.ensure_running()?;
+    let action = {
+        let c = shared.lock().await;
+        c.idle()?;
+        c.follow_action()?
+    };
+    shared.machine.head(action).await?;
+    Ok(())
+}
+
+/// The Follow button again: the head retracts to the safe height the stop
+/// raises it to.
+pub async fn raise_head(shared: &Shared) -> Result<()> {
+    shared.ensure_running()?;
+    shared.lock().await.idle()?;
+    shared.machine.head(openlaser_controller::operations::head::HeadAction::Raise).await?;
+    Ok(())
+}
+
 /// Establish the job's source before the operator establishes machine setup.
 async fn select_setup_mode(shared: &Shared) -> Result<()> {
     let revision = {

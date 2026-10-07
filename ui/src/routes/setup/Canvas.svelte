@@ -106,6 +106,10 @@
   const shapes = $derived.by(() => {
     const by = new Map<number, PreviewContour[]>();
     for (const contour of preview?.contours ?? []) {
+      // A path made from several shapes, as a fill's lines, a flying cut's
+      // passes or a shared edge, belongs to none of them alone: drawn apart,
+      // so a tap on it does not take the first of its shapes.
+      if (contour.sources.length > 1) continue;
       const g = groupOf.get(contour.sources[0] ?? -1);
       if (g === undefined) continue;
       const contours = by.get(g);
@@ -113,6 +117,8 @@
     }
     return by;
   });
+  /** Paths made from several shapes, drawn apart from any one shape. */
+  const shared = $derived((preview?.contours ?? []).filter((c) => c.sources.length > 1));
   const contoursOf = (gs: number[]) => gs.flatMap((g) => groups[g] ?? []);
   const pointsOf = (g: number): Point[][] => (shapes.get(g) ?? []).flatMap((c) => c.paths.map((p) => p.points as Point[]));
   const groupBounds = $derived(boundsOfShapes(shapes));
@@ -763,6 +769,16 @@
     {/if}
     {#if preview && !ui.nestShown}
       <g transform={movingAll && local && !lifting ? svgMatrix(local.m) : ''}>
+      <g class="shared-paths" pointer-events="none">
+        {#each shared as contour}
+          {#if !hidden(contour.layer)}
+            {#each shownPaths(contour) as path}
+              {#if ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)}
+                style:stroke={path.kind === 'cut' ? colors.get(contour.layer) : null} d={drawingPath(path.points)} vector-effect="non-scaling-stroke"/>{/if}
+            {/each}
+          {/if}
+        {/each}
+      </g>
       {#each visibleGroups as g (g)}
         {@render shape(g, !lifting && !movingAll && local && movingSet.has(g) ? svgMatrix(local.m) : '')}
       {/each}

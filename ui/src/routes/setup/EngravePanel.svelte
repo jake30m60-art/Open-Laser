@@ -23,6 +23,8 @@
   const cutting = $derived(draft.layers.filter((l) => l.mode !== 'mark'));
   const laser = $derived(draft.recipe?.laser ?? server.doc?.mode ?? 'fiber');
   const recipes = $derived((server.doc?.library.recipes ?? []).filter((r) => r.laser === laser && isEngraving(r)));
+  /** Every other recipe for the laser, offered when there is no engraving recipe. */
+  const others = $derived((server.doc?.library.recipes ?? []).filter((r) => r.laser === laser && !isEngraving(r)));
   const fills = $derived(featureEdits.value(draft).layers ?? []);
   const fillOfLayer = (name: string): Fill | null => fills.find((l) => l.name === name)?.machining?.fill ?? null;
   let busy = $state(false);
@@ -69,6 +71,19 @@
     const speed = speedOf(layer);
     return speed ? offsetAt(scanOffsets.entries(laser), speed, fill.angle) : null;
   };
+  /** What a layer fills, as the preview prepared it: closed outlines or the fill's own lines. */
+  const closedOn = (name: string): number => (draft.preview?.contours ?? []).filter((c) => c.layer === name && (c.closed || c.paths.some((p) => p.kind === 'travel'))).length;
+  /** The layer each placed contour is drawn on, as the preview has it. */
+  const layerOf = $derived(new Map((draft.preview?.contours ?? []).filter((c) => c.sources.length === 1).map((c) => [c.sources[0]!, c.layer])));
+  /** Selected shapes on an engraving layer. */
+  const engravedSelection = $derived(selectedContours.filter((i) => marked.some((l) => l.name === layerOf.get(i))));
+  async function cutOn(layer: string): Promise<void> {
+    const contours = [...engravedSelection];
+    try {
+      await change({ kind: 'assign', contours, layer });
+      ui.say(tr("{0} shapes are cut on {1} again · Undo takes it back", contours.length, layer));
+    } catch { /* said */ }
+  }
   const close = () => (ui.setupPanel = null);
 </script>
 
@@ -82,13 +97,31 @@
   <button class="btn btn-primary block" disabled={busy || !selectedContours.length} onclick={engraveSelection}>
     {selectedContours.length ? tr("Engrave the selection ({0} shapes)", selectedContours.length) : tr("Select shapes to engrave")}
   </button>
+  {#if engravedSelection.length && cutting.length}
+    <div class="back">
+      <span>{tr("Stop engraving the selected shapes ({0}), cut them on:", engravedSelection.length)}</span>
+      <div class="recipes">
+        {#each cutting as layer (layer.name)}
+          <button class="chip" disabled={busy} onclick={() => cutOn(layer.name)}>
+            <span class="layer-swatch" style:--layer={swatchColor(draft.layers, layer.name)}></span>{layer.name}
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
   <div class="paths">
     <span><strong>{tr("Show tool paths")}</strong><small>{tr("Run-ups and turns dashed, engraved stretches solid")}</small></span>
     <button class="switch" class:on={ui.layerShown('travel')} aria-label={tr("Show tool paths")} onclick={() => ui.toggleLayer('travel')}></button>
   </div>
 
+  {#if !draft.recipe}
+    <p class="warn-box">{tr("Choose a material first: the hatching is worked out, and shown, once the job has a recipe.")}</p>
+  {:else if draft.error}
+    <p class="warn-box">{tr("The hatching cannot be shown: {0}", draft.error)}</p>
+  {/if}
   {#each marked as layer (layer.name)}
     {@const fill = fillOfLayer(layer.name)}
+    {@const closed = closedOn(layer.name)}
     {@const hidden = ui.drawingLayerHidden(layer.name)}
     <section class="layer" class:hidden>
       <header>
@@ -99,14 +132,23 @@
           <i class="ic {hidden ? 'ic-eye-off' : 'ic-eye'}"></i>
         </button>
       </header>
+      {#if !layer.chosen}
+        <p class="warn-box">{tr("This layer has no recipe yet, so nothing on it is worked out or engraved. Choose one:")}</p>
+      {/if}
       <div class="recipes" role="group" aria-label={tr("Engraving recipes")}>
         {#each recipes as r (r.id)}
           <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {r.gas}</button>
         {:else}
           <p class="muted">{tr("No engraving recipe yet: in Materials, open a recipe and choose Make it an engraving recipe.")}</p>
+          {#each others as r (r.id)}
+            <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {r.thickness_mm} mm · {r.gas}</button>
+          {/each}
         {/each}
         <button class="link" onclick={() => (ui.layerSheet = layer.name)}>{tr("All layer settings")}</button>
       </div>
+      {#if fill && draft.recipe && !draft.error && closed === 0}
+        <p class="warn-box">{tr("No closed shape on this layer: a fill engraves inside closed outlines only. Close the outlines in the sketch, or the lines are traced as they are.")}</p>
+      {/if}
       {#if fill}
         <FillSettings {fill} apply={(c) => writeFill(layer.name, { ...fill, ...c })} speed={speedOf(layer)} offset={offsetOf(layer, fill)} />
       {:else}
@@ -140,6 +182,8 @@
   .icon-btn { width:44px; height:44px; display:grid; place-items:center; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); color:var(--ink-2); cursor:pointer; }
   .recipes { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .recipes .chip { min-height:44px; }
+  .back { display:grid; gap:6px; padding:8px 10px; border:1px dashed var(--line); border-radius:10px; font-size:var(--t-sm); }
+  .warn-box { margin:0; padding:10px 12px; border-radius:10px; background:var(--warn-soft); color:var(--warn); font-size:var(--t-sm); }
   .layer-swatch { flex:none; width:14px; height:14px; border-radius:4px; background:var(--layer, var(--cut)); }
   .layer-swatch.mark { background:transparent; border:2px dashed var(--layer, var(--cut)); }
   .other { margin:8px 0 0; font-size:var(--t-sm); color:var(--ink-2); }

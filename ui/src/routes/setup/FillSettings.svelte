@@ -23,6 +23,15 @@
   const needed = $derived(speed ? Math.ceil(scanRunUp(speed)) : null);
   const short = $derived(needed !== null && fill.run_up + 1e-9 < needed);
   const fmt = (n: number, d = 2) => Number(n.toFixed(d)).toString();
+  type Passes = { passes: number; pass_angle: number; pass_shift: number };
+  const PRESETS: Array<[string, Passes]> = [
+    ['Single', { passes: 1, pass_angle: 0, pass_shift: 0 }],
+    ['Crosshatch', { passes: 2, pass_angle: 90, pass_shift: 0 }],
+    ['Interleaved', { passes: 2, pass_angle: 0, pass_shift: 0.5 }],
+    ['Deeper ×3', { passes: 3, pass_angle: 0, pass_shift: 0 }],
+  ];
+  /** Whether the fill's passes are this preset's: shown lit, as the choice in force. */
+  const matches = (p: Passes) => fill.passes === p.passes && (p.passes === 1 || (Math.abs(fill.pass_angle - p.pass_angle) < 1e-6 && Math.abs(fill.pass_shift - p.pass_shift) < 1e-6));
   function calibration(): void {
     ui.machinePage = 6;
     ui.tab = 'machine';
@@ -56,10 +65,9 @@
   <Stepper label={tr("Shift each pass")} value={Math.round(fill.pass_shift * 100)} unit="%" step={25} apply={(v) => apply({ pass_shift: Math.min(99, Math.max(0, v)) / 100 })} />
   <p class="fill-hint">{tr("2 passes, 90° crosshatch. 2 passes, 0°, 50 % lays the second pass between the first one's lines: finer, without a slower line. 3 passes, 0°, 0 % engraves deeper.")}</p>
   <div class="presets">
-    <button class="chip" onclick={() => apply({ passes: 1, pass_angle: 0, pass_shift: 0 })}>{tr("Single")}</button>
-    <button class="chip" onclick={() => apply({ passes: 2, pass_angle: 90, pass_shift: 0 })}>{tr("Crosshatch")}</button>
-    <button class="chip" onclick={() => apply({ passes: 2, pass_angle: 0, pass_shift: 0.5 })}>{tr("Interleaved")}</button>
-    <button class="chip" onclick={() => apply({ passes: 3, pass_angle: 0, pass_shift: 0 })}>{tr("Deeper ×3")}</button>
+    {#each PRESETS as [label, preset] (label)}
+      <button class="chip" class:on={matches(preset)} aria-pressed={matches(preset)} onclick={() => apply(preset)}>{tr(label)}</button>
+    {/each}
   </div>
   <Toggle label={tr("Trace the outlines after the fill")} value={fill.outline} apply={(v) => apply({ outline: v })} />
 </div>
