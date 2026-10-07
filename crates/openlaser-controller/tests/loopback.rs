@@ -1298,3 +1298,32 @@ async fn a_pause_does_not_wait_for_a_head_that_stays_busy() {
     assert_eq!(control.view().analog, [0, 0]);
     machine.shutdown().await.unwrap();
 }
+
+/// A vendor fixed-height pass follows to 1 mm, lifts `CutHeight + 1`, and
+/// the next pass retracts its `UpHeight` relatively. With the default 20 mm
+/// sheet depth that rises past the head's upper reference and the run is
+/// held on the upper limit; a sheet as deep as a real machine's leaves room.
+#[tokio::test]
+async fn a_relative_retract_needs_travel_above_the_sheet() {
+    for (depth, ending, head) in [(20., Ending::Held, 0.), (40., Ending::Completed, 18.)] {
+        let (_simulator, control, machine) = homed().await;
+        machine.calibrate().await.unwrap();
+        control.sheet_depth(depth);
+        let mut cut = program(&machine, 1, 1.);
+        let items = [
+            Record::Item(1),
+            Record::Follow { speed_tenths: 1000, height: 1000 },
+            Record::WaitStatus { selector: 3, timeout_ms: 5000 },
+            Record::Lift { speed_tenths: 1000, delta_microns: -6000 },
+            Record::WaitStatus { selector: 2, timeout_ms: 5000 },
+            Record::Lift { speed_tenths: 1000, delta_microns: -15_000 },
+            Record::WaitStatus { selector: 2, timeout_ms: 5000 },
+            Record::Item(0xffff_fffe),
+            Record::Barrier,
+        ];
+        cut.blocks = vec![records::encode(&items).unwrap()];
+        assert_eq!(machine.run(cut).await, Ok(ending), "sheet {depth} mm down");
+        head_at(&control, head).await;
+        machine.shutdown().await.unwrap();
+    }
+}

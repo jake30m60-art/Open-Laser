@@ -309,6 +309,13 @@ impl Control {
         self.with(|plant| plant.product = id);
     }
 
+    /// Places the sheet this many millimetres below the head's upper
+    /// reference, 1 to 500; 20 by default. Relative head lifts that rise
+    /// past the reference reach the upper limit, as on a machine.
+    pub fn sheet_depth(&self, millimetres: f64) {
+        self.with(|plant| plant.surface = millimetres.clamp(1., 500.) * SCALE);
+    }
+
     /// How much faster than real time the FIFO executes, 0.1 to 100.
     pub fn time_scale(&self, scale: f64) {
         self.with(|plant| plant.time_scale = scale.clamp(0.1, 100.));

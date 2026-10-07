@@ -9,6 +9,35 @@ use openlaser_controller::{Simulator, state::ProgramState};
 use openlaser_server::{Coordinator, connect, machine};
 use serde_json::json;
 
+/// The synthetic plant's 20 mm from the head's upper reference to the sheet
+/// is less than a vendor recipe expects: a fixed-height pass cuts about 7 mm
+/// up and then retracts its 15 mm `UpHeight` relatively, past the reference.
+/// A backup whose crash protection lifts the head `ManuCrashProtectUpHeight`
+/// has at least that much travel above the sheet, so the sheet sits there,
+/// plus 5 mm for the cut height the lift starts from.
+fn sheet_depth(backup: &str) -> f64 {
+    let lift = backup
+        .split("ManuCrashProtectUpHeight=\"")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(0.);
+    (lift + 5.).max(20.)
+}
+
+/// A head-anchored working copy without a zero pins the head's position when
+/// it runs, as placement does on the machine; that alone is not an edit.
+fn forget_pinned_zero(after: &mut serde_json::Value, before: &serde_json::Value) {
+    let (Some(after), Some(before)) = (after.as_object_mut(), before.as_object()) else { return };
+    for (key, value) in after.iter_mut() {
+        match before.get(key) {
+            Some(serde_json::Value::Null) if key == "zero" => *value = serde_json::Value::Null,
+            Some(earlier) => forget_pinned_zero(value, earlier),
+            None => {}
+        }
+    }
+}
+
 #[tokio::test]
 #[ignore = "requires OPENLASER_TEST_LIBRARY (isolated writable copy), BACKUP and REPORT paths; \
             OPENLASER_TEST_RECIPE optionally gives a working copy without material one"]
@@ -23,6 +52,8 @@ async fn restored_library_compiles_and_executes() {
     let report = std::env::var("OPENLASER_TEST_REPORT").expect("report destination");
     let shared = Coordinator::start(config).unwrap();
     common::seed(&shared, &simulator).await;
+    let backup = std::env::var("OPENLASER_TEST_BACKUP").unwrap();
+    control.sheet_depth(sheet_depth(&std::fs::read_to_string(backup).unwrap()));
     connect::connect(&shared).await.unwrap();
     machine::home(&shared).await.unwrap();
     until(&shared, 10, |d| d.machine.session.homed && d.readiness.home.ok).await;
@@ -117,7 +148,9 @@ async fn restored_library_compiles_and_executes() {
         assert!(plant.last_error.is_none(), "{:?}", plant.last_error);
         let c = shared.lock().await;
         assert_eq!(c.document().progress.unwrap().completed, compiled.plan.len());
-        assert_eq!(serde_json::to_value(c.draft.as_ref().unwrap()).unwrap(), before);
+        let mut after = serde_json::to_value(c.draft.as_ref().unwrap()).unwrap();
+        forget_pinned_zero(&mut after, &before);
+        assert_eq!(after, before);
         let row = json!({"job_id":id,"recipe_id":recipe,"placed_contours":placed,
             "passes":compiled.plan.len(),"blocks":compiled.blocks,"records_executed":plant.executed,
             "program_seconds":compiled.seconds,"elapsed_seconds":start.elapsed().as_secs_f64(),

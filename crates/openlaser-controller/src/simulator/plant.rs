@@ -25,7 +25,8 @@ use std::time::Duration;
 pub const SCALE: f64 = 1000.;
 /// The FIFO capacity in bytes.
 pub const CAPACITY: u32 = 100_000;
-/// Where the sheet is: below the head's upper reference, in microns.
+/// Where the sheet is by default: below the head's upper reference, in
+/// microns. A test may place it deeper, see `Control::sheet_depth`.
 const SURFACE: f64 = 20_000.;
 /// Head units per second for one tenth of head speed.
 const HEAD_SPEED: f64 = 100.;
@@ -94,6 +95,8 @@ struct Queued {
 pub(super) struct Plant {
     pub(super) banks: [[u32; PARAMETER_BANK_WORDS]; AXIS_COUNT],
     position: [f64; AXIS_COUNT],
+    /// Where the sheet is below the head's upper reference, in microns.
+    pub(super) surface: f64,
     travel: [Option<Travel>; AXIS_COUNT],
     pub(super) referenced: [bool; AXIS_COUNT],
     head_command: u32,
@@ -158,6 +161,7 @@ impl Plant {
         Self {
             banks: [bank; AXIS_COUNT],
             position: [0.; AXIS_COUNT],
+            surface: SURFACE,
             travel: [None; AXIS_COUNT],
             referenced: [false; AXIS_COUNT],
             head_command: 0,
@@ -575,7 +579,7 @@ impl Plant {
             [107] => {
                 self.head_sequence.clear();
                 self.calibration_return = true;
-                self.head_move(107, 300, SURFACE, false);
+                self.head_move(107, 300, self.surface, false);
             }
             [101] => {
                 self.travel[3] = None;
@@ -596,7 +600,7 @@ impl Plant {
                 // The Follow button: down to the sheet and following it, as
                 // FIFO opcode 0x68.
                 self.head_sequence.clear();
-                self.head_move(104, *speed, SURFACE - f64::from(height & 0xffff), false);
+                self.head_move(104, *speed, self.surface - f64::from(height & 0xffff), false);
             }
             [103, speed, height] => {
                 // An absolute height below the origin, like FIFO opcode 0x67.
@@ -742,7 +746,7 @@ impl Plant {
     /// A physical switch releases after 0.1 mm of travel away. Explicit
     /// injected faults remain active to represent a stuck input.
     pub(super) fn place_head_on_limit(&mut self, upper: bool) {
-        self.position[3] = if upper { 0. } else { SURFACE + 100_000. };
+        self.position[3] = if upper { 0. } else { self.surface + 100_000. };
         self.head_limits = if upper { 1 } else { 2 };
         self.head_reference_ready = false;
         self.travel[3] = None;
@@ -808,9 +812,9 @@ impl Plant {
                     self.axis_limits[axis] = None;
                 }
             }
-            if axis == 3 && !(0. ..=SURFACE + 100_000.).contains(&self.position[axis]) {
+            if axis == 3 && !(0. ..=self.surface + 100_000.).contains(&self.position[axis]) {
                 let upper = self.position[axis] < 0.;
-                self.position[axis] = self.position[axis].clamp(0., SURFACE + 100_000.);
+                self.position[axis] = self.position[axis].clamp(0., self.surface + 100_000.);
                 self.travel[axis] = None;
                 self.head_command = 0;
                 self.head_sequence.clear();
@@ -823,7 +827,7 @@ impl Plant {
                 if self.position[axis] >= 100. {
                     self.head_limits &= !1;
                 }
-                if self.position[axis] <= SURFACE + 99_900. {
+                if self.position[axis] <= self.surface + 99_900. {
                     self.head_limits &= !2;
                 }
             }
@@ -949,7 +953,7 @@ impl Plant {
                 Ok(())
             }
             Record::Follow { speed_tenths, height } => {
-                self.head_move(104, speed_tenths, SURFACE - f64::from(height & 0xffff), false);
+                self.head_move(104, speed_tenths, self.surface - f64::from(height & 0xffff), false);
                 Ok(())
             }
             Record::Lift { speed_tenths, delta_microns } => {
@@ -963,7 +967,7 @@ impl Plant {
                 lift_speed_tenths,
                 lift_microns,
             } => {
-                let pierce = SURFACE - f64::from(height & 0xffff);
+                let pierce = self.surface - f64::from(height & 0xffff);
                 self.head_move(105, follow_speed_tenths, pierce, false);
                 if lift_microns != 0 {
                     let lifted = pierce + f64::from(lift_microns);
@@ -972,14 +976,19 @@ impl Plant {
                 Ok(())
             }
             Record::PierceRamp { speed_tenths, cut_height_microns, .. } => {
-                self.head_move(108, speed_tenths, SURFACE - f64::from(cut_height_microns), false);
+                self.head_move(
+                    108,
+                    speed_tenths,
+                    self.surface - f64::from(cut_height_microns),
+                    false,
+                );
                 Ok(())
             }
             Record::FrogJump { speed_tenths, lift, hold_ms, down_speed_tenths, target } => {
                 self.head_sequence.clear();
                 self.head_move(106, speed_tenths, self.position[3] - f64::from(lift), false);
                 self.head_hold = f64::from(hold_ms) / 1000.;
-                let down = SURFACE - f64::from(target & 0xffff);
+                let down = self.surface - f64::from(target & 0xffff);
                 self.head_sequence.push_back((down, f64::from(down_speed_tenths), 0.));
                 Ok(())
             }
