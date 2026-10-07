@@ -130,10 +130,73 @@ impl SheetSet {
         }
     }
 
+    /// Changes every page's layout, stopping at the first that refuses.
+    pub(crate) fn try_for_each_layout(
+        &mut self,
+        mut change: impl FnMut(&mut Vec<Placed>, &mut Features, &mut Grouping, &mut Option<Nesting>) -> Result<()>,
+    ) -> Result<()> {
+        for page in &mut self.pages {
+            change(&mut page.placed, &mut page.features, &mut page.grouping, &mut page.nesting)?;
+        }
+        Ok(())
+    }
+
+    /// Moves every page's layer moves with their drawing contours.
+    pub(crate) fn remap_layer_edits(&mut self, moved: impl Fn(usize) -> Option<usize> + Copy) {
+        for page in &mut self.pages {
+            crate::draft::remap_layer_edits(&mut page.features, moved);
+        }
+    }
+
     fn synchronized(&self, draft: &Draft) -> Self {
         let mut set = self.clone();
         set.pages[set.active] = SheetLayout::capture(draft);
         set
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use openlaser_core::geometry::{Contour, Curve, Drawing, Point, Transform};
+    use openlaser_library::JobDrawing;
+    use std::sync::Arc;
+
+    fn square_at(x: f64) -> Contour {
+        let p = [[x, 0.], [x + 10., 0.], [x + 10., 10.], [x, 10.]];
+        Contour {
+            layer: "0".into(),
+            curves: (0..4).map(|i| Curve::Line { start: p[i].into(), end: p[(i + 1) % 4].into() }).collect(),
+        }
+    }
+
+    /// Editing a part reaches every sheet of the job: on a sheet that is not
+    /// shown, the later part's contour moves up and its layer move with it.
+    #[test]
+    fn a_replaced_part_reaches_every_sheet() {
+        let (part, other, edited) = (Id::generate(), Id::generate(), Id::generate());
+        let one = |c: Contour| Arc::new(Drawing { contours: vec![c] });
+        let old = Arc::new(JobDrawing::new(vec![(part, one(square_at(0.))), (other.clone(), one(square_at(50.)))]));
+        let mut draft = Draft::new(old);
+        let first = SheetLayout::capture(&draft);
+        draft.current.placed = vec![Placed { source: 1, copy: 0, transform: Transform::translation(Point::new(5., 0.)) }];
+        draft.current.features.layer_edits =
+            vec![openlaser_core::features::LayerEdit { contour: 1, layer: "Etch".into() }];
+        let second = SheetLayout::capture(&draft);
+        draft.current.sheets = Some(SheetSet { active: 0, pages: vec![first, second] });
+        let first = &draft.current.sheets.as_ref().unwrap().pages[0];
+        draft.current.placed.clone_from(&first.placed);
+        draft.current.features.clone_from(&first.features);
+
+        let new = Arc::new(JobDrawing::new(vec![
+            (edited, Arc::new(Drawing { contours: vec![square_at(0.), square_at(20.)] })),
+            (other, one(square_at(50.))),
+        ]));
+        draft.replace_part(new, 0).unwrap();
+        let hidden = &draft.current.sheets.as_ref().unwrap().pages[1];
+        assert_eq!(hidden.placed.iter().map(|p| p.source).collect::<Vec<_>>(), vec![2]);
+        assert_eq!(hidden.features.layer_edits[0].contour, 2, "the layer move follows its shape");
+        assert_eq!(draft.current.placed.len(), 3, "the shown sheet has both of the part's contours and the other");
     }
 }
 

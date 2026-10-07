@@ -640,43 +640,23 @@ impl Draft {
         Ok(())
     }
 
-    /// Replaces one source part as one undoable edit, retaining each copy's placement.
+    /// Replaces one source part as one undoable edit, retaining each copy's
+    /// placement. A nested sheet keeps its nested places and every sheet of
+    /// a job of several follows; a part that no longer fits its place is
+    /// refused when prepared, as crossing a neighbour or leaving the stock.
     pub(crate) fn replace_part(&mut self, sources: Arc<JobDrawing>, index: usize) -> Result<()> {
-        if self.current.sheets.is_some() || self.current.nesting.is_some() {
-            return Err(crate::Error::Refused("edit source geometry before nesting or assigning multiple sheets".into()));
-        }
         let old=self.sources().ok_or_else(||crate::Error::Refused("source drawing missing".into()))?.clone();
-        let before=old.range(index); let after=sources.range(index);
-        let mut placed=Vec::new(); let mut map=vec![None;self.current.placed.len()];
-        let mut copies=std::collections::BTreeSet::new();
-        for (i,p) in self.current.placed.iter().enumerate() {
-            if before.contains(&p.source) {
-                if copies.insert(p.copy) {
-                    let start=placed.len();
-                    for source in after.clone() {
-                        let equivalent=self.current.placed.iter().enumerate().find(|(_,q)| q.copy==p.copy && before.contains(&q.source) && old.drawing().contours[q.source]==sources.drawing().contours[source]);
-                        let transform=equivalent.map_or(p.transform,|(_,q)|q.transform);
-                        if let Some((old_index,_))=equivalent {map[old_index]=Some(placed.len());}
-                        placed.push(Placed{source,copy:p.copy,transform});
-                    }
-                    debug_assert_eq!(placed.len()-start,after.len());
-                }
-            } else {
-                map[i]=Some(placed.len()); let mut next=*p;
-                if next.source>=before.end {next.source=next.source-before.len()+after.len();}
-                placed.push(next);
-            }
+        let swap = PartSwap { old: &old, new: &sources, before: old.range(index), after: sources.range(index) };
+        let mut next = self.current.clone();
+        swap.apply(&mut next.placed, &mut next.features, &mut next.grouping, &mut next.nesting)?;
+        if let Some(set) = &mut next.sheets {
+            set.try_for_each_layout(|placed, features, grouping, nesting| {
+                swap.apply(placed, features, grouping, nesting)
+            })?;
         }
-        if placed.len()>openlaser_core::geometry::MAX_PLACED_CONTOURS {return Err(crate::Error::Request("too many placed contours".into()));}
         self.remember();
-        self.current.features=self.current.features.renumbered_locations(|i|map.get(i).copied().flatten());
-        // Evolving bridge references cannot safely survive changed source topology.
-        if let Some(bridges)=&mut self.current.features.bridges {bridges.connections.clear();}
-        if let OrderStrategy::Manual(order)=&mut self.current.features.order.strategy {
-            for i in 0..placed.len(){if !order.contains(&i){order.push(i);}}
-        }
-        self.current.grouping=self.current.grouping.remapped(|i|map.get(i).copied().flatten());
-        self.current.placed=placed; self.current.parts=sources.parts().cloned().collect();
+        self.current = next;
+        self.current.parts=sources.parts().cloned().collect();
         self.source_count=sources.contours(); self.sources=Some(sources); self.prepared=None; self.compiled=None;
         self.engrave_new_images();
         Ok(())
@@ -733,8 +713,11 @@ impl Draft {
         };
         self.current.placed.iter_mut().for_each(|p| moved(&mut p.source));
         remap_outline(&mut self.current.nesting, moved);
+        let kept_contour = |source: usize| map.get(source).copied().flatten();
+        remap_layer_edits(&mut self.current.features, kept_contour);
         if let Some(set) = &mut self.current.sheets {
             set.remap_sources(moved);
+            set.remap_layer_edits(kept_contour);
         }
         self.current.parts = kept.parts().cloned().collect();
         self.source_count = kept.contours();
@@ -1129,6 +1112,119 @@ impl Draft {
         }
         features
     }
+}
+
+/// One part of a job's drawing swapped for another: `before` its contours
+/// in the old drawing, `after` in the new one.
+struct PartSwap<'a> {
+    old: &'a JobDrawing,
+    new: &'a JobDrawing,
+    before: std::ops::Range<usize>,
+    after: std::ops::Range<usize>,
+}
+
+impl PartSwap<'_> {
+    /// Where an old drawing contour lies in the new drawing: the same place
+    /// before the part, moved by the change in its size after it, and in the
+    /// part itself only where the new part still has that very shape.
+    fn contour(&self, source: usize) -> Option<usize> {
+        if source < self.before.start {
+            return Some(source);
+        }
+        if source >= self.before.end {
+            return Some(source - self.before.len() + self.after.len());
+        }
+        let shape = self.old.drawing().contours.get(source)?;
+        let same = self.after.start + (source - self.before.start);
+        if self.after.contains(&same) && self.new.drawing().contours[same] == *shape {
+            return Some(same);
+        }
+        self.after.clone().find(|&s| self.new.drawing().contours[s] == *shape)
+    }
+
+    /// Swaps the part on one sheet's layout: each copy gets the new part's
+    /// contours, an unchanged shape keeping its own transform and every
+    /// feature on it; locations on changed shapes go, bridges go, and a
+    /// manual order takes the new contours last.
+    fn apply(
+        &self,
+        placed: &mut Vec<Placed>,
+        features: &mut Features,
+        grouping: &mut Grouping,
+        nesting: &mut Option<Nesting>,
+    ) -> Result<()> {
+        let mut next = Vec::new();
+        let mut map = vec![None; placed.len()];
+        let mut copies = std::collections::BTreeSet::new();
+        for (i, p) in placed.iter().enumerate() {
+            if self.before.contains(&p.source) {
+                if copies.insert(p.copy) {
+                    for source in self.after.clone() {
+                        let equivalent = placed.iter().enumerate().find(|(_, q)| {
+                            q.copy == p.copy
+                                && self.before.contains(&q.source)
+                                && self.old.drawing().contours[q.source]
+                                    == self.new.drawing().contours[source]
+                        });
+                        let transform = equivalent.map_or(p.transform, |(_, q)| q.transform);
+                        if let Some((old_index, _)) = equivalent {
+                            map[old_index] = Some(next.len());
+                        }
+                        next.push(Placed { source, copy: p.copy, transform });
+                    }
+                }
+            } else {
+                map[i] = Some(next.len());
+                let source = self.contour(p.source).ok_or_else(|| {
+                    crate::Error::Refused("a placed contour has no place in the new drawing".into())
+                })?;
+                next.push(Placed { source, ..*p });
+            }
+        }
+        if next.len() > openlaser_core::geometry::MAX_PLACED_CONTOURS {
+            return Err(crate::Error::Request("too many placed contours".into()));
+        }
+        if let Some(source) = outline_source(nesting.as_ref()) {
+            let moved = self.contour(source).ok_or_else(|| {
+                crate::Error::Refused(
+                    "the sheet's outline is a contour of this part that changed; choose the stock again after editing".into(),
+                )
+            })?;
+            remap_outline(nesting, |s| *s = moved);
+        }
+        *features = features.renumbered_locations(|i| map.get(i).copied().flatten());
+        remap_layer_edits(features, |s| self.contour(s));
+        // Evolving bridge references cannot safely survive changed source topology.
+        if let Some(bridges) = &mut features.bridges {
+            bridges.connections.clear();
+        }
+        if let OrderStrategy::Manual(order) = &mut features.order.strategy {
+            for i in 0..next.len() {
+                if !order.contains(&i) {
+                    order.push(i);
+                }
+            }
+        }
+        *grouping = grouping.remapped(|i| map.get(i).copied().flatten());
+        *placed = next;
+        Ok(())
+    }
+}
+
+/// Layer moves follow their drawing contours when the contours move; a
+/// move on a contour that is gone goes with it, so it never lands on
+/// another shape.
+pub(crate) fn remap_layer_edits(features: &mut Features, moved: impl Fn(usize) -> Option<usize>) {
+    features.layer_edits = features
+        .layer_edits
+        .iter()
+        .filter_map(|edit| {
+            Some(openlaser_core::features::LayerEdit {
+                contour: moved(edit.contour)?,
+                layer: edit.layer.clone(),
+            })
+        })
+        .collect();
 }
 
 /// Gives each of `layers` without an entry of its own the engraving an
@@ -2204,6 +2300,99 @@ mod tests {
         assert_eq!(draft.current.placed[4].transform,original.placed[3].transform);
         let edited=draft.current.clone();draft.undo().unwrap();draft.attach(old).unwrap();assert_eq!(draft.current,original);
         draft.redo().unwrap();draft.attach(new).unwrap();assert_eq!(draft.current,edited);
+    }
+
+    fn edit(contour: usize, layer: &str) -> openlaser_core::features::LayerEdit {
+        openlaser_core::features::LayerEdit { contour, layer: layer.into() }
+    }
+
+    /// A layer move stays on its shape when a part before it grows: the
+    /// later part's contour moves up and its layer goes with it. A move on an
+    /// unchanged contour of the edited part stays, one on a changed contour
+    /// goes, as the shape it named is gone.
+    #[test]
+    fn layer_moves_follow_their_contours_when_a_part_is_replaced() {
+        let (a, b, replacement) = (Id::generate(), Id::generate(), Id::generate());
+        let mut drawing = square();
+        drawing.contours.push(square_at([20., 0.]));
+        let other = Arc::new(Drawing { contours: vec![square_at([50., 0.])] });
+        let old = Arc::new(JobDrawing::new(vec![(a, Arc::new(drawing.clone())), (b.clone(), other.clone())]));
+        let mut draft = Draft::new(old);
+        draft.current.features.layer_edits = vec![edit(0, "Kept"), edit(1, "Gone"), edit(2, "Etch")];
+        drawing.contours[1] = square_at([25., 0.]);
+        drawing.contours.push(square_at([40., 0.]));
+        let new = Arc::new(JobDrawing::new(vec![(replacement, Arc::new(drawing)), (b, other)]));
+        draft.replace_part(new, 0).unwrap();
+        assert_eq!(draft.current.features.layer_edits, vec![edit(0, "Kept"), edit(3, "Etch")]);
+    }
+
+    /// On a nested sheet the edited part keeps its copies' nested places and
+    /// the sheet keeps its stock; only a stock outline that is itself the
+    /// edited shape refuses, as the sheet would change under the parts.
+    #[test]
+    fn a_nested_part_is_replaced_in_place() {
+        use openlaser_core::nesting::{NestSettings, NestStock};
+        let (stock, part, other, edited) = (Id::generate(), Id::generate(), Id::generate(), Id::generate());
+        let one = |c: Contour| Arc::new(Drawing { contours: vec![c] });
+        let sheet = one(square_at([-5., -5.]));
+        let old = Arc::new(JobDrawing::new(vec![
+            (stock.clone(), sheet.clone()),
+            (part.clone(), one(square().contours[0].clone())),
+            (other.clone(), one(square_at([50., 0.]))),
+        ]));
+        let mut draft = Draft::new(old.clone());
+        let nested = |x: f64| Transform::translation(Point::new(x, 0.));
+        draft.current.placed = vec![
+            Placed { source: 1, copy: 0, transform: nested(10.) },
+            Placed { source: 1, copy: 1, transform: nested(30.) },
+            Placed { source: 2, copy: 2, transform: nested(0.) },
+        ];
+        let outline = NestStock::Outline { contour: Placed::drawn(0) };
+        draft.current.nesting = Some(Nesting { stock: outline, settings: NestSettings::default() });
+        // The part gains a hole.
+        let mut holed = square().contours;
+        holed.push(square_at([2., 2.]));
+        let new = Arc::new(JobDrawing::new(vec![
+            (stock.clone(), sheet),
+            (edited.clone(), Arc::new(Drawing { contours: holed })),
+            (other.clone(), one(square_at([50., 0.]))),
+        ]));
+        draft.replace_part(new.clone(), 1).unwrap();
+        let placed: Vec<_> = draft.current.placed.iter().map(|p| (p.source, p.copy, p.transform)).collect();
+        assert_eq!(
+            placed,
+            vec![
+                (1, 0, nested(10.)), (2, 0, nested(10.)),
+                (1, 1, nested(30.)), (2, 1, nested(30.)),
+                (3, 2, nested(0.)),
+            ],
+            "both copies keep their nested place; the other part moves up a contour"
+        );
+        assert_eq!(outline_source(draft.current.nesting.as_ref()), Some(0), "the stock stays");
+
+        // Editing the stock outline itself is refused, and nothing changes.
+        let before = draft.current.clone();
+        let reshaped = Arc::new(JobDrawing::new(vec![
+            (Id::generate(), one(square_at([-9., -9.]))),
+            (edited, Arc::new(Drawing { contours: new.drawing().contours[1..3].to_vec() })),
+            (other, one(square_at([50., 0.]))),
+        ]));
+        assert!(draft.replace_part(reshaped, 0).is_err());
+        assert_eq!(draft.current, before);
+    }
+
+    /// Dropping a part nothing places moves the later parts' contours down,
+    /// and their layer moves with them.
+    #[test]
+    fn layer_moves_follow_their_contours_when_a_part_is_dropped() {
+        let one = |x: f64| Arc::new(Drawing { contours: vec![square_at([x, 0.])] });
+        let parts = vec![(Id::generate(), one(0.)), (Id::generate(), one(20.)), (Id::generate(), one(40.))];
+        let mut draft = Draft::new(Arc::new(JobDrawing::new(parts)));
+        draft.current.placed.retain(|p| p.source != 1);
+        draft.current.features.layer_edits = vec![edit(1, "Dropped"), edit(2, "Etch")];
+        draft.prune_parts();
+        assert_eq!(draft.current.parts.len(), 2);
+        assert_eq!(draft.current.features.layer_edits, vec![edit(1, "Etch")]);
     }
 
 }
