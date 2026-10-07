@@ -23,7 +23,7 @@
   const draft = $derived(server.doc!.draft!);
   /** The layers engraving a picture: they show its shading settings. */
   const pictures = $derived(imageLayers(draft.preview));
-  const NAME = 'Engraving';
+  const NAME = $derived(ui.engravingLayer ?? 'Engraving');
   const order = $derived(draft.layers.map((l) => l.name));
   const marked = $derived(draft.layers.filter((l) => l.mode === 'mark'));
   const cutting = $derived(draft.layers.filter((l) => l.mode !== 'mark'));
@@ -37,7 +37,7 @@
   let previewBusy = $state(false);
   let pendingFill = $state<Fill | null>(null);
   const areaFill = $derived(pendingFill ?? fillOfLayer(NAME) ?? { ...defaultFill(), outline: false });
-  const staged = $derived(engravingFeatures(draft, selectedContours, regions, pickMode === 'area' ? areaFill : null));
+  const staged = $derived(engravingFeatures(draft, selectedContours, regions, pickMode === 'area' ? areaFill : null, NAME));
   const shownError = $derived(ui.engravingPreview?.error ?? draft.error);
   const refusedPreview = $derived(!!ui.engravingPreview?.error && ui.engravingPreview.error !== draft.error);
   let sequence = 0;
@@ -90,6 +90,7 @@
         await api.changeLayers({ kind: 'recipe', layer: NAME, recipe: recipes[0].id });
       }
       ui.say(tr("Engraving selection saved. Undo restores the previous engraving."));
+      ui.setupPanel = null;
     } catch (error) { ui.say(explain(error), true); }
     finally { busy = false; }
   }
@@ -112,7 +113,7 @@
   /** What a layer fills, as the preview prepared it: closed outlines or the fill's own lines. */
   const closedOn = (name: string): number => (draft.preview?.contours ?? []).filter((c) => c.layer === name && (c.closed || c.paths.some((p) => p.kind === 'travel'))).length;
   /** The layer each placed contour is drawn on, as the preview has it. */
-  const layerOf = $derived(new Map([...(draft.preview?.contours ?? []), ...(draft.preview?.engraving_regions ?? [])].filter((c) => c.sources.length === 1).map((c) => [c.sources[0]!, c.layer])));
+  const layerOf = $derived(new Map([...(draft.preview?.contours ?? []), ...(draft.preview?.engraving_regions ?? [])].flatMap(c => c.sources.map(source => [source,c.layer] as const))));
   /** Selected shapes on an engraving layer. */
   const engravedSelection = $derived(selectedContours.filter((i) => marked.some((l) => l.name === layerOf.get(i))));
   async function cutOn(layer: string): Promise<void> {
@@ -132,7 +133,7 @@
 </script>
 
 <div class="feat-head">
-  <h2 class="feat-title"><i class="ic ic-tool-engrave"></i>{tr("Engrave")}</h2>
+  <h2 class="feat-title"><i class="ic ic-tool-engrave"></i>{NAME}</h2>
   <button class="btn btn-ghost" onclick={close}>{tr("Close")}</button>
 </div>
 <p class="feat-desc">{tr("Engraving marks the surface line by line. Pick the shapes to engrave on the drawing, then set the lines here.")}</p>
@@ -154,8 +155,8 @@
     </li>{:else}<li class="muted">{tr("No contours selected for engraving.")}</li>{/each}
   </ol>
   <button class="btn btn-ghost block" disabled={!selectedContours.length} onclick={onclear}>{tr("Clear selection")}</button>
-  <button class="btn btn-primary block" disabled={busy || previewBusy || refusedPreview || !ui.engravingPreview} onclick={engraveSelection}>
-    {tr("Apply engraving selection")}
+  <button class="btn btn-primary block" disabled={busy || previewBusy || refusedPreview || !ui.engravingPreview || (!selectedContours.length && !draft.layers.some(l => l.name === NAME && l.mode === 'mark'))} onclick={engraveSelection}>
+    {tr("Done")} · {NAME}
   </button>
   {#if pickMode === 'area'}<FillSettings fill={areaFill} apply={c => (pendingFill = { ...areaFill, ...c })} speed={speedOf(draft.layers.find(l => l.name === NAME) ?? draft.layers[0]!)} />{/if}
   <h3>{tr("Layer visibility")}</h3>
@@ -189,7 +190,7 @@
   {#if !draft.recipe}
     <p class="warn-box">{tr("No job recipe selected. Layers with their own recipe can still engrave; choose a recipe for the other layers before running.")}</p>
   {/if}
-  {#each marked as layer (layer.name)}
+  {#each marked.filter(l=>l.name===NAME) as layer (layer.name)}
     {@const fill = fillOfLayer(layer.name)}
     {@const closed = closedOn(layer.name)}
     {@const hidden = ui.drawingLayerHidden(layer.name)}

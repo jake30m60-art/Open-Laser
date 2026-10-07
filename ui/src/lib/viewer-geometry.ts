@@ -21,9 +21,9 @@ export function contourPath(contour: PreviewContour): string {
 /** Pick the original boundaries of filled contours, never their computed scan
  * lines. In particular an inner letter contour remains independently editable. */
 export function editableContours(contours: readonly PreviewContour[], regions: readonly PreviewContour[]): PreviewContour[] {
-  const original = new Set(regions.flatMap(c => c.sources.length === 1 ? c.sources : []));
-  return [...contours.filter(c => c.sources.length === 1 && !original.has(c.sources[0]!)),
-    ...regions.filter(c => c.sources.length === 1).map(c => ({ ...c, paths: c.paths.slice(0, 1) }))];
+  const original = new Set(regions.flatMap(c => c.sources));
+  return [...contours.filter(c => c.sources.length >= 1 && (c.closed || c.sources.length === 1) && !original.has(c.sources[0]!)),
+    ...regions.filter(c => c.sources.length >= 1).map(c => ({ ...c, paths: c.paths.slice(0, 1) }))];
 }
 
 function polygonArea(c: PreviewContour): number {
@@ -41,7 +41,7 @@ export function pickArea(shapes: Map<number, PreviewContour[]>, at: [number, num
 }
 /** A connected face: its enclosing contour minus directly nested contours. */
 export function fillAreas(contours: readonly PreviewContour[], selected: readonly number[]): Array<{ contour: number; holes: number[] }> {
-  const closed = contours.filter(c => c.closed && c.sources.length === 1);
+  const closed = contours.filter(c => c.closed && c.sources.length >= 1);
   const sizes = new Map(closed.map(c => [c, polygonArea(c)]));
   const parent = new Map<number, number>();
   for (const child of closed) {
@@ -176,9 +176,9 @@ export function marqueeContours(
 ): Array<{ group: number; source: number }> {
   return index.query(box).flatMap((group) => (shapes.get(group) ?? []).flatMap((c) => {
     const bounds = boundsOfContour(c);
-    const source = c.sources.length === 1 ? c.sources[0]! : null;
+    const sources = c.closed || c.sources.length === 1 ? c.sources : [];
     const touched = bounds !== null && overlaps(bounds, box) && c.paths.some((p) => crosses(p.points, box));
-    return source !== null && touched && shown(c) ? [{ group, source }] : [];
+    return touched && shown(c) ? sources.map(source=>({group,source})) : [];
   }));
 }
 export function boundsOfShapes(shapes: Map<number, PreviewContour[]>): Map<number, Box> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isOn, toggled } from './features';
+import { isOn, toggled, toolbarState } from './features';
 import type { Features } from '../api';
 
 describe('toggled', () => {
@@ -12,4 +12,10 @@ describe('toggled', () => {
     expect(isOn(features, 'fly')).toBe(false);
     expect(JSON.parse(JSON.stringify(features)).fly).toBeUndefined();
   });
+});
+
+it('reports a layer entry lead when the job default is off',()=>{
+ const f={leads:null,layers:[{name:'Cut',mode:'cut',machining:{leads:{entry:{shape:'line',length:2}}}}]} as unknown as Features;
+ expect(toolbarState(f,'leads',['Cut'])).toContain('Cut:');
+ expect(toolbarState(f,'leads',['Cut'])).not.toBe('Off');
 });

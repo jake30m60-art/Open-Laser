@@ -356,6 +356,10 @@ pub struct Fill {
     /// Half the measured shift between the two directions.
     #[serde(default)]
     pub scan_offset: f64,
+    /// Scan each disconnected object separately instead of across the whole layer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub per_object: Option<bool>,
     /// How an image framed by the shapes becomes power; left out of the
     /// file when the defaults apply. Shapes without an image ignore it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -379,6 +383,7 @@ impl Fill {
             pass_shift: 0.,
             calibrated: Vec::new(),
             scan_offset: 0.,
+            per_object: None,
             image: Some(ImageFill::default()),
         }
     }

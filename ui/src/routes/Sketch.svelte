@@ -107,7 +107,7 @@
   const snapped = $derived.by((): Snap | null => {
     void store.toolRevision;
     if (!cursor || !tool) return null;
-    return snap(store.sketch, cursor, { reach, grid: store.gridSnap ? minor : 0, anchor: tool.anchor(), tangent: tool.id === 'line' });
+    return snap(store.sketch, cursor, { reach, grid: store.gridSnap ? minor : 0, anchor: tool.anchor(), tangent: store.automaticConstraints && tool.id === 'line' });
   });
   const resolved = $derived.by((): Snap | null => { void store.toolRevision; return tool && snapped ? tool.resolve(snapped, locked) : null; });
   const fields = $derived.by((): Field[] => {
@@ -665,8 +665,8 @@
     <div class="sk-group">
       <span class="sk-title">{t("Create")}</span>
       <div class="sk-tools">
-        <button class="btn btn-soft" onclick={()=>textOpen=true}>{t("Text with fonts")}</button>
-        <button class="btn btn-soft" disabled={importing} onclick={()=>importInput.click()}>{t("Import DXF / SVG")}</button>
+        <button class="sk-tool" title={t("Text with fonts")} aria-label={t("Text with fonts")} onclick={()=>textOpen=true}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M12 5v15M8 20h8M4 5v3M20 5v3" /></svg></button>
+        <button class="sk-tool" title={t("Import DXF / SVG")} aria-label={t("Import DXF / SVG")} disabled={importing} onclick={()=>importInput.click()}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H5v18h14V8l-5-5v5h5M8 13h8M13 10l3 3-3 3" /></svg></button>
         <input bind:this={importInput} type="file" accept=".dxf,.svg" hidden onchange={importDrawing} />
         {#each CREATE as t (t.label)}
           <button class="sk-tool" class:on={!action && (tool?.id ?? null) === t.id} title={t.key ? `${t.label} (${t.key})` : t.label} aria-label={t.label} onclick={() => choose(t.id)}>
@@ -686,6 +686,11 @@
         <button class="sk-tool" title={t("Construction (X)")} aria-label={t("Toggle construction")} disabled={!selected.length} onclick={() => { const p = store.toggleConstruction(); if (p) ui.say(p, true); }}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L20 4" stroke-dasharray="3 3" /></svg>
         </button>
+
+        <button class="sk-tool" title={t("Delete (Del)")} aria-label={t("Delete")} disabled={!store.selection.size} onclick={() => store.deleteSelection()}><i class="ic ic-trash"></i></button>
+        <button class="sk-tool" title={t("Undo (Ctrl+Z)")} aria-label={t("Undo")} disabled={!store.canUndo} onclick={() => store.undo()}><i class="ic ic-undo"></i></button>
+        <button class="sk-tool" title={t("Redo (Ctrl+Y)")} aria-label={t("Redo")} disabled={!store.canRedo} onclick={() => store.redo()}><i class="ic ic-redo"></i></button>
+        <button class="sk-tool" title={t("Fit (F)")} aria-label={t("Fit")} onclick={fit}><i class="ic ic-fit"></i></button>
       </div>
     </div>
     <div class="sk-group">
@@ -694,25 +699,14 @@
         {#each RELATE as t (t.id)}
           <button class="sk-tool glyph" class:on={action?.id === t.id} title={t.label} aria-label={t.label} onclick={() => chooseAction(t.id)}>{t.glyph}</button>
         {/each}
-      </div>
-    </div>
-    <div class="sk-group">
-      <span class="sk-title">{t("Dimension")}</span>
-      <div class="sk-tools">
+
         <button class="sk-tool" class:on={action?.id === 'dimension'} title={t("Sketch dimension (D)")} aria-label={t("Sketch dimension")} onclick={() => chooseAction('dimension')}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8v10M20 8v10M4 13h16M4 13l3-2M4 13l3 2M20 13l-3-2M20 13l-3 2" /></svg>
         </button>
       </div>
     </div>
-    <div class="sk-group">
-      <span class="sk-title">{t("Edit")}</span>
-      <div class="sk-tools">
-        <button class="sk-tool" title={t("Delete (Del)")} aria-label={t("Delete")} disabled={!store.selection.size} onclick={() => store.deleteSelection()}><i class="ic ic-trash"></i></button>
-        <button class="sk-tool" title={t("Undo (Ctrl+Z)")} aria-label={t("Undo")} disabled={!store.canUndo} onclick={() => store.undo()}><i class="ic ic-undo"></i></button>
-        <button class="sk-tool" title={t("Redo (Ctrl+Y)")} aria-label={t("Redo")} disabled={!store.canRedo} onclick={() => store.redo()}><i class="ic ic-redo"></i></button>
-        <button class="sk-tool" title={t("Fit (F)")} aria-label={t("Fit")} onclick={fit}><i class="ic ic-fit"></i></button>
-      </div>
-    </div>
+
+
   </div>
 
   <div class="sketch-canvas" bind:clientWidth={w} bind:clientHeight={h}>
@@ -803,7 +797,12 @@
 </section>
 
 <aside class="panel side sketch-side">
-  <label>{t("Saved sketches")}<select value={store.activeDocument} onchange={e=>{store.openDocument(e.currentTarget.value);fit();}}>{#each store.documents as document}<option value={document.id}>{document.name}</option>{/each}</select></label>
+  <label for="sketch-archive">{t("Saved sketches")}</label>
+  <div class="sketch-archive-row">
+    <select id="sketch-archive" value={store.activeDocument} onchange={e=>{store.openDocument(e.currentTarget.value);fit();}}>{#each store.documents as document}<option value={document.id}>{document.name}</option>{/each}</select>
+    <button class="sk-tool" title={'Gewählte Skizze entfernen: '+store.name} aria-label={'Gewählte Skizze entfernen: '+store.name} onclick={()=>{store.removeDocument();fit();}}><i class="ic ic-trash" aria-hidden="true"></i></button>
+  </div>
+  {#if store.removedDocuments.length}<button class="btn btn-soft" onclick={()=>{store.restoreDocument();fit();}}>Entfernen rückgängig: {store.removedDocuments.at(-1)?.name}</button>{/if}
   <button class="btn btn-ghost" onclick={()=>beginProject('new')}>{t("New sketch")}</button>
   <div class="sk-name"><span>{t("Name")}</span><button class="sk-name-field" onclick={() => osk.text(t("Sketch name"), store.name, (v) => store.rename(v))}>{store.name}</button></div>
 
@@ -841,6 +840,8 @@
       </div>
     {:else}<p class="muted">{t("Now")} {displayNumber(minor, 'mm')} {unitLabel('mm')}{t(", following the zoom.")}</p>{/if}
     <label class="sk-check"><input type="checkbox" bind:checked={store.gridSnap} /> {t("Snap to grid (G)")}</label>
+    <label class="sk-check"><input type="checkbox" bind:checked={store.automaticConstraints} onchange={()=>store.use(store.tool?.id ?? null)} /> Zusätzliche Abhängigkeiten automatisch</label>
+    <p class="muted">Standard: nur verbundene Endpunkte und Grundform. Tangenten und weitere Beziehungen bei Bedarf ausdrücklich setzen.</p>
     <label class="sk-check"><input type="checkbox" bind:checked={store.showConstraints} /> {t("Show constraints")}</label>
     <label class="sk-check"><input type="checkbox" bind:checked={store.showDimensions} /> {t("Show dimensions")}</label>
   </div>
@@ -870,12 +871,14 @@
 </aside>
 
 <style>
+  .sketch-archive-row { display:grid; grid-template-columns:minmax(0,1fr) 44px; gap:6px; align-items:center; }
+  .sketch-archive-row .sk-tool { border-color:var(--line); background:var(--panel-2); }
   .sketch-side select{width:100%;min-height:44px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);padding:8px;margin:6px 0}
   .sketch-main { position: relative; }
-  .sketch-bar { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
-  .sk-group { display: flex; flex-direction: column; gap: 2px; }
+  .sketch-bar { display: flex; flex-wrap: wrap; gap: 14px; padding: 10px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  .sk-group { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
   .sk-title { font-size: var(--t-sm); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding-left: 4px; }
-  .sk-tools { display: flex; flex-wrap: wrap; gap: 2px; }
+  .sk-tools { display: grid; grid-template-rows: repeat(2, 44px); grid-auto-flow: column; grid-auto-columns: 44px; gap: 3px; }
   .sk-tool { min-width: 44px; height: 44px; border-radius: 9px; border: 1px solid transparent; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-2); }
   .sk-tool.glyph { font-weight: 700; font-size: 15px; padding: 0 6px; }
   .sk-tool:hover:not(:disabled) { background: var(--panel); border-color: var(--line); }

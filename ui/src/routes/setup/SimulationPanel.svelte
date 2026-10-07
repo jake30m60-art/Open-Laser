@@ -35,6 +35,7 @@
 <div class="feat-head"><h2 class="feat-title">{t("Simulation")}</h2><button class="btn btn-ghost" onclick={() => (ui.setupPanel = null)}>{t("Close")}</button></div>
 <p class="muted">{t("Geometry preview only; playback speed is not machine time.")} {t("Each layer gets equal playback time, so short cuts remain visible.")}</p>
 {#if draft.error}<p class="warn-box" role="alert">{t("Partial simulation: {0}. Fix this before running the job.", draft.error)}</p>{/if}
+<p class="simulation-legend"><span style="color:#2563eb">● Schnitt bearbeitet</span> · <span style="color:#f97316">● Gravur bearbeitet</span> · <span style="color:#64748b">┄ Fahrt ohne Laser</span></p>
 <div class="stack">
   {#if draft.features.only_contours}<p class="warn-box">{t("Output limited to {0} selected contours. Work all restores the complete job.",draft.features.only_contours.length)}</p>{/if}
   <div class="row" role="group" aria-label={t("Simulated operations")}>

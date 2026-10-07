@@ -21,7 +21,7 @@
   import { explain } from '../lib/format';
   import { pasteable, type CopiedShapes, type PasteSettings } from '../lib/copy-paste';
   import { editableContours, fillAreas } from '../lib/viewer-geometry';
-  import { TOOLS, isOn, stateOf, toggled } from '../lib/features';
+  import { TOOLS, toolbarOn, toolbarState, toggled } from '../lib/features';
   import ToolBar, { type Tool } from './setup/ToolBar.svelte';
 
   let { compact = false }: { compact?: boolean } = $props();
@@ -68,6 +68,14 @@
   }
 
   function runTool(id: string): void {
+    ui.picking = null;
+    ui.jobOverviewOpen = false;
+    if (id === 'engrave') {
+      const names = new Set(draft?.layers.map(l=>l.name) ?? []);
+      let number=1; while(names.has('Gravur '+number)) number++;
+      ui.engravingLayer='Gravur '+number; ui.engravingSession++; ui.engravingPreview=null;
+      ui.setupPanel='engrave'; return;
+    }
     ui.setupPanel = ui.setupPanel === id ? null : (id as typeof ui.setupPanel);
     if (id === 'leads' && ui.setupPanel === 'leads') {
       const names = new Set((draft?.preview?.contours ?? []).filter(c => c.sources.some(s => selectedContours.includes(s))).map(c => c.layer));
@@ -96,8 +104,8 @@
   /** The machining bar's tools, laid out and ordered by the same ToolBar as the drawing bar. */
   const BAR_TOOLS = $derived(Object.fromEntries([
     ...TOOLS.map((t): [string, Tool] => [t.id, {
-      label: t.short, when: 'always', icon: `ic-tool-${t.id}`, detail: () => (draft ? stateOf(draft.features, t.id) : ''),
-      on: () => ui.setupPanel === t.id, set: () => !!draft && isOn(draft.features, t.id), disabled: () => false, run: () => runTool(t.id),
+      label: t.short, when: 'always', icon: `ic-tool-${t.id}`, detail: () => (draft ? toolbarState(featureEdits.value(draft), t.id, draft.layers.map(l=>l.name)) : ''),
+      on: () => ui.setupPanel === t.id, set: () => !!draft && toolbarOn(featureEdits.value(draft), t.id), disabled: () => false, run: () => runTool(t.id),
     }]),
     ...EXTRA.map((t): [string, Tool] => [t.id, {
       label: t.short, when: 'always', icon: t.id === 'simulation' ? 'ic-tool-order' : t.id === 'nest' ? 'ic-tool-nest' : t.id === 'engrave' ? 'ic-tool-engrave' : 'ic-copy', on: () => ui.setupPanel === t.id, disabled: () => false, run: () => runTool(t.id),
@@ -119,7 +127,7 @@
   <Canvas {engraveMode} bind:engravingAreas bind:this={canvas} bind:selectedContours bind:clipboard bind:pasting {pasteSettings} {simulationProgress} {simulationMode} />
 </section>
 
-<aside class="panel side setup-side" class:spread={ui.setupPanel === null} class:compact bind:this={settingsPanel}>
+<aside class="panel side setup-side" class:spread={ui.setupPanel === null} class:overview-open={ui.jobOverviewOpen} class:compact bind:this={settingsPanel}>
   <div class="setup-settings" class:spread={ui.setupPanel === null}>
   {#if !draft}
     <h2>{tl("No part open")}</h2>
@@ -133,7 +141,7 @@
       disabled={draft.error === 'preparing geometry' || !pasteable(clipboard, draft) || !!ui.picking || ui.nestShown || ui.nestPicking}
       onpaste={() => { void canvas?.paste(pasteSettings.count); }} />
   {:else if ui.setupPanel === 'engrave'}
-    <EngravePanel {selectedContours} regions={engravingAreas} bind:pickMode={engraveMode} onclear={() => canvas?.clearSelection()} onfocus={source => canvas?.focusContour(source)} onremove={source => canvas?.removeEngraving(source)} />
+    {#key ui.engravingSession}<EngravePanel {selectedContours} regions={engravingAreas} bind:pickMode={engraveMode} onclear={() => canvas?.clearSelection()} onfocus={source => canvas?.focusContour(source)} onremove={source => canvas?.removeEngraving(source)} />{/key}
   {:else if ui.setupPanel === 'simulation'}
     <SimulationPanel bind:progress={simulationProgress} bind:mode={simulationMode} />
   {:else if ui.setupPanel === 'nest'}
@@ -156,7 +164,9 @@
   .panel.setup-side { overflow:hidden; gap:0; }
   .setup-settings { display:flex; flex-direction:column; gap:12px; flex:1; min-height:0; overflow:auto; padding-bottom:12px; overscroll-behavior:contain; }
   .setup-settings.spread { justify-content:space-between; }
-  .setup-overview { flex:0 1 42%; min-height:148px; max-height:42%; overflow:auto; border-top:1px solid var(--line); padding-top:8px; overscroll-behavior:contain; }
+  .setup-overview { flex:0 0 auto; min-height:0; overflow:auto; border-top:1px solid var(--line); padding-top:8px; overscroll-behavior:contain; }
+  .overview-open .setup-settings { display:none; }
+  .overview-open .setup-overview { flex:1; max-height:none; border-top:0; padding-top:0; }
   .compact .setup-settings { flex:none; overflow:visible; }
   .compact .setup-overview { flex:none; max-height:none; overflow:visible; }
   /* The machining bar runs along the top and down the left; the drawing bar spans the foot. */

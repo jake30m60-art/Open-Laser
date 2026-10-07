@@ -238,7 +238,7 @@ export const api = {
   setRecipe: (id: string) => draftPost(`/api/draft/recipe/${id}`),
   setFeatures: (features: Features, revision?: number) => draftPost('/api/draft/features', features, revision),
   /** Moves shapes between layers, names a layer, or chooses how a layer is cut; one undo step. */
-  changeLayers: (change: LayerChange) => draftPost('/api/draft/layers', change),
+  changeLayers: (change: LayerChange, revision?: number) => draftPost('/api/draft/layers', change, revision),
   copyFeatures: (jobId: string) => draftPost(`/api/draft/copy/${jobId}`),
   /** Moves, turns or mirrors placed contours by `matrix`, applied after what they have; `null` puts them back. */
   transform: (contours: number[], matrix: Transform | null, revision?: number) => draftPost('/api/draft/transform', { contours, matrix }, revision),

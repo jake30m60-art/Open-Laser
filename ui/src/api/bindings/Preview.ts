@@ -8,6 +8,10 @@ import type { RasterView } from "./RasterView";
  */
 export type Preview = {
 /**
+ * Editable original contours, including those currently excluded from output.
+ */
+source_contours?: Array<PreviewContour>,
+/**
  * Filled-area boundaries for display and editing, never additional laser moves.
  */
 engraving_regions: Array<PreviewContour>,

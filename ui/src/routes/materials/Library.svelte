@@ -103,7 +103,7 @@
   ondragleave={(e) => { if (e.currentTarget === e.target) dragging = false; }}
   ondrop={drop}>
   <div class="library-head"><h2>{tr("Materials")}</h2><button class="btn btn-primary icon-only" onclick={onadd} aria-label={tr("New recipe")}><i class="ic ic-plus"></i></button></div>
-  <div class="process-tabs" role="group" aria-label="Rezeptart">
+  <div class="process-tabs" role="group" aria-label={tr("Rezeptart")}>
     <button class="btn" class:btn-primary={process === 'cut'} aria-pressed={process === 'cut'} onclick={() => switchProcess('cut')}>{tr("Cutting")}</button>
     <button class="btn" class:btn-primary={process === 'engrave'} aria-pressed={process === 'engrave'} onclick={() => switchProcess('engrave')}>{tr("Engraving")}</button>
   </div>

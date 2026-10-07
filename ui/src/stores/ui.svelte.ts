@@ -106,8 +106,11 @@ class Ui {
   get nestShown(): boolean { return !!this.nestPreview || !!this.nestLive; }
   nestPicking = $state(false);
   selectionEpoch = $state(0);
+  engravingLayer = $state<string | null>(null);
+  engravingSession = $state(0);
+  jobOverviewOpen = $state(false);
   engravingPreview = $state.raw<{ preview: Preview; features: Features; error: string | null; revision: number } | null>(null);
-  picking = $state<Picking | null>(null);
+  picking = $state.raw<Picking | null>(null);
   /** Drawing layers hidden on the canvas, for this session. */
   hiddenDrawingLayers = $state<string[]>([]);
   /** The machining bar's tools in the operator's order, every one shown. */

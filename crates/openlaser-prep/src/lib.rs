@@ -246,6 +246,12 @@ pub fn pick(
     Ok(best.map(|(_, spot, point)| (spot, point)))
 }
 
+/// The closed boundaries after bridges, before machining and scan filling.
+pub fn bridge_boundaries(drawing: &Drawing, features: &Features) -> Result<Vec<(Vec<usize>, Contour)>> {
+    Ok(bridge::apply(&kept(drawing, features), features.bridges.as_ref())?
+        .into_iter().map(|c| (c.sources, c.contour)).collect())
+}
+
 /// Prepares `drawing` under `features`.
 pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     validate_drawing(drawing, features)?;
@@ -359,7 +365,18 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
         // Every chosen area's boundary and holes, checked area by area.
         let mut boundaries_all: Vec<PreparedContour> = Vec::new();
         let mut owners: Vec<usize> = Vec::new();
+        let mut batches: Vec<(Vec<PreparedContour>, Vec<usize>)> = Vec::new();
+        let mut handled = std::collections::HashSet::new();
         for region in &explicit {
+            if handled.contains(&region.contour) { continue; }
+            if let Some(joined) = contours.iter().find(|c| c.closed && c.layer == *name && c.sources.len() > 1 && c.sources.contains(&region.contour)) {
+                handled.extend(joined.sources.iter().copied());
+                boundaries_all.push(joined.clone());
+                owners.extend(joined.sources.iter().copied());
+                batches.push((vec![joined.clone()], joined.sources.clone()));
+                continue;
+            }
+            let from = boundaries_all.len();
             let ids: Vec<_> = std::iter::once(region.contour).chain(region.holes.iter().copied()).collect();
             let boundaries: Vec<_> = ids.iter().map(|&i| drawing.contours.get(i)
                 .ok_or_else(|| feature("engraving area", "a boundary is missing")))
@@ -378,6 +395,15 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
             }));
             // Referenced holes do not become the selection/placement owner of a fill.
             owners.push(region.contour);
+            let raw = boundaries_all[from..].to_vec();
+            if let Some(raster) = image_of(features, &raw[0]) {
+                let refs: Vec<_> = raw.iter().collect();
+                let mut picture = flying::fill_framing(&refs, fill, Some(raster))?;
+                for path in &mut picture { path.sources = vec![region.contour]; }
+                paths.extend(picture);
+                boundaries_all.truncate(from);
+                owners.pop();
+            } else { batches.push((raw, vec![region.contour])); }
         }
         let shapes: Vec<&PreparedContour> = contours.iter().filter(|c| c.layer == *name && c.closed
             && !c.sources.iter().any(|s| explicit.iter().any(|r| r.contour == *s || r.holes.contains(s)))).collect();
@@ -395,9 +421,26 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
         owners.dedup();
         let mut together: Vec<&PreparedContour> = boundaries_all.iter().collect();
         together.extend(plain.iter().copied());
-        let mut combined = flying::fill(&together, fill)?;
+        let mut combined = if fill.per_object == Some(true) {
+            let mut result = Vec::new();
+            for (boundaries, ids) in &batches {
+                let refs: Vec<_> = boundaries.iter().collect();
+                let mut object = flying::fill(&refs, fill)?;
+                for path in &mut object { path.sources.clone_from(ids); }
+                result.extend(object);
+            }
+            for outer in plain.iter().filter(|c| c.depth % 2 == 0) {
+                let mut refs = vec![*outer];
+                for hole in plain.iter().filter(|c| c.depth == outer.depth + 1) {
+                    let pair = [contour_geometry(outer), contour_geometry(hole)];
+                    if topology::depths_with(&[&pair[0], &pair[1]], |_, _| false)? == [0, 1] { refs.push(*hole); }
+                }
+                result.extend(flying::fill(&refs, fill)?);
+            }
+            result
+        } else { flying::fill(&together, fill)? };
         for path in &mut combined {
-            path.sources.clone_from(&owners);
+            if fill.per_object != Some(true) { path.sources.clone_from(&owners); }
         }
         paths.extend(combined);
         zigzags.push(paths);
@@ -416,6 +459,11 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
         }
     }
     Ok(out)
+}
+
+fn contour_geometry(prepared: &PreparedContour) -> Contour {
+    Contour { layer: prepared.layer.clone(), curves: prepared.segments.iter()
+        .filter(|s| s.process.lead.is_none()).map(|s| s.curve).collect() }
 }
 
 /// The image a prepared contour frames, if it frames one.

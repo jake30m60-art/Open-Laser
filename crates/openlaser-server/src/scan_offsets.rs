@@ -592,6 +592,7 @@ impl Coordinator {
             outline: false,
             bidirectional: true,
             scan_offset: 0.,
+            per_object: None,
             passes: 1,
             pass_angle: 0.,
             pass_shift: 0.,

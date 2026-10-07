@@ -30,17 +30,17 @@ export function orderPosition(segments: PreviewSegment[], progress: number): { p
 
 /** What the head has run up to `progress`, as Mlaser colours it: the cut
  *  stretches and the moves with the laser off, each as one SVG path. */
-export function orderTrail(segments: PreviewSegment[], progress: number): { cut: string; moved: string } {
+export function orderTrail(segments: PreviewSegment[], progress: number, marked: ReadonlySet<number> = new Set()): { cut: string; mark: string; moved: string } {
   let left = Math.max(0, Math.min(1, progress)) * segments.reduce((sum, s) => sum + s.length, 0);
-  const cut: string[] = [], moved: string[] = [];
+  const cut: string[] = [], mark: string[] = [], moved: string[] = [];
   for (const s of segments) {
     if (left <= 0) break;
     const t = s.length > 0 ? Math.min(1, left / s.length) : 1;
     const end: Point = [s.a[0] + (s.b[0] - s.a[0]) * t, s.a[1] + (s.b[1] - s.a[1]) * t];
-    (s.kind === 'travel' ? moved : cut).push(`M${s.a[0]} ${s.a[1]}L${end[0]} ${end[1]}`);
+    (s.kind === 'travel' ? moved : marked.has(s.contour) ? mark : cut).push(`M${s.a[0]} ${s.a[1]}L${end[0]} ${end[1]}`);
     left -= s.length;
   }
-  return { cut: cut.join(''), moved: moved.join('') };
+  return { cut: cut.join(''), mark: mark.join(''), moved: moved.join('') };
 }
 
 function phases(segments: readonly PreviewSegment[], layer: (contour: number) => string): Array<{start:number;length:number}> {

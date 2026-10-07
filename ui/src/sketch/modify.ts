@@ -451,7 +451,12 @@ export function offset(source: Sketch, ids: readonly Id[], distance: number, tow
       const o = offs[i]!;
       const p = pointFor(starts[i]!), q = pointFor(endsAt[i]!);
       const [a, b] = l.forward ? [p, q] : [q, p];
-      if (o.kind === 'line') ids.push(addEntity(s, { kind: 'line', a, b }));
+      if (o.kind === 'line') {
+        const id = addEntity(s, { kind: 'line', a, b }); ids.push(id);
+        // Primary axes keep an offset rectangle rectangular when dimensioned.
+        if (Math.abs(point(s,a).y-point(s,b).y) < SAME) addConstraint(s,{kind:'horizontal',line:id});
+        else if (Math.abs(point(s,a).x-point(s,b).x) < SAME) addConstraint(s,{kind:'vertical',line:id});
+      }
       else ids.push(addEntity(s, { kind: 'arc', c: addPoint(s, o.c.x, o.c.y), a, b }));
     });
     created.push(...ids);

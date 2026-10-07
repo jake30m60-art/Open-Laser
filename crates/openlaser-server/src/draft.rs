@@ -1255,6 +1255,7 @@ pub fn prepare(drawing: &Drawing, placed: &[Placed], features: &Features) -> Res
         Drawing { contours: sheet.contours.iter().enumerate().filter(|(i,c)| ids.contains(i) && !features.skip_layers.contains(&c.layer)).map(|(_,c)| c.clone()).collect() }.bounds()
     } else { sheet.bounds() };
     let mut display = preview(&toolpath, bounds);
+    display.source_contours = Some(plain(&sheet).contours);
     display.engraving_regions = area_boundaries(&sheet, &features);
     Ok(Prepared {
         contours: contours(&toolpath),
@@ -1288,7 +1289,15 @@ pub fn prepare(drawing: &Drawing, placed: &[Placed], features: &Features) -> Res
 }
 
 fn area_boundaries(sheet: &Drawing, features: &Features) -> Vec<PreviewContour> {
-    let originals = plain(sheet).contours;
+    let mut originals = plain(sheet).contours;
+    if features.bridges.is_some() && let Ok(joined) = openlaser_prep::bridge_boundaries(sheet, features) {
+            for (sources, contour) in joined.into_iter().filter(|(sources, _)| sources.len() > 1) {
+                originals.retain(|c| !c.sources.iter().any(|s| sources.contains(s)));
+                let mut boundary = plain(&Drawing { contours: vec![contour] }).contours.remove(0);
+                boundary.sources = sources;
+                originals.push(boundary);
+            }
+    }
     originals.iter().filter(|c| c.closed && !features.skip_layers.contains(&c.layer)
         && features.only_contours.as_ref().is_none_or(|ids| ids.contains(&c.sources[0]))
         && features.layers.iter().any(|l| l.name == c.layer
@@ -1300,7 +1309,7 @@ fn area_boundaries(sheet: &Drawing, features: &Features) -> Vec<PreviewContour> 
             let mut region = c.clone();
             if let Some(chosen) = features.fill_regions.iter().find(|r| r.contour == c.sources[0]) {
                 for &hole in &chosen.holes {
-                    if let Some(boundary) = originals.get(hole) { region.paths.extend(boundary.paths.clone()); }
+                    if let Some(boundary) = originals.iter().find(|c| c.sources == [hole]) { region.paths.extend(boundary.paths.clone()); }
                 }
             }
             region
@@ -1314,6 +1323,7 @@ fn partial_preview(drawing: &Drawing, placed: &[Placed], features: &Features) ->
     let relayered = crate::layers::relayered(drawing, &features.layer_edits);
     let sheet = place(&relayered, placed);
     let mut display = plain(&sheet);
+    display.source_contours = Some(display.contours.clone());
     let invalid: Vec<_> = sheet.contours.iter().enumerate().filter(|(_, c)|
         !features.skip_layers.contains(&c.layer) && openlaser_prep::crosses_itself(c))
         .map(|(i, _)| i).collect();
@@ -1459,6 +1469,7 @@ fn preview(toolpath: &Toolpath, bounds: Option<Bounds>) -> Preview {
         })
         .collect();
     Preview {
+        source_contours: None,
         engraving_regions: Vec::new(),
         contours,
         bounds,
@@ -1497,6 +1508,7 @@ fn plain(sheet: &Drawing) -> Preview {
         })
         .collect();
     Preview {
+        source_contours: None,
         engraving_regions: Vec::new(),
         contours,
         bounds: sheet.bounds(),
@@ -1921,6 +1933,8 @@ mod tests {
         assert_eq!(selected.preview.contours.len(),1);
         assert_eq!(selected.preview.contours[0].sources,vec![1]);
         assert_eq!(selected.preview.contours[0].depth,1);
+        assert_eq!(selected.preview.source_contours.as_ref().unwrap().len(),2, "excluded outlines stay editable without becoming machine paths");
+        assert_eq!(selected.preview.source_contours.as_ref().unwrap().len(),2, "excluded outlines stay editable without becoming machine paths");
         f.only_contours=None;
         assert_eq!(prepare(&drawing,&Placed::all(2),&f).unwrap().preview.contours.len(),2);
     }

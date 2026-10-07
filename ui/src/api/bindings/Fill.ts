@@ -49,6 +49,10 @@ pass_shift: number,
  */
 scan_offset: number,
 /**
+ * Scan each disconnected object separately instead of across the whole layer.
+ */
+per_object?: boolean,
+/**
  * How an image framed by the shapes becomes power; left out of the
  * file when the defaults apply. Shapes without an image ignore it.
  */

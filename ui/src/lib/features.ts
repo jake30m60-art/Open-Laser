@@ -81,3 +81,22 @@ export function stateOf(features: Features, id: string): string {
     default: return '';
   }
 }
+
+/** Feedback includes the settings actually used by each layer. */
+export function toolbarState(features: Features, id: string, layers: readonly string[]): string {
+  const base=stateOf(features,id);
+  if(!['leads','joints','cooling','kerf','start'].includes(id))return base;
+  const own=(features.layers ?? []).filter(l=>layers.includes(l.name) && l.machining);
+  const active=own.flatMap(l=>{
+    const m=l.machining!;
+    const view={...features,leads:m.leads,joints:m.joints,cooling:m.cooling,kerf:m.kerf,start:m.start,seam:m.seam};
+    const state=stateOf(view,id);
+    return isOn(view,id) && state!==base ? [l.name+': '+state] : [];
+  });
+  return active.length ? active.join(' · ') : base;
+}
+
+export function toolbarOn(features: Features,id:string):boolean {
+ if(isOn(features,id))return true;
+ return (features.layers ?? []).some(l=>l.machining && ['leads','joints','cooling','kerf'].includes(id) && !!l.machining[id as 'leads'|'joints'|'cooling'|'kerf']);
+}

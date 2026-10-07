@@ -1,3 +1,10 @@
+# Aktualisierung 8. Oktober 2026
+
+260 UI-Tests bestanden; Svelte ohne Fehler/Warnungen. Draggriff mit Wiederöffnen, kompletter neuer Skizzenauftrag mit zwei Gravuren bis Run, exklusive Übersicht und Skizzenarchiv-Entfernen/Wiederherstellen geprüft. Nesting-/Mehrblech-Teilersatz ist bereits implementiert und seine gezielten Regressionen bestehen. Offset-Bemaßung und minimale automatische Beziehungen abgesichert. Keine reale Maschine ausgeführt; Hardwareabnahme bleibt offen. Details im letzten Abschnitt von UEBERGABE.md.
+- Finale Version dieser Fortsetzung installiert, Build/Installation SHA256 identisch: 368C6A39AA0C1CADE4C9C0D4DD3D2A041F5F5F13017DC3C8FF248A2792BACA31. Vorversion: C:\Users\joe\OpenLaser-App\OpenLaser-vor-skizzenleiste-20261008.exe. Finaler Release startet in Diagnosekopie mit UI index-C1U8lJRa.js; gespeicherte Ebenen Gravur 1/Gravur 2/0 nach Serverneustart vorhanden. Joe-Instanzen nicht beendet; vollständiger Neustart lädt die Änderungen.
+
+---
+
 # Alpha-Prüfung – 7. Oktober 2026
 
 Geprüfter Arbeitsstand: Fortsetzung nach 6933194, lokal. Kein GitHub-Upload und keine Ausführung an einer realen Maschine. Handrad zurückgestellt.

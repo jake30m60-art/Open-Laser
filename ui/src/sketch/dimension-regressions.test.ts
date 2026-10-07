@@ -1,8 +1,9 @@
 import { beforeAll, expect, it } from 'vitest';
 import { clone, emptySketch, point, addConstraint, addEntity, addPoint } from './model';
 import { createTool } from './tools';
-import { fillet } from './modify';
+import { fillet, offset } from './modify';
 import { initSolver, solveEdit } from './solver';
+import { primaryRelations } from './primary-relations';
 import { dist } from './geometry';
 beforeAll(async()=>{await initSolver();});
 it('edits 5 to 15 after solving the fillet creation at every rectangle corner',()=>{
@@ -86,4 +87,32 @@ it('refuses a diagonal angle fixed by both rectangle corners rather than stretch
  const diagonal=addEntity(s,{kind:'line',a:s.points[0]!.id,b:s.points[2]!.id});const next=clone(s);
  addConstraint(next,{kind:'angle',a:s.entities[0]!.id,b:diagonal,value:60,at:[0,0]});
  const out=solveEdit(s,next);expect(out.ok).toBe(false);expect(out.reason).toContain('Referenzkontur');
+});
+
+it('dimensions an offset rectangle without skewing it or altering its source',()=>{
+ const original=emptySketch(),tool=createTool('rect2');
+ tool.click(original,{x:0,y:0,kind:'free'},{});tool.click(original,{x:100,y:60,kind:'free'},{});
+ const result=offset(original,original.entities.map(e=>e.id),5,{x:120,y:30});if('error' in result)throw Error(result.error);
+ const base=result.sketch,edge=base.entities.find(e=>e.id===result.created[0])!;if(edge.kind!=='line')throw Error('line');
+ const next=clone(base);addConstraint(next,{kind:'distance',a:edge.a,b:edge.b,axis:'aligned',value:120,at:[0,0]});
+ const out=solveEdit(base,next);expect(out.ok).toBe(true);
+ for(const old of original.points){expect(point(out.sketch,old.id).x).toBeCloseTo(old.x,5);expect(point(out.sketch,old.id).y).toBeCloseTo(old.y,5);}
+ for(const e of out.sketch.entities.filter(e=>result.created.includes(e.id))){if(e.kind!=='line')continue;const a=point(out.sketch,e.a),b=point(out.sketch,e.b);expect(Math.min(Math.abs(a.x-b.x),Math.abs(a.y-b.y))).toBeLessThan(1e-5);}
+ expect(dist(point(out.sketch,edge.a),point(out.sketch,edge.b))).toBeCloseTo(120,5);
+});
+it('does not infer midpoint or tangent relations in the default drawing mode',()=>{
+ const s=emptySketch(),c=addPoint(s,0,0),circle=addEntity(s,{kind:'circle',c,r:10});
+ const tool=createTool('line');tool.click(s,{x:20,y:0,kind:'free'},{});
+ tool.click(s,{x:5,y:Math.sqrt(75),kind:'tangent',entity:circle,tangent:{curve:circle,at:'end',contact:{x:5,y:Math.sqrt(75)}}},{});
+ expect(s.constraints.some(c=>['tangent','on','midpoint'].includes(c.kind))).toBe(false);
+});
+
+it('adds only missing primary axes when reopening an older unlinked offset',()=>{
+ const s=emptySketch();const ids=[[0,0],[50,0],[50,30],[0,30]].map(([x,y])=>addPoint(s,x!,y!));
+ for(let i=0;i<4;i++)addEntity(s,{kind:'line',a:ids[i]!,b:ids[(i+1)%4]!});
+ const restored=primaryRelations(s);expect(restored.constraints.map(c=>c.kind).sort()).toEqual(['horizontal','horizontal','vertical','vertical']);
+ expect(primaryRelations(restored).constraints).toEqual(restored.constraints);expect(s.constraints).toEqual([]);
+ const e=restored.entities[0]!;if(e.kind!=='line')throw Error('line');const next=clone(restored);addConstraint(next,{kind:'distance',a:e.a,b:e.b,axis:'aligned',value:80,at:[0,0]});
+ const out=solveEdit(restored,next);expect(out.ok).toBe(true);
+ for(const edge of out.sketch.entities){if(edge.kind!=='line')continue;const a=point(out.sketch,edge.a),b=point(out.sketch,edge.b);expect(Math.min(Math.abs(a.x-b.x),Math.abs(a.y-b.y))).toBeLessThan(1e-5);}
 });

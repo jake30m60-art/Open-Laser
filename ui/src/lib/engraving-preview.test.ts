@@ -24,3 +24,30 @@ describe('staged engraving feature ownership', () => {
     expect(trace.fill_regions).toEqual([]); expect(trace.layers!.find(l=>l.name==='Engraving')?.machining?.fill).toBeUndefined();
   });
 });
+
+ it('saving Gravur 2 keeps Gravur 1 and its holes and settings',()=>{
+  const d=draft();d.features.layer_edits=[{contour:0,layer:'Gravur 1'}];
+  d.layers.push({name:'Gravur 1',mode:'mark'} as never);
+  d.preview!.engraving_regions=[{sources:[0],layer:'Gravur 1'} as never];
+  d.features.fill_regions=[{contour:0,holes:[1]},{contour:2,holes:[3]}];
+  const f=engravingFeatures(d,[1],[],null,'Gravur 2');
+  expect(f.layer_edits).toContainEqual({contour:0,layer:'Gravur 1'});
+  expect(f.layer_edits).toContainEqual({contour:1,layer:'Gravur 2'});
+  expect(f.fill_regions).toEqual(d.features.fill_regions);
+ });
+ it('editing one engraving does not deselect an engraving on another layer',()=>{
+  const d=draft();d.layers.push({name:'Gravur 1',mode:'mark'} as never,{name:'Gravur 2',mode:'mark'} as never);
+  d.features.layer_edits=[{contour:0,layer:'Gravur 1'},{contour:1,layer:'Gravur 2'}];
+  d.preview!.engraving_regions=[{sources:[0],layer:'Gravur 1'} as never,{sources:[1],layer:'Gravur 2'} as never];
+  const f=engravingFeatures(d,[],[],defaultFill(),'Gravur 2');
+  expect(f.layer_edits).toContainEqual({contour:0,layer:'Gravur 1'});
+  expect(f.layer_edits).toContainEqual({contour:1,layer:'0'});
+ });
+
+it('clears saved owners even when output selection hides their prepared paths',()=>{
+ const d=draft();d.layers.push({name:'Gravur 1',mode:'mark'} as never);
+ d.preview!.source_contours=[{sources:[0],layer:'Gravur 1'},{sources:[1],layer:'Gravur 1'}] as never;
+ const f=engravingFeatures(d,[],[],defaultFill(),'Gravur 1');
+ expect(f.layer_edits).toContainEqual({contour:0,layer:'0'});
+ expect(f.layer_edits).toContainEqual({contour:1,layer:'0'});
+});

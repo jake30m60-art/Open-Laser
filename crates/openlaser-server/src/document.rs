@@ -945,6 +945,10 @@ pub struct DraftPart {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Preview {
+    /// Editable original contours, including those currently excluded from output.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub source_contours: Option<Vec<PreviewContour>>,
     /// Filled-area boundaries for display and editing, never additional laser moves.
     pub engraving_regions: Vec<PreviewContour>,
     /// The contours in cutting order, as polylines in drawing coordinates.

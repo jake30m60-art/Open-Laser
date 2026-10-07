@@ -34,7 +34,7 @@
   import { explain, plural } from '../../lib/format';
   import { withBusy } from '../../lib/busy';
   import { apply, centre, mirror, mirrorVertical, rotation, scaling, svgMatrix, translate, type Point } from '../../lib/transform';
-  import { channelBand } from '../../lib/bridge-preview';
+  import { channelBand, snapBridge, bridgeOpening } from '../../lib/bridge-preview';
   import { issueSources, excludedSources } from '../../lib/geometry-issues';
   import { boxOf, pathOf, type Box } from '../../lib/svg';
   import { layerColor } from '../../lib/drawing-layers';
@@ -87,6 +87,7 @@
     const bounds = boxOf(contour.paths.map(p => p.points));
     if (!bounds) return;
     if (ui.drawingLayerHidden(contour.layer)) ui.toggleDrawingLayer(contour.layer);
+    if(ui.setupPanel !== 'engrave') { picks = [...contour.sources]; selected = [...new Set(picks.flatMap(s => {const g=groupOf.get(s);return g===undefined?[]:[g];}))]; }
     view.fit({minX:bounds.minX+zero[0]-2,maxX:bounds.maxX+zero[0]+2,minY:bounds.minY+zero[1]-2,maxY:bounds.maxY+zero[1]+2});
   }
   const groups = $derived(scene?.groups ?? []);
@@ -130,11 +131,13 @@
   const shapes = $derived.by(() => {
     const by = new Map<number, PreviewContour[]>();
     const paths = preview?.contours ?? [];
-    for (const contour of editableContours(paths, preview?.engraving_regions ?? [])) {
+    const existing = new Set([...paths, ...(preview?.engraving_regions ?? [])].flatMap(c=>c.sources));
+    const absent = (preview?.source_contours ?? []).filter(c=>!existing.has(c.sources[0]!));
+    for (const contour of editableContours([...paths,...absent], preview?.engraving_regions ?? [])) {
       // A path made from several shapes, as a fill's lines, a flying cut's
       // passes or a shared edge, belongs to none of them alone: drawn apart,
       // so a tap on it does not take the first of its shapes.
-      if (contour.sources.length > 1) continue;
+      if (contour.sources.length > 1 && !contour.closed) continue;
       const g = groupOf.get(contour.sources[0] ?? -1);
       if (g === undefined) continue;
       const contours = by.get(g);
@@ -143,7 +146,7 @@
     return by;
   });
   /** Computed fills and joined paths are drawn apart from editable boundaries. */
-  const shared = $derived((preview?.contours ?? []).filter((c) => c.sources.length > 1 || (!c.closed && filled.has(c.layer) && (preview?.engraving_regions ?? []).some(r => r.sources.some(s => c.sources.includes(s))))));
+  const shared = $derived((preview?.contours ?? []).filter((c) => (c.sources.length > 1 && !c.closed) || (!c.closed && filled.has(c.layer) && (preview?.engraving_regions ?? []).some(r => r.sources.some(s => c.sources.includes(s))))));
   const contoursOf = (gs: number[]) => gs.flatMap((g) => groups[g] ?? []);
   const pointsOf = (g: number): Point[][] => (shapes.get(g) ?? []).flatMap((c) => c.paths.map((p) => p.points as Point[]));
   const groupBounds = $derived(boundsOfShapes(shapes));
@@ -174,18 +177,20 @@
   });
   const opened = $derived(`${draft?.generation ?? ''}/${draft?.job ?? ''}`);
   $effect(() => { void opened; untrack(() => { selected = []; picks = []; local = null; }); });
+  let engravingSession = -1;
   let engravingJob = '';
   let inEngrave = false;
   $effect(() => {
     const open = ui.setupPanel === 'engrave';
-    if (open && (!inEngrave || engravingJob !== opened)) untrack(() => {
-      const existing = [...shapes.values()].flat().filter(c => marked.has(c.layer) && c.sources.length === 1);
+    if (open && (!inEngrave || engravingJob !== opened || engravingSession !== ui.engravingSession)) untrack(() => {
+      const existing = [...shapes.values()].flat().filter(c => c.layer === ui.engravingLayer && c.sources.length >= 1);
       const definitions = draft?.features.fill_regions ?? [];
       const owners = new Set(definitions.map(r => r.contour));
       const holes = new Set(fillAreas(existing, existing.map(c => c.sources[0]!)).flatMap(r => r.holes));
-      picks = existing.filter(c => !filled.has(c.layer) || owners.has(c.sources[0]!) || !holes.has(c.sources[0]!)).map(c => c.sources[0]!);
+      picks = existing.filter(c => !filled.has(c.layer) || owners.has(c.sources[0]!) || !holes.has(c.sources[0]!)).flatMap(c => c.sources);
       selected = [...new Set(picks.flatMap(c => { const g = groupOf.get(c); return g === undefined ? [] : [g]; }))];
     });
+    engravingSession = ui.engravingSession;
     engravingJob = opened;
     inEngrave = open;
   });
@@ -244,18 +249,22 @@
   // The clipboard snapshots the selection; one add request pastes a whole batch.
   let pending = $state<number[] | null>(null);
   export function removeEngraving(source: number): void {
-    picks = picks.filter(c => c !== source);
+    const joined=[...shapes.values()].flat().find(c=>c.closed && c.sources.includes(source))?.sources ?? [source];
+    picks = picks.filter(c => !joined.includes(c));
     selected = [...new Set(picks.flatMap(c => { const g=groupOf.get(c); return g === undefined ? [] : [g]; }))];
   }
   export function focusContour(source: number): void {
-    const contour=[...shapes.values()].flat().find(c=>c.sources.length===1 && c.sources[0]===source);
+    const contour=[...shapes.values()].flat().find(c=>c.sources.includes(source));
     if(contour) focusError(contour);
   }
   export function clearSelection(): void {
     selected = []; picks = []; local = null;
   }
   export function selectAll(): void {
-    if (!updating && !pasting && !ui.picking) { picks = []; selected = groups.map((_, g) => g); }
+    if (!updating && !pasting && !ui.picking) {
+      if(ui.setupPanel === 'engrave') {picks=[...new Set([...shapes.values()].flat().filter(selectable).flatMap(c=>c.sources))];selected=[...new Set(picks.flatMap(c=>{const g=groupOf.get(c);return g===undefined?[]:[g];}))];}
+      else {picks=[];selected=groups.map((_,g)=>g);}
+    }
   }
   /** Selects every shape drawn from the part whose contours are `first`
    *  to `first + count` in the job's drawing. */
@@ -451,7 +460,7 @@
     if (target.closest('[data-selection]') && selected.length) return `move:${selected[0]}`;
     // A line within half a fingertip moves its part, found as a tap finds
     // it rather than by stroked hit areas the browser tests on every move.
-    const near = nearestShape(shapes, boundsIndex, toDrawing(at), HALO * view.mmPerPixel, (c) => !hidden(c.layer));
+    const near = nearestShape(shapes, boundsIndex, toDrawing(at), HALO * view.mmPerPixel, (c) => selectable(c));
     return near ? `move:${near.group}` : null;
   };
   let anchor: { revision: number; groups: number[]; box: Box } | null = null;
@@ -530,6 +539,8 @@
     if (done) commit(done.groups, done.m, revision);
   }
 
+  const selectable = (c:PreviewContour) => !hidden(c.layer) && (ui.setupPanel !== 'engrave' || !marked.has(c.layer) || c.layer === ui.engravingLayer);
+
   function ontap(where: Point, _target: Element, additive: boolean): void {
     if (updating) return;
     const at = toDrawing(where);
@@ -550,13 +561,15 @@
     // selected part takes the one shape under the finger; while shapes are
     // taken one by one, a tap adds or drops a shape, of any part.
     const hit = ui.setupPanel === 'engrave' && engraveMode === 'area'
-      ? pickArea(shapes, at, c => !hidden(c.layer))
-      : pickLine(shapes, boundsIndex, at, HALO * view.mmPerPixel, c => !hidden(c.layer));
-    if (!hit) { if (!additive) { selected = []; picks = []; } return; }
+      ? pickArea(shapes, at, c => selectable(c))
+      : pickLine(shapes, boundsIndex, at, HALO * view.mmPerPixel, c => selectable(c));
+    if (!hit) { if (!additive && ui.setupPanel !== 'engrave') { selected = []; picks = []; } return; }
     const n = hit.group;
-    const one = hit.contour.sources.length === 1 ? hit.contour.sources[0]! : null;
+    const one = hit.contour.sources[0] ?? null;
     if (one !== null) {
-      picks = selectContour(picks, one, ui.setupPanel === 'engrave' || additive);
+      const ids=hit.contour.sources;
+      const adding=ui.setupPanel === 'engrave' || additive;
+      picks = ids.length > 1 ? adding && ids.every(id=>picks.includes(id)) ? picks.filter(id=>!ids.includes(id)) : [...new Set([...(adding ? picks : []),...ids])] : selectContour(picks, one, adding);
       selected = [...new Set(picks.flatMap(c => { const g = groupOf.get(c); return g === undefined ? [] : [g]; }))];
     }
 
@@ -567,7 +580,7 @@
     const box = { minX: swept.minX - zero[0], maxX: swept.maxX - zero[0], minY: swept.minY - zero[1], maxY: swept.maxY - zero[1] };
     if (picks.length || ui.setupPanel === 'engrave') {
       // Shapes one by one: the box takes every shape whose line it touches, of any part.
-      const taken = marqueeContours(shapes, boundsIndex, box, (c) => !hidden(c.layer));
+      const taken = marqueeContours(shapes, boundsIndex, box, (c) => selectable(c));
       if (!taken.length) return;
       picks = [...new Set([...(additive ? picks : []), ...taken.map((t) => t.source)])];
       selected = [...new Set(picks.flatMap(c => { const g = groupOf.get(c); return g === undefined ? [] : [g]; }))];
@@ -616,10 +629,6 @@
     if (picking.revision !== draft.revision) {
       ui.say('The drawing changed. Start the picking session again.', true); ui.picking = null; return;
     }
-    if (picking.feature === 'bridges' && picking.bridgeReview) {
-      if (picking.error || !picking.preview) { ui.say(picking.error ?? t('Wait for the bridge preview.'), true); return; }
-      await finishPicks(); return;
-    }
     const ticket = latestPick.begin(draft.revision);
     pickBusy = true;
     try {
@@ -653,8 +662,15 @@
       const staged = { ...(ui.picking ?? picking), features: f, marks: [...picking.marks, point], preview: undefined, error: null, previewPending: true, bridgeReview: picking.feature === 'bridges' };
       ui.picking = staged;
       const reply = await api.previewFeatures(f, ticket.revision);
-      if (ui.picking === staged && server.doc?.draft?.revision === ticket.revision) ui.picking = { ...staged, preview: reply.preview, error: reply.error, previewPending: false };
+      if (ui.picking !== staged || server.doc?.draft?.revision !== ticket.revision) return;
+      if (picking.feature === 'bridges') {
+        if (reply.error) { ui.picking={...picking,error:reply.error,previewPending:false}; ui.say(reply.error,true); return; }
+        await api.setFeatures(f,ticket.revision);
+        const current=server.doc?.draft;
+        if(ui.picking===staged && current)ui.picking={feature:'bridges',features:structuredClone(current.features),revision:current.revision,first:null,order:[],marks:[],previewPending:false,error:null};
+      } else ui.picking = { ...staged, preview: reply.preview, error: reply.error, previewPending: false };
     } catch (error) {
+      if(ui.picking?.previewPending)ui.picking={...picking,previewPending:false,error:explain(error)};
       ui.say(explain(error), true);
     } finally { pickBusy = false; }
   }
@@ -670,7 +686,20 @@
     });
   }
 
+  $effect(() => {
+    const picking=ui.picking;
+    if(picking?.feature === 'bridges' && draft && !updating && !pickBusy && !picking.previewPending && picking.revision!==draft.revision)
+      ui.picking={feature:'bridges',features:structuredClone(draft.features),revision:draft.revision,first:null,order:[],marks:[]};
+  });
   let bridgeCursor = $state<Point | null>(null);
+  let bridgeSnapped = $state(false);
+  const bridgeContours = $derived((preview?.contours ?? []).filter(c=>!hidden(c.layer)));
+  function bridgeHover(point: Point | null) {
+    if(ui.picking?.feature !== 'bridges' || !ui.picking.first || !point){bridgeCursor=null;bridgeSnapped=false;return;}
+    const at=toDrawing(point), snapped=snapBridge(bridgeContours,at,12*view.mmPerPixel);
+    bridgeCursor=snapped?.point ?? at;bridgeSnapped=!!snapped;
+  }
+  const firstOpening = $derived.by(() => firstEnd ? bridgeOpening(bridgeContours,firstEnd,ui.picking?.features.bridges?.width ?? 0) : '');
   const bridgeBand = $derived.by(() => firstEnd && bridgeCursor && ui.picking?.feature === 'bridges' ? channelBand(firstEnd,bridgeCursor,ui.picking.features.bridges?.width ?? 0) : '');
   /** The first end of a bridge being placed, where its contour now lies. */
   const firstEnd = $derived.by((): Point | null => {
@@ -702,12 +731,12 @@
     return leadHandlesOf(preview?.contours ?? [], new Set(contoursOf(selected)), draft?.features.leads ?? null);
   });
   let leadDrag = $state<{ handle: LeadHandle; targets: Spot[]; point: Point; revision: number } | null>(null);
-  const excluded = $derived(excludedSources(geometryError,draft?.features.only_contours,preview?.contours.flatMap(c=>c.sources) ?? []));
+  const excluded = $derived(excludedSources(geometryError,displayFeatures?.only_contours,preview?.contours.flatMap(c=>c.sources) ?? []));
   const orderPaths = $derived(ui.setupPanel === 'simulation' ? simulationSegments(preview, marked, simulationMode, excluded) : orderSegments(preview, excluded));
   const playbackProgress = $derived(simulationDistanceProgress(orderPaths, simulationProgress, i => preview?.contours[i]?.layer ?? ''));
   const playback = $derived(ui.setupPanel === 'simulation' ? orderPosition(orderPaths, playbackProgress) : null);
   /** What the playback has run so far, coloured over the drawing. */
-  const trail = $derived(playback && playbackProgress > 0 ? orderTrail(orderPaths, playbackProgress) : null);
+  const trail = $derived(playback && playbackProgress > 0 ? orderTrail(orderPaths, playbackProgress, new Set((preview?.contours ?? []).flatMap((c,i) => marked.has(c.layer) ? [i] : []))) : null);
 
   /** Shapes on their way to a layer, while their layer is chosen. */
   let assigning = $state<number[] | null>(null);
@@ -741,7 +770,7 @@
   <g class="shape" class:selected={on} class:drilled={on && picks.length > 0} class:dragging={dragging && on} data-group={g}
     transform={moved}>
     <!-- The selection's halo: the whole part softly, one shape taken alone strongly. -->
-    {#if on && !picks.length}<path class="halo" d={groupPath(shapes.get(g) ?? [], hiddenKey, (c) => !hidden(c.layer))} vector-effect="non-scaling-stroke"/>{/if}
+    {#if on && !picks.length}<path class="halo" d={groupPath(shapes.get(g) ?? [], hiddenKey, (c) => selectable(c))} vector-effect="non-scaling-stroke"/>{/if}
     {#each [...filled.keys()] as layer}
       {#if !hidden(layer)}
         <!-- One compound path preserves letter counters with the evenodd fill rule. -->
@@ -750,14 +779,14 @@
     {/each}
     {#each shapes.get(g) ?? [] as contour}
       {#if !hidden(contour.layer)}
-        {@const picked = contour.sources.length === 1 && pickSet.has(contour.sources[0]!)}
-        <g class="contour" class:picked>
+        {@const picked = contour.sources.every(s=>pickSet.has(s))}
+        <g class="contour" class:picked class:output-excluded={ui.setupPanel === 'simulation' && contour.sources.some(s=>excluded.has(s))}>
         {#if picked}<path class="halo strong" d={contourPath(contour)} vector-effect="non-scaling-stroke"/>{/if}
         {#if filled.has(contour.layer) && preview?.engraving_regions?.some(r => r.sources[0] === contour.sources[0] && r.layer === contour.layer)}
           <path class="engrave-boundary" d={contourPath(contour)} style:stroke={colors.get(contour.layer)} vector-effect="non-scaling-stroke" />
         {/if}
         {#each shownPaths(contour) as path}
-          {#if (path.kind === 'cut' && ui.setupPanel === 'engrave' && filled.has(contour.layer)) || ui.layerShown(path.kind)}<path class="path {path.kind}" class:mark={marked.has(contour.layer)} class:fill-line={!contour.closed && filled.has(contour.layer)}
+          {#if (path.kind === 'cut' && ui.setupPanel === 'engrave' && filled.has(contour.layer)) || ui.layerShown(path.kind)}<path class="path {path.kind}" class:output-excluded={ui.setupPanel === 'simulation' && contour.sources.some(s=>excluded.has(s))} class:mark={marked.has(contour.layer)} class:fill-line={!contour.closed && filled.has(contour.layer)}
             style:stroke={path.kind === 'cut' ? colors.get(contour.layer) : null} d={drawingPath(path.points)} vector-effect="non-scaling-stroke"/>{/if}
         {/each}
         {#if details && ui.layerShown('cut') && (contour.closed || !marked.has(contour.layer))}
@@ -805,7 +834,7 @@
 
 <div class="canvas-wrap">
 
-  <Stage {view} bed={frame.bed} head={frame.head} origin={ui.nestShown ? null : frame.origin} onhover={point => { bridgeCursor = ui.picking?.first && point ? toDrawing(point) : null; }} {grab} {ondrag} {ondragend} {ontap} {onmarquee}
+  <Stage {view} bed={frame.bed} head={frame.head} origin={ui.nestShown ? null : frame.origin} onhover={bridgeHover} {grab} {ondrag} {ondragend} {ontap} {onmarquee}
     lift={lifting && local ? [local.m[4], local.m[5]] : null} lifted={liftedShapes}>
     <g transform="translate({zero[0]} {zero[1]})">
     {#if stockOutline.length}
@@ -840,7 +869,7 @@
       <!-- Pictures to engrave, under their scan lines: the unit square mapped
            onto the picture's corner and its edges along the top and down. -->
       {#each preview.rasters ?? [] as raster (raster.contour)}
-        {@const layer = preview.contours.find((c) => c.sources.includes(raster.contour))?.layer}
+        {@const layer = [...preview.contours,...(preview.source_contours ?? [])].find((c) => c.sources.includes(raster.contour))?.layer}
         {#if !layer || !hidden(layer)}
           <image class="raster" href={api.partImageUrl(raster.part)} x="0" y="0" width="1" height="1" preserveAspectRatio="none"
             transform="matrix({raster.across[0]} {raster.across[1]} {raster.down[0]} {raster.down[1]} {raster.origin[0]} {raster.origin[1]})" />
@@ -864,6 +893,7 @@
       {#if trail}
         {#if ui.layerShown('travel')}<path class="trail-moved" d={trail.moved} vector-effect="non-scaling-stroke" />{/if}
         <path class="trail-cut" d={trail.cut} vector-effect="non-scaling-stroke" />
+        <path class="trail-mark" d={trail.mark} vector-effect="non-scaling-stroke" />
       {/if}
       {#if playback}
         <circle cx={playback.point[0]} cy={playback.point[1]} r={mark * 1.7} fill="var(--accent)" stroke="var(--bg)" vector-effect="non-scaling-stroke" />
@@ -881,6 +911,8 @@
         <path class="error-outline" d={contourPath(contour)} vector-effect="non-scaling-stroke" />
         <circle class="error-location" cx={contour.start[0]} cy={contour.start[1]} r={mark*3} vector-effect="non-scaling-stroke" />
       {/each}
+      {#if firstOpening}<path d={firstOpening} stroke="var(--panel)" stroke-width="6" stroke-linecap="butt" fill="none" vector-effect="non-scaling-stroke" />{/if}
+      {#if bridgeSnapped && bridgeCursor}<circle cx={bridgeCursor[0]} cy={bridgeCursor[1]} r={mark*1.5} fill="var(--accent)" />{/if}
       {#if bridgeBand}<path d={bridgeBand} fill="var(--accent)" fill-opacity=".25" stroke="var(--accent)" vector-effect="non-scaling-stroke" />{/if}
       {#if firstEnd}<circle class="mark bridge" cx={firstEnd[0]} cy={firstEnd[1]} r={mark * 1.5} vector-effect="non-scaling-stroke"/>{/if}
       {#if selection && selectionShown && !picks.length && !lifting}{@render gizmo(selection)}{/if}
@@ -894,7 +926,7 @@
           {#each faultyParts as part}<button class="btn btn-primary" onclick={() => (repairing = { id: part.id, name: partName(part.id) })}>{t("Repair contours…")} · {partName(part.id)}</button>{/each}
         </div>
       {/if}
-      {#if ui.picking}
+      {#if ui.picking && ui.picking.feature !== 'bridges'}
         <PickBar picking={ui.picking} picked={pickedCount} total={candidates.length} busy={updating || pickBusy} onfinish={finishPicks} />
       {/if}
       {#if picks.length && selectionShown}<div class="hint top">{t("Selected contours: {0}. Click again to deselect.", picks.length)}</div>
@@ -912,6 +944,10 @@
 {#if repairing}{@const old = repairing.id}<RepairPart part={repairing} onclose={() => (repairing = null)} onsaved={(repaired) => swapRepaired(old, repaired)} />{/if}
 
 <style>
+.output-excluded { stroke:#94a3b8 !important; opacity:.25; }
+.trail-cut { fill:none; stroke:#2563eb; stroke-width:4; stroke-linecap:round; pointer-events:none; }
+.trail-mark { fill:none; stroke:#f97316; stroke-width:3; stroke-linecap:round; pointer-events:none; }
+.trail-moved { stroke:#64748b; }
 .geometry-error { position:absolute; left:12px; bottom:52px; max-width:min(440px,calc(100% - 24px)); display:grid; gap:6px; padding:10px; background:var(--bg); border:2px solid #ef4444; border-radius:10px; font-size:var(--t-sm); pointer-events:auto; }
 .geometry-error { max-height:calc(100% - 110px); overflow:auto; }
 .geometry-error .btn { min-height:44px; }

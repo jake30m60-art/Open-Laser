@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
   import Modal from './Modal.svelte';
   import { api } from '../api/client';
   import { server } from '../stores/server.svelte';
@@ -61,12 +62,12 @@
   }
 </script>
 
-<Modal title="Manueller Trennschnitt" wide onclose={onclose} dismissable={!busy}>
-  <p>Start und Ende auf dem Maschinentisch festlegen. Der Schnitt wird als eigener Auftrag vorbereitet; Vorschau, Trockenlauf und die üblichen Startkontrollen bleiben verfügbar.</p>
+<Modal title={t("Manueller Trennschnitt")} wide onclose={onclose} dismissable={!busy}>
+  <p>{t("Start und Ende auf dem Maschinentisch festlegen. Der Schnitt wird als eigener Auftrag vorbereitet; Vorschau, Trockenlauf und die üblichen Startkontrollen bleiben verfügbar.")}</p>
   {#if bed}
     <div class="cut-grid">
       <div>
-        <svg class="cut-bed" viewBox="{bed.minX - 20} {bed.minY - 20} {bed.maxX - bed.minX + 40} {bed.maxY - bed.minY + 40}" onclick={place} role="button" tabindex="0" aria-label="Trennschnitt platzieren; alternativ Koordinatenfelder verwenden" onkeydown={e => { if (e.key === 'Escape') onclose(); }}>
+        <svg class="cut-bed" viewBox="{bed.minX - 20} {bed.minY - 20} {bed.maxX - bed.minX + 40} {bed.maxY - bed.minY + 40}" onclick={place} role="button" tabindex="0" aria-label={t("Trennschnitt platzieren; alternativ Koordinatenfelder verwenden")} onkeydown={e => { if (e.key === 'Escape') onclose(); }}>
           <rect x={bed.minX} y={bed.minY} width={bed.maxX-bed.minX} height={bed.maxY-bed.minY} />
           <g transform="translate(0 {bed.minY+bed.maxY}) scale(1 -1)">
             <line x1={start[0]} y1={start[1]} x2={end[0]} y2={end[1]} />
@@ -75,23 +76,23 @@
           </g>
         </svg>
         <p>Grün: Start · Orange: Ende · Länge {fmt(length)} mm</p>
-        <div class="buttons"><button class="btn btn-ghost" onclick={() => preset(0)}>Horizontal</button><button class="btn btn-ghost" onclick={() => preset(1)}>Vertikal</button><button class="btn btn-ghost" onclick={() => { const p=start; start=end; end=p; }}>Richtung umkehren</button></div>
+        <div class="buttons"><button class="btn btn-ghost" onclick={() => preset(0)}>{t("Horizontal")}</button><button class="btn btn-ghost" onclick={() => preset(1)}>{t("Vertikal")}</button><button class="btn btn-ghost" onclick={() => { const p=start; start=end; end=p; }}>{t("Richtung umkehren")}</button></div>
       </div>
       <div class="cut-settings">
-        <div class="seg"><button class:on={picking==='start'} onclick={() => picking='start'}>Start auf Tisch wählen</button><button class:on={picking==='end'} onclick={() => picking='end'}>Ende auf Tisch wählen</button></div>
+        <div class="seg"><button class:on={picking==='start'} onclick={() => picking='start'}>{t("Start auf Tisch wählen")}</button><button class:on={picking==='end'} onclick={() => picking='end'}>{t("Ende auf Tisch wählen")}</button></div>
         {#each ['start','end'] as which}
           <h3>{which === 'start' ? 'Start' : 'Ende'} · Maschinenkoordinaten</h3>
           <div class="buttons">{#each [0,1] as axis}<button class="btn btn-soft" onclick={() => coordinate(which as 'start' | 'end', axis as 0 | 1)}>{axis === 0 ? 'X' : 'Y'} {fmt((which === 'start' ? start : end)[axis]!)} mm</button>{/each}</div>
         {/each}
-        {#if frameOf(doc).head}<button class="btn btn-ghost" onclick={atHead}>Aktuelle Kopfposition als Start</button>{/if}
-        <label>Schneidrezept<select bind:value={recipeId}><option value="">Rezept auswählen…</option>{#each recipes as r (r.id)}<option value={r.id}>{r.name} · {r.thickness_mm} mm · {r.gas}</option>{/each}</select></label>
+        {#if frameOf(doc).head}<button class="btn btn-ghost" onclick={atHead}>{t("Aktuelle Kopfposition als Start")}</button>{/if}
+        <label>{t("Schneidrezept")}<select bind:value={recipeId}><option value="">{t("Rezept auswählen…")}</option>{#each recipes as r (r.id)}<option value={r.id}>{r.name} · {r.thickness_mm} mm · {r.gas}</option>{/each}</select></label>
         {#if recipe}<p>{recipe.summary.speed ?? '—'} mm/s · Leistung {recipe.summary.duty ?? '—'} % · Gas {recipe.gas}</p>{/if}
-        {#if !fits}<p class="warn-text">Beide Punkte müssen innerhalb des Verfahrbereichs liegen und mindestens 0,01 mm voneinander entfernt sein.</p>{/if}
+        {#if !fits}<p class="warn-text">{t("Beide Punkte müssen innerhalb des Verfahrbereichs liegen und mindestens 0,01 mm voneinander entfernt sein.")}</p>{/if}
         {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
         <button class="btn btn-primary lg" disabled={!recipe || !fits || busy} onclick={load}>{busy ? 'Wird vorbereitet…' : 'Trennschnitt in Vorbereitung laden'}</button>
       </div>
     </div>
-  {:else}<p class="warn-text">Maschinensicherung laden, damit der Verfahrbereich bekannt ist.</p>{/if}
+  {:else}<p class="warn-text">{t("Maschinensicherung laden, damit der Verfahrbereich bekannt ist.")}</p>{/if}
 </Modal>
 
 <style>

@@ -43,8 +43,9 @@ function moved(snap: Snap, to: Vec): Snap {
 }
 
 /** The sketch point for a snapped position, recording a midpoint or on-curve landing. */
-function use(sketch: Sketch, s: Snap): Id {
+function use(sketch: Sketch, s: Snap, automatic = false): Id {
   const id = pointAt(sketch, s.x, s.y, s.point);
+  if (!automatic) return id;
   if (s.tangent?.at === 'end') {
     const curve=sketch.entities.find(e=>e.id===s.tangent!.curve);
     const arcEnd=curve?.kind==='arc' && (curve.a===id || curve.b===id);
@@ -87,6 +88,7 @@ function polarFields(from: Vec, to: Vec): Field[] {
 }
 
 export abstract class Tool {
+  constructor(readonly automaticConstraints = false) {}
   abstract readonly id: ToolId;
   abstract readonly name: string;
   /** The clicks taken so far in the current shape. */
@@ -132,12 +134,12 @@ class LineTool extends Tool {
     if (!from) { this.picks.push(at); return 'more'; }
     if (dist(from, at) < EPS) return 'ignored';
     const first = this.picks[0]!;
-    const a = use(sketch, from);
+    const a = use(sketch, from, this.automaticConstraints);
     if (from === first) this.picks[0] = { ...first, point: a, kind: 'end' };
     const closes = this.picks.length > 1 && (at.point !== undefined ? at.point === this.picks[0]!.point : dist(at, first) < EPS);
-    const b = closes ? this.picks[0]!.point! : use(sketch, at);
+    const b = closes ? this.picks[0]!.point! : use(sketch, at, this.automaticConstraints);
     const id = addLine(sketch, a, b, from, at, false, !at.tangent);
-    if (at.tangent) addConstraint(sketch, { kind: 'tangent', a: id, b: at.tangent.curve });
+    if (this.automaticConstraints && at.tangent) addConstraint(sketch, { kind: 'tangent', a: id, b: at.tangent.curve });
     if (closes) { this.reset(); return 'done'; }
     this.picks.push({ x: at.x, y: at.y, kind: 'end', point: b });
     return 'more';
@@ -173,7 +175,7 @@ class Rect2Tool extends Tool {
     if (!a) { this.picks.push(at); return 'more'; }
     if (Math.abs(at.x - a.x) < EPS || Math.abs(at.y - a.y) < EPS) return 'ignored';
     const corners = this.corners(a, at);
-    const ids: [Id, Id, Id, Id] = [use(sketch, a), addPoint(sketch, corners[1].x, corners[1].y), use(sketch, at), addPoint(sketch, corners[3].x, corners[3].y)];
+    const ids: [Id, Id, Id, Id] = [use(sketch, a, this.automaticConstraints), addPoint(sketch, corners[1].x, corners[1].y), use(sketch, at, this.automaticConstraints), addPoint(sketch, corners[3].x, corners[3].y)];
     rectangle(sketch, corners, ids);
     this.reset();
     return 'done';
@@ -213,7 +215,7 @@ class RectCTool extends Tool {
     const k = this.corners(c, at);
     const ids = k.map((p) => addPoint(sketch, p.x, p.y)) as [Id, Id, Id, Id];
     rectangle(sketch, k, ids);
-    const center = use(sketch, c);
+    const center = use(sketch, c, this.automaticConstraints);
     const diagonal = addLine(sketch, ids[0], ids[2], k[0], k[2], true);
     addLine(sketch, ids[1], ids[3], k[1], k[3], true);
     addConstraint(sketch, { kind: 'midpoint', point: center, line: diagonal });
@@ -240,7 +242,7 @@ class CircleTool extends Tool {
     if (!c) { this.picks.push(at); return 'more'; }
     const r = dist(c, at);
     if (r < EPS) return 'ignored';
-    addEntity(sketch, { kind: 'circle', c: use(sketch, c), r });
+    addEntity(sketch, { kind: 'circle', c: use(sketch, c, this.automaticConstraints), r });
     this.reset();
     return 'done';
   }
@@ -313,7 +315,7 @@ class Arc3Tool extends Tool {
     const [s, e] = [this.picks[0]!, this.picks[1]!];
     const arc = arcThrough(s, e, at);
     if (!arc) return 'ignored';
-    const sId = use(sketch, s), eId = use(sketch, e);
+    const sId = use(sketch, s, this.automaticConstraints), eId = use(sketch, e, this.automaticConstraints);
     const c = addPoint(sketch, arc.c.x, arc.c.y);
     addEntity(sketch, { kind: 'arc', c, a: arc.a === 's' ? sId : eId, b: arc.a === 's' ? eId : sId });
     this.reset();
@@ -380,7 +382,7 @@ class ArcCTool extends Tool {
     const sw = this.signedSweep(locked);
     if (Math.abs(sw) < 1e-6) return 'ignored';
     const [c, s] = [this.picks[0]!, this.picks[1]!];
-    const cId = use(sketch, c), sId = use(sketch, s);
+    const cId = use(sketch, c, this.automaticConstraints), sId = use(sketch, s, this.automaticConstraints);
     const eId = dist(at, polar(c, dist(c, s), angleOf(c, at))) < 1e-9 && at.point !== undefined ? at.point : addPoint(sketch, at.x, at.y);
     addEntity(sketch, sw > 0 ? { kind: 'arc', c: cId, a: sId, b: eId } : { kind: 'arc', c: cId, a: eId, b: sId });
     this.reset();
@@ -432,7 +434,7 @@ class SlotTool extends Tool {
     if (w < EPS) return 'ignored';
     const [a, b] = [this.picks[0]!, this.picks[1]!];
     const { p } = this.outline(a, b, w);
-    const ca = use(sketch, a), cb = use(sketch, b);
+    const ca = use(sketch, a, this.automaticConstraints), cb = use(sketch, b, this.automaticConstraints);
     const ids = p.map((q) => addPoint(sketch, q.x, q.y)) as [Id, Id, Id, Id];
     const top = addLine(sketch, ids[0], ids[1], p[0], p[1]);
     const bottom = addLine(sketch, ids[2], ids[3], p[2], p[3]);
@@ -481,7 +483,7 @@ class PolygonTool extends Tool {
     if (!c) { this.picks.push(at); return 'more'; }
     if (dist(c, at) < EPS) return 'ignored';
     const k = this.corners(c, at, this.count(locked));
-    const ids = k.map((p, i) => (i === 0 ? use(sketch, at) : addPoint(sketch, p.x, p.y)));
+    const ids = k.map((p, i) => (i === 0 ? use(sketch, at, this.automaticConstraints) : addPoint(sketch, p.x, p.y)));
     const lines = k.map((p, i) => addLine(sketch, ids[i]!, ids[(i + 1) % k.length]!, p, k[(i + 1) % k.length]!));
     for (const other of lines.slice(1)) addConstraint(sketch, { kind: 'equal', a: lines[0]!, b: other });
     this.reset();
@@ -489,17 +491,17 @@ class PolygonTool extends Tool {
   }
 }
 
-export function createTool(id: ToolId): Tool {
+export function createTool(id: ToolId, automaticConstraints = false): Tool {
   switch (id) {
-    case 'line': return new LineTool();
-    case 'rect2': return new Rect2Tool();
-    case 'rectc': return new RectCTool();
-    case 'circle': return new CircleTool();
-    case 'circle2': return new Circle2Tool();
-    case 'arc3': return new Arc3Tool();
-    case 'arcc': return new ArcCTool();
-    case 'slot': return new SlotTool();
-    case 'polygon': return new PolygonTool();
+    case 'line': return new LineTool(automaticConstraints);
+    case 'rect2': return new Rect2Tool(automaticConstraints);
+    case 'rectc': return new RectCTool(automaticConstraints);
+    case 'circle': return new CircleTool(automaticConstraints);
+    case 'circle2': return new Circle2Tool(automaticConstraints);
+    case 'arc3': return new Arc3Tool(automaticConstraints);
+    case 'arcc': return new ArcCTool(automaticConstraints);
+    case 'slot': return new SlotTool(automaticConstraints);
+    case 'polygon': return new PolygonTool(automaticConstraints);
   }
 }
 

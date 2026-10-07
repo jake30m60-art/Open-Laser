@@ -34,7 +34,7 @@ const MAX_SCAN_LINES: usize = 100_000;
 /// The most segments one fill makes.
 const MAX_FILL_SEGMENTS: usize = 400_000;
 /// The most image cells one fill engraves, all passes together.
-const MAX_IMAGE_CELLS: usize = 60_000_000;
+const MAX_IMAGE_CELLS: u32 = 60_000_000;
 /// The most scan lines joined into one path. Every turn costs the motion
 /// planner two of its 2048 profile builds per contour.
 const LINES_PER_PATH: usize = 250;
@@ -621,7 +621,7 @@ pub(crate) fn fill_framing(
     if image.is_some() {
         check_image(&shading)?;
     }
-    let mut cells = 0;
+    let mut cells = 0.;
     let polygons: Vec<Vec<Point>> =
         shapes.iter().map(|c| polygon(c)).filter(|p| p.len() >= 3).collect();
     let mut sources: Vec<usize> = shapes.iter().flat_map(|c| c.sources.iter().copied()).collect();
@@ -637,12 +637,13 @@ pub(crate) fn fill_framing(
         let offset = fill.scan_offset + calibrated_at(&fill.calibrated, angle);
         let mut lines = scan(&polygons, fill.spacing, angle, shift)?;
         if let Some(raster) = image {
-            cells += shade(&mut lines, raster, &shading, fill.spacing);
-            if cells > MAX_IMAGE_CELLS {
-                return Err(Error::Limit(format!(
-                    "the image needs more than {MAX_IMAGE_CELLS} cells; widen the line spacing"
-                )));
+            let requested: f64 = lines.iter().flat_map(|l| &l.spans)
+                .map(|&(a,b)| ((b/fill.spacing).floor() - (a/fill.spacing).ceil()).max(0.)).sum();
+            if requested + cells > f64::from(MAX_IMAGE_CELLS) {
+                return Err(Error::Limit(format!("the image needs more than {MAX_IMAGE_CELLS} cells; widen the line spacing")));
             }
+            cells += requested;
+            shade(&mut lines, raster, &shading, fill.spacing);
             lines.retain(|line| !line.spans.is_empty());
         }
         for chunk in lines.chunks(LINES_PER_PATH) {
@@ -718,6 +719,7 @@ mod tests {
             outline: false,
             bidirectional: true,
             scan_offset: 0.,
+            per_object: None,
             passes: 1,
             pass_angle: 0.,
             pass_shift: 0.,

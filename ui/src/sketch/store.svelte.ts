@@ -6,8 +6,10 @@ import { createTool, type Tool, type ToolId } from './tools';
 import { createAction, type Action, type ActionId } from './actions';
 import { freedom, solveEdit, solve, solverReady } from './solver';
 
+import { primaryRelations } from './primary-relations';
 import { readDocuments, type SketchDocument, type SketchTarget } from './documents';
 const ARCHIVE='ol-sketch-documents';
+const REMOVED='ol-sketch-removed-documents';
 const KEY = 'ol-sketch';
 const LIMIT = 200;
 
@@ -57,11 +59,11 @@ export class SketchStore {
     const { name, sketch, target } = restored();
     this.target = target;
     this.name = name;
-    this.sketch = sketch;
-    try {this.documents=readDocuments(localStorage.getItem(ARCHIVE));}catch{}
+    this.sketch = primaryRelations(sketch);
+    try {this.documents=readDocuments(localStorage.getItem(ARCHIVE));this.removedDocuments=readDocuments(localStorage.getItem(REMOVED));}catch{}
     const current=this.documents.at(-1);
     this.activeDocument=current?.id ?? 'sketch-'+Date.now().toString(36);
-    if(current){this.sketch=clone(current.sketch);this.name=current.name;this.target=current.target;this.sourcePart=current.sourcePart;this.jobKey=current.jobKey;}
+    if(current){this.sketch=primaryRelations(current.sketch);this.name=current.name;this.target=current.target;this.sourcePart=current.sourcePart;this.jobKey=current.jobKey;}
   }
 
   private save(): void {
@@ -208,8 +210,9 @@ export class SketchStore {
     });
   }
 
+  automaticConstraints = $state(false);
   use(id: ToolId | null): void {
-    this.tool = id ? createTool(id) : null;
+    this.tool = id ? createTool(id, this.automaticConstraints) : null;
     this.action = null;
     this.toolRevision++;
     if (id) this.selection = new Set();
@@ -225,10 +228,32 @@ export class SketchStore {
 
   bindPart(id:string): void {this.sourcePart=id;this.save();}
 
+  removedDocuments = $state<SketchDocument[]>([]);
+  removeDocument(): void {
+    this.save();
+    const removed = this.documents.find(d=>d.id===this.activeDocument);
+    if (!removed) return;
+    this.removedDocuments = [...this.removedDocuments, structuredClone($state.snapshot(removed))];
+    this.documents = this.documents.filter(d=>d.id!==removed.id);
+    const next = this.documents.at(-1);
+    this.activeDocument = next?.id ?? 'sketch-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+    this.name=next?.name ?? 'Neue Skizze'; this.target=next?.target ?? 'new'; this.sourcePart=next?.sourcePart; this.jobKey=next?.jobKey;
+    this.sketch=next ? clone(next.sketch) : emptySketch();
+    this.use(null);this.past=[];this.future=[];this.history();this.selection=new Set();this.view=null;
+    try { localStorage.setItem(REMOVED,JSON.stringify(this.removedDocuments)); } catch {}
+    this.save();this.refreshFreedom();
+  }
+  restoreDocument(): void {
+    const removed=this.removedDocuments.at(-1);if(!removed)return;
+    this.removedDocuments=this.removedDocuments.slice(0,-1);
+    this.documents=[...this.documents.filter(d=>d.id!==removed.id),removed];
+    this.openDocument(removed.id);
+    try { localStorage.setItem(REMOVED,JSON.stringify(this.removedDocuments)); } catch {}
+  }
   openDocument(id:string): void {
     this.save(); const doc=this.documents.find(d=>d.id===id); if(!doc)return;
     this.activeDocument=doc.id;this.name=doc.name;this.target=doc.target;this.sourcePart=doc.sourcePart;this.jobKey=doc.jobKey;
-    this.use(null);this.sketch=clone(doc.sketch);this.past=[];this.future=[];this.history();this.selection=new Set();this.view=null;this.save();this.refreshFreedom();
+    this.use(null);this.sketch=primaryRelations(doc.sketch);this.past=[];this.future=[];this.history();this.selection=new Set();this.view=null;this.save();this.refreshFreedom();
   }
 
   begin(sketch: Sketch, name: string, target: SketchTarget, sourcePart?:string, jobKey?:string): void {
@@ -240,7 +265,7 @@ export class SketchStore {
     this.name = name;
     this.use(null);
     this.view = null;
-    this.sketch=clone(sketch);this.save();this.refreshFreedom();
+    this.sketch=primaryRelations(sketch);this.save();this.refreshFreedom();
     this.selection = new Set();
   }
 
