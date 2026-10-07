@@ -18,6 +18,10 @@ use std::f64::consts::TAU;
 /// The most curves in a crossing contour that are searched for crossings.
 const MAX_SEARCHED: usize = 4000;
 
+/// The most crossings one contour may have to be split; a contour that
+/// crosses itself more often is a scribble, not a glitch, and is reported.
+const MAX_HITS: usize = 2000;
+
 /// A parameter within this of an end of a curve is that end.
 const EPS_T: f64 = 1e-9;
 
@@ -131,7 +135,7 @@ fn loops(contour: &Contour, tolerance: f64) -> Option<(Vec<Contour>, usize)> {
     if !contour.is_closed() || contour.curves.len() > MAX_SEARCHED {
         return None;
     }
-    let hits = hits(&contour.curves);
+    let hits = hits(&contour.curves)?;
     if hits.is_empty() {
         return None;
     }
@@ -215,8 +219,8 @@ fn loops(contour: &Contour, tolerance: f64) -> Option<(Vec<Contour>, usize)> {
 }
 
 /// Every place two curves of a closed contour cross or touch, not counting
-/// where neighbours join.
-fn hits(curves: &[Curve]) -> Vec<Hit> {
+/// where neighbours join; `None` past [`MAX_HITS`].
+fn hits(curves: &[Curve]) -> Option<Vec<Hit>> {
     let boxes: Vec<Bounds> = curves.iter().map(Curve::bounds).collect();
     let mut found = Vec::new();
     for i in 0..curves.len() {
@@ -238,12 +242,15 @@ fn hits(curves: &[Curve]) -> Vec<Hit> {
                         && j == curves.len() - 1
                         && at.distance(curves[i].start()) <= 10. * CONTINUITY_TOLERANCE);
                 if !joined {
+                    if found.len() == MAX_HITS {
+                        return None;
+                    }
                     found.push(Hit { first: (i, ti), second: (j, tj), at });
                 }
             }
         }
     }
-    found
+    Some(found)
 }
 
 /// The parameters on `a` and on `b` where they meet. Curves that run along
