@@ -103,6 +103,10 @@
     {/each}
   </div>
   <Toggle label={tr("Trace the outlines after the fill")} value={fill.outline} apply={(v) => apply({ outline: v })} />
+  {#if fill.outline}
+    <Toggle label={tr("Trace inner contours too")} value={fill.outline_holes !== false} apply={(v) => apply({ outline_holes: v ? undefined : false })} />
+    <p class="fill-hint">{tr("Off, only the outer outlines are traced: holes such as the inside of an O stay without an edge line.")}</p>
+  {/if}
 </div>
 
 <style>

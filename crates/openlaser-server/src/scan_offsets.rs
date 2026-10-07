@@ -590,6 +590,7 @@ impl Coordinator {
             angle,
             run_up: run_up(speed, acceleration, time),
             outline: false,
+            outline_holes: None,
             bidirectional: true,
             scan_offset: 0.,
             per_object: None,

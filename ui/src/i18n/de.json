@@ -2505,5 +2505,7 @@
   "{0} in all · tap a part to change its quantity": "{0} insgesamt · Teil antippen, um die Anzahl zu ändern",
   "Showing sheet {0}": "Blech {0} wird angezeigt",
   "Dense": "Dicht",
-  "Keep grain": "Faserrichtung beibehalten"
+  "Keep grain": "Faserrichtung beibehalten",
+  "Trace inner contours too": "Innenkonturen auch abfahren",
+  "Off, only the outer outlines are traced: holes such as the inside of an O stay without an edge line.": "Aus: nur die Außenkonturen werden abgefahren; Löcher wie das Innere eines O bleiben ohne Randlinie."
 }

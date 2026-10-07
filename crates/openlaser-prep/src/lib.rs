@@ -454,7 +454,9 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
         };
         out.append(&mut zigzags[at]);
         // An image's frame is where the picture ends, never a line of its own.
-        if filled[at].1.outline && image_of(features, &contour).is_none() {
+        // Holes sit at odd depths; an island inside a hole is an outline again.
+        let traced = filled[at].1.outline_holes != Some(false) || contour.depth % 2 == 0;
+        if filled[at].1.outline && traced && image_of(features, &contour).is_none() {
             out.push(contour);
         }
     }

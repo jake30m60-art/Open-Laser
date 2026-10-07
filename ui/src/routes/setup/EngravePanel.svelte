@@ -98,7 +98,7 @@
     try {
       await change({ kind: 'recipe', layer: layer.name, recipe: recipe.id });
       const currentFill = fillOfLayer(layer.name);
-      if (currentFill) writeFill(layer.name, { ...fillOf(recipe.attributes), outline: currentFill.outline });
+      if (currentFill) writeFill(layer.name, { ...fillOf(recipe.attributes), outline: currentFill.outline, outline_holes: currentFill.outline_holes });
     } catch { /* said */ }
   }
   const backToCut = (layer: string) => change({ kind: 'mode', layer, mode: 'cut' }).catch(() => undefined);

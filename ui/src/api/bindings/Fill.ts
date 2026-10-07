@@ -24,6 +24,11 @@ run_up: number,
  */
 outline: boolean,
 /**
+ * Trace the holes too, such as the inside of an O; off, the trace
+ * follows only the outer outlines. Left out of the file while on.
+ */
+outline_holes?: boolean,
+/**
  * Engrave in both directions; off, every line runs the same way and
  * the head returns with the laser off.
  */

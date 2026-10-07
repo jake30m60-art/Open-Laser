@@ -114,6 +114,7 @@ fn a_filled_mark_engraves_one_zigzag_and_keeps_its_outlines() {
         angle: 0.,
         run_up: 2.,
         outline: true,
+        outline_holes: None,
         bidirectional: true,
         scan_offset: 0.,
         per_object: None,
@@ -151,6 +152,37 @@ fn a_filled_mark_engraves_one_zigzag_and_keeps_its_outlines() {
     assert_eq!(toolpath.contours.iter().filter(|c| c.layer == "Logo").count(), 1);
 }
 
+/// The outline trace after a fill can leave the holes out: a ring keeps
+/// its outer edge and loses the inner one, an island in the hole is outer
+/// again.
+#[test]
+fn the_outline_trace_can_skip_holes() {
+    use openlaser_core::features::Fill;
+    let drawing = Drawing {
+        contours: vec![
+            circle("Logo", 30., 30., 15.),
+            circle("Logo", 30., 30., 8.),
+            circle("Logo", 30., 30., 3.),
+        ],
+    };
+    let traced = |holes: Option<bool>| {
+        let fill = Fill { outline: true, outline_holes: holes, image: None, ..Fill::for_image() };
+        let logo = Layer {
+            machining: Some(Machining { fill: Some(fill), ..Machining::default() }),
+            ..layer("Logo", LayerMode::Mark)
+        };
+        let features = Features { layers: vec![logo], ..Features::default() };
+        let toolpath = openlaser_prep::prepare(&drawing, &features).unwrap();
+        let mut depths: Vec<_> =
+            toolpath.contours.iter().filter(|c| c.closed).map(|c| c.depth).collect();
+        depths.sort_unstable();
+        depths
+    };
+    assert_eq!(traced(None), [0, 1, 2]);
+    assert_eq!(traced(Some(true)), [0, 1, 2]);
+    assert_eq!(traced(Some(false)), [0, 2]);
+}
+
 /// Chosen engraving areas are engraved together: one zigzag runs line by
 /// line across all of them, the beam off between them and over every hole,
 /// rather than one area after another.
@@ -169,6 +201,7 @@ fn chosen_areas_are_engraved_together_line_by_line() {
         angle: 0.,
         run_up: 2.,
         outline: false,
+        outline_holes: None,
         bidirectional: true,
         scan_offset: 0.,
         per_object: None,

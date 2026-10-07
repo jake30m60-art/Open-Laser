@@ -717,6 +717,7 @@ mod tests {
             angle,
             run_up,
             outline: false,
+            outline_holes: None,
             bidirectional: true,
             scan_offset: 0.,
             per_object: None,

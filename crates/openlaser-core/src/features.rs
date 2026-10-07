@@ -330,6 +330,11 @@ pub struct Fill {
     pub run_up: f64,
     /// Trace the outlines after the fill, for crisp edges.
     pub outline: bool,
+    /// Trace the holes too, such as the inside of an O; off, the trace
+    /// follows only the outer outlines. Left out of the file while on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub outline_holes: Option<bool>,
     /// Engrave in both directions; off, every line runs the same way and
     /// the head returns with the laser off.
     #[serde(default = "yes")]
@@ -377,6 +382,7 @@ impl Fill {
             angle: 0.,
             run_up: 2.,
             outline: false,
+            outline_holes: None,
             bidirectional: true,
             passes: 1,
             pass_angle: 0.,
