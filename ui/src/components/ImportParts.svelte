@@ -3,6 +3,7 @@
 
   import Modal from './Modal.svelte';
   import ImportReview from './ImportReview.svelte';
+  import ImportImage from './ImportImage.svelte';
   import { api } from '../api/client';
   import type { ImportOptions, ImportReview as Review } from '../api';
   import { server } from '../stores/server.svelte';
@@ -18,7 +19,14 @@
   let failed = $state<string[]>([]);
   let notes = $state<string[]>([]);
   let reviewing = $state<Reviewing | null>(null);
+  let picture = $state<File | null>(null);
   let cancelled = false;
+
+  function choosePicture(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    picture = input.files?.[0] ?? null;
+    input.value = '';
+  }
 
   // A file with a choice to make, a repair or a problem is shown first; a
   // clean one imports straight away.
@@ -86,8 +94,10 @@
 <div class="import-parts">
   <label class="btn btn-primary">{importing ? `${importing.done} / ${importing.total}` : '+ DXF / SVG'}<input type="file" multiple accept=".dxf,.svg" hidden disabled={!!importing} onchange={importFiles}></label>
   <label class="btn btn-ghost">Import folder<input type="file" multiple webkitdirectory accept=".dxf,.svg" hidden disabled={!!importing} onchange={importFiles}></label>
+  <label class="btn btn-ghost">{t("+ Picture")}<input type="file" accept="image/png,image/jpeg,image/bmp,image/webp,image/gif" hidden disabled={!!importing} onchange={choosePicture}></label>
   {#if importing}<button class="btn btn-ghost" onclick={() => (cancelled = true)}>{t("Stop importing")}</button>{/if}
 </div>
+{#if picture}<ImportImage file={picture} onclose={() => (picture = null)} />{/if}
 {#if reviewing}
   {@const current = reviewing}
   <ImportReview review={current.review} options={current.options} busy={current.busy} error={current.error}

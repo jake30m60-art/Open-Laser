@@ -315,7 +315,15 @@ impl Draft {
             })
             .collect();
         draft.sources = Some(sources);
+        draft.engrave_new_images();
         draft
+    }
+
+    /// Writes the engraving defaults for image layers that have no entry
+    /// yet into the job, so every screen sees them as engraving.
+    fn engrave_new_images(&mut self) {
+        let layers = self.image_layers();
+        engrave_images(&mut self.current.features, &layers);
     }
 
     /// A draft of `parts` without a drawing attached, the drawing of
@@ -628,6 +636,7 @@ impl Draft {
         self.check_layout(sources.contours())?;
         self.source_count = sources.contours();
         self.sources = Some(sources);
+        self.engrave_new_images();
         Ok(())
     }
 
@@ -669,6 +678,7 @@ impl Draft {
         self.current.grouping=self.current.grouping.remapped(|i|map.get(i).copied().flatten());
         self.current.placed=placed; self.current.parts=sources.parts().cloned().collect();
         self.source_count=sources.contours(); self.sources=Some(sources); self.prepared=None; self.compiled=None;
+        self.engrave_new_images();
         Ok(())
     }
 
@@ -692,6 +702,7 @@ impl Draft {
         if let OrderStrategy::Manual(order) = &mut self.current.features.order.strategy {
             order.extend(first..self.current.placed.len());
         }
+        self.engrave_new_images();
         Ok(())
     }
 

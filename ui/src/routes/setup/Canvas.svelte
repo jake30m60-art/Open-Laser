@@ -837,6 +837,15 @@
     {/if}
     {#if preview && !ui.nestShown}
       <g transform={movingAll && local && !lifting ? svgMatrix(local.m) : ''}>
+      <!-- Pictures to engrave, under their scan lines: the unit square mapped
+           onto the picture's corner and its edges along the top and down. -->
+      {#each preview.rasters ?? [] as raster (raster.contour)}
+        {@const layer = preview.contours.find((c) => c.sources.includes(raster.contour))?.layer}
+        {#if !layer || !hidden(layer)}
+          <image class="raster" href={api.partImageUrl(raster.part)} x="0" y="0" width="1" height="1" preserveAspectRatio="none"
+            transform="matrix({raster.across[0]} {raster.across[1]} {raster.down[0]} {raster.down[1]} {raster.origin[0]} {raster.origin[1]})" />
+        {/if}
+      {/each}
       <g class="shared-paths" pointer-events="none">
         {#each shared as contour}
           {#if !hidden(contour.layer)}
@@ -909,6 +918,7 @@
 .error-chips { display:flex; flex-wrap:wrap; gap:6px; }
 .error-chips .btn { min-width:44px; padding:0 10px; border:1px solid #ef4444; color:#ef4444; font-weight:700; }
 .error-outline { fill:none; stroke:#ef4444; stroke-width:3; pointer-events:none; }
+.raster { opacity:.85; pointer-events:none; }
 .error-halo { fill:none; stroke:#ef4444; stroke-width:12; stroke-opacity:.28; stroke-linejoin:round; pointer-events:none; }
 .error-location { fill:none; stroke:#ef4444; stroke-width:2; pointer-events:none; }
 </style>

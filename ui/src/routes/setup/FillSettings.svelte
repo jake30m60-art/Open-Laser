@@ -8,17 +8,27 @@
   import Toggle from '../../components/params/Toggle.svelte';
   import FillSample from '../../components/FillSample.svelte';
   import { scanRunUp } from '../../lib/scan-calibration';
+  import { defaultImage } from '../../lib/images';
   import { ui } from '../../stores/ui.svelte';
-  import type { Fill } from '../../api';
+  import type { Fill, ImageFill, ImageMode } from '../../api';
 
-  let { fill, apply, speed = null, offset = null }: {
+  let { fill, apply, speed = null, offset = null, image = false }: {
     fill: Fill;
     apply: (change: Partial<Fill>) => void;
     /** The layer's engraving speed in mm/s, when its recipe gives one. */
     speed?: number | null;
     /** The calibrated compensation at that speed and angle, or none. */
     offset?: number | null;
+    /** Whether the layer engraves a picture: its shading settings show. */
+    image?: boolean;
   } = $props();
+  const shading = $derived(fill.image ?? defaultImage());
+  const shade = (change: Partial<ImageFill>) => apply({ image: { ...shading, ...change } });
+  const MODES: Array<[ImageMode, string, string]> = [
+    ['grayscale', 'Grayscale', 'Power follows the gray: dark parts with the most power, light ones with the least.'],
+    ['dither', 'Dithering', 'Dots at full power, spread so their density gives the gray. Often the clearer choice on metal.'],
+    ['threshold', 'Black and white', 'Full power where darker than middle gray, nothing elsewhere: for logos and line art.'],
+  ];
 
   const needed = $derived(speed ? Math.ceil(scanRunUp(speed)) : null);
   const short = $derived(needed !== null && fill.run_up + 1e-9 < needed);
@@ -39,6 +49,24 @@
 </script>
 
 <div class="fill">
+  {#if image}
+    <h4 class="fill-head">{tr("Picture")}</h4>
+    <div class="presets" role="group" aria-label={tr("How the picture is engraved")}>
+      {#each MODES as [mode, label] (mode)}
+        <button class="chip" class:on={shading.mode === mode} aria-pressed={shading.mode === mode} onclick={() => shade({ mode })}>{tr(label)}</button>
+      {/each}
+    </div>
+    <p class="fill-hint">{tr(MODES.find(([m]) => m === shading.mode)?.[2] ?? '')}</p>
+    {#if shading.mode === 'grayscale'}
+      <Stepper label={tr("Power for light gray")} value={shading.min_power} unit="%" step={5} apply={(v) => shade({ min_power: Math.min(shading.max_power, Math.max(0, v)) })} />
+    {/if}
+    <Stepper label={tr("Power for black")} value={shading.max_power} unit="%" step={5} apply={(v) => shade({ max_power: Math.min(100, Math.max(shading.min_power, v)) })} />
+    <p class="fill-hint">{tr("In percent of the layer recipe's power. White is never engraved.")}</p>
+    <Stepper label={tr("Gamma")} value={shading.gamma} unit="" step={0.1} apply={(v) => shade({ gamma: Math.min(10, Math.max(0.1, +v.toFixed(2))) })} />
+    <p class="fill-hint">{tr("Above 1 engraves the midtones lighter, below 1 darker.")}</p>
+    <Toggle label={tr("Invert: engrave the light parts")} value={shading.invert} apply={(v) => shade({ invert: v })} />
+    <p class="fill-hint">{tr("The line spacing is also the size of one dot along the line.")}</p>
+  {/if}
   <FillSample {fill} />
   <Stepper label={tr("Line spacing")} value={fill.spacing} unit="mm" step={0.01} apply={(v) => apply({ spacing: Math.min(20, Math.max(0.01, v)) })} />
   <Stepper label={tr("Angle")} value={fill.angle} unit="°" step={15} apply={(v) => apply({ angle: ((v % 180) + 180) % 180 })} />

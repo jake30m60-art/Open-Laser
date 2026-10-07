@@ -203,6 +203,10 @@ export const api = {
   /** What simplifying a part's drawing within `tolerance` mm does; `save` keeps it as a new part. */
   simplifyPart: (id: string, tolerance: number, save: boolean) => post<SimplifyView>(`/api/parts/${id}/simplify`, { tolerance, save }),
   repairPart: (id: string, tolerance: number, save: boolean) => post<RepairView>(`/api/parts/${id}/repair`, { tolerance, save }),
+  /** Imports a picture to engrave as its gray pixels, row by row from the top. */
+  importImage: (name: string, size: { width: number; height: number; widthMm: number; heightMm: number }, pixels: Uint8Array) =>
+    request<{ ok: true; id: string }>('POST', `/api/parts/image?name=${encodeURIComponent(name)}&width=${size.width}&height=${size.height}&width_mm=${size.widthMm}&height_mm=${size.heightMm}`, undefined, pixels.buffer as ArrayBuffer),
+  partImageUrl: (id: string) => `/api/parts/${encodeURIComponent(id)}/image`,
   removePart: (id: string) => del(`/api/parts/${id}`),
   addFolder: (name: string, parent: string | null) => post<{ ok: true; id: string }>('/api/folders', { name, parent }),
   updateFolder: (id: string, change: ItemChange) => post(`/api/folders/${id}`, change),

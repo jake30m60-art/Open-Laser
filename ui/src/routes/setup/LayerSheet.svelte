@@ -19,6 +19,7 @@
   import Stepper from '../../components/params/Stepper.svelte';
   import Toggle from '../../components/params/Toggle.svelte';
   import FillSettings from './FillSettings.svelte';
+  import { imageLayers } from '../../lib/images';
   import { scanOffsets } from '../../stores/scan-offsets.svelte';
   import { featureEdits } from '../../stores/feature-edits';
   import type { Fill, LayerChange, LayerMode } from '../../api';
@@ -142,7 +143,7 @@
             onclick={() => writeFill(fill ? null : defaultFill())}></button>
         </div>
         {#if fill}
-          <FillSettings {fill} apply={fillWith} speed={speed} offset={offset} />
+          <FillSettings {fill} apply={fillWith} speed={speed} offset={offset} image={imageLayers(draft.preview).has(name)} />
         {/if}
       {/if}
 

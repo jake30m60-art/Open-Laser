@@ -769,6 +769,11 @@ async fn an_image_engraves_in_shades_of_gray_and_runs_to_the_end() {
     assert!(draft["error"].is_null(), "{}", draft["error"]);
     assert_eq!(draft["layers"][0]["name"], "Image");
     assert_eq!(draft["layers"][0]["mode"], "mark", "an image layer starts as engraving");
+    assert_eq!(
+        draft["features"]["layers"][0]["machining"]["fill"]["image"]["mode"],
+        "grayscale",
+        "the job itself holds the default, so every screen edits from it"
+    );
     assert_eq!(draft["preview"]["rasters"][0]["part"], part.as_str());
     assert!(draft["compiled"].is_object(), "{response}");
 

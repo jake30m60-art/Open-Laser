@@ -15,11 +15,14 @@
   import FillSettings from './FillSettings.svelte';
   import { editPart } from '../../lib/sketch-workflow';
   import { engravingFeatures } from '../../lib/engraving-preview';
+  import { imageLayers } from '../../lib/images';
   import type { Features, FillRegion } from '../../api';
   import type { DraftLayer, Fill, LayerChange, RecipeView } from '../../api';
 
   let { selectedContours, regions, pickMode = $bindable('area'), onclear, onfocus, onremove }: { selectedContours: number[]; regions: FillRegion[]; pickMode?: 'area' | 'contour'; onclear: () => void; onfocus: (source:number) => void; onremove: (source:number) => void } = $props();
   const draft = $derived(server.doc!.draft!);
+  /** The layers engraving a picture: they show its shading settings. */
+  const pictures = $derived(imageLayers(draft.preview));
   const NAME = 'Engraving';
   const order = $derived(draft.layers.map((l) => l.name));
   const marked = $derived(draft.layers.filter((l) => l.mode === 'mark'));
@@ -220,7 +223,7 @@
         <p class="warn-box">{tr("No closed shape on this layer: a fill engraves inside closed outlines only. Close the outlines in the sketch, or the lines are traced as they are.")}</p>
       {/if}
       {#if fill && layer.name !== NAME}
-        <FillSettings {fill} apply={(c) => writeFill(layer.name, { ...fill, ...c })} speed={speedOf(layer)} offset={offsetOf(layer, fill)} />
+        <FillSettings {fill} apply={(c) => writeFill(layer.name, { ...fill, ...c })} speed={speedOf(layer)} offset={offsetOf(layer, fill)} image={pictures.has(layer.name)} />
 
       {/if}
       <button class="link" disabled={busy} onclick={() => backToCut(layer.name)}>{tr("Cut this layer instead")}</button>
