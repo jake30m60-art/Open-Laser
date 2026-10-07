@@ -1,0 +1,82 @@
+# Übergabe – OpenLaser-Fork von Joe (Stand 2026-10-07, 10:30)
+
+Für die nächste Sitzung (ChatGPT/Codex oder Claude). Branch `skizze` in `C:\Users\joe\OpenLaser`.
+Installiertes Programm: `C:\Users\joe\OpenLaser-App\OpenLaser.exe` (Stand e0756c5, 10:18).
+Nichts davon wurde an der echten Maschine getestet – nur im Simulator.
+
+## Arbeitsweise (bitte einhalten)
+
+- Vor eigener Arbeit `git status` prüfen. Fremde, uncommittete Änderungen erst sichern/committen.
+- Prüfen: `cd ui; npm run check; npx vitest run` und `cargo test -p openlaser-server -p openlaser-prep -p openlaser-controller`.
+  Bekannt rot, nicht von uns: `imported_recipes_and_machine_files` (CRLF).
+- Bindings: `cargo test -p openlaser-server --features typescript --lib export_bindings`, danach
+  Leerzeichen am Zeilenende entfernen, unveränderte Bindings zurücksetzen, `npm run bindings`.
+  `node ui/scripts/check-bindings.mjs` meldet unter Windows alles als geändert (CRLF) – nur echte Diffs zählen.
+- Bauen: `cd ui; npm run build`, dann `cargo build --release -p openlaser --features desktop --locked`,
+  `target\release\openlaser.exe` nach `C:\Users\joe\OpenLaser-App\OpenLaser.exe` kopieren
+  (ist die Datei gesperrt: laufende Datei umbenennen, neue daneben kopieren).
+- Texte: `t('English')` aus `ui/src/i18n/index.ts`, Deutsch in `ui/src/i18n/de.json`.
+- Test-Simulator: `openlaser.exe --simulate --config <eigene machine.toml> --no-browser` auf eigenem Port
+  (nicht 8080/8081, die gehören Joe). Joes laufende OpenLaser-Instanzen nie beenden.
+
+## Zuletzt erledigt (Commits 2c3889a, 0d1ce00, e0756c5)
+
+- Werkzeug „Gravieren“ im Einrichten (`ui/src/routes/setup/EngravePanel.svelte`, `FillSettings.svelte`):
+  Auswahl → Ebene „Engraving“ (Markieren + Füllung), Rezept, Linienabstand, Winkel, Überlauf, Durchgänge,
+  Hinweis auf nötigen Anlaufweg und Umkehrspiel aus der Kalibrierung, „nicht mehr gravieren“.
+- Schraffur auf der Zeichnung ausgedünnt je nach Zoom (`lib/engraving.ts`), Anlauf gestrichelt,
+  Fläche getönt; Bahnen aus mehreren Formen (Füllung, Flugschnitt, gemeinsame Kanten) als eigene,
+  nicht anklickbare Ebene (`Canvas.svelte`, `shared`).
+- Richtungspfeile drehen mit der Schnittrichtung; Flugschnitt lässt Markier-Ebenen in Ruhe (`prep/flying.rs`).
+- Abspielen der Schnittreihenfolge färbt Gefahrenes grün (`lib/cut-order.ts`).
+- Folgen-Knopf im Ausführen-Tab (`RunSide.svelte`): halten → Kopf auf Schnitthöhe, folgt (Kopfbefehl 104,
+  Höhe/Geschwindigkeit wie Schnitt-Folgebefehl, `coordinator.rs::follow_action`); folgt er,
+  „Kopf hoch“ → Rückzug auf Stopp-Sicherheitshöhe. Controller: `operations/head.rs`. Test `tests/follow.rs`.
+- Druck 0,85 → 8,5 bar in 16 Rezepten; Gravur-Rezept „Stainless Steel“ aus Mlaser-Ebene 7;
+  Mlaser-Umkehrspiel-Tabellen (Faser/CO2) in `data\scan_offsets.json` übernommen.
+
+## Offen – dringend (Joes letzte Meldung)
+
+1. **Gravur: keine Schraffur/Formen sichtbar, Buchstaben werden nicht gefüllt.**
+   Der Server berechnet die Füllung für Text korrekt (per API geprüft: Füllkontur mit Quellen aller
+   Buchstaben + geschlossene Umrisse, auch ohne Ebenen-Rezept, kein Fehler). Das Problem liegt also
+   in der Darstellung in Joes Oberfläche oder an seinem Auftrag. Konnte nicht visuell prüfen
+   (Browserfenster verdeckt). Prüfen:
+   - Ist die Ebene über das Auge ausgeblendet (`ui.hiddenDrawingLayers`, localStorage)?
+   - `Canvas.svelte`: `shapes` (Konturen mit genau einer Quelle) und `shared` (mehrere Quellen);
+     `shownPaths()`/`thinFill()`; Ebenen-Filter `hidden()`; `filled`-Map aus `draft.features.layers`.
+   - Läuft bei Joe wirklich die neueste exe (nach Installation neu starten)?
+   - Am besten Joes Auftrag (Teile-Bibliothek in `OpenLaser-App\data`) im Simulator öffnen und ansehen.
+2. **Teile-Seite: „Neues Teil“ / „Bearbeiten“ → Skizze.** Neue Teile im Skizzenmodus anlegen,
+   DXF/SVG in der Skizze importieren und bearbeiten (offene Umrisse schließen!), speichern → Teil in der
+   Liste; Knopf „Bearbeiten“ öffnet ein Teil wieder in der Skizze (mit Abhängigkeiten, wenn selbst
+   gezeichnet). Mehrere Skizzen statt einer im localStorage (`ui/src/sketch/store.svelte.ts`).
+3. **Skizze:** Text-Werkzeug mit Schriften (Server hat Schriften, siehe `CreateText.svelte`,
+   `/api/text/preview`); Werkzeugleiste übersichtlicher, Erstellen / Ändern / Abhängigkeiten+Bemaßung
+   klar getrennt.
+4. **Manual Cut wie Mlaser** (der Software-Entwurf `ManualCut.svelte`/`manual_cut.rs` ist aus dem
+   Einrichten ausgeblendet): hinfahren → MCUT → Bestätigungsfenster → Laser scharf → Pfeiltaste am
+   Handrad startet Einstechen + Schneiden in Pfeilrichtung mit den Parametern der gewählten Ebene, bis
+   kein Blech mehr unter dem Kopf ist (Höhenregler verliert das Blech), dann kurz nachlaufen und hoch.
+5. **Handrad XHC PHB02** (Funk, USB-Empfänger am PC): Mlaser nutzt `PHBX.dll` (32-bit, Hersteller
+   VID 0x10CE, PIDs 0xEB61–0xEBAA, Exporte `XOpen`, `XGetInput`, `SetGetKeyCallbackFunction` …).
+   In OpenLaser per USB-HID (z. B. hidapi) nachbauen; dafür muss der Empfänger stecken, um Tastencodes
+   mitzuschneiden. Im Normalbetrieb soll das Handrad immer steuern können (Verfahren, Folgen, Kopf hoch);
+   nur Laser zünden (Manual Cut) braucht Scharfschalten in der Software.
+6. **Ausführen-Tab:** Anlauf-/Überlauffahrten werden dort vermutlich noch als Mikrosteg (magenta)
+   gezeichnet (Compiler-Abschnitte `Kind::Joint`), sollten wie im Einrichten gestrichelt sein.
+   Verfahren in X/Y ist bei gesenktem Kopf gesperrt (Schutzregel in `operations/motion.rs`) – so lassen,
+   außer Joe will es anders.
+
+## Offen – später
+
+- Schneidparameter: Gweikes echte 1200-W-Dateien liegen in
+  `C:\Users\joe\Desktop\gweike laser\C260411-0695-0807\C260411-0695-0807\Cutting parameters` (N2, Luft, CO2)
+  und sind noch nicht importiert; Befund zur mitgelieferten Bibliothek: `C:\Users\joe\Videos\OpenLaser-Schneidparameter-Pruefung.md`
+  (Geschwindigkeiten eher für 1,5–2 kW, Schneidhöhe 0,3 mm knapp, Fokus-Bezüge gemischt).
+- Englische Reste in der deutschen Oberfläche (z. B. „Save job“, „Dry run“, „Go to Run →“, „Machining“,
+  „Preflight“, „est. time“, „pierces“, „Enter positions (%)…“, „Nozzle“, „Pierce“).
+- „Gemeinsame Kanten“, „Teile nesten“, „Auftrag kopieren“ nach den letzten Änderungen nicht erneut getestet.
+- Kamera-Nesting (4K-Kamera) – erst wenn die Grundfunktionen an der Maschine laufen.
+- Erste echte Verbindung zur Maschine: Mlaser vorher schließen, Not-Halt in Reichweite;
+  Laser-Freigabe braucht ggf. Gweike-Code (Mlaser-Lizenz abgelaufen 2026-09-06).
