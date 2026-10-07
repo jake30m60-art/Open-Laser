@@ -4,6 +4,7 @@
 // original text stays available as a detail on tap.
 import type { AlarmView, Gate } from '../api';
 import { diagnosticText } from './units.svelte';
+import { t } from '../i18n/index';
 
 /** A reason in plain words, with the original kept when it was reworded. */
 export interface Plain {
@@ -46,19 +47,19 @@ const EXACT: Record<string, string> = {
 /** Technical patterns, in order; the first match wins. */
 const PATTERNS: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
   [/^alarms are active: (.+)$/, (m) => {
-    const names = m[1]!.split('; ');
-    return names.length === 1 ? `Alarm: ${names[0]}.` : `${names.length} alarms: ${names[0]} and ${names.length - 1} more.`;
+    const names = m[1]!.split('; ').map((name) => t(name));
+    return names.length === 1 ? t('Alarm: {0}.', names[0]) : t('{0} alarms: {1} and {2} more.', names.length, names[0], names.length - 1);
   }],
-  [/^(.+) is active$/, (m) => `Please wait: ${m[1]!.toLowerCase()} is in progress.`],
-  [/machine files have no \S+/, () => 'Alarm: machine backup is missing a setting. Tap for details.'],
-  [/missing setting \S+/, () => 'The machine files are missing a setting. Re-import the machine backup in Settings.'],
-  [/^setting \S+: /, () => 'A machine setting is not valid. Check the machine backup in Settings.'],
-  [/no reply to \S+ of register/, () => 'The controller did not answer. Check its power and network cable.'],
-  [/^socket: /, () => 'Could not open a network connection to the controller.'],
-  [/the controller refused/, () => 'The controller refused a command, even when it was sent again. Check the machine before continuing.'],
-  [/^bad reply: /, () => 'The controller sent an unexpected reply. Reconnect.'],
-  [/^XML /, () => 'The machine backup file could not be read.'],
-  [/machine files did not bind/, () => 'Connected, but the machine files are not loaded. Import the machine backup in Settings.'],
+  [/^(.+) is active$/, (m) => t('Please wait: {0} is in progress.', t(m[1]!.toLowerCase()))],
+  [/machine files have no \S+/, () => t('Alarm: machine backup is missing a setting. Tap for details.')],
+  [/missing setting \S+/, () => t('The machine files are missing a setting. Re-import the machine backup in Settings.')],
+  [/^setting \S+: /, () => t('A machine setting is not valid. Check the machine backup in Settings.')],
+  [/no reply to \S+ of register/, () => t('The controller did not answer. Check its power and network cable.')],
+  [/^socket: /, () => t('Could not open a network connection to the controller.')],
+  [/the controller refused/, () => t('The controller refused a command, even when it was sent again. Check the machine before continuing.')],
+  [/^bad reply: /, () => t('The controller sent an unexpected reply. Reconnect.')],
+  [/^XML /, () => t('The machine backup file could not be read.')],
+  [/machine files did not bind/, () => t('Connected, but the machine files are not loaded. Import the machine backup in Settings.')],
 ];
 
 /** A vendor parameter path such as `ManuParam.FC.ShortNoUpMaxLength`. */
@@ -78,10 +79,10 @@ export function plain(reason: string | null | undefined, alarms: AlarmView[] = [
   if (!raw) return { text: '', detail: null };
   const blocking = alarms.filter((alarm) => alarm.blocking);
   if (raw.startsWith('alarms are active') && blocking.length > 0 && blocking.every((alarm) => HOME_HEAD.test(alarm.fix))) {
-    return { text: 'Head needs homing. Tap for details.', detail: null };
+    return { text: t('Head needs homing. Tap for details.'), detail: null };
   }
   const exact = EXACT[raw];
-  if (exact) return { text: exact, detail: null };
+  if (exact) return { text: t(exact), detail: null };
   for (const [pattern, word] of PATTERNS) {
     const match = raw.match(pattern);
     if (match) {
@@ -94,7 +95,10 @@ export function plain(reason: string | null | undefined, alarms: AlarmView[] = [
     const text = raw.replace(PARAMETER, 'a machine setting').replace(REGISTER, 'a controller signal');
     return { text: sentence(diagnosticText(text)), detail: raw };
   }
-  return { text: sentence(diagnosticText(raw)), detail: null };
+  // Any other server text in German where the catalog knows it, as written or as a sentence.
+  const known = t(raw);
+  if (known !== raw) return { text: known, detail: null };
+  return { text: t(sentence(diagnosticText(raw))), detail: null };
 }
 
 /** A control and whether it is available now. */

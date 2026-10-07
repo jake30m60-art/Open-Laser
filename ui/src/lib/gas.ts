@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 // Gas and laser cost presentation. The server prices jobs and runs
 // (crates/openlaser-server/src/gas); this file only formats the figures,
 // totals the run history and turns a flow-test reading into litres.
@@ -112,9 +113,9 @@ export function measuredLitres(method: Method, gas: GasKind, readings: { before:
 /** "Calibrated ×1.12 · 3 Jan · 12 bar · 1.5 mm single" or why there is none. */
 export function calibrationStatus(costs: GasCosts, gas: GasKind): string {
   const supply = costs[gas];
-  if (supply.flow.kind === 'manual') return 'Manual flow · no calibration needed';
+  if (supply.flow.kind === 'manual') return t('Manual flow · no calibration needed');
   const c = supply.calibration;
-  if (!c) return 'Not calibrated · nozzle estimate';
+  if (!c) return t('Not calibrated · nozzle estimate');
   const date = new Date(c.at * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   return `Calibrated ×${c.factor.toFixed(2)} · ${date} · ${quantity(c.pressure, 'bar')} · ${quantity(c.nozzle.diameter, 'mm')} ${c.nozzle.kind}`;
 }

@@ -10,7 +10,7 @@
 
   let { features, on, set }: { features: Features; on: boolean; set: SetFeatures } = $props();
 
-  const SIDES = [['auto', 'Auto'], ['inside', 'Inside'], ['outside', 'Outside']] as const;
+  const SIDES = [['auto', t('Auto')], ['inside', t('Inside')], ['outside', t('Outside')]] as const;
   const kerf = $derived(features.kerf ?? defaultKerf());
   const setWidth = (v: number) => set((f) => { f.kerf!.width = v; });
   const setSide = (v: string) => set((f) => { f.kerf!.side = v as Kerf['side']; });

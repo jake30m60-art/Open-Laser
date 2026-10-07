@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tl } from '../../i18n/index';
   import { t } from '../../i18n/index';
 
   // One machining feature's settings: every field the server takes, in
@@ -107,25 +108,25 @@
   </div>
   {#if scope}
     <p class="muted scope-note">
-      {#if own}{scope} has its own settings. <button class="link" onclick={useJob}>Use the job's</button>
-      {:else if draft.layers.find((l) => l.name === scope)?.mode === 'mark'}{scope} is a mark, so it has none; a change gives it its own.
-      {:else}{scope} uses the job's settings; a change gives it its own.{/if}
+      {#if own}{tl('{0} has its own settings.', scope)} <button class="link" onclick={useJob}>{tl("Use the job's")}</button>
+      {:else if draft.layers.find((l) => l.name === scope)?.mode === 'mark'}{tl('{0} is a mark, so it has none; a change gives it its own.', scope)}
+      {:else}{tl("{0} uses the job's settings; a change gives it its own.", scope)}{/if}
     </p>
   {:else if draft.layers.some((l) => hasOwn(base, l.name))}
-    <p class="muted scope-note">Layers marked · keep their own settings.</p>
+    <p class="muted scope-note">{tl("Layers marked · keep their own settings.")}</p>
   {/if}
 {/if}
 {#if id === 'order'}<OrderTree preview={draft.preview} {features} {set} {onfocus} />{/if}
 {#if featureEdits.error}
   <p class="muted">{featureEdits.error} <button class="link" onclick={() => featureEdits.discard()}>{t("Discard refused edits")}</button></p>
 {/if}
-{#if id === 'leads'}<Tabs names={['Entry', 'Exit']} bind:active={tab} />{/if}
+{#if id === 'leads'}<Tabs names={['Entry', t('Exit')]} bind:active={tab} />{/if}
 {#if id === 'leads' && scope && base.layers?.find(l => l.name === scope)?.machining?.fill}
   <p class="muted">{t("Filled engraving uses scan run-ups at every hatch line. Entry and exit leads apply to contour paths.")}</p>
   <button class="btn btn-soft" onclick={() => (ui.setupPanel = 'engrave')}>{t("Edit engraving run-ups")}</button>
 {/if}
 {#if id === 'leads'}<p class="muted lead-hint">{t("Drag a lead to edit it. Selected copies update the matching lead.")}</p>{/if}
-{#if id === 'joints' || id === 'start'}<Tabs names={['Basic', 'More']} bind:active={tab} />{/if}
+{#if id === 'joints' || id === 'start'}<Tabs names={['Basic', t('More')]} bind:active={tab} />{/if}
 <div class="stack" style="opacity:{on ? 1 : 0.45}">
   {#if id === 'leads'}
     <LeadsForm {features} {on} {tab} {selectedContours} {set} preview={scope ? null : draft.preview} />
@@ -149,9 +150,8 @@
 </div>
 <div class="side-foot">
   <div class="source">
-    {#if draft.feature_source}Prefilled from <strong>{draft.feature_source.name}</strong> ({ago(draft.feature_source.at)})
-      on {recipeLabel(draft.recipe)}. Saved with this job; the next job on this recipe starts from these.{:else}First job on
-      {recipeLabel(draft.recipe)}. Saved with this job; the next job on this recipe starts from these.{/if}
+    {#if draft.feature_source}{tl('Prefilled from {0} ({1}) on {2}.', draft.feature_source.name, ago(draft.feature_source.at), recipeLabel(draft.recipe))}{:else}{tl('First job on {0}.', recipeLabel(draft.recipe))}{/if}
+      {tl('Saved with this job; the next job on this recipe starts from these.')}
   </div>
   <div class="row">
     <button class="btn btn-ghost" onclick={reset}>{t("Reset to defaults")}</button>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tl } from '../../i18n/index';
   import { t } from '../../i18n/index';
 
   import { quantity } from '../../lib/units.svelte';
@@ -34,8 +35,8 @@
   const head = $derived(headMode(v));
   const start = $derived(cutStart(v));
   const TITLES: Record<string, string> = {
-    mode: 'Piercing mode', review: 'Review changes', inspector: 'Imported values', start: 'Cut start', end: 'Cut end', timing: 'Timing',
-    head: 'Head movement', curves: 'Speed compensation', residue: 'Slag removal', pre: 'Batch pre-piercing', film: 'Film removal', shift: 'Contour shift',
+    mode: 'Piercing mode', review: t('Review changes'), inspector: t('Imported values'), start: t('Cut start'), end: t('Cut end'), timing: t('Timing'),
+    head: t('Head movement'), curves: t('Speed compensation'), residue: t('Slag removal'), pre: t('Batch pre-piercing'), film: t('Film removal'), shift: t('Contour shift'),
   };
   const title = $derived(which === 'refine' ? `Stage ${Math.min(visible, Math.max(0, count - 1)) + 1} refinements` : TITLES[which] ?? which);
   const stages = $derived(Math.max(1, count));
@@ -56,32 +57,32 @@
   <div class="sheet-body">
     {#if which === 'mode'}
       {#each [['none', 'No piercing', 'Cut directly.'], ['staged', 'Staged piercing', 'One to five stages, highest first.'], ['smooth', 'Smooth piercing', 'Transition into cutting with the cutting gas.']] as [id, name, help] (id)}
-        <button class="mode-choice" class:on={m === id} disabled={id === 'smooth' && isOn(v['PreDrill'])} onclick={() => setMode(id as Mode)}><strong>{name}</strong><span>{help}</span></button>
+        <button class="mode-choice" class:on={m === id} disabled={id === 'smooth' && isOn(v['PreDrill'])} onclick={() => setMode(id as Mode)}><strong>{t(name)}</strong><span>{t(help)}</span></button>
       {/each}
-      {#if isOn(v['PreDrill'])}<div class="notice info">Turn off PreDrill to use Smooth pierce.</div>{/if}
+      {#if isOn(v['PreDrill'])}<div class="notice info">{tl("Turn off PreDrill to use Smooth pierce.")}</div>{/if}
       {#if m === 'staged'}
-        <div class="field"><span class="lbl">Number of stages</span><div class="seg block">{#each [1, 2, 3, 4, 5] as n (n)}<button class:on={count === n} onclick={() => setMode('staged', n)}>{n}</button>{/each}</div></div>
-        <p class="muted">Unused stages keep their values. New stages need all fields.</p>
+        <div class="field"><span class="lbl">{tl("Number of stages")}</span><div class="seg block">{#each [1, 2, 3, 4, 5] as n (n)}<button class:on={count === n} onclick={() => setMode('staged', n)}>{n}</button>{/each}</div></div>
+        <p class="muted">{tl("Unused stages keep their values. New stages need all fields.")}</p>
       {:else if head !== 'follow'}
-        <p class="muted">Staged piercing enables sheet following.</p>
+        <p class="muted">{tl("Staged piercing enables sheet following.")}</p>
       {/if}
     {:else if which === 'refine'}
       <Field {ed} key={k('EnableGradualDrill')} row note="Move toward the next stage or cutting height." />
       <Field {ed} key={k('BoltDrill_Enable')} row note="Change from the stage's duty and frequency to the endpoints below." />
       <div class="fields"><Field {ed} key={k('BoltDrill_Power')} /><Field {ed} key={k('BoltDrill_Freq')} /><Field {ed} key={k('BeforeLaserOffDelay')} /><Field {ed} key={k('AfterLaserOffDelay')} /></div>
-      <p class="muted">Duration controls the transition. Optical focus is manual.</p>
+      <p class="muted">{tl("Duration controls the transition. Optical focus is manual.")}</p>
     {:else if which === 'review'}
       <div class="review">
         {#each changes as c (c.key)}<div class="change"><span>{c.label} <span class="mono muted">{c.key}</span></span><b>{c.from} → {c.to}</b></div>{/each}
-        {#if filmChanged}<div class="change"><span>Film process</span><b>{recipes.find((r) => r.id === recipe.film)?.name ?? 'none'} → {film?.name ?? 'none'}</b></div>{/if}
-        {#if !changes.length && !filmChanged}<p class="muted">There are no staged changes.</p>{/if}
+        {#if filmChanged}<div class="change"><span>{tl("Film process")}</span><b>{recipes.find((r) => r.id === recipe.film)?.name ?? 'none'} → {film?.name ?? 'none'}</b></div>{/if}
+        {#if !changes.length && !filmChanged}<p class="muted">{tl("There are no staged changes.")}</p>{/if}
       </div>
     {:else if which === 'inspector'}
       <Inspector {ed} {recipe} />
     {:else if which === 'start'}
-      <div class="toggle-row"><div><strong>Cut start</strong><small>{t("A slower region at the start of every contour.")}</small></div><button
-        class="switch" class:on={start.enabled} onclick={() => ed.setMany(cutStartEdits(v, { enabled: !start.enabled }))} aria-label="Cut start"></button></div>
-      {#if start.legacy}<div class="notice info">Editing replaces the legacy slow-start settings.</div>{/if}
+      <div class="toggle-row"><div><strong>{tl("Cut start")}</strong><small>{t("A slower region at the start of every contour.")}</small></div><button
+        class="switch" class:on={start.enabled} onclick={() => ed.setMany(cutStartEdits(v, { enabled: !start.enabled }))} aria-label={tl("Cut start")}></button></div>
+      {#if start.legacy}<div class="notice info">{tl("Editing replaces the legacy slow-start settings.")}</div>{/if}
       <div class="fields">
         <Field {ed} key="UD_UpLen" value={start.length} oncommit={(t) => ed.setMany(cutStartEdits(v, { length: t }))} />
         <Field {ed} key="UD_UpSpeed" value={start.speed} oncommit={(t) => ed.setMany(cutStartEdits(v, { speed: t }))} />
@@ -94,27 +95,27 @@
       <Field {ed} key="UD_DownAdvEnable" row />
       <div class="fields"><Field {ed} key="UD_DownDuty" /><Field {ed} key="UD_DownFreq" /></div>
     {:else if which === 'timing'}
-      <p class="muted">Delays before cutting, before laser off, and after laser off.</p>
+      <p class="muted">{tl("Delays before cutting, before laser off, and after laser off.")}</p>
       <div class="fields"><Field {ed} key="LaserOnDelay" /><Field {ed} key="LaserOffBeforeDelay" /><Field {ed} key="LaserOffAfterDelay" /></div>
     {:else if which === 'head'}
       {#if ed.a.height}
-        <div class="field"><span class="lbl">Head mode</span><div class="seg block"><button
-            class:on={head === 'follow'} onclick={() => setHead('follow')}>Follow the sheet</button><button
-            class:on={head === 'fixed'} onclick={() => setHead('fixed')}>Fixed height</button><button
+        <div class="field"><span class="lbl">{tl("Head mode")}</span><div class="seg block"><button
+            class:on={head === 'follow'} onclick={() => setHead('follow')}>{tl("Follow the sheet")}</button><button
+            class:on={head === 'fixed'} onclick={() => setHead('fixed')}>{tl("Fixed height")}</button><button
             class:on={head === 'absolute'} onclick={() => setHead('absolute')}>{t("Absolute height")}</button></div></div>
         {#if head !== 'follow'}<p class="muted">{t("A fixed or absolute head does not pierce in stages.")}</p>{/if}
         <div class="fields"><Field {ed} key="UpHeight" />{#if head === 'absolute'}<Field {ed} key="AdvFixHeightCutPos" />{/if}</div>
         <Field {ed} key="NoFollow" row />
         <Field {ed} key="ShortDistNoUp" row note={caps?.short_transfer_mm != null ? `Under the machine's short-transfer distance of ${quantity(caps.short_transfer_mm, 'mm')}.` : "Under the machine's short-transfer distance."} />
       {:else}
-        <div class="notice info">This laser runs without height control: the head is set by hand.</div>
+        <div class="notice info">{tl("This laser runs without height control: the head is set by hand.")}</div>
       {/if}
       {#if ed.a.gas}
         <Field {ed} key="ShortDistGasKeepOn" row note="Independent of whether the head lifts." />
         <Field {ed} key="NoCloseGasInManu" row note="Gas closes at job end; selection changes still switch valves." />
       {/if}
       {#if ed.a.height}
-        <h3>Following response · expert</h3>
+        <h3>{tl("Following response · expert")}</h3>
         <div class="fields"><Field {ed} key="ZFVibAbatType" /><Field {ed} key="ZFVibAbat_Level" /><Field {ed} key="ZFVibAbat_Level_Thick" /></div>
       {/if}
     {:else if which === 'curves'}
@@ -137,7 +138,7 @@
       </div>
     {:else if which === 'residue'}
       <Field {ed} key="CleanResidue_Enable" row note="A spiral over the pierce before the cut." />
-      {#if m !== 'staged'}<div class="notice warn">Slag removal runs only after staged piercing; the settings are kept.</div>{/if}
+      {#if m !== 'staged'}<div class="notice warn">{tl("Slag removal runs only after staged piercing; the settings are kept.")}</div>{/if}
       <div class="fields">
         <Field {ed} key="CleanResidue_WorkH" /><Field {ed} key="CleanResidue_WorkV" /><Field {ed} key="CleanResidue_Power" />
         {#if ed.a.gas}<Field {ed} key="CleanResidue_GasP" />{/if}
@@ -147,28 +148,28 @@
       </div>
     {:else if which === 'pre'}
       {#if m === 'smooth'}<div class="notice warn">{t("Batch pre-piercing is unavailable with smooth piercing.")}</div>{/if}
-      {#if m === 'none'}<div class="notice info">Needs staged piercing; the switch is kept as data until then.</div>{/if}
+      {#if m === 'none'}<div class="notice info">{tl("Needs staged piercing; the switch is kept as data until then.")}</div>{/if}
       <Field {ed} key="PreDrill" row note="Pierce a batch of contours before cutting them." />
-      <p><strong>{caps?.pre_pierce_batch ?? 'Not set'}</strong>{caps?.pre_pierce_batch != null ? ' contours per batch' : ''} <span class="muted">· from the machine's operating settings (PreDrillMaxNum)</span></p>
+      <p><strong>{caps?.pre_pierce_batch ?? t('Not set')}</strong>{caps?.pre_pierce_batch != null ? ' contours per batch' : ''} <span class="muted">{tl("· from the machine's operating settings (PreDrillMaxNum)")}</span></p>
       <Field {ed} key="AfterPreDrillMustDrillBeforeCut" row />
       <Field {ed} key="PreDrillIsNotUp" row note="Lifts at the batch boundary and after the final point." />
     {:else if which === 'film'}
       <Field {ed} key="WithFilm" row note="A separate pass over each contour's bare geometry before its cut." />
-      {#if isOn(v['WithFilm']) && !film}<div class="notice warn">Select a film process; compiling refuses without one.</div>{/if}
-      <div class="field"><span class="lbl">Film process</span>
+      {#if isOn(v['WithFilm']) && !film}<div class="notice warn">{tl("Select a film process; compiling refuses without one.")}</div>{/if}
+      <div class="field"><span class="lbl">{tl("Film process")}</span>
         <div class="pick-list">
-          <button class="from" class:on={!film} onclick={() => onfilm(null)}><span>None</span></button>
-          {#each candidates as r (r.id)}<button class="from" class:on={film?.id === r.id} onclick={() => onfilm(r.id)}><span>{r.name}</span><small>{quantity(r.thickness_mm, 'mm')} · {r.gas}</small></button>{/each}
+          <button class="from" class:on={!film} onclick={() => onfilm(null)}><span>{tl("None")}</span></button>
+          {#each candidates as r (r.id)}<button class="from" class:on={film?.id === r.id} onclick={() => onfilm(r.id)}><span>{r.name}</span><small>{quantity(r.thickness_mm, 'mm')} · {t(r.gas)}</small></button>{/each}
         </div>
       </div>
-      <p class="muted">Film removal uses its selected recipe.</p>
-      <p><strong>{caps?.film_batch ? t("{0} contours per batch", caps.film_batch) : t("Batch: whole job")}</strong> <span class="muted">· from the machine's operating settings (ClearUpFilmNum_Pre)</span></p>
+      <p class="muted">{tl("Film removal uses its selected recipe.")}</p>
+      <p><strong>{caps?.film_batch ? t("{0} contours per batch", caps.film_batch) : t("Batch: whole job")}</strong> <span class="muted">{tl("· from the machine's operating settings (ClearUpFilmNum_Pre)")}</span></p>
     {:else if which === 'shift'}
       <Field {ed} key="EnableContourShift" row note="Shifts cutting and film paths; keeps the sheet origin." />
       <div class="fields"><Field {ed} key="ContourShiftXDist" /><Field {ed} key="ContourShiftYDist" /></div>
     {/if}
     {#if which !== 'review' && which !== 'inspector'}
-      <p class="muted">Gas selections: {GAS.filter((_, i) => ed.a.gases.includes(i)).join(', ') || 'none wired'}. Save to keep edits.</p>
+      <p class="muted">{t('Gas selections: {0}. Save to keep edits.', GAS.filter((_, i) => ed.a.gases.includes(i)).map((g) => t(g)).join(', ') || t('none wired'))}</p>
     {/if}
   </div>
 </Modal>

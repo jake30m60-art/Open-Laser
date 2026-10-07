@@ -45,10 +45,10 @@
 
 <Modal title={t("Add sheets to nest on")} wide {onclose}>
   <div class="stock-tabs seg">
-    <button class:on={page === 'rack'} onclick={() => page = 'rack'}>On the rack</button>
-    <button class:on={page === 'remnants'} onclick={() => page = 'remnants'}>Remnants</button>
-    <button class:on={page === 'new'} onclick={() => page = 'new'}>New sheets</button>
-    <button class:on={page === 'drawing'} onclick={() => page = 'drawing'}>From drawing</button>
+    <button class:on={page === 'rack'} onclick={() => page = 'rack'}>{t("On the rack")}</button>
+    <button class:on={page === 'remnants'} onclick={() => page = 'remnants'}>{t("Remnants")}</button>
+    <button class:on={page === 'new'} onclick={() => page = 'new'}>{t("New sheets")}</button>
+    <button class:on={page === 'drawing'} onclick={() => page = 'drawing'}>{t("From drawing")}</button>
   </div>
   {#if page === 'new'}
     <div class="new-stock">
@@ -58,7 +58,7 @@
         </div>
       </div>
       <div class="sheet-form">
-        <h3>New sheet</h3>
+        <h3>{t("New sheet")}</h3>
         <SheetSizePicker bind:width bind:height />
         <button
           class="btn btn-primary lg block"
@@ -71,19 +71,19 @@
       {#each rack as item (item.id)}
         <button class="rack-choice" onclick={() => add({ kind: 'stock', id: item.id, count: 1 })}>
           <strong>{sheetLabel(item.width_mm, item.height_mm)}</strong>
-          <span>{plural(item.quantity, 'sheet')} on hand</span>
+          <span>{t('{0} on hand', plural(item.quantity, 'sheet'))}</span>
         </button>
       {:else}
-        <p class="empty">{taken.length ? t("Already in the list.") : 'None on the rack.'}</p>
+        <p class="empty">{taken.length ? t("Already in the list.") : t('None on the rack.')}</p>
       {/each}
       <button class="btn btn-ghost" onclick={() => adding = true}>{t("+ Add sheets to the rack")}</button>
     </div>
   {:else if page === 'remnants'}<SheetLibrary onchoose={useRemnant} />
   {:else}
     <div class="drawing-stock">
-      <h3>Use an existing outline</h3>
-      <p>Tap a closed outline. It becomes the sheet and is not cut.</p>
-      <button class="btn btn-primary lg" onclick={chooseOutline}>Choose outline on drawing</button>
+      <h3>{t("Use an existing outline")}</h3>
+      <p>{t("Tap a closed outline. It becomes the sheet and is not cut.")}</p>
+      <button class="btn btn-primary lg" onclick={chooseOutline}>{t("Choose outline on drawing")}</button>
     </div>
   {/if}
 </Modal>

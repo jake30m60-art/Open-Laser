@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tl } from '../i18n/index';
   import { t } from '../i18n/index';
 
   import { setupAlarms } from '../lib/setup-alarms';
@@ -30,15 +31,15 @@
   const done = $derived({ parts: !!doc?.draft, setup: !!doc?.draft?.compiled, run: false });
   const alarmCount = $derived((doc?.machine.alarms.length ?? 0) + setupAlarms(doc).length);
   const persistenceError = $derived(doc?.persistence_error || recipeEdits.storageError || settingsEdits.error);
-  const settingsName = (page: number): string => SETTINGS_PAGES.find(item => item.id === page)?.label ?? 'Settings';
+  const settingsName = (page: number): string => SETTINGS_PAGES.find(item => item.id === page)?.label ?? t('Settings');
   type Detail = { tab:Tab; kind:'setup' | 'layout' | 'controls' | 'recovery' | 'machine'; title:string; restart?:boolean };
   let detail = $state<Detail | null>(ui.tab === 'machine' ? { tab:'machine',kind:'machine',title:settingsName(ui.machinePage) } : null);
   const section = $derived(detail?.tab === ui.tab ? detail : null);
   let connecting = $state(false);
   const backLabel = $derived(
-    ui.tab === 'materials' || ui.tab === 'machine' ? 'Back to Settings'
-    : ui.tab === 'run' ? 'Back to Run'
-    : 'Back to Setup',
+    ui.tab === 'materials' || ui.tab === 'machine' ? t('Back to Settings')
+    : ui.tab === 'run' ? t('Back to Run')
+    : t('Back to Setup'),
   );
   $effect(() => { if (section?.kind === 'setup' && !ui.setupPanel) back(); });
   $effect(() => { if (ui.tab === 'machine' && ui.checklistEditor) setting(1); });
@@ -57,16 +58,16 @@
   function go(tab:Tab): void { back(); ui.tab = tab; }
   function edit(tool:FeatureId | 'copy' | 'nest' | 'layout'): void {
     ui.setupPanel = tool === 'layout' ? null : tool;
-    const title = tool === 'layout' ? 'Edit layout'
-      : tool === 'copy' ? 'Copy machining'
-      : tool === 'nest' ? 'Nest parts'
+    const title = tool === 'layout' ? t('Edit layout')
+      : tool === 'copy' ? t('Copy machining')
+      : tool === 'nest' ? t('Nest parts')
       : TOOLS.find(t => t.id === tool)!.name;
     detail = { tab:'setup',kind:tool === 'layout' ? 'layout' : 'setup',title };
   }
   function setting(page:number): void { ui.machinePage = page; detail = { tab:'machine',kind:'machine',title:settingsName(page) }; }
-  function showControls(): void { detail = { tab:'run',kind:'controls',title:'Controls' }; }
+  function showControls(): void { detail = { tab:'run',kind:'controls',title:t('Controls') }; }
   function showReview(restart = false): void {
-    detail = { tab:'run',kind:'recovery',title:restart ? 'Restart editor' : 'Run preview',restart };
+    detail = { tab:'run',kind:'recovery',title:restart ? t('Restart editor') : t('Run preview'),restart };
   }
   async function connect(): Promise<void> {
     if (connecting) return;
@@ -83,7 +84,7 @@
 
 <div class="phone-app">
   <header class="phone-header">
-    <img src={ui.theme === 'dark' ? '/logo-white.svg' : '/logo.svg'} alt="OpenLaser" />
+    <img src={ui.theme === 'dark' ? '/logo-white.svg' : '/logo.svg'} alt={tl("OpenLaser")} />
     <div>
       <button
         class="phone-connection" class:connected disabled={!access.canControl || !server.link || connecting}
@@ -95,11 +96,11 @@
     </div>
   </header>
   {#if persistenceError}<div class="phone-notice" role="alert">{persistenceError}</div>{/if}
-  {#if doc && !server.link}<div class="phone-notice" role="status">Connection lost · reconnecting…</div>{/if}
+  {#if doc && !server.link}<div class="phone-notice" role="status">{tl("Connection lost · reconnecting…")}</div>{/if}
   {#if section || ui.tab === 'materials'}
     <div class="phone-detail-header">
-      <button class="phone-icon" aria-label={backLabel} onclick={back}><i class="ic ic-arrow-left"></i></button>
-      <h1>{section?.title ?? 'Material library'}</h1>
+      <button class="phone-icon" aria-label={t(backLabel)} onclick={back}><i class="ic ic-arrow-left"></i></button>
+      <h1>{section ? t(section.title) : t('Material library')}</h1>
     </div>
   {/if}
   <main
@@ -123,11 +124,11 @@
     {:else}<Settings open={setting} materials={() => ui.tab = 'materials'} />{/if}
   </main>
   <div class="phone-stop"><button disabled={!doc?.readiness.stop.ok || !server.link} onclick={stop}><i class="ic ic-stop"></i>{t("Stop motion")}</button></div>
-  <nav class="phone-nav" aria-label="Main navigation">
+  <nav class="phone-nav" aria-label={tl("Main navigation")}>
     {#each WORKFLOW as step}
       <button aria-current={ui.tab === step.id ? 'page' : undefined} onclick={() => go(step.id)}>
         <span class="phone-step" class:complete={done[step.id]}>{#if done[step.id]}<i class="ic ic-check"></i>{:else}{step.number}{/if}</span>
-        {step.label}
+        {t(step.label)}
       </button>
     {/each}
     <button aria-current={ui.tab === SETTINGS.id || ui.tab === 'materials' ? 'page' : undefined} onclick={() => go(SETTINGS.id)}>

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { t } from '../i18n/index';
+  import { chooseLocale, storedLocale } from '../i18n/browser';
+  const locale = storedLocale();
 
   // Settings: one sidebar of sections with search, Advanced last. Display,
   // checklist, route and gas settings save as they change; only what writes
@@ -139,6 +141,12 @@
           </button>
         </div>
       </div>
+      <div class="setting"><div class="lbl">Sprache · Language</div>
+        <div class="seg" role="group" aria-label="Sprache · Language">
+          <button class:on={locale === 'de'} aria-pressed={locale === 'de'} onclick={() => locale !== 'de' && chooseLocale('de')}>Deutsch</button>
+          <button class:on={locale === 'en'} aria-pressed={locale === 'en'} onclick={() => locale !== 'en' && chooseLocale('en')}>English</button>
+        </div>
+      </div>
       <div class="setting">
         <div class="lbl">{t("Night mode")}<small>{t("Dark colours for this screen")}</small></div>
         <button
@@ -152,11 +160,11 @@
       </div>
       <div class="setting">
         <div class="lbl">{t("Hold to move or fire")}<small>{t("Every screen")}</small></div>
-        <button class="val" data-numpad onclick={() => holdTime('move_ms', 'Hold to move or fire')}>{holdSeconds(doc.hold.move_ms)}</button>
+        <button class="val" data-numpad onclick={() => holdTime('move_ms', t('Hold to move or fire'))}>{holdSeconds(doc.hold.move_ms)}</button>
       </div>
       <div class="setting">
         <div class="lbl">{t("Hold to set origin")}<small>{t("Every screen")}</small></div>
-        <button class="val" data-numpad onclick={() => holdTime('zero_ms', 'Hold to set origin')}>{holdSeconds(doc.hold.zero_ms)}</button>
+        <button class="val" data-numpad onclick={() => holdTime('zero_ms', t('Hold to set origin'))}>{holdSeconds(doc.hold.zero_ms)}</button>
       </div>
     </div>
   {:else if name === 'checklists'}
@@ -191,7 +199,7 @@
         <div class="val">{scaleText}</div>
       </div>
       <div class="setting">
-        <div class="lbl">{t("Machine backup")}<small>{doc.files.backup?.name ?? doc.bindings_error ?? 'None loaded'}</small></div>
+        <div class="lbl">{t("Machine backup")}<small>{doc.files.backup?.name ?? doc.bindings_error ?? t('None loaded')}</small></div>
         <MachineFiles disabled={!!machine.operation} />
       </div>
     </div>
@@ -236,7 +244,7 @@
           <div class="val">{feedback ? (inputOn(rule.input) ? t("high") : t("low")) : '—'}</div>
         </div>
       {:else}
-        <div class="setting"><div class="lbl">{t("No input rules")}<small>{doc.bindings_error ?? 'Load the machine backup and connect'}</small></div></div>
+        <div class="setting"><div class="lbl">{t("No input rules")}<small>{doc.bindings_error ?? t('Load the machine backup and connect')}</small></div></div>
       {/each}
     </div>
   {:else if name === 'materials'}
@@ -254,7 +262,7 @@
     <div class="setting-group"><h3>{t("Head calibration")}</h3>
       <div class="setting">
         <div class="lbl">{t("On this connection")}<small>{t("Calibrate from Run")}</small></div>
-        <div class="val">{machine.session.calibration ?? 'not yet'}</div>
+        <div class="val">{machine.session.calibration ?? t('not yet')}</div>
       </div>
     </div>
   {:else if name === 'matrix'}

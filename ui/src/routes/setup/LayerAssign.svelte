@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
   // Where selected shapes go, as LightBurn's palette sends them: a layer the
   // job has, or a new one named here, whose settings open next.
   import Modal from '../../components/Modal.svelte';
@@ -34,7 +35,7 @@
         <span class="swatch" style:--layer={swatchColor(layers, layer.name)}></span>{layer.name}
       </button>
     {/each}
-    <button class="chip new" disabled={busy} onclick={create}><i class="ic ic-plus"></i>New layer…</button>
+    <button class="chip new" disabled={busy} onclick={create}><i class="ic ic-plus"></i>{t("New layer…")}</button>
   </div>
 </Modal>
 

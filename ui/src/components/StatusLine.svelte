@@ -34,27 +34,27 @@
     <button class="status-summary" onclick={() => (open = !open)} disabled={!expandable} aria-expanded={expandable ? open : undefined}>
       <span class="dot" aria-hidden="true"></span>
       <span class="status-text" role="status">{line.text}</span>
-      {#if expandable}<span class="more">{open ? 'Hide' : t("Details")}</span>{/if}
+      {#if expandable}<span class="more">{open ? t('Hide') : t("Details")}</span>{/if}
     </button>
     {#if open && expandable}
       <div class="status-details">
         {#if alarms.length || setup.length}
           <ul class="status-alarms">
-            {#each setup as alarm (alarm.title)}<li><strong>{alarm.title}</strong><span>{alarm.fix}</span></li>{/each}
+            {#each setup as alarm (alarm.title)}<li><strong>{t(alarm.title)}</strong><span>{t(alarm.fix)}</span></li>{/each}
             {#each alarmTitles(alarms) as title (title)}
               {@const alarm = alarms.find((row) => row.title === title)!}
-              <li><strong>{title}</strong><span>{alarm.fix}</span></li>
+              <li><strong>{t(title)}</strong><span>{t(alarm.fix)}</span></li>
             {/each}
           </ul>
-          <button class="btn btn-ghost" onclick={() => (ui.modal = 'alarms')}>Open alarms</button>
+          <button class="btn btn-ghost" onclick={() => (ui.modal = 'alarms')}>{t("Open alarms")}</button>
         {/if}
         {#if blocked.length}
           <ul class="status-controls">
-            {#each blocked as { names, reason } (names.join())}<li><strong>{names.join(', ')}</strong><span>{reason.text}</span></li>{/each}
+            {#each blocked as { names, reason } (names.join())}<li><strong>{names.map((name) => t(name)).join(', ')}</strong><span>{reason.text}</span></li>{/each}
           </ul>
         {/if}
         {#if details.length}
-          <details class="technical"><summary>Technical details</summary>{#each details as detail}<code>{detail}</code>{/each}</details>
+          <details class="technical"><summary>{t("Technical details")}</summary>{#each details as detail}<code>{detail}</code>{/each}</details>
         {/if}
       </div>
     {/if}

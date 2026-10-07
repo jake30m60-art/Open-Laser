@@ -37,7 +37,7 @@
   const retained = $derived(execution && !execution.frame && original?.id === doc.recovery?.id ? original : null);
   const compiled = $derived(retained?.compiled ?? execution?.compiled ?? draft?.compiled);
   const material = $derived(execution?.material ?? draft?.recipe);
-  const name = $derived(execution?.name ?? (draft?.name || 'Current job'));
+  const name = $derived(execution?.name ?? (draft?.name || t('Current job')));
   const program = $derived(doc.machine.program);
   const running = $derived(program?.state === 'running' || program?.state === 'finishing');
   const paused = $derived(program?.state === 'held');
@@ -52,12 +52,12 @@
   /** The badge beside the title: what the loaded program is doing or will do. */
   const modeLabel = $derived.by(() => {
     if (!compiled) return '';
-    if (completed) return 'Finished';
-    if (running) return execution?.frame ? 'Frame' : compiled.dry_run ? 'Dry run' : 'Running';
-    if (paused) return 'Paused';
-    if (program?.state === 'stopped') return 'Stopped';
-    if (program?.state === 'failed') return 'Interrupted';
-    return compiled.dry_run ? 'Dry run' : 'Cut';
+    if (completed) return t('Finished');
+    if (running) return execution?.frame ? t('Frame') : compiled.dry_run ? t('Dry run') : t('Running');
+    if (paused) return t('Paused');
+    if (program?.state === 'stopped') return t('Stopped');
+    if (program?.state === 'failed') return t('Interrupted');
+    return compiled.dry_run ? t('Dry run') : 'Cut';
   });
   // Without a setup step, the chip says what the loaded program is doing or why Start waits.
   const chipMessage = $derived(!compiled ? (draft?.error ?? doc.readiness.run.reason ?? '')
@@ -87,7 +87,7 @@
       {#if !running && !recovering}
         <div class="seg phone-run-choice" role="group" aria-label={t("Run type")}>
           <button class:on={!draft.dry_run} disabled={compileBlocked} onclick={() => perform(() => api.compile(false))}>{t("Cut")}</button>
-          <button class:on={draft.dry_run} disabled={compileBlocked} onclick={() => perform(() => api.compile(true))}>Dry run</button>
+          <button class:on={draft.dry_run} disabled={compileBlocked} onclick={() => perform(() => api.compile(true))}>{t("Dry run")}</button>
         </div>
       {/if}
       <section class="phone-job-card">
@@ -96,36 +96,36 @@
             <h2>{name}</h2>
             <p class="phone-job-material">
               {material ? recipeLabel(material) : t("No material")}
-              {#if material}<button class="values-toggle" aria-expanded={valuesOpen} onclick={() => (valuesOpen = !valuesOpen)}>{valuesOpen ? 'Hide values' : 'Values'}</button>{/if}
+              {#if material}<button class="values-toggle" aria-expanded={valuesOpen} onclick={() => (valuesOpen = !valuesOpen)}>{valuesOpen ? t('Hide values') : t('Values')}</button>{/if}
             </p>
             {#if material && valuesOpen}<p class="phone-job-summary"><MaterialSummary source={material} variant="line" /></p>{/if}
           </div>
         </div>
-        <button class="phone-preview-button" aria-label="View toolpath" onclick={() => review()}><Preview {outline} /></button>
+        <button class="phone-preview-button" aria-label={t("View toolpath")} onclick={() => review()}><Preview {outline} /></button>
         {#if compiled}
           <div class="phone-progress">
             <div>
               <strong>{percent}<small>%</small></strong>
-              <span>{done} / {total} passes</span>
-              <span>{seconds(compiled.seconds * (1 - percent / 100))}<small>{running ? 'estimated left' : 'estimated time'}</small></span>
+              <span>{t('{0} / {1} passes', done, total)}</span>
+              <span>{seconds(compiled.seconds * (1 - percent / 100))}<small>{running ? t('estimated left') : t('estimated time')}</small></span>
             </div>
-            <progress aria-label="Job progress" max="100" value={percent}></progress>
+            <progress aria-label={t("Job progress")} max="100" value={percent}></progress>
           </div>
         {/if}
       </section>
       {#if paused && doc.recovery?.pause_position}
         <p class="phone-pause-position" role="status">
-          Paused at X {quantity(doc.recovery.pause_position[0], 'mm')} · Y {quantity(doc.recovery.pause_position[1], 'mm')}.
-          Use Controls to move the head. Resume returns here.
+          {t('Paused at X {0} · Y {1}.', quantity(doc.recovery.pause_position[0], 'mm'), quantity(doc.recovery.pause_position[1], 'mm'))}
+          {t('Use Controls to move the head. Resume returns here.')}
         </p>
       {/if}
       {#if recovering}<button class="phone-review-restart" onclick={() => review(true)}>{t("Adjust restart…")}<i class="ic ic-arrow-right"></i></button>{/if}
     {:else}
       <div class="phone-empty">
         <i class="ic ic-folder"></i>
-        <h2>No part open</h2>
+        <h2>{t("No part open")}</h2>
         <p>{t("Choose a part or saved job to begin.")}</p>
-        <button class="phone-primary" onclick={() => ui.tab = 'parts'}>Go to Parts</button>
+        <button class="phone-primary" onclick={() => ui.tab = 'parts'}>{t("Go to Parts")}</button>
       </div>
     {/if}
   </div>
@@ -136,7 +136,7 @@
     <div class="phone-run-tools">
       <button onclick={controls}><i class="ic ic-target"></i>{t("Controls")}</button>
       <HoldButton class="" disabled={blocked || !doc.readiness.frame.ok} onhold={() => perform(() => api.machine('frame'))}>
-        <i class="ic ic-frame"></i>Frame
+        <i class="ic ic-frame"></i>{t("Frame")}
       </HoldButton>
     </div>
   </div>

@@ -42,13 +42,13 @@
       : null,
   );
   const labels: Record<SettingKey, string> = {
-    route: 'Controller route',
-    preflight: 'Checklist defaults',
-    theme: 'Display theme',
-    hold: 'Hold times',
-    backup: 'Machine backup',
-    soft: 'Process settings',
-    xml: 'Machine XML settings',
+    route: t('Controller route'),
+    preflight: t('Checklist defaults'),
+    theme: t('Display theme'),
+    hold: t('Hold times'),
+    backup: t('Machine backup'),
+    soft: t('Process settings'),
+    xml: t('Machine XML settings'),
   };
   // Another screen saved hold times after these were staged: choose first.
   const holdConflict = $derived(!!staged.hold && !same(doc.hold, staged.hold.base));
@@ -113,7 +113,7 @@
     ui.pendingJobName = null;
   }
   async function saveRecipe(recipe: RecipeView): Promise<void> {
-    if (recipeEdits.conflicts(recipe).length) throw new Error('Choose the material values to keep.');
+    if (recipeEdits.conflicts(recipe).length) throw new Error(t('Choose the material values to keep.'));
     const save = recipeEdits.begin(recipe.id);
     if (!save) return;
     try {
@@ -130,22 +130,22 @@
     const connected = doc.machine.connection.state === 'connected';
     const count = key === 'xml' ? Object.keys(staged.xml?.edits ?? {}).length : 0;
     const what = key === 'xml'
-      ? `${plural(count, 'changed value')} replace the machine settings`
-      : `${staged.backup?.name ?? 'The staged backup'} replaces the machine settings`;
+      ? t('{0} replace the machine settings', plural(count, 'changed value'))
+      : t('{0} replaces the machine settings', staged.backup?.name ?? t('The staged backup'));
     const when = connected
-      ? ', and the connected controller is written and read back to verify them.'
-      : '. The controller is written when it next connects.';
+      ? t(', and the connected controller is written and read back to verify them.')
+      : t('. The controller is written when it next connects.');
     return ui.confirm({
-      title: key === 'xml' ? 'Save machine settings?' : 'Use this machine backup?',
+      title: key === 'xml' ? t('Save machine settings?') : t('Use this machine backup?'),
       body: `${what}${when}`,
-      confirm: connected ? 'Save and write controller' : t("Save settings"),
+      confirm: connected ? t('Save and write controller') : t("Save settings"),
     });
   }
 
   async function saveSetting(key: SettingKey): Promise<void> {
     savedTheme = settingsEdits.readTheme();
     if (key === 'route' && staged.route) {
-      if (routeConflicts.length) throw new Error('Choose the route values to keep.');
+      if (routeConflicts.length) throw new Error(t('Choose the route values to keep.'));
       const edits = Object.entries(staged.route);
       await api.setRoute({
         ...Object.fromEntries(edits.map(([k, e]) => [k, e.value])),
@@ -155,7 +155,7 @@
       const saved = await api.preflightPreferences();
       const merged = mergePreferences($state.snapshot(staged.preflight.base), $state.snapshot(staged.preflight.value), saved);
       preferences = saved;
-      if (merged.conflicts.length) throw new Error('Choose the checklist values to keep.');
+      if (merged.conflicts.length) throw new Error(t('Choose the checklist values to keep.'));
       await api.savePreflightPreferences(merged.value);
     } else if (key === 'hold' && staged.hold) {
       await api.saveHoldTimes($state.snapshot(staged.hold.value), $state.snapshot(staged.hold.base));
@@ -173,8 +173,8 @@
     if (reviewing) reviewing.choices[path] = keep;
   }
   function draftNote(draft: PendingDraft): string {
-    const kind = draft.job ? 'Job' : 'Unsaved job setup';
-    return `${kind}${draft.problem ? ` · ${draft.problem}` : !draft.can_save ? ' · choose a material before saving' : ''}`;
+    const kind = t(draft.job ? 'Job' : 'Unsaved job setup');
+    return `${kind}${draft.problem ? ` · ${t(draft.problem)}` : !draft.can_save ? ` · ${t('choose a material before saving')}` : ''}`;
   }
   function openDraft(draft: PendingDraft): Promise<void> {
     return run(async () => {
@@ -185,8 +185,8 @@
   }
   async function discardDraft(draft: PendingDraft): Promise<void> {
     const ok = await ui.confirm({
-      title: 'Discard this job setup?',
-      body: `The working copy of “${draft.name}” is deleted. Saved jobs and parts stay as they are.`,
+      title: t('Discard this job setup?'),
+      body: t('The working copy of “{0}” is deleted. Saved jobs and parts stay as they are.', draft.name),
       confirm: 'Discard setup',
       danger: true,
     });
@@ -204,8 +204,8 @@
   }
   async function discardRecipe(id: string, recipe: RecipeView | undefined): Promise<void> {
     const ok = await ui.confirm({
-      title: 'Discard these material values?',
-      body: t("{0} staged values for {1} are thrown away.", recipeEdits.count(id), recipe?.name ?? 'this material'),
+      title: t('Discard these material values?'),
+      body: t("{0} staged values for {1} are thrown away.", recipeEdits.count(id), recipe?.name ?? t('this material')),
       confirm: 'Discard values',
       danger: true,
     });
@@ -218,7 +218,7 @@
   }
   async function discardSetting(key: SettingKey): Promise<void> {
     const ok = await ui.confirm({
-      title: `Discard ${labels[key].toLowerCase()} edits?`,
+      title: t('Discard edits to {0}?', labels[key]),
       body: 'The staged changes on this screen are thrown away.',
       confirm: t("Discard edits"),
       danger: true,
@@ -248,27 +248,27 @@
   }
 </script>
 <Modal title={t("Pending changes")} wide {onclose}>
-  <p class="muted">Review and save each item.</p>
+  <p class="muted">{t("Review and save each item.")}</p>
   {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
   {#if doc.persistence_error || recipeEdits.storageError || settingsEdits.error}
     <p class="warn-text" role="alert">{doc.persistence_error ?? recipeEdits.storageError ?? settingsEdits.error}</p>
   {/if}
-  {#if !loaded}<p class="muted">Loading retained edits…</p>{/if}
+  {#if !loaded}<p class="muted">{t("Loading retained edits…")}</p>{/if}
   {#if reviewing}
-    <section class="pending-item"><h3>Resolve {reviewing.name}</h3>
+    <section class="pending-item"><h3>{t('Resolve {0}', reviewing.name)}</h3>
       {#each reviewing.review.conflicts as conflict}
         <div class="conflict">
-          <strong>{conflict.path === '/part' ? 'Parts and their layout' : conflict.path}</strong>
-          <small>Base: {conflictText(conflict.base, conflict.path)}</small>
+          <strong>{conflict.path === '/part' ? t('Parts and their layout') : conflict.path}</strong>
+          <small>{t('Base: {0}', conflictText(conflict.base, conflict.path))}</small>
           <button class="choice" class:chosen={reviewing.choices[conflict.path] === true} onclick={() => chooseJob(conflict.path, true)}
-            >Keep draft: {conflictText(conflict.draft, conflict.path)}</button>
+            >{t('Keep draft: {0}', conflictText(conflict.draft, conflict.path))}</button>
           <button class="choice" class:chosen={reviewing.choices[conflict.path] === false} onclick={() => chooseJob(conflict.path, false)}
-            >Keep saved: {conflictText(conflict.saved, conflict.path)}</button>
+            >{t('Keep saved: {0}', conflictText(conflict.saved, conflict.path))}</button>
         </div>
       {/each}
       <div class="actions">
         <button class="btn btn-ghost" onclick={() => (reviewing = null)}>{t("Back")}</button>
-        <button class="btn btn-primary" disabled={busy || unresolved} onclick={() => run(resolveJob)}>Resolve and save</button>
+        <button class="btn btn-primary" disabled={busy || unresolved} onclick={() => run(resolveJob)}>{t("Resolve and save")}</button>
       </div>
     </section>
   {/if}
@@ -277,7 +277,7 @@
       <div class="row">
         <div><h3>{draft.name}</h3><small>{draftNote(draft)}</small></div>
         <div class="actions">
-          <button class="btn btn-ghost" disabled={busy || !!draft.problem} onclick={() => openDraft(draft)}>Open</button>
+          <button class="btn btn-ghost" disabled={busy || !!draft.problem} onclick={() => openDraft(draft)}>{t("Open")}</button>
           <button class="btn btn-ghost" disabled={busy} onclick={() => discardDraft(draft)}>{t("Discard")}</button>
           <button class="btn btn-primary" disabled={busy || !draft.can_save} onclick={() => run(() => saveDraft(draft))}>{t("Save job")}</button>
         </div>
@@ -289,9 +289,9 @@
     {@const conflicts = recipe ? recipeEdits.conflicts(recipe) : []}
     <section class="pending-item">
       <div class="row">
-        <div><h3>{recipe?.name ?? 'Deleted material'}</h3><small>{recipeEdits.count(id)} staged material values</small></div>
+        <div><h3>{recipe?.name ?? t('Deleted material')}</h3><small>{t('{0} staged material values', recipeEdits.count(id))}</small></div>
         <div class="actions">
-          <button class="btn btn-ghost" disabled={busy} onclick={() => openRecipe(id)}>Open</button>
+          <button class="btn btn-ghost" disabled={busy} onclick={() => openRecipe(id)}>{t("Open")}</button>
           <button class="btn btn-ghost" disabled={busy} onclick={() => discardRecipe(id, recipe)}>{t("Discard")}</button>
           <button class="btn btn-primary" disabled={busy || !recipe || !!conflicts.length} onclick={() => recipe && run(() => saveRecipe(recipe))}>{t("Save")}</button>
         </div>
@@ -299,14 +299,14 @@
       {#each conflicts as conflict}
         <div class="conflict">
           <strong>{conflict.key}</strong>
-          <small>Base: {shown(conflict.key, conflict.base)}</small>
+          <small>{t('Base: {0}', shown(conflict.key, conflict.base))}</small>
           <button class="choice" onclick={() => recipe && recipeEdits.resolve(recipe, conflict.key, true)}
-            >Keep draft: {shown(conflict.key, conflict.draft)}</button>
+            >{t('Keep draft: {0}', shown(conflict.key, conflict.draft))}</button>
           <button class="choice" onclick={() => recipe && recipeEdits.resolve(recipe, conflict.key, false)}
-            >Keep saved: {shown(conflict.key, conflict.saved)}</button>
+            >{t('Keep saved: {0}', shown(conflict.key, conflict.saved))}</button>
         </div>
       {/each}
-      <details><summary>Review values</summary><pre>{recipeReview(id)}</pre></details>
+      <details><summary>{t("Review values")}</summary><pre>{recipeReview(id)}</pre></details>
     </section>
   {/each}
   {#each settingsEdits.pending as key (key)}
@@ -321,9 +321,9 @@
       {#if key === 'theme'}<p>{staged.theme?.base} → {staged.theme?.value}</p>
         {#if staged.theme && savedTheme !== staged.theme.base && savedTheme !== staged.theme.value}
           <div class="conflict">
-            <small>Saved theme: {savedTheme}</small>
-            <button class="choice" onclick={() => run(() => settingsEdits.rebaseTheme())}>Keep draft theme</button>
-            <button class="choice" onclick={() => run(() => settingsEdits.discard('theme'))}>Keep saved theme</button>
+            <small>{t('Saved theme: {0}', t(savedTheme))}</small>
+            <button class="choice" onclick={() => run(() => settingsEdits.rebaseTheme())}>{t("Keep draft theme")}</button>
+            <button class="choice" onclick={() => run(() => settingsEdits.discard('theme'))}>{t("Keep saved theme")}</button>
           </div>
         {/if}
       {:else if key === 'route'}
@@ -331,21 +331,21 @@
         {#each routeConflicts as [field, edit]}
           <div class="conflict">
             <strong>{field}</strong>
-            <small>Base: {edit.base}</small>
-            <button class="choice" onclick={() => keepRoute(field, true)}>Keep draft: {edit.value}</button>
-            <button class="choice" onclick={() => keepRoute(field, false)}>Keep saved: {route[field as keyof typeof route]}</button>
+            <small>{t('Base: {0}', edit.base)}</small>
+            <button class="choice" onclick={() => keepRoute(field, true)}>{t('Keep draft: {0}', edit.value)}</button>
+            <button class="choice" onclick={() => keepRoute(field, false)}>{t('Keep saved: {0}', route[field as keyof typeof route])}</button>
           </div>
         {/each}
       {:else if key === 'preflight' && staged.preflight}
         {#each prefMerge?.conflicts ?? [] as conflict}
           <div class="conflict">
             <strong>{conflict.key}</strong>
-            <small>Base: {display(conflict.base)}</small>
-            <button class="choice" onclick={() => keepPreflight(conflict.key, true)}>Keep draft: {display(conflict.draft)}</button>
-            <button class="choice" onclick={() => keepPreflight(conflict.key, false)}>Keep saved: {display(conflict.saved)}</button>
+            <small>{t('Base: {0}', display(conflict.base))}</small>
+            <button class="choice" onclick={() => keepPreflight(conflict.key, true)}>{t('Keep draft: {0}', display(conflict.draft))}</button>
+            <button class="choice" onclick={() => keepPreflight(conflict.key, false)}>{t('Keep saved: {0}', display(conflict.saved))}</button>
           </div>
         {/each}
-        {#if prefMerge}<details><summary>Review checklists</summary>
+        {#if prefMerge}<details><summary>{t("Review checklists")}</summary>
           {#each [['Preflight', prefMerge.value], ['Pause', prefMerge.value.pause], ['Postflight', prefMerge.value.postflight]] as [phase, defaults]}
             {#each ['fiber', 'co2'] as mode}
               {@const list = (defaults as PreflightPreferences['postflight'])[mode as 'fiber' | 'co2']}
@@ -357,23 +357,23 @@
         </details>{/if}
       {:else if key === 'hold' && staged.hold}
         <p>
-          Move or fire: {holdSeconds(staged.hold.base.move_ms)} → {holdSeconds(staged.hold.value.move_ms)} ·
-          Set origin: {holdSeconds(staged.hold.base.zero_ms)} → {holdSeconds(staged.hold.value.zero_ms)} · every screen
+          {t('Move or fire: {0} → {1}', holdSeconds(staged.hold.base.move_ms), holdSeconds(staged.hold.value.move_ms))} ·
+          {t('Set origin: {0} → {1}', holdSeconds(staged.hold.base.zero_ms), holdSeconds(staged.hold.value.zero_ms))} · {t('every screen')}
         </p>
         {#if holdConflict}
           <div class="conflict">
-            <small>Saved on another screen: move or fire {holdSeconds(doc.hold.move_ms)} · set origin {holdSeconds(doc.hold.zero_ms)}</small>
-            <button class="choice" onclick={() => run(() => settingsEdits.rebaseHold($state.snapshot(doc.hold)))}>Keep these hold times</button>
-            <button class="choice" onclick={() => run(() => settingsEdits.discard('hold'))}>Keep saved hold times</button>
+            <small>{t('Saved on another screen: move or fire {0} · set origin {1}', holdSeconds(doc.hold.move_ms), holdSeconds(doc.hold.zero_ms))}</small>
+            <button class="choice" onclick={() => run(() => settingsEdits.rebaseHold($state.snapshot(doc.hold)))}>{t("Keep these hold times")}</button>
+            <button class="choice" onclick={() => run(() => settingsEdits.discard('hold'))}>{t("Keep saved hold times")}</button>
           </div>
         {/if}
       {:else if key === 'xml' && staged.xml}
-        <p>{Object.keys(staged.xml.edits).length} XML edits · applied on save when connected.</p>
+        <p>{t('{0} XML edits', Object.keys(staged.xml.edits).length)} · {t('applied on save when connected.')}</p>
         {#if staged.xml.base !== (doc.files.backup?.sha256 ?? '')}
-          <p class="warn-text">The backup changed. Open Settings to compare or discard these edits.</p>
+          <p class="warn-text">{t("The backup changed. Open Settings to compare or discard these edits.")}</p>
         {/if}
         <details>
-          <summary>Review values</summary>
+          <summary>{t("Review values")}</summary>
           {#each Object.values(staged.xml.edits) as field}
             <p><code>{field.path}/@{field.name}</code><br>{xmlValue(field, field.original, xmlFields)} → {xmlValue(field, field.value, xmlFields)}</p>
           {/each}
@@ -383,16 +383,16 @@
         <p>{file.name} · {(file.bytes.byteLength / 1024).toFixed(1)} kB</p>
         {#if file.base !== saved}
           <div class="conflict">
-            <small>Base: {file.base || 'none'}<br>Saved: {saved || 'none'}</small>
-            <button class="choice" onclick={() => run(() => settingsEdits.rebaseFile(key, saved))}>Keep selected file</button>
-            <button class="choice" onclick={() => run(() => settingsEdits.discard(key))}>Keep saved file</button>
+            <small>{t('Base: {0}', file.base || t('none'))}<br>{t('Saved: {0}', saved || t('none'))}</small>
+            <button class="choice" onclick={() => run(() => settingsEdits.rebaseFile(key, saved))}>{t("Keep selected file")}</button>
+            <button class="choice" onclick={() => run(() => settingsEdits.discard(key))}>{t("Keep saved file")}</button>
           </div>
         {/if}
       {/if}
     </section>
   {/each}
-  {#if ui.picking}<p class="muted">Finish or cancel point edits in Setup.</p>{/if}
-  {#if loaded && !drafts.length && !recipeEdits.pending.length && !settingsEdits.pending.length}<p>No pending changes.</p>{/if}
+  {#if ui.picking}<p class="muted">{t("Finish or cancel point edits in Setup.")}</p>{/if}
+  {#if loaded && !drafts.length && !recipeEdits.pending.length && !settingsEdits.pending.length}<p>{t("No pending changes.")}</p>{/if}
 </Modal>
 
 <style>

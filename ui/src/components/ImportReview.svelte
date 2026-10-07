@@ -60,11 +60,11 @@
         {/each}
       </svg>
       <figcaption>
-        <span class="key closed">Closed {review.contours - review.open.length - review.crossing.length}</span>
-        {#if review.open.length}<span class="key open">Open {review.open.length}</span>{/if}
-        {#if review.crossing.length}<span class="key crossing">Crosses itself {review.crossing.length}</span>{/if}
-        {#if review.repairs.gaps.length}<span class="key gap">Gap closed</span>{/if}
-        {#if review.repairs.duplicates.length}<span class="key duplicate">Repeat removed</span>{/if}
+        <span class="key closed">{t('Closed {0}', review.contours - review.open.length - review.crossing.length)}</span>
+        {#if review.open.length}<span class="key open">{t('Open {0}', review.open.length)}</span>{/if}
+        {#if review.crossing.length}<span class="key crossing">{t('Crosses itself {0}', review.crossing.length)}</span>{/if}
+        {#if review.repairs.gaps.length}<span class="key gap">{t("Gap closed")}</span>{/if}
+        {#if review.repairs.duplicates.length}<span class="key duplicate">{t("Repeat removed")}</span>{/if}
       </figcaption>
     </figure>
 
@@ -72,16 +72,16 @@
       {#if size}
         <p class="size" class:warn={size.tiny || size.exceeds_bed}>
           <strong>{size.size[0].toFixed(digits)} × {size.size[1].toFixed(digits)} mm</strong>
-          {#if size.bed}<span>Bed {size.bed[0].toFixed(0)} × {size.bed[1].toFixed(0)} mm</span>{/if}
-          {#if size.exceeds_bed}<span class="flag">Larger than the bed</span>{/if}
-          {#if size.tiny}<span class="flag">Very small; check the units</span>{/if}
+          {#if size.bed}<span>{t('Bed {0} × {1} mm', size.bed[0].toFixed(0), size.bed[1].toFixed(0))}</span>{/if}
+          {#if size.exceeds_bed}<span class="flag">{t("Larger than the bed")}</span>{/if}
+          {#if size.tiny}<span class="flag">{t("Very small; check the units")}</span>{/if}
         </p>
       {/if}
 
       {#if scaleChoosable(review)}
         <fieldset class="choices">
-          <legend>{review.scale?.units === 'ambiguous' ? 'The file does not say how large a pixel is' : review.scale?.units === 'illustrator' ? 'Written by Illustrator: 72 px per inch' : 'Written by Inkscape: 96 px per inch'}</legend>
-          <div class="scales" role="group" aria-label="Scale">
+          <legend>{review.scale?.units === 'ambiguous' ? t('The file does not say how large a pixel is') : review.scale?.units === 'illustrator' ? t('Written by Illustrator: 72 px per inch') : t('Written by Inkscape: 96 px per inch')}</legend>
+          <div class="scales" role="group" aria-label={t("Scale")}>
             {#each SCALES as [value, label] (value)}
               <button aria-pressed={scale === value} disabled={busy} onclick={() => chooseScale(value)}>{t(label)}</button>
             {/each}
@@ -91,7 +91,7 @@
 
       {#if layersChoosable(review)}
         <fieldset class="choices">
-          <legend>Layers</legend>
+          <legend>{t("Layers")}</legend>
           <ul class="import-layers">
             {#each review.layers as layer (layer.name)}
               <li>
@@ -107,7 +107,7 @@
       {/if}
 
       {#if repairs.length}
-        <div class="repairs"><h3>Repaired</h3><ul>{#each repairs as line (line)}<li>{line}</li>{/each}</ul></div>
+        <div class="repairs"><h3>{t("Repaired")}</h3><ul>{#each repairs as line (line)}<li>{line}</li>{/each}</ul></div>
       {/if}
 
       {#if review.warnings.length}
@@ -119,10 +119,10 @@
 
   <div class="actions">
     {#if remaining > 0}<button class="btn btn-ghost lg" disabled={busy} onclick={onstop}>{t("Stop importing")}</button>{/if}
-    <button class="btn btn-ghost lg" disabled={busy} onclick={onskip}>Skip file</button>
-    <button class="btn btn-primary lg" disabled={busy || review.contours === 0} onclick={onimport}>{busy ? 'Checking…' : t("Import")}</button>
+    <button class="btn btn-ghost lg" disabled={busy} onclick={onskip}>{t("Skip file")}</button>
+    <button class="btn btn-primary lg" disabled={busy || review.contours === 0} onclick={onimport}>{busy ? t('Checking…') : t("Import")}</button>
   </div>
-  {#if review.contours === 0}<p class="gate-reason">Choose at least one layer with geometry.</p>{/if}
+  {#if review.contours === 0}<p class="gate-reason">{t("Choose at least one layer with geometry.")}</p>{/if}
 </Modal>
 
 <style>

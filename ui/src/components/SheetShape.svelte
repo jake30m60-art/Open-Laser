@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
   import { boxOf, pathOf, viewBoxFor } from '../lib/svg';
-  let { outline, cutouts = [], label = 'Sheet boundary and existing cutouts' }: { outline: number[][]; cutouts?: number[][][]; label?: string } = $props();
+  let { outline, cutouts = [], label = t('Sheet boundary and existing cutouts') }: { outline: number[][]; cutouts?: number[][][]; label?: string } = $props();
   const bounds = $derived(boxOf([outline]));
 </script>
 <svg aria-label={label} role="img" viewBox={bounds ? viewBoxFor(bounds, 4, 3, .08) : '0 0 400 300'}>

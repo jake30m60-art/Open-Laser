@@ -26,22 +26,22 @@
   }
 </script>
 
-<div class="setting-group manual-tests"><h3>Manual tests</h3>
-  <div class="setting"><div class="lbl">Laser pulse<small>Laser fires at the current position.</small></div></div>
+<div class="setting-group manual-tests"><h3>{t("Manual tests")}</h3>
+  <div class="setting"><div class="lbl">{t("Laser pulse")}<small>{t("Laser fires at the current position.")}</small></div></div>
   <div class="test-fields">
-    <button class="test-value" onclick={() => osk.number('Pulse duration', pulseDuration, 'ms', v => { if (v >= 10 && v <= 1000) pulseDuration = Math.round(v); })}><span>Duration</span><strong>{pulseDuration} ms</strong></button>
-    <button class="test-value" onclick={() => osk.number('Pulse power', pulsePower, '%', v => { if (v >= 1 && v <= 100) pulsePower = Math.round(v); })}><span>{t("Power")}</span><strong>{pulsePower}%</strong></button>
-    <HoldButton class="btn btn-danger" disabled={!doc.readiness.jog.ok} onhold={() => run(() => api.machine('pulse', { pulse: { duration_ms: pulseDuration, power: pulsePower } }))}>Pulse laser</HoldButton>
+    <button class="test-value" onclick={() => osk.number(t('Pulse duration'), pulseDuration, 'ms', v => { if (v >= 10 && v <= 1000) pulseDuration = Math.round(v); })}><span>{t("Duration")}</span><strong>{pulseDuration} ms</strong></button>
+    <button class="test-value" onclick={() => osk.number(t('Pulse power'), pulsePower, '%', v => { if (v >= 1 && v <= 100) pulsePower = Math.round(v); })}><span>{t("Power")}</span><strong>{pulsePower}%</strong></button>
+    <HoldButton class="btn btn-danger" disabled={!doc.readiness.jog.ok} onhold={() => run(() => api.machine('pulse', { pulse: { duration_ms: pulseDuration, power: pulsePower } }))}>{t("Pulse laser")}</HoldButton>
   </div>
-  <div class="setting gas-label"><div class="lbl">Gas test<small>Timed valve test.</small></div></div>
-  <div class="gas-choices" role="group" aria-label="Gas test route">{#each gases as { name, selector }}<button
+  <div class="setting gas-label"><div class="lbl">{t("Gas test")}<small>{t("Timed valve test.")}</small></div></div>
+  <div class="gas-choices" role="group" aria-label={t("Gas test route")}>{#each gases as { name, selector }}<button
       class="btn" class:btn-primary={gas === selector} aria-pressed={gas === selector} disabled={!doc.bindings?.outputs.gas[selector]}
       onclick={() => (gas = selector)}>{name}</button>{/each}</div>
   <div class="test-fields gas-fields">
-    {#if route?.pressure}<button class="test-value" onclick={editPressure}><span>Pressure</span><strong>{quantity(pressure, 'bar')}</strong></button>{:else}<div
-      class="test-value"><span>Pressure</span><strong>{t("At regulator")}</strong></div>{/if}
-    <button class="test-value" onclick={() => osk.number('Gas test duration', gasDuration, 'ms', v => { if (v >= 50 && v <= 2000) gasDuration = Math.round(v); })}><span>Duration</span><strong>{gasDuration} ms</strong></button>
-    <HoldButton class="btn btn-warn" disabled={!doc.readiness.outputs.ok || !doc.bindings?.outputs.gas[gas]} onhold={() => run(() => api.machine('gas-test', { gas_test: { selector: gas, pressure, duration_ms: gasDuration } }))}>Test gas</HoldButton>
+    {#if route?.pressure}<button class="test-value" onclick={editPressure}><span>{t("Pressure")}</span><strong>{quantity(pressure, 'bar')}</strong></button>{:else}<div
+      class="test-value"><span>{t("Pressure")}</span><strong>{t("At regulator")}</strong></div>{/if}
+    <button class="test-value" onclick={() => osk.number(t('Gas test duration'), gasDuration, 'ms', v => { if (v >= 50 && v <= 2000) gasDuration = Math.round(v); })}><span>{t("Duration")}</span><strong>{gasDuration} ms</strong></button>
+    <HoldButton class="btn btn-warn" disabled={!doc.readiness.outputs.ok || !doc.bindings?.outputs.gas[gas]} onhold={() => run(() => api.machine('gas-test', { gas_test: { selector: gas, pressure, duration_ms: gasDuration } }))}>{t("Test gas")}</HoldButton>
   </div>
 </div>
 

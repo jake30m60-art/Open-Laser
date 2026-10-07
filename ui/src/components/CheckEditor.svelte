@@ -17,7 +17,7 @@
   const actionKind = (step: Check): string | undefined =>
     step.action?.kind === 'gas_test' ? 'job_gas_test' : step.action?.kind;
   const actionTitle = (step: Check): string | undefined =>
-    step.action ? ACTIONS.find(([kind]) => kind === actionKind(step))?.[1] : 'Optional action';
+    step.action ? ACTIONS.find(([kind]) => kind === actionKind(step))?.[1] : t('Optional action');
   function addStep(): void {
     steps = [...steps, { text: '', action: null, auto_check: false }];
   }
@@ -48,7 +48,7 @@
         <button class="btn btn-ghost icon-only" aria-label="Remove check {i + 1}" onclick={() => removeStep(i)}><i class="ic ic-x"></i></button>
       </div>
       <details>
-        <summary>{actionTitle(step)}{#if movesMachine(step.action)}<span class="motion-label">Moves machine</span>{/if}</summary>
+        <summary>{actionTitle(step)}{#if movesMachine(step.action)}<span class="motion-label">{t("Moves machine")}</span>{/if}</summary>
         <div class="action-fields">
           <fieldset class="choices">
             <legend>{t("Action")}</legend>
@@ -78,13 +78,13 @@
             {/each}
           {/if}
           {#if step.action?.kind === 'job_gas_test' || step.action?.kind === 'gas_test'}
-            <p class="gas-note">Uses the compiled job’s gas.</p>
-            <label>Duration · ms<input type="number" min="50" max="2000" step="50" bind:value={step.action.duration_ms}></label>
+            <p class="gas-note">{t("Uses the compiled job’s gas.")}</p>
+            <label>{t("Duration · ms")}<input type="number" min="50" max="2000" step="50" bind:value={step.action.duration_ms}></label>
           {/if}
         </div>
         {#if canAutoCheck(step.action)}
           <label class="auto-check"><input type="checkbox" bind:checked={step.auto_check}>{t("Auto-check from machine state")}</label>
-        {:else if step.action?.kind === 'gas_test' || step.action?.kind === 'job_gas_test'}<p class="muted">Confirm flow after testing.</p>{/if}
+        {:else if step.action?.kind === 'gas_test' || step.action?.kind === 'job_gas_test'}<p class="muted">{t("Confirm flow after testing.")}</p>{/if}
       </details>
     </div>
   {/each}

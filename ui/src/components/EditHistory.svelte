@@ -22,14 +22,14 @@
   }
 </script>
 
-<Modal title="Saved edit history" {onclose}>
+<Modal title={t("Saved edit history")} {onclose}>
   <div class="row"><button class="btn" disabled={busy || !history?.past.length} onclick={() => step(true)}>{t("Undo")}</button><button class="btn" disabled={busy || !history?.future.length} onclick={() => step(false)}>{t("Redo")}</button></div>
-  <p class="muted">Library history. Drawing Undo is in Setup.</p>
+  <p class="muted">{t("Library history. Drawing Undo is in Setup.")}</p>
   {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
   <div class="edits">
-    {#each [...(history?.future ?? [])].reverse() as edit (edit.id)}<div class="edit undone"><span>{edit.label}</span><small>undone</small></div>{/each}
+    {#each [...(history?.future ?? [])].reverse() as edit (edit.id)}<div class="edit undone"><span>{edit.label}</span><small>{t("undone")}</small></div>{/each}
     {#each [...(history?.past ?? [])].reverse() as edit (edit.id)}<div class="edit"><span>{edit.label}</span><small>{editTime(edit.at)}</small></div>
-    {:else}<p class="muted">No saved edits yet.</p>{/each}
+    {:else}<p class="muted">{t("No saved edits yet.")}</p>{/each}
   </div>
 </Modal>
 <style>

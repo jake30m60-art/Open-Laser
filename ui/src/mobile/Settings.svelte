@@ -10,12 +10,12 @@
 </script>
 
 <div class="phone-page-title"><h1>{t("Settings")}</h1><span class="version">v{APP_VERSION}</span></div>
-<label class="search phone-settings-search"><i class="ic ic-search"></i><input type="search" aria-label="Search settings" placeholder="Search settings" bind:value={ui.settingsQuery} /></label>
+<label class="search phone-settings-search"><i class="ic ic-search"></i><input type="search" aria-label={t("Search settings")} placeholder={t("Search settings")} bind:value={ui.settingsQuery} /></label>
 {#if ui.settingsQuery.trim()}<Machine compact sectionOnly />{:else}
-<div class="phone-action-list phone-settings-list">{#each SETTINGS_PAGES as page}<button onclick={() => open(page.id)}>{page.label}<i class="ic ic-arrow-right"></i></button>{/each}</div>
+<div class="phone-action-list phone-settings-list">{#each SETTINGS_PAGES as page}<button onclick={() => open(page.id)}>{t(page.label)}<i class="ic ic-arrow-right"></i></button>{/each}</div>
 <div class="phone-action-list phone-settings-list">
   <button onclick={materials}>{t("Material library")}<i class="ic ic-arrow-right"></i></button>
-  {#if pending.count > 0}<button onclick={() => ui.modal = 'pending'}>Pending changes · {pending.count}<i class="ic ic-arrow-right"></i></button>{/if}
+  {#if pending.count > 0}<button onclick={() => ui.modal = 'pending'}>{t('Pending changes')} · {pending.count}<i class="ic ic-arrow-right"></i></button>{/if}
 </div>
 {/if}
 

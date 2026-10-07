@@ -75,31 +75,31 @@
 
 <Modal title={t("Add text")} wide onclose={close}>
   <div class="text-editor">
-    <label class="text-label">Text<textarea aria-label="Text to cut" rows="4" bind:value disabled={creating} placeholder="Type or paste your text…"></textarea></label>
+    <label class="text-label">{t("Text")}<textarea aria-label={t("Text to cut")} rows="4" bind:value disabled={creating} placeholder={t("Type or paste your text…")}></textarea></label>
     <div class="text-controls">
       <div class="text-fonts"><FontPicker bind:family bind:font bind:importing disabled={creating} onimport={() => fontRevision++} /></div>
-      <div class="text-size-row"><span>Font size</span><button
-        class="text-number" data-numpad aria-label="Font size" disabled={creating}
-        onclick={() => osk.number('Font size', size, 'mm', (next) => (size = next))}>{displayNumber(size, 'mm')} <small>{unitLabel('mm')}</small></button></div>
+      <div class="text-size-row"><span>{t("Font size")}</span><button
+        class="text-number" data-numpad aria-label={t("Font size")} disabled={creating}
+        onclick={() => osk.number(t('Font size'), size, 'mm', (next) => (size = next))}>{displayNumber(size, 'mm')} <small>{unitLabel('mm')}</small></button></div>
       {#if !font}<div class="text-choices text-weight">
-        <button class:on={!bold} aria-pressed={!bold} disabled={creating} onclick={() => (bold = false)}>Regular</button>
+        <button class:on={!bold} aria-pressed={!bold} disabled={creating} onclick={() => (bold = false)}>{t("Regular")}</button>
         <button class:on={bold} aria-pressed={bold} disabled={creating} onclick={() => (bold = true)}>{t("Bold")}</button>
-      </div>{:else}<p class="muted text-face-note">Weight and style come from the selected font.</p>{/if}
+      </div>{:else}<p class="muted text-face-note">{t("Weight and style come from the selected font.")}</p>{/if}
       <div><div class="text-label">{t("Align lines")}</div><div class="text-choices">
         {#each ['left', 'center', 'right'] as side}
           <button class:on={alignment === side} aria-pressed={alignment === side} disabled={creating} onclick={() => (alignment = side as TextOptions['alignment'])}>{side[0]!.toUpperCase() + side.slice(1)}</button>
         {/each}
       </div></div>
     </div>
-    <div class="text-preview" aria-label="Text outline preview" aria-busy={pending}>
+    <div class="text-preview" aria-label={t("Text outline preview")} aria-busy={pending}>
       {#if preview && box}
-        <svg viewBox={viewBoxFor(box, 600, 190, 0.1)} role="img" aria-label="Cuttable text outlines"><path d={preview.outline.map((line) => pathOf(line)).join(' ')} fill-rule="evenodd" vector-effect="non-scaling-stroke" /></svg>
+        <svg viewBox={viewBoxFor(box, 600, 190, 0.1)} role="img" aria-label={t("Cuttable text outlines")}><path d={preview.outline.map((line) => pathOf(line)).join(' ')} fill-rule="evenodd" vector-effect="non-scaling-stroke" /></svg>
         <div class="text-dimensions">{displayNumber(preview.width, 'mm', 1)} × {quantity(preview.height, 'mm', 1)} · {plural(preview.contours, 'outline')}</div>
-      {:else}<span class="muted">{pending ? 'Preparing text…' : 'Your text preview appears here.'}</span>{/if}
+      {:else}<span class="muted">{pending ? t('Preparing text…') : t('Your text preview appears here.')}</span>{/if}
     </div>
     {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
     {#each preview?.warnings ?? [] as warning}<p class="warn-text" role="status">{warning}</p>{/each}
-    <div class="text-footer"><span class="muted">Overlapping letters are welded into cutting outlines.</span><button
+    <div class="text-footer"><span class="muted">{t("Overlapping letters are welded into cutting outlines.")}</span><button
       class="btn btn-primary" disabled={creating || importing || pending || !preview} onclick={create}>{creating ? t("Adding…") : t("Add text")}</button></div>
   </div>
 </Modal>

@@ -14,27 +14,27 @@
   const start = $derived(cutStart(ed.values));
 </script>
 
-<div class="section-head"><div><h2>{t("Cutting")}</h2><p class="muted">The settings used along the cutting path.</p></div></div>
+<div class="section-head"><div><h2>{t("Cutting")}</h2><p class="muted">{t("The settings used along the cutting path.")}</p></div></div>
 <div class="fields big">
   <Field {ed} key="CutSpeed" big />
   {#if ed.a.height}
     <Field {ed} key="CutHeight" big />
   {:else}
-    <div class="fld big"><span class="lbl">{t("Cut height")}</span><div class="box static"><b>Set by hand</b><span class="unit">no height control</span></div></div>
+    <div class="fld big"><span class="lbl">{t("Cut height")}</span><div class="box static"><b>{t("Set by hand")}</b><span class="unit">{t("no height control")}</span></div></div>
   {/if}
   <Field {ed} key={duty} big />
   {#if ed.a.gas}<Field {ed} key="CutAirPressure" big />{/if}
   <Field {ed} key="CutFreq" big />
   {#if ed.a.peak}<Field {ed} key="CutPeakCurrent" big />{/if}
 </div>
-<div class="section-head"><div><h2>Head setup</h2><p class="muted">Fit the nozzle and lens, and set optical focus at the head.</p></div></div>
+<div class="section-head"><div><h2>{t("Head setup")}</h2><p class="muted">{t("Fit the nozzle and lens, and set optical focus at the head.")}</p></div></div>
 <div class="fields big head-setup">
   <Field {ed} key="OpenLaserNozzleDiameter" big />
   <div class="fld big" class:changed={'OpenLaserNozzleType' in ed.edits}>
     <span class="lbl">{t("Nozzle type")}</span>
     <div class="chips">
-      <button class="chip" class:on={ed.values['OpenLaserNozzleType'] === 'single'} onclick={() => ed.set('OpenLaserNozzleType', 'single')}>Single</button>
-      <button class="chip" class:on={ed.values['OpenLaserNozzleType'] === 'double'} onclick={() => ed.set('OpenLaserNozzleType', 'double')}>Double</button>
+      <button class="chip" class:on={ed.values['OpenLaserNozzleType'] === 'single'} onclick={() => ed.set('OpenLaserNozzleType', 'single')}>{t("Single")}</button>
+      <button class="chip" class:on={ed.values['OpenLaserNozzleType'] === 'double'} onclick={() => ed.set('OpenLaserNozzleType', 'double')}>{t("Double")}</button>
     </div>
   </div>
   <Field {ed} key="OpenLaserManualFocus" big />
@@ -42,10 +42,10 @@
   {#if ed.a.gas || ed.laser === 'co2'}
     <Field {ed} key="CutGasType" big />
   {:else}
-    <div class="fld big gas-unavailable"><span class="lbl">{t("Cutting gas")}</span><p>No gas valve is wired on this machine.</p></div>
+    <div class="fld big gas-unavailable"><span class="lbl">{t("Cutting gas")}</span><p>{t("No gas valve is wired on this machine.")}</p></div>
   {/if}
 </div>
 <div class="summary-strip">
-  <div><strong>{modeName(ed.values)} · Cut start {start.enabled ? 'on' : 'off'}</strong><p class="muted">Review piercing, then adjust the optional process behaviour.</p></div>
-  <button class="btn btn-ghost" onclick={onpiercing}>Edit piercing<i class="ic ic-chev-right"></i></button>
+  <div><strong>{modeName(ed.values)} · {t(start.enabled ? 'Cut start on' : 'Cut start off')}</strong><p class="muted">{t("Review piercing, then adjust the optional process behaviour.")}</p></div>
+  <button class="btn btn-ghost" onclick={onpiercing}>{t("Edit piercing")}<i class="ic ic-chev-right"></i></button>
 </div>

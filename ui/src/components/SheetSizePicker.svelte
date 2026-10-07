@@ -17,7 +17,7 @@
   const size = $derived<[number, number]>([width, height]);
   const same = (a: [number, number], b: [number, number]) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
   const presets = $derived([
-    ...(bedSize ? [{ label: 'Full bed', size: [bedSize.width, bedSize.height] as [number, number] }] : []),
+    ...(bedSize ? [{ label: t('Full bed'), size: [bedSize.width, bedSize.height] as [number, number] }] : []),
     ...COMMON_SHEETS.map((sheet) => ({ label: sheet.label, size: oriented(sheet.long, sheet.short, bedSize) })),
   ]);
   // Saved sizes live on the machine, so every screen offers the same list.
@@ -36,35 +36,35 @@
 </script>
 
 <div class="dimensions">
-  <button {disabled} onclick={() => osk.number('Sheet width', width, 'mm', v => width = v)}>
-    <span>Width · X</span><strong>{quantity(width, 'mm')}</strong>
+  <button {disabled} onclick={() => osk.number(t('Sheet width'), width, 'mm', v => width = v)}>
+    <span>{t("Width · X")}</span><strong>{quantity(width, 'mm')}</strong>
   </button>
-  <button class="rotate" {disabled} onclick={rotate} aria-label="Rotate the sheet: swap width and height" title="Swap width and height">
-    <i class="ic ic-rotate"></i><span>Rotate</span>
+  <button class="rotate" {disabled} onclick={rotate} aria-label={t("Rotate the sheet: swap width and height")} title={t("Swap width and height")}>
+    <i class="ic ic-rotate"></i><span>{t("Rotate")}</span>
   </button>
-  <button {disabled} onclick={() => osk.number('Sheet height', height, 'mm', v => height = v)}>
-    <span>Height · Y</span><strong>{quantity(height, 'mm')}</strong>
+  <button {disabled} onclick={() => osk.number(t('Sheet height'), height, 'mm', v => height = v)}>
+    <span>{t("Height · Y")}</span><strong>{quantity(height, 'mm')}</strong>
   </button>
 </div>
 {#if !fits(size, bedSize)}
   <p class="warn-text" role="status">
-    Larger than the bed ({side(bedSize!.width)} × {side(bedSize!.height)} {unitLabel('mm')}).
-    Rotate it or pick a smaller size.
+    {t('Larger than the bed ({0} × {1} {2}).', side(bedSize!.width), side(bedSize!.height), unitLabel('mm'))}
+    {t('Rotate it or pick a smaller size.')}
   </p>
 {/if}
-<h4>Common sizes</h4>
+<h4>{t("Common sizes")}</h4>
 <div class="chips">
   {#each presets as preset (preset.label)}
     <button
       class="chip"
       class:on={same(preset.size, size)}
       disabled={disabled || !fits(preset.size, bedSize)}
-      title={fits(preset.size, bedSize) ? '' : 'Larger than the bed'}
+      title={fits(preset.size, bedSize) ? '' : t('Larger than the bed')}
       onclick={() => choose(preset.size)}
     >{preset.label}</button>
   {/each}
 </div>
-<h4>Saved sizes</h4>
+<h4>{t("Saved sizes")}</h4>
 <div class="chips">
   {#each savedSizes as entry (entry.join('x'))}
     <span class="saved-size">
@@ -77,7 +77,7 @@
     </span>
   {/each}
   <button class="chip save" disabled={disabled || saved || width <= 0 || height <= 0} onclick={remember}>
-    {saved ? 'Saved' : t("+ Save this size")}
+    {saved ? t('Saved') : t("+ Save this size")}
   </button>
 </div>
 

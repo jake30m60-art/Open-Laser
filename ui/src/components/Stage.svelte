@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
   import { toSource, toDisplay } from '../lib/units.svelte';
   // The drawing surface both canvases share: a grid, the bed, the job
   // origin, the head, and the gestures. A mouse button, a pen or one
@@ -270,7 +271,7 @@
 
 <div class="canvas {variant}">
   <svg
-    bind:this={svg} viewBox={view.viewBox} style:transform={lag} preserveAspectRatio="xMidYMid meet" role="application" aria-label="Drawing"
+    bind:this={svg} viewBox={view.viewBox} style:transform={lag} preserveAspectRatio="xMidYMid meet" role="application" aria-label={t("Drawing")}
     onpointerleave={() => onhover?.(null)} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={cancel}
     onlostpointercapture={(e) => { if (pointers.has(e.pointerId)) cancel(); }} onwheel={wheel} oncontextmenu={(e) => e.preventDefault()}>
     <defs>

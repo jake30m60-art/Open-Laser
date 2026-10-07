@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tl } from '../../i18n/index';
   import { t } from '../../i18n/index';
 
   import { distance, quantity, unitLabel } from '../../lib/units.svelte';
@@ -38,14 +39,14 @@
   const gasList = (rs: RecipeView[]): string => [...new Set(rs.map((r) => r.gas))].join(' / ');
   function use(): void {
     if (!pick) return;
-    api.setRecipe(pick.id).then(() => { ui.say(`Job material: ${recipeLabel(pick)}`); onclose(); }).catch((error) => ui.say(explain(error), true));
+    api.setRecipe(pick.id).then(() => { ui.say(t('Job material: {0}', recipeLabel(pick))); onclose(); }).catch((error) => ui.say(explain(error), true));
   }
 </script>
 
 <Modal title={t("Choose material for this job")} wide {onclose}>
   <div class="sheet">
     <div class="sheet-list">
-      {#if recent.length}<h3>Recent</h3><div class="recent">{#each recent as r}<button class="chip" class:on={pick?.id === r.id} onclick={() => choose(r)}>{recipeLabel(r)}</button>{/each}</div>{/if}
+      {#if recent.length}<h3>{tl("Recent")}</h3><div class="recent">{#each recent as r}<button class="chip" class:on={pick?.id === r.id} onclick={() => choose(r)}>{recipeLabel(r)}</button>{/each}</div>{/if}
       <h3 style="margin-top:6px">{t("All materials")}</h3>
       {#each materials as m}
         {@const picture = pictureOf(m.name, m.recipes.find((r) => r.photo)?.photo)}
@@ -56,7 +57,7 @@
           <span class="tag">{m.recipes.length}</span>
         </div>
       {:else}
-        <p class="muted">No recipes yet. Add one on the Materials page.</p>
+        <p class="muted">{tl("No recipes yet. Add one on the Materials page.")}</p>
       {/each}
     </div>
     <div class="sheet-side">
@@ -64,13 +65,13 @@
         {@const picture = pictureOf(pick.name, pick.photo)}
         <div class="side-title">{#if picture}<img class="swatch" src={picture} alt="">{:else}<div
           class="swatch" style="background:var(--panel-2)"></div>{/if}<div><h2>{pick.name}</h2><div class="muted">{laserLabel(pick.laser)}</div></div></div>
-        <div class="field"><h3>Thickness</h3><div class="chips">{#each thicknesses as t}<button
+        <div class="field"><h3>{tl("Thickness")}</h3><div class="chips">{#each thicknesses as t}<button
           class="chip" class:on={t === pick.thickness_mm} onclick={() => choose(group.find((r) => r.thickness_mm === t)!)}
         >{quantity(t, 'mm')}</button>{/each}</div></div>
-        <div class="field"><h3>{t("Assist gas")}</h3><div class="chips">{#each gases as r}<button class="chip" class:on={r.id === pick.id} onclick={() => choose(r)}>{r.gas}</button>{/each}</div></div>
+        <div class="field"><h3>{t("Assist gas")}</h3><div class="chips">{#each gases as r}<button class="chip" class:on={r.id === pick.id} onclick={() => choose(r)}>{t(r.gas)}</button>{/each}</div></div>
         <MaterialSummary source={pick} />
-        <button class="btn btn-primary lg block" onclick={use}>Use {pick.name} {quantity(pick.thickness_mm, 'mm')}</button>
-        <button class="link" onclick={() => { onclose(); ui.selectedRecipe = pick!.id; ui.tab = 'materials'; }}>Edit recipes in the library</button>
+        <button class="btn btn-primary lg block" onclick={use}>{t('Use {0}', `${pick.name} ${quantity(pick.thickness_mm, 'mm')}`)}</button>
+        <button class="link" onclick={() => { onclose(); ui.selectedRecipe = pick!.id; ui.tab = 'materials'; }}>{tl("Edit recipes in the library")}</button>
       {/if}
     </div>
   </div>

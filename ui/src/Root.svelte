@@ -16,7 +16,7 @@
   }
   // The shell follows the window; the pages' state lives in stores and survives the switch.
   const shell = $derived(loadShell(layout.current));
-  const openingTitle = $derived(access.error ? 'Waiting for OpenLaser' : 'Connecting to your machine…');
+  const openingTitle = $derived(access.error ? t('Waiting for OpenLaser') : t('Connecting to your machine…'));
   $effect(() => { document.documentElement.dataset.layout = layout.current; });
   // Unsaved jobs change with the draft and the library; recount after each, on both shells.
   const draftRevision = $derived(server.doc?.draft_revision ?? 0);
@@ -31,10 +31,10 @@
 </script>
 
 {#if !access.info}
-  <div class="opening"><img src="/logo.svg" alt="OpenLaser" /><h1>{t(openingTitle)}</h1>{#if access.error}<p>{access.error}</p><button
+  <div class="opening"><img src="/logo.svg" alt={t("OpenLaser")} /><h1>{t(openingTitle)}</h1>{#if access.error}<p>{access.error}</p><button
     class="btn btn-primary" onclick={() => access.refresh()}>{t("Try again")}</button>{/if}</div>
 {:else}
-  <div class="interface-shell" inert={!access.canControl}>{#await shell}<div class="opening">Opening OpenLaser…</div>{:then { default: Shell }}<Shell />{/await}</div>
+  <div class="interface-shell" inert={!access.canControl}>{#await shell}<div class="opening">{t("Opening OpenLaser…")}</div>{:then { default: Shell }}<Shell />{/await}</div>
 {/if}
 {#if access.manage}{#await import('./components/Network.svelte') then { default: Network }}<Network />{/await}{/if}
 <ControlGate />

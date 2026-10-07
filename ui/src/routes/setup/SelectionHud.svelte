@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../i18n/index';
   // The selection's place and size, each a button that asks for a new value.
   import { distance } from '../../lib/units.svelte';
   import type { Box } from '../../lib/svg';
@@ -19,8 +20,8 @@
 <div class="canvas-hud">
   <button class="hud-btn" {disabled} data-numpad onclick={() => onplace(0)}>X {distance(selection.minX + zero[0])}</button>
   <button class="hud-btn" {disabled} data-numpad onclick={() => onplace(1)}>Y {distance(selection.minY + zero[1])}</button>
-  <button class="hud-btn" {disabled} data-numpad onclick={onturn}>Rotate…</button>
+  <button class="hud-btn" {disabled} data-numpad onclick={onturn}>{t("Rotate…")}</button>
   <button class="hud-btn" {disabled} onclick={() => onresize(0)}>W {distance(selection.maxX - selection.minX)}</button>
   <button class="hud-btn" {disabled} onclick={() => onresize(1)}>H {distance(selection.maxY - selection.minY)}</button>
-  <button class="hud-btn" {disabled} onclick={() => onresize('scale')}>Scale…</button>
+  <button class="hud-btn" {disabled} onclick={() => onresize('scale')}>{t("Scale…")}</button>
 </div>

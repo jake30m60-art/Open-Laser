@@ -77,9 +77,9 @@
     newMaterials.length ? `new material${newMaterials.length === 1 ? '' : 's'}: ${newMaterials.join(', ')}` : '',
   ].filter(Boolean).map((part) => ` · ${part}`).join(''));
   const importLabel = $derived(
-    saving.length ? `Import ${saving.length}${replacing ? ` · replace ${replacing}` : ''}` : 'Nothing to import',
+    saving.length ? `${t('Import {0}', saving.length)}${replacing ? ` · ${t('replace {0}', replacing)}` : ''}` : t('Nothing to import'),
   );
-  const LABEL: Record<Choice, string> = { replace: 'Replace', keep: 'Keep both', skip: 'Skip' };
+  const LABEL: Record<Choice, string> = { replace: t('Replace'), keep: t('Keep both'), skip: t('Skip') };
   const CHOICES: Choice[] = ['replace', 'keep', 'skip'];
 
   const materialsFor = (laser: string) => materialsOf(recipes).filter((m) => m.laser === laser).map((m) => m.name);
@@ -129,10 +129,10 @@
     gas: item.preview.gas,
     summary: { ...item.preview.summary, setup: item.setup },
   });
-  const shownValue = (key: string, value: string | null) => (value === null ? 'Not set' : shown(key, value));
+  const shownValue = (key: string, value: string | null) => (value === null ? t('Not set') : shown(key, value));
   /** Why a row is a duplicate: the same file, a library recipe, or an earlier file of this import. */
   function dupText(item: ImportItem, dup: ReturnType<typeof duplicatesOf>): string {
-    if (dup.identical) return 'This exact file is already in the library';
+    if (dup.identical) return t('This exact file is already in the library');
     const what = `${item.material} ${quantity(item.thickness_mm, 'mm')} ${item.preview.gas}`;
     return dup.recipes.length ? `${what} is already in the library` : `An earlier file in this import is also ${what}`;
   }
@@ -144,7 +144,7 @@
         title: `Replace ${plural(replacing, 'recipe')}?`,
         body: `${replacing === 1 ? 'Its' : 'Their'} values, note and source file are replaced by the imported file;`
           + ' the name, star, photo and film process stay. Library history can undo it.',
-        confirm: `Replace ${replacing}`,
+        confirm: t('Replace {0}', replacing),
         danger: true,
       });
       if (!ok) return;
@@ -178,61 +178,61 @@
   }
 </script>
 
-<Modal title="Import recipes" wide dismissable={phase !== 'saving'} {onclose}>
+<Modal title={t("Import recipes")} wide dismissable={phase !== 'saving'} {onclose}>
   {#if phase === 'reading'}
-    <p class="muted" role="status">Reading {progress.done} {t("of")} {progress.total} recipe files…</p>
+    <p class="muted" role="status">{t('Reading {0} of {1} recipe files…', progress.done, progress.total)}</p>
   {:else if phase === 'saving'}
-    <p class="muted" role="status">Saving {progress.done} {t("of")} {progress.total}…</p>
+    <p class="muted" role="status">{t('Saving {0} of {1}…', progress.done, progress.total)}</p>
   {:else}
     <div class="import-head">
       <p><strong>{plural(items.length, 'recipe file')}</strong>{headNotes}</p>
-      <p class="muted">Check each material and the nozzle, focus and lens read from the notes and file names. Nothing is saved until Import.</p>
-      {#if skippedOver}<p class="warn-text">Only the first {MAX_FILES} recipe files are listed; import the other {skippedOver} separately.</p>{/if}
+      <p class="muted">{t("Check each material and the nozzle, focus and lens read from the notes and file names. Nothing is saved until Import.")}</p>
+      {#if skippedOver}<p class="warn-text">{t('Only the first {0} recipe files are listed; import the other {1} separately.', MAX_FILES, skippedOver)}</p>{/if}
     </div>
     {#if duplicates.length > 1}
-      <div class="apply-all" role="group" aria-label="Every duplicate">
-        <span>Every duplicate</span>
-        {#each CHOICES as choice (choice)}<button class="btn btn-ghost" onclick={() => all(choice)}>{LABEL[choice]} all</button>{/each}
+      <div class="apply-all" role="group" aria-label={t("Every duplicate")}>
+        <span>{t("Every duplicate")}</span>
+        {#each CHOICES as choice (choice)}<button class="btn btn-ghost" onclick={() => all(choice)}>{t('{0} all', t(LABEL[choice]))}</button>{/each}
       </div>
     {/if}
-    {#if !items.length && !failures.length}<p class="muted">No recipe files (.xml) were found.</p>{/if}
+    {#if !items.length && !failures.length}<p class="muted">{t("No recipe files (.xml) were found.")}</p>{/if}
     <ul class="import-list">
       {#each rows as { item, dup, choices, needs } (item.key)}
         <li class="import-item" class:dup={needs} class:skip={item.choice === 'skip' && needs}>
           <div class="file-line">
             <span class="file">{item.preview.file_name}</span>
             <span class="tag {item.preview.laser}">{laserLabel(item.preview.laser)}</span>
-            <span class="tag">{item.preview.gas}</span>
-            {#if item.photo}<span class="tag">Photo</span>{/if}
+            <span class="tag">{t(item.preview.gas)}</span>
+            {#if item.photo}<span class="tag">{t("Photo")}</span>{/if}
           </div>
           <div class="identity">
-            <label class="pick"><span>Material{#if item.isNew}<b class="new">New</b>{/if}</span>
+            <label class="pick"><span>{t('Material')}{#if item.isNew}<b class="new">{t("New")}</b>{/if}</span>
               <select value={item.material} onchange={(e) => chooseMaterial(item, e.currentTarget)}>
-                {#if item.isNew}<option value={item.material}>{item.material} (new)</option>{/if}
+                {#if item.isNew}<option value={item.material}>{item.material} ({t('new')})</option>{/if}
                 {#each materialsFor(item.preview.laser) as name (name)}<option value={name}>{name}</option>{/each}
-                <option value={'\u0000new'}>New material…</option>
+                <option value={'\u0000new'}>{t("New material…")}</option>
               </select>
             </label>
             <button class="value" data-numpad onclick={() => thickness(item)}>
-              <span>Thickness</span>
-              <b>{item.thickness_mm > 0 ? quantity(item.thickness_mm, 'mm') : 'Not set'}</b>
+              <span>{t("Thickness")}</span>
+              <b>{item.thickness_mm > 0 ? quantity(item.thickness_mm, 'mm') : t('Not set')}</b>
             </button>
           </div>
-          <div class="setup" aria-label="Head setup read from the file">
-            <button class="value" data-numpad onclick={() => setup(item, 'nozzle_diameter_mm', 'OpenLaserNozzleDiameter', 'Nozzle diameter')}>
-              <span>Nozzle</span>
+          <div class="setup" aria-label={t("Head setup read from the file")}>
+            <button class="value" data-numpad onclick={() => setup(item, 'nozzle_diameter_mm', 'OpenLaserNozzleDiameter', t('Nozzle diameter'))}>
+              <span>{t("Nozzle")}</span>
               <b>{shownValue('OpenLaserNozzleDiameter', item.setup.nozzle_diameter_mm)}</b>
             </button>
             <div class="seg nozzle" role="group" aria-label={t("Nozzle type")}>
-              <button class:on={item.setup.nozzle === 'single'} onclick={() => nozzle(item, 'single')}>Single</button>
-              <button class:on={item.setup.nozzle === 'double'} onclick={() => nozzle(item, 'double')}>Double</button>
-              <button class:on={item.setup.nozzle === null} onclick={() => nozzle(item, null)}>Not set</button>
+              <button class:on={item.setup.nozzle === 'single'} onclick={() => nozzle(item, 'single')}>{t("Single")}</button>
+              <button class:on={item.setup.nozzle === 'double'} onclick={() => nozzle(item, 'double')}>{t("Double")}</button>
+              <button class:on={item.setup.nozzle === null} onclick={() => nozzle(item, null)}>{t("Not set")}</button>
             </div>
-            <button class="value" data-numpad onclick={() => setup(item, 'focus_mm', 'OpenLaserManualFocus', 'Focus')}>
+            <button class="value" data-numpad onclick={() => setup(item, 'focus_mm', 'OpenLaserManualFocus', t('Focus'))}>
               <span>{t("Focus")}</span>
               <b>{shownValue('OpenLaserManualFocus', item.setup.focus_mm)}</b>
             </button>
-            <button class="value" data-numpad onclick={() => setup(item, 'lens_mm', 'OpenLaserLens', 'Lens')}>
+            <button class="value" data-numpad onclick={() => setup(item, 'lens_mm', 'OpenLaserLens', t('Lens'))}>
               <span>{t("Lens")}</span>
               <b>{shownValue('OpenLaserLens', item.setup.lens_mm)}</b>
             </button>
@@ -241,10 +241,10 @@
           {#if needs}
             <div class="dup-line">
               <p>
-                <i class="ic ic-copy"></i>{dupText(item, dup)}{#if dup.recipes[0]}<span class="theirs">Library: <MaterialSummary
+                <i class="ic ic-copy"></i>{dupText(item, dup)}{#if dup.recipes[0]}<span class="theirs">{t("Library:")} <MaterialSummary
                   source={dup.recipes[0]} variant="line" /></span>{/if}
               </p>
-              <div class="seg choice" role="group" aria-label="What to do with the duplicate">
+              <div class="seg choice" role="group" aria-label={t("What to do with the duplicate")}>
                 {#each choices as choice (choice)}
                   <button class:on={item.choice === choice} onclick={() => (item.choice = choice)}>{LABEL[choice]}</button>
                 {/each}
@@ -256,12 +256,12 @@
     </ul>
     {#if failures.length}
       <details class="failures" open={!items.length}>
-        <summary>{plural(failures.length, 'file')} could not be read</summary>
+        <summary>{t('{0} could not be read', plural(failures.length, 'file'))}</summary>
         <div class="import-log">{failures.map((f) => `${f.name}: ${f.reason}`).join('\n')}</div>
       </details>
     {/if}
     <div class="import-foot">
-      {#if unresolved}<p class="gate-reason">Choose Replace, Keep both or Skip for {plural(unresolved, 'duplicate')}.</p>{/if}
+      {#if unresolved}<p class="gate-reason">{t('Choose Replace, Keep both or Skip for {0}.', plural(unresolved, 'duplicate'))}</p>{/if}
       <div class="row">
         <button class="btn btn-ghost" onclick={onclose}>{t("Cancel")}</button>
         <button class="btn btn-primary" disabled={!!unresolved || !saving.length} onclick={save}>{importLabel}</button>

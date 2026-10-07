@@ -20,7 +20,7 @@
   let saved = $state('');
   const order = [6, 7, 8, 3, 4, 5, 0, 1, 2];
   const count = $derived(data?.measurements.filter(Boolean).length ?? 0);
-  const steps = ['Cut squares', 'Measure', 'Apply'];
+  const steps = [t('Cut squares'), t('Measure'), t('Apply')];
 
   function choose(index: number): void {
     selected = index;
@@ -71,12 +71,12 @@
     measurements[selected] = { x, y };
     await api.saveCorrection({ action: 'measure', mode, revision: data.revision, measurements, apply: false });
     await load();
-    saved = `Square ${selected + 1} saved`;
+    saved = t('Square {0} saved', selected + 1);
   }
   function measure(axis: 'x' | 'y'): void {
-    osk.number(`Square ${selected + 1} · ${axis.toUpperCase()} measurement`, (axis === 'x' ? x : y) ?? 100, 'mm', value => {
+    osk.number(t('Square {0} · {1} measurement', selected + 1, axis.toUpperCase()), (axis === 'x' ? x : y) ?? 100, 'mm', value => {
       if (!Number.isFinite(value) || value < 90 || value > 110) {
-        error = `Enter a measurement between ${distance(90)} and ${quantity(110, 'mm')}.`;
+        error = t('Enter a measurement between {0} and {1}.', distance(90), quantity(110, 'mm'));
         return;
       }
       if (axis === 'x') x = value; else y = value;
@@ -87,7 +87,7 @@
     if (!data) return;
     await api.saveCorrection({ action: 'measure', mode, revision: data.revision, measurements: data.measurements, apply: true });
     await load();
-    saved = 'Correction saved. New DXF jobs will use this profile.';
+    saved = t('Correction saved. New DXF jobs will use this profile.');
   }
   async function enable(): Promise<void> {
     if (!data) return;
@@ -114,7 +114,7 @@
   async function confirmApply(): Promise<void> {
     const ok = await ui.confirm({
       title: t("Apply this correction?"),
-      body: `New ${laserLabel(mode)} DXF jobs are cut to these nine measurements. Saved jobs keep the correction they were made with.`,
+      body: t('New {0} DXF jobs are cut to these nine measurements. Saved jobs keep the correction they were made with.', laserLabel(mode)),
       confirm: t("Apply to new DXFs"),
     });
     if (ok) run(apply);
@@ -134,7 +134,7 @@
 
 <div class="calibration">
   <header>
-    <p>Nine {distance(100)} × {quantity(100, 'mm')} squares</p>
+    <p>{t('Nine {0} × {1} squares', distance(100), quantity(100, 'mm'))}</p>
     <div class="seg" aria-label={t("Calibration laser")}>
       {#each ['fiber', 'co2'] as laser}
         <button class:on={mode === laser} disabled={busy} onclick={() => mode = laser as LaserMode}>{laserLabel(laser as LaserMode)}</button>
@@ -152,9 +152,9 @@
       <div class="bed-wrap">
         <div class="bed-heading">
           <span>{laserLabel(mode)} · {distance(data.bed.max.x - data.bed.min.x)} × {quantity(data.bed.max.y - data.bed.min.y, 'mm')}</span>
-          <span>Back of bed · Y+</span>
+          <span>{t("Back of bed · Y+")}</span>
         </div>
-        <div class="bed" role="group" aria-label="Nine calibration squares">
+        <div class="bed" role="group" aria-label={t("Nine calibration squares")}>
           {#each order as index}
             <button
               class:chosen={page === 1 && selected === index}
@@ -170,50 +170,50 @@
             </button>
           {/each}
         </div>
-        <div class="bed-heading"><span>Front of bed</span><span>X →</span></div>
-        <p class="progress">{count} of 9 measured · saved</p>
+        <div class="bed-heading"><span>{t("Front of bed")}</span><span>X →</span></div>
+        <p class="progress">{t('{0} of 9 measured', count)} · {t('saved')}</p>
       </div>
       <div class="step-content">
         {#if page === 0}
-          <span class="eyebrow">1 · Cut squares</span>
-          <h3>Nine positions. One square each.</h3>
-          <p>Use your usual cutting settings.</p>
-          <button class="btn btn-primary lg" disabled={busy} onclick={loadCoupon}>Load calibration job</button><button
+          <span class="eyebrow">{t("1 · Cut squares")}</span>
+          <h3>{t("Nine positions. One square each.")}</h3>
+          <p>{t("Use your usual cutting settings.")}</p>
+          <button class="btn btn-primary lg" disabled={busy} onclick={loadCoupon}>{t("Load calibration job")}</button><button
             class="text-action" disabled={busy} onclick={() => page = 1}>{t("Already cut? Enter measurements →")}</button>
         {:else if page === 1}
-          <span class="eyebrow">2 · Measure</span>
-          <h3>Square {selected + 1}</h3>
-          <p>Measure the finished square.</p>
+          <span class="eyebrow">{t("2 · Measure")}</span>
+          <h3>{t('Square {0}', selected + 1)}</h3>
+          <p>{t("Measure the finished square.")}</p>
           <div class="measurement">
             <button disabled={busy} onclick={() => measure('x')}>
-              <span>X · width</span>
-              <strong>{x === null ? 'Enter width' : quantity(x, 'mm', 3)}</strong>
+              <span>{t("X · width")}</span>
+              <strong>{x === null ? t('Enter width') : quantity(x, 'mm', 3)}</strong>
             </button>
             <button disabled={busy} onclick={() => measure('y')}>
-              <span>Y · height</span>
-              <strong>{y === null ? 'Enter height' : quantity(y, 'mm', 3)}</strong>
+              <span>{t("Y · height")}</span>
+              <strong>{y === null ? t('Enter height') : quantity(y, 'mm', 3)}</strong>
             </button>
           </div>
           <button class="btn btn-primary lg" disabled={busy || !data.measurements[selected]} onclick={nextSquare}>
-            {count === 9 ? 'Review correction' : 'Next unmeasured square'}
+            {count === 9 ? t('Review correction') : t('Next unmeasured square')}
           </button>
         {:else}
-          <span class="eyebrow">3 · Apply</span>
-          <h3>{data.enabled ? 'Correction is enabled' : 'Ready for future DXFs'}</h3>
-          <p>Applies to new {laserLabel(mode)} DXF jobs.</p>
+          <span class="eyebrow">{t("3 · Apply")}</span>
+          <h3>{data.enabled ? t('Correction is enabled') : t('Ready for future DXFs')}</h3>
+          <p>{t('Applies to new {0} DXF jobs.', laserLabel(mode))}</p>
           <dl>
-            <div><dt>X measurements</dt><dd>{range('x')}</dd></div>
-            <div><dt>Y measurements</dt><dd>{range('y')}</dd></div>
-            <div><dt>Squares measured</dt><dd>{count} / 9</dd></div>
+            <div><dt>{t("X measurements")}</dt><dd>{range('x')}</dd></div>
+            <div><dt>{t("Y measurements")}</dt><dd>{range('y')}</dd></div>
+            <div><dt>{t("Squares measured")}</dt><dd>{count} / 9</dd></div>
           </dl>
-          <button class="btn btn-primary lg" disabled={busy || count !== 9} onclick={confirmApply}>Save &amp; apply to new DXFs</button>{#if data.active}<button
+          <button class="btn btn-primary lg" disabled={busy || count !== 9} onclick={confirmApply}>{t('Save & apply to new DXFs')}</button>{#if data.active}<button
             class="text-action" disabled={busy} onclick={() => run(enable)}
-          >{data.enabled ? 'Pause correction for new jobs' : 'Enable saved profile'}</button>{/if}
+          >{data.enabled ? t('Pause correction for new jobs') : t('Enable saved profile')}</button>{/if}
         {/if}
         {#if saved}<p class="saved" role="status">{saved}</p>{/if}
       </div>
     </div>
-  {:else if !error}<p>Loading calibration…</p>{/if}
+  {:else if !error}<p>{t("Loading calibration…")}</p>{/if}
 </div>
 
 <style>

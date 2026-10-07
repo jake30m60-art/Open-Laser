@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tl } from '../../i18n/index';
   import { t } from '../../i18n/index';
 
   import { quantity } from '../../lib/units.svelte';
@@ -20,7 +21,7 @@
   let { onclose, onadded }: { onclose: () => void; onadded: (id: string) => void } = $props();
   const doc = $derived(server.doc!);
   const recipes = $derived(doc.library.recipes);
-  const mm = (t: number) => (t > 0 ? quantity(t, 'mm') : 'thickness not set');
+  const mm = (value: number) => (value > 0 ? quantity(value, 'mm') : t('thickness not set'));
 
   let draft = $state({
     laser: 'fiber' as LaserMode,
@@ -71,14 +72,14 @@
       .sort((a, b) => a.thickness_mm - b.thickness_mm);
     const list: Source[] = own.map((r) => ({
       values: { recipe: r.id },
-      label: `${r.name} · ${mm(r.thickness_mm)} · ${r.gas}`,
+      label: `${r.name} · ${mm(r.thickness_mm)} · ${t(r.gas)}`,
       meta: summaryLine(r),
       gas: r.attributes['CutGasType'] ?? null,
     }));
     for (const b of doc.files.banks.filter((b) => b.laser === draft.laser)) {
       list.push({
         values: { bank: b.bank },
-        label: `Machine bank ${b.bank}${b.name ? ` · ${b.name}` : ''}${b.disabled ? ' · disabled' : ''}`,
+        label: `${t('Machine bank {0}', b.bank)}${b.name ? ` · ${b.name}` : ''}${b.disabled ? ` · ${t('disabled')}` : ''}`,
         meta: summaryLine({ laser: b.laser, gas: b.summary.gas === null ? '' : gasName(b.summary.gas), summary: b.summary }),
         gas: b.summary.gas ?? null,
       });
@@ -112,7 +113,7 @@
   function toggleCategory(c: string): void {
     category = category === c ? '' : c;
   }
-  const addLabel = $derived(draft.name ? `Add ${draft.name} ${mm(draft.thickness_mm)}` : 'Choose a material');
+  const addLabel = $derived(draft.name ? t('Add {0}', `${draft.name} ${mm(draft.thickness_mm)}`) : t('Choose a material'));
   async function add(): Promise<void> {
     const name = draft.name.trim();
     if (!name || !draft.values) return;
@@ -136,9 +137,9 @@
 <section class="panel main">
   <div class="panel-head">
     <div class="minw0">
-      <h3>Material library · New recipe</h3>
-      <h1>{draft.name || 'Choose a material'}</h1>
-      <p class="muted">{draft.laser === 'fiber' ? 'Metals, for the fiber laser.' : 'Everything else, for the CO₂ laser.'} Pick a card or name your own.</p>
+      <h3>{tl("Material library · New recipe")}</h3>
+      <h1>{draft.name || t('Choose a material')}</h1>
+      <p class="muted">{draft.laser === 'fiber' ? t('Metals, for the fiber laser.') : t('Everything else, for the CO₂ laser.')} {t('Pick a card or name your own.')}</p>
     </div>
     <div class="actions">
       <div class="seg">
@@ -158,14 +159,14 @@
         {/each}
       </div>
     {/if}
-    <div class="search"><i class="ic ic-search"></i><input placeholder="Find a material…" bind:value={search}></div>
+    <div class="search"><i class="ic ic-search"></i><input placeholder={tl("Find a material…")} bind:value={search}></div>
   </div>
   <div class="grid pick-grid" bind:this={grid}>
     {#each paged as c (c?.id ?? 'custom')}
       {#if c === null}
         <button class="pick" class:on={custom} onclick={nameCustom}>
           <span class="art blank">Aa</span>
-          <span>{custom ? draft.name : 'Custom name…'}</span>
+          <span>{custom ? draft.name : t('Custom name…')}</span>
         </button>
       {:else}
         <button class="pick" class:on={draft.name === c.name} onclick={() => (draft.name = c.name)}>
@@ -177,7 +178,7 @@
   </div>
   <div class="new-foot">
     <div class="field">
-      <h3>Thickness</h3>
+      <h3>{tl("Thickness")}</h3>
       <button class="btn btn-ghost" data-numpad onclick={editThickness}>{mm(draft.thickness_mm)}</button>
     </div>
     {#if draft.laser === 'fiber'}
@@ -193,7 +194,7 @@
       </div>
     {/if}
     <div class="field grow">
-      <h3>Start from</h3>
+      <h3>{tl("Start from")}</h3>
       <div class="from-row">
         {#each sources as source (source.label)}
           <button class="from" class:on={same(draft.values, source.values)} onclick={() => choose(source)}>
@@ -201,7 +202,7 @@
             <small>{source.meta}</small>
           </button>
         {:else}
-          <p class="muted">{doc.files.error ?? 'The machine files hold no banks for this laser; import the machine backup on the Settings page.'}</p>
+          <p class="muted">{doc.files.error ?? t('The machine files hold no banks for this laser; import the machine backup on the Settings page.')}</p>
         {/each}
       </div>
     </div>
@@ -209,9 +210,9 @@
   <div class="panel-foot">
     <span class="muted">{plural(matching.length, 'material')}</span>
     <div class="pager">
-      <button onclick={() => (page = Math.max(0, page - 1))} disabled={page === 0} aria-label="Previous page"><i class="ic ic-chev-left"></i></button>
+      <button onclick={() => (page = Math.max(0, page - 1))} disabled={page === 0} aria-label={tl("Previous page")}><i class="ic ic-chev-left"></i></button>
       <span>{page + 1} / {pages}</span>
-      <button onclick={() => (page = Math.min(pages - 1, page + 1))} disabled={page >= pages - 1} aria-label="Next page"><i class="ic ic-chev-right"></i></button>
+      <button onclick={() => (page = Math.min(pages - 1, page + 1))} disabled={page >= pages - 1} aria-label={tl("Next page")}><i class="ic ic-chev-right"></i></button>
     </div>
     <button class="btn btn-primary" onclick={add} disabled={!draft.name || !draft.values}>{addLabel}</button>
   </div>

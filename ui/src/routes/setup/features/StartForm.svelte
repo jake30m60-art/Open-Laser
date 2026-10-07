@@ -19,9 +19,9 @@
     pick: (feature: PickFeature) => void;
   } = $props();
 
-  const POSITIONS = [['keep', WORDS['keep']!], ['automatic', WORDS['automatic']!], ['manual', 'Along each contour']] as const;
-  const DIRECTIONS = [['keep', WORDS['keep']!], ['clockwise', 'Clockwise'], ['counterclockwise', 'Counterclockwise'], ['reverse', WORDS['reverse']!]] as const;
-  const SEAMS = [['seal', 'Seal'], ['gap', 'Gap'], ['overcut', 'Overcut']] as const;
+  const POSITIONS = [['keep', WORDS['keep']!], ['automatic', WORDS['automatic']!], ['manual', t('Along each contour')]] as const;
+  const DIRECTIONS = [['keep', WORDS['keep']!], ['clockwise', t('Clockwise')], ['counterclockwise', t('Counterclockwise')], ['reverse', WORDS['reverse']!]] as const;
+  const SEAMS = [['seal', t('Seal')], ['gap', 'Gap'], ['overcut', t('Overcut')]] as const;
 
   const start = $derived(features.start);
   const seamKind = $derived(typeof features.seam === 'string' ? 'seal' : 'gap' in features.seam ? 'gap' : 'overcut');
@@ -45,7 +45,7 @@
   <Chips label={t("Seam")} options={SEAMS} current={seamKind} disabled={!on} apply={setSeam} />
   {#if typeof features.seam !== 'string'}
     {@const seam = features.seam}
-    <Stepper label={'gap' in seam ? 'Gap' : 'Overcut'} value={'gap' in seam ? seam.gap : seam.overcut} unit="mm" step={0.1} disabled={!on} apply={setSeamLength} />
+    <Stepper label={'gap' in seam ? t('Gap') : t('Overcut')} value={'gap' in seam ? seam.gap : seam.overcut} unit="mm" step={0.1} disabled={!on} apply={setSeamLength} />
   {/if}
   <p class="muted" style="font-size:var(--t-sm);margin:0">{t("Gap leaves an attachment; overcut cuts past the start.")}</p>
 {/if}

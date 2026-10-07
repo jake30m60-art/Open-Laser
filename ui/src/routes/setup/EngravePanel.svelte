@@ -162,7 +162,7 @@
   <div class="stack">
     {#each [...new Set([...draft.layers.map(l => l.name), ...(selectedContours.length ? [NAME] : [])])] as name}
       <button class="btn btn-ghost block" aria-pressed={!ui.drawingLayerHidden(name)} onclick={() => ui.toggleDrawingLayer(name)}>
-        <i class="ic {ui.drawingLayerHidden(name) ? 'ic-eye-off' : 'ic-eye'}"></i>{name} · {tr(ui.drawingLayerHidden(name) ? "Show layer" : "Hide layer")}
+        <i class="ic {ui.drawingLayerHidden(name) ? 'ic-eye-off' : 'ic-eye'}"></i>{name} · {tr(ui.drawingLayerHidden(name) ? tr("Show layer") : tr("Hide layer"))}
       </button>
     {/each}
   </div>
@@ -209,11 +209,11 @@
         <summary>{tr("Recipe")}: {(layer.recipe ?? draft.recipe)?.name ?? tr("Choose one")}</summary>
       <div class="recipes" role="group" aria-label={tr("Engraving recipes")}>
         {#each recipes as r (r.id)}
-          <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {r.gas}</button>
+          <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {tr(r.gas)}</button>
         {:else}
           <p class="muted">{tr("No engraving recipe yet: in Materials, open a recipe and choose Make it an engraving recipe.")}</p>
           {#each others as r (r.id)}
-            <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {r.thickness_mm} mm · {r.gas}</button>
+            <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {r.thickness_mm} mm · {tr(r.gas)}</button>
           {/each}
         {/each}
         <button class="link" onclick={() => (ui.layerSheet = layer.name)}>{tr("All layer settings")}</button>

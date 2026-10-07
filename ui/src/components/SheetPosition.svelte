@@ -58,26 +58,26 @@
 </script>
 
 {#if draft && placement}
-  <section class="sheet-position" class:compact aria-label="Sheet origin">
+  <section class="sheet-position" class:compact aria-label={t("Sheet origin")}>
     {#if collapsed}
       <div class="origin-line">
-        <span><strong>Origin set</strong> · {fixed ? t("Absolute") : 'Each run'} {#if draft.origin} · X {distance(draft.origin[0])} · Y {distance(draft.origin[1])} {unitLabel('mm')}{/if}</span>
+        <span><strong>{t("Origin set")}</strong> · {fixed ? t("Absolute") : t('Each run')} {#if draft.origin} · X {distance(draft.origin[0])} · Y {distance(draft.origin[1])} {unitLabel('mm')}{/if}</span>
         {#if !placement.saved && (draft.job || fixed) && !completed}<button class="text-button" disabled={disabled || !draft.recipe} onclick={save}>{t("Save job")}</button>{/if}
         {#if !completed || !fixed}<button class="text-button" disabled={disabled} onclick={() => (changing = true)}>{t("Change")}</button>{/if}
       </div>
     {:else}
       <div class="position-title">
-        <strong>Sheet origin</strong>
+        <strong>{t("Sheet origin")}</strong>
         {#if originHint}<span class="origin-reason">{originHint}</span>{/if}
         {#if changing}<button class="text-button" onclick={() => (changing = false)}>{t("Done")}</button>{/if}
       </div>
-      <div class="position-method" role="group" aria-label="Positioning method">
-        <button aria-pressed={method === 'head'} disabled={disabled} title="Set the origin at the head for each new run" onclick={chooseEachRun}>Each run</button>
-        <button aria-pressed={method === 'fixed'} disabled={disabled} title="Keep one machine position for a fixture" onclick={() => (method = 'fixed')}>{t("Absolute")}</button>
+      <div class="position-method" role="group" aria-label={t("Positioning method")}>
+        <button aria-pressed={method === 'head'} disabled={disabled} title={t("Set the origin at the head for each new run")} onclick={chooseEachRun}>{t("Each run")}</button>
+        <button aria-pressed={method === 'fixed'} disabled={disabled} title={t("Keep one machine position for a fixture")} onclick={() => (method = 'fixed')}>{t("Absolute")}</button>
       </div>
       {#if !completed || !fixed}
-        <HoldButton class="set-origin" kind="zero" disabled={disabled || !doc.readiness.set_origin.ok} title="Set the origin where the head is" onhold={setOrigin}>
-          Set origin here{#if position} · X {distance(position[0])} · Y {distance(position[1])}{/if}
+        <HoldButton class="set-origin" kind="zero" disabled={disabled || !doc.readiness.set_origin.ok} title={t("Set the origin where the head is")} onhold={setOrigin}>
+          {t('Set origin here')}{#if position} · X {distance(position[0])} · Y {distance(position[1])}{/if}
         </HoldButton>
       {/if}
     {/if}

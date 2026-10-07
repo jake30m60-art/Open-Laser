@@ -27,8 +27,8 @@
     onhold={() => onaction(intent)}
     disabled={busy || !server.link || !access.canControl || !ready.ok}
     title={plain(ready.reason).text}
-  ><i class="ic ic-play"></i>{intent === 'resume' ? 'Resume' : t("Start")}</HoldButton>
-  <button class="btn btn-hold xl" onclick={() => onaction('hold')} disabled={busy || !server.link || !doc.readiness.hold.ok} title={doc.readiness.hold.reason ?? ''}><i class="ic ic-pause"></i>Pause</button>
+  ><i class="ic ic-play"></i>{intent === 'resume' ? t('Resume') : t("Start")}</HoldButton>
+  <button class="btn btn-hold xl" onclick={() => onaction('hold')} disabled={busy || !server.link || !doc.readiness.hold.ok} title={doc.readiness.hold.reason ?? ''}><i class="ic ic-pause"></i>{t("Pause")}</button>
   {#if showStop}<button class="btn btn-stop xl" onclick={() => onaction('stop')} disabled={!server.link || !doc.readiness.stop.ok}><i class="ic ic-stop"></i>{t("Stop")}</button>{/if}
 </div>
 {#if explain && !busy && !running && !ready.ok && ready.reason}<p class="gate-reason run-reason">{plain(ready.reason).text}</p>{/if}

@@ -21,8 +21,8 @@
     pick: (feature: PickFeature) => void;
   } = $props();
 
-  const PLACEMENTS = [['count', 'Per contour'], ['spacing', 'By spacing'], ['across_x', 'Across X'], ['across_y', 'Across Y'], ['manual', 'Picked']] as const;
-  const BEHAVIOURS = [['laser_off', 'Laser off'], ['power', 'Low power']] as const;
+  const PLACEMENTS = [['count', t('Per contour')], ['spacing', t('By spacing')], ['across_x', t('Across X')], ['across_y', t('Across Y')], ['manual', t('Picked')]] as const;
+  const BEHAVIOURS = [['laser_off', t('Laser off')], ['power', t('Low power')]] as const;
 
   const joints = $derived(features.joints ?? defaultJoints());
   const placement = $derived(joints.placement);
@@ -75,7 +75,7 @@
   {#if 'manual' in placement}
     <Placed count={placement.manual.length} what="joint" disabled={!on} onclear={clearPicked} onpick={() => pick('joints')} />
   {/if}
-  <button class="btn btn-soft" onclick={() => askPercentages(features, 'joints', contours, set)} disabled={!on}>Enter positions (%)…</button>
+  <button class="btn btn-soft" onclick={() => askPercentages(features, 'joints', contours, set)} disabled={!on}>{t("Enter positions (%)…")}</button>
   <Stepper label={t("Joint width")} value={joints.width} unit="mm" step={0.1} disabled={!on} apply={setWidth} />
   <Stepper label={t("Skip contours under")} value={joints.minimum_size} unit="mm" step={10} disabled={!on} apply={setMinimumSize} />
   <Toggle label={t("Outer contours only")} value={joints.outer_only} disabled={!on} apply={setOuterOnly} />

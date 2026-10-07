@@ -11,7 +11,7 @@
     clipboard: CopiedShapes | null; settings: PasteSettings; disabled: boolean; pasting: boolean; onpaste: () => void;
   } = $props();
   const directions: { value: PasteDirection; label: string }[] = [
-    { value: 'left', label: t("← Left") }, { value: 'right', label: 'Right →' },
+    { value: 'left', label: t("← Left") }, { value: 'right', label: t('Right →') },
     { value: 'up', label: t("↑ Up") }, { value: 'down', label: t("↓ Down") },
   ];
   function copies(): void {
@@ -30,19 +30,19 @@
 
 <div class="feat-head"><h2>{t("Copy / paste")}</h2><button class="btn btn-ghost" onclick={() => (ui.setupPanel = null)}>{t("Close")}</button></div>
 {#if clipboard}
-  <p class="feat-desc">Each copy contains {plural(clipboard.grouping.length, 'group')} · {plural(clipboard.contours.length, 'contour')}.</p>
+  <p class="feat-desc">{t('Each copy contains {0} · {1}.', plural(clipboard.grouping.length, 'group'), plural(clipboard.contours.length, 'contour'))}</p>
   <fieldset disabled={pasting}>
-    <div class="copy-row"><span>Number of copies</span><button class="num" aria-label="Number of copies" onclick={copies}>{settings.count}</button></div>
-    <div class="copy-row"><span>Gap between copies</span><button class="num" aria-label="Gap between copies" onclick={gap}>{displayNumber(settings.gap, 'mm')} <small>{unitLabel('mm')}</small></button></div>
-    <p class="direction-label" id="paste-direction">Paste direction</p>
+    <div class="copy-row"><span>{t("Number of copies")}</span><button class="num" aria-label={t("Number of copies")} onclick={copies}>{settings.count}</button></div>
+    <div class="copy-row"><span>{t("Gap between copies")}</span><button class="num" aria-label={t("Gap between copies")} onclick={gap}>{displayNumber(settings.gap, 'mm')} <small>{unitLabel('mm')}</small></button></div>
+    <p class="direction-label" id="paste-direction">{t("Paste direction")}</p>
     <div class="directions" role="group" aria-labelledby="paste-direction">{#each directions as direction}<button
       class="choice" aria-pressed={settings.direction === direction.value} onclick={() => (settings.direction = direction.value)}
     >{direction.label}</button>{/each}</div>
   </fieldset>
-  <button class="btn btn-primary lg block paste" disabled={disabled || pasting} onclick={onpaste}>{pasting ? 'Pasting…' : `Paste ${plural(settings.count, 'copy', 'copies')}`}</button>
-  <p class="muted copy-note">Each paste continues from the last copy. Undo removes the whole batch.</p>
+  <button class="btn btn-primary lg block paste" disabled={disabled || pasting} onclick={onpaste}>{pasting ? t('Pasting…') : `Paste ${plural(settings.count, 'copy', 'copies')}`}</button>
+  <p class="muted copy-note">{t("Each paste continues from the last copy. Undo removes the whole batch.")}</p>
 {:else}
-  <p class="muted">Select shapes on the drawing, then tap Copy.</p>
+  <p class="muted">{t("Select shapes on the drawing, then tap Copy.")}</p>
 {/if}
 
 <style>

@@ -35,7 +35,7 @@
   const duration = () => server.doc?.hold[kind === 'move' ? 'move_ms' : 'zero_ms'] ?? HOLD_MS[kind];
   const hold = new HoldConfirm(duration, () => { onhold(); }, (next, fill) => { phase = next; progress = fill; });
   const keys = new Set(['Enter', ' ']);
-  const hint = $derived(phase === 'early' ? 'Press and hold' : phase === 'done' ? 'Done' : 'Hold');
+  const hint = $derived(t(phase === 'early' ? 'Press and hold' : phase === 'done' ? 'Done' : 'Hold'));
 
   $effect(() => { if (disabled) hold.cancel(); });
   onMount(() => {

@@ -127,7 +127,7 @@
   const cutting = $derived(running && !doc.progress?.approaching && pass?.kind !== 'pre_pierce' ? current : null);
   const pct = $derived(contours > 0 ? (done / contours) * 100 : 0);
   const eta = $derived.by(() => {
-    if (recovering) return 'Original program';
+    if (recovering) return t('Original program');
     if (execution) {
       const left = 1 - (doc.progress?.completed ?? 0) / Math.max(1, execution.compiled.plan.length);
       return seconds(execution.compiled.seconds * left);
@@ -145,26 +145,26 @@
   const shownResumeTravels = $derived(ui.travelMode === 'all' ? resumeTravels : resumeTravels.slice(0, 1));
 
   const message = $derived.by(() => {
-    if (recovering) return doc.can_resume ? 'Resume starts at the selected recovery point.' : 'Choose and prepare the restart point.';
+    if (recovering) return doc.can_resume ? t('Resume starts at the selected recovery point.') : t('Choose and prepare the restart point.');
     if (paused) {
-      if (machine.operation?.kind === 'program') return 'Pausing · waiting for the head to stop.';
-      return doc.can_resume ? 'Paused · Resume returns to the saved position.' : recovery?.problem ?? 'Paused · saving the position.';
+      if (machine.operation?.kind === 'program') return t('Pausing · waiting for the head to stop.');
+      return doc.can_resume ? t('Paused · Resume returns to the saved position.') : recovery?.problem ?? t('Paused · saving the position.');
     }
     if (execution && running) {
-      if (execution.frame) return 'Framing · laser off.';
-      if (compiled?.dry_run) return 'Dry run · laser off.';
-      if (!program?.started) return 'Preparing to run · keep clear of the bed.';
-      const phase = doc.progress?.approaching ? 'Travel'
-        : pass?.kind === 'pre_pierce' ? 'Pre-piercing'
-        : pass?.kind === 'film' ? 'Film removal'
-        : 'Cutting process';
-      return `${phase}${pass ? ` · pass ${pass.ordinal + 1}` : ''} · keep clear of the bed.`;
+      if (execution.frame) return t('Framing · laser off.');
+      if (compiled?.dry_run) return t('Dry run · laser off.');
+      if (!program?.started) return t('Preparing to run · keep clear of the bed.');
+      const phase = doc.progress?.approaching ? t('Travel')
+        : pass?.kind === 'pre_pierce' ? t('Pre-piercing')
+        : pass?.kind === 'film' ? t('Film removal')
+        : t('Cutting process');
+      return t('{0} · keep clear of the bed.', `${t(phase)}${pass ? ` · ${t('pass {0}', pass.ordinal + 1)}` : ''}`);
     }
     if (execution && program?.state === 'completed') {
-      if (execution.frame) return 'Frame finished.';
-      return compiled?.dry_run ? 'Dry run finished.' : 'Program finished. Check the cut.';
+      if (execution.frame) return t('Frame finished.');
+      return compiled?.dry_run ? t('Dry run finished.') : t('Program finished. Check the cut.');
     }
-    if (execution && program?.state === 'stopped') return 'Job stopped.';
+    if (execution && program?.state === 'stopped') return t('Job stopped.');
     return doc.readiness.run.ok ? 'Ready. Hold Start to run.' : doc.readiness.run.reason ?? '';
   });
   const statusTone = $derived(doc.readiness.run.ok || running ? 'ready' : 'info');
@@ -221,18 +221,18 @@
       <strong>{jobName}</strong>
       {#if !displayed && !recovering && draft?.features.only_contours}<span class="run-msg" role="status">{t("Output limited to {0} selected contours",draft.features.only_contours.length)}</span>{/if}
       <span class="run-msg run-material">{material ? `${recipeLabel(material)} · ${laserLabel(material.laser)}` : t("No material")}</span>
-      {#if material}<button class="values-toggle" aria-expanded={valuesOpen} onclick={() => (valuesOpen = !valuesOpen)}>{valuesOpen ? 'Hide values' : 'Values'}</button>{/if}
+      {#if material}<button class="values-toggle" aria-expanded={valuesOpen} onclick={() => (valuesOpen = !valuesOpen)}>{valuesOpen ? t('Hide values') : t('Values')}</button>{/if}
       {#if draft?.calibration}
-        <span class="run-msg run-correction">Correction off</span>
+        <span class="run-msg run-correction">{t("Correction off")}</span>
       {:else if !displayed && draft?.placement.correction_pending}
-        <span class="run-msg run-correction">Correction pending position</span>
+        <span class="run-msg run-correction">{t("Correction pending position")}</span>
       {/if}
     </div>
     {#if material && valuesOpen}<div class="run-summary"><MaterialSummary source={material} variant="line" /></div>{/if}
   </div>
 
   {#if compiled?.plan.some((pass) => pass.omitted_cooling > 0)}
-    <p class="muted">{compiled.plan.reduce((n, pass) => n + pass.omitted_cooling, 0)} cooling points skipped within {quantity(0.2, 'mm')} of endpoints.</p>
+    <p class="muted">{t('{0} cooling points skipped within {1} of endpoints.', compiled.plan.reduce((n, pass) => n + pass.omitted_cooling, 0), quantity(0.2, 'mm'))}</p>
   {/if}
 
   {#if !recovering && !running && !paused}<SheetStrip />{/if}
@@ -286,7 +286,7 @@
     {/if}
     </g>
     {#if restartPosition}
-      <g aria-label={recovering ? 'Selected restart' : 'Paused position'}>
+      <g aria-label={recovering ? t('Selected restart') : t('Paused position')}>
         <circle
           cx={restartPosition[0]}
           cy={restartPosition[1]}
@@ -305,16 +305,16 @@
         {#if draft && !recovering && !running && !paused}
           <div class="seg">
             <button class:on={!draft.dry_run} disabled={choosingRun || !doc.readiness.compile.ok || !!machine.operation} onclick={() => chooseRun(false)}>{t("Cut")}</button>
-            <button class:on={draft.dry_run} disabled={choosingRun || !doc.readiness.compile.ok || !!machine.operation} onclick={() => chooseRun(true)}>Dry run</button>
+            <button class:on={draft.dry_run} disabled={choosingRun || !doc.readiness.compile.ok || !!machine.operation} onclick={() => chooseRun(true)}>{t("Dry run")}</button>
           </div>
         {/if}
         <div class="run-meta">
-          <strong>{execution?.frame ? 'Frame' : `${Math.round(pct)}%`}</strong>
+          <strong>{execution?.frame ? t('Frame') : `${Math.round(pct)}%`}</strong>
           <span>{execution?.frame ? t("Laser off") : t("{0} / {1} passes", done, contours)}</span>
           {#if !execution?.frame}<span>{execution && !recovering && program?.state === 'completed' ? 'done' : eta}</span>{/if}
         </div>
         <span class="float-spacer"></span>
-        <RunChip message={choosingRun ? 'Preparing…' : message} gates={statusGates} tone={statusTone} />
+        <RunChip message={choosingRun ? t('Preparing…') : message} gates={statusGates} tone={statusTone} />
       </div>
       <div class="run-layers">
         {#if canRecover && !recoveryEditor}
@@ -323,9 +323,9 @@
           </button>
         {/if}
         {#if recovering && !showLayers}
-          <span class="recovery-key"><i></i>Selected restart</span>
-          <span class="recovery-key finished-key"><i></i>Completed</span>
-          <button class="legend-chip" onclick={() => showLayers = true}>Display layers…</button>
+          <span class="recovery-key"><i></i>{t("Selected restart")}</span>
+          <span class="recovery-key finished-key"><i></i>{t("Completed")}</span>
+          <button class="legend-chip" onclick={() => showLayers = true}>{t("Display layers…")}</button>
         {:else if layersOpen || recovering}
           {#each LAYERS as [layer, label]}
             <button class="legend-chip" class:off={!ui.layerShown(layer)} onclick={() => ui.toggleLayer(layer)}>
@@ -336,22 +336,22 @@
             </button>
           {/each}
           {#if recovering}<button class="legend-chip" onclick={() => showLayers = false}>{t("Done")}</button>
-          {:else}<button class="legend-chip" onclick={() => (layersOpen = false)}>Hide layers</button>{/if}
+          {:else}<button class="legend-chip" onclick={() => (layersOpen = false)}>{t("Hide layers")}</button>{/if}
         {:else}
-          <button class="legend-chip" onclick={() => (layersOpen = true)}>Layers…</button>
+          <button class="legend-chip" onclick={() => (layersOpen = true)}>{t("Layers…")}</button>
         {/if}
         <span class="spacer"></span>
         {#if !recovering || showLayers}
           <div class="seg small">
-            <button class:on={ui.travelMode === 'next'} onclick={() => ui.setTravelMode('next')}>Next move</button>
+            <button class:on={ui.travelMode === 'next'} onclick={() => ui.setTravelMode('next')}>{t("Next move")}</button>
             <button class:on={ui.travelMode === 'all'} onclick={() => ui.setTravelMode('all')}>{t("All moves")}</button>
           </div>
         {/if}
       </div>
       <div class="canvas-zoom">
-        <button onclick={fit} title="Fit job"><i class="ic ic-fit"></i></button>
-        <button onclick={() => view.zoom(1.25)} title="Zoom in"><i class="ic ic-plus"></i></button>
-        <button onclick={() => view.zoom(0.8)} title="Zoom out"><i class="ic ic-minus"></i></button>
+        <button onclick={fit} title={t("Fit job")}><i class="ic ic-fit"></i></button>
+        <button onclick={() => view.zoom(1.25)} title={t("Zoom in")}><i class="ic ic-plus"></i></button>
+        <button onclick={() => view.zoom(0.8)} title={t("Zoom out")}><i class="ic ic-minus"></i></button>
         <span class="zoom-percent">{view.percent}%</span>
       </div>
     {/snippet}
@@ -359,8 +359,8 @@
 
   {#if doc.completed_sheet && !running && !recovering}
     <div class="sheet-complete">
-      <span><strong>Sheet complete</strong><small>Inspect the parts and remaining material.</small></span>
-      <button class="btn btn-ghost" onclick={() => remnant = doc.completed_sheet}>Save remaining sheet</button>
+      <span><strong>{t("Sheet complete")}</strong><small>{t("Inspect the parts and remaining material.")}</small></span>
+      <button class="btn btn-ghost" onclick={() => remnant = doc.completed_sheet}>{t("Save remaining sheet")}</button>
     </div>
   {/if}
   {#if !recovering}

@@ -51,18 +51,18 @@
         <div class="rack-row" class:empty={item.quantity === 0}>
           <button class="row-main" onclick={() => editing = item.id}>
             <strong>{sheetLabel(item.width_mm, item.height_mm)}</strong>
-            <small>{item.quantity ? plural(item.quantity, 'sheet') : 'None left'}{item.folder ? ` · ${folderName(item.folder)}` : ''}</small>
+            <small>{item.quantity ? plural(item.quantity, 'sheet') : t('None left')}{item.folder ? ` · ${folderName(item.folder)}` : ''}</small>
           </button>
-          <button class="step" aria-label="One fewer" disabled={busy || item.quantity <= 0} onclick={() => step(item, -1)}><i class="ic ic-minus"></i></button>
+          <button class="step" aria-label={t("One fewer")} disabled={busy || item.quantity <= 0} onclick={() => step(item, -1)}><i class="ic ic-minus"></i></button>
           <span class="count">{item.quantity}</span>
-          <button class="step" aria-label="One more" disabled={busy} onclick={() => step(item, 1)}><i class="ic ic-plus"></i></button>
+          <button class="step" aria-label={t("One more")} disabled={busy} onclick={() => step(item, 1)}><i class="ic ic-plus"></i></button>
         </div>
       {/each}
       {#each g.remnants as sheet (sheet.id)}
         <div class="rack-row">
           <button class="row-main" onclick={() => editing = sheet.id}>
             <strong>{sheet.name}</strong>
-            <small>Remnant · {size(sheet)} · {plural(sheet.cutouts.length, 'cut area')}{sheet.folder ? ` · ${folderName(sheet.folder)}` : ''}</small>
+            <small>{t('Remnant')} · {size(sheet)} · {plural(sheet.cutouts.length, 'cut area')}{sheet.folder ? ` · ${folderName(sheet.folder)}` : ''}</small>
           </button>
           <span class="tag">{t("Remnant")}</span>
         </div>
@@ -70,7 +70,7 @@
     </section>
   {:else}
     <div class="empty-rack">
-      <strong>Nothing on the rack yet</strong>
+      <strong>{t("Nothing on the rack yet")}</strong>
       <p>{t("Add the sheets you have. Saved remnants appear here too.")}</p>
     </div>
   {/each}

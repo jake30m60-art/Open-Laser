@@ -23,8 +23,8 @@
     preview: Preview | null;
   } = $props();
 
-  const SHAPES = [['line', 'Line'], ['arc', 'Arc'], ['line_arc', 'Line and arc']] as const;
-  const SIDES = [['auto', 'Auto'], ['inside', 'Inside'], ['outside', 'Outside']] as const;
+  const SHAPES = [['line', t('Line')], ['arc', 'Arc'], ['line_arc', t('Line and arc')]] as const;
+  const SIDES = [['auto', t('Auto')], ['inside', t('Inside')], ['outside', t('Outside')]] as const;
   const defaultLead = (): Lead => ({ shape: 'line', length: 2, radius: 1, angle: 45 });
 
   const leads = $derived(features.leads ?? defaultLeads());
@@ -85,13 +85,13 @@
 {#if local && lead}
   <p class="muted lead-note">{t("Changes apply to the")} {plural(targets.length, 'selected contour')} {t("only. Switching a lead off or changing the side applies to all contours.")}</p>
 {:else}
-  <Toggle label={tab === 0 ? 'Lead-in' : 'Lead-out'} value={lead !== null} disabled={!on} apply={switchLead} />
+  <Toggle label={tab === 0 ? t('Lead-in') : t('Lead-out')} value={lead !== null} disabled={!on} apply={switchLead} />
 {/if}
 {#if lead}
   <Chips label={t("Shape")} options={SHAPES} current={lead.shape} disabled={!on} apply={setShape} />
   {#if lead.shape !== 'arc'}<Stepper label={t("Length")} value={lead.length} unit="mm" step={0.5} disabled={!on} apply={setLength} />{/if}
   {#if lead.shape !== 'line'}<Stepper label={t("Arc radius")} value={lead.radius} unit="mm" step={0.5} disabled={!on} apply={setRadius} />{/if}
-  <Stepper label={lead.shape === 'arc' ? 'Arc sweep' : 'Angle'} value={lead.angle} unit="°" step={15} disabled={!on} apply={setAngle} />
+  <Stepper label={lead.shape === 'arc' ? t('Arc sweep') : t('Angle')} value={lead.angle} unit="°" step={15} disabled={!on} apply={setAngle} />
 {/if}
 {#if !local}
   <Chips label={t("Side")} options={SIDES} current={leads.side} disabled={!on} apply={setSide} />

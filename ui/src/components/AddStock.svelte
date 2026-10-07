@@ -55,14 +55,14 @@
     {#if material}
       <p class="fixed">{label(material)}</p>
     {:else}
-      <h4>Material</h4>
+      <h4>{t("Material")}</h4>
       <div class="chips">
         {#each names as name (name)}
           <button class="chip" class:on={picked?.name === name} disabled={busy} onclick={() => pickName(name)}>{name}</button>
         {:else}<p class="fixed">{t("Add a recipe first.")}</p>{/each}
       </div>
       {#if picked}
-        <h4>Thickness</h4>
+        <h4>{t("Thickness")}</h4>
         <div class="chips">
           {#each materials.filter((m) => m.name === picked!.name) as m (key(m))}
             <button class="chip" class:on={key(m) === chosen} disabled={busy} onclick={() => chosen = key(m)}>

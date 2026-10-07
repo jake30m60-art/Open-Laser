@@ -32,13 +32,13 @@
   }
 
   const count = (n: number) => plural(n, 'part');
-  const setUp = () => run(() => api.openParts(picks), picks.length > 1 ? `${count(picks.length)} side by side · Nest parts fills a sheet` : 'Part opened');
-  const add = () => run(() => api.addParts(picks), `Added ${count(picks.length)} beside the sheet · Undo takes them off`);
+  const setUp = () => run(() => api.openParts(picks), picks.length > 1 ? t('{0} side by side · Nest parts fills a sheet', count(picks.length)) : t('Part opened'));
+  const add = () => run(() => api.addParts(picks), t('Added {0} beside the sheet · Undo takes them off', count(picks.length)));
 </script>
 
 <aside class="panel side picks">
-  <h2>{picks.length ? t("{0} picked", count(picks.length)) : 'Pick parts'}</h2>
-  <p class="muted">{picks.length ? 'They open side by side, in this order, as one job.' : 'Tap the parts to cut together. Saved jobs keep their own parts.'}</p>
+  <h2>{picks.length ? t("{0} picked", count(picks.length)) : t('Pick parts')}</h2>
+  <p class="muted">{picks.length ? t('They open side by side, in this order, as one job.') : t('Tap the parts to cut together. Saved jobs keep their own parts.')}</p>
   {#if picked.length}
     <ol class="pick-list">
       {#each picked as part, i (part.id)}
@@ -52,12 +52,12 @@
     </ol>
   {/if}
   <div class="side-foot">
-    {#if rest.length}<button class="btn btn-ghost lg block" disabled={busy} onclick={() => (ui.partPicks = [...picks, ...rest])}>Pick all {plural(shown.length, 'part')} here</button>{/if}
+    {#if rest.length}<button class="btn btn-ghost lg block" disabled={busy} onclick={() => (ui.partPicks = [...picks, ...rest])}>{t('Pick all {0} here', plural(shown.length, 'part'))}</button>{/if}
     {#if draft}
       <button class="btn btn-ghost lg block add" disabled={busy || !picks.length || inDraft.length > 0} onclick={add}>{t("Add to")} {draft.name}</button>
-      {#if inDraft.length}<p class="gate-reason">{inDraft[0]!.name} is already in {draft.name}; copy it on the sheet for more.</p>{/if}
+      {#if inDraft.length}<p class="gate-reason">{t('{0} is already in {1}; copy it on the sheet for more.', inDraft[0]!.name, draft.name)}</p>{/if}
     {/if}
-    <button class="btn btn-primary lg block" disabled={busy || !picks.length} onclick={setUp}>{picks.length > 1 ? `Set up job with ${count(picks.length)} →` : 'Set up job →'}</button>
+    <button class="btn btn-primary lg block" disabled={busy || !picks.length} onclick={setUp}>{picks.length > 1 ? t('Set up job with {0} →', count(picks.length)) : t('Set up job →')}</button>
     <button class="btn btn-ghost lg block" disabled={busy} onclick={() => (ui.partPicks = null)}>{t("Cancel")}</button>
   </div>
 </aside>

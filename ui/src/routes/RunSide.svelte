@@ -25,7 +25,7 @@
   const origin = $derived(doc.draft?.origin ?? null);
   const readiness = $derived.by(() => {
     if (access.canControl) return doc.readiness;
-    const closed = { ok: false, reason: 'Take control to move the machine' };
+    const closed = { ok: false, reason: t('Take control to move the machine') };
     return {
       ...doc.readiness, home: closed, position: closed, calibrate: closed, jog: closed,
       xy_jog: [[closed, closed], [closed, closed]], head_up: closed, head_down: closed, frame: closed,
@@ -36,7 +36,7 @@
   const fresh = $derived(doc.machine.connection.state === 'connected' && !!feedback && feedback.age_ms <= 1000);
   const homed = $derived(fresh && doc.machine.session.homed && feedback?.referenced.every(Boolean));
   const headHomed = $derived(fresh && feedback?.head.referenced);
-  const sourceLabel = $derived(doc.mode ? laserLabel(doc.mode) : 'Not selected');
+  const sourceLabel = $derived(doc.mode ? laserLabel(doc.mode) : t('Not selected'));
 
   const work = $derived.by(() => {
     if (!feedback) return null;
@@ -78,7 +78,7 @@
   let goingTo = $state(false);
 
   // Why a control is unavailable is on the Run page's status line.
-  const originGate = $derived(readiness.position.ok && !origin ? { ok: false, reason: 'set a job origin first' } : readiness.position);
+  const originGate = $derived(readiness.position.ok && !origin ? { ok: false, reason: t('set a job origin first') } : readiness.position);
 
   const canJog = $derived(readiness.xy_jog.some(axis => axis.some(direction => direction.ok)));
   /** The head controller is following the sheet: the Follow button, or a cut. */
@@ -87,7 +87,7 @@
   const jogSpeed = $derived(doc.bindings?.jog_speed[ui.jogFast ? 1 : 0]);
   const jogSpeedText = $derived(jogSpeed != null
     ? quantity(readiness.xy_recovery ? Math.min(1, jogSpeed) : jogSpeed, 'mm/s')
-    : 'tap to switch');
+    : t('tap to switch'));
   /** The arrow's rotation on a diagonal jog key, in degrees. */
   const cornerTurn = (xPositive: boolean, yPositive: boolean): number =>
     yPositive ? (xPositive ? 45 : -45) : (xPositive ? 135 : -135);
@@ -114,8 +114,8 @@
  <div class="run-side-scroll">
   {#if machine.program?.state === 'held' && doc.recovery?.pause_position}
     <div class="pause-position" role="status">
-      <strong>Paused at X {distance(doc.recovery.pause_position[0])} · Y {distance(doc.recovery.pause_position[1])} {unitLabel('mm')}</strong>
-      <span>You can move the head. Resume returns to this saved position.</span>
+      <strong>{t('Paused at X {0} · Y {1} {2}', distance(doc.recovery.pause_position[0]), distance(doc.recovery.pause_position[1]), unitLabel('mm'))}</strong>
+      <span>{t("You can move the head. Resume returns to this saved position.")}</span>
     </div>
   {/if}
   {#if !machine.program || !['running', 'finishing', 'held'].includes(machine.program.state)}<SheetPosition compact />{/if}
@@ -136,13 +136,13 @@
       onhold={() => call(() => api.machine('home'))}
       disabled={!readiness.home.ok}
       title={plain(readiness.home.reason).text}
-    ><i class="ic ic-home"></i>Home</HoldButton>
+    ><i class="ic ic-home"></i>{t("Home")}</HoldButton>
     <HoldButton
       class="btn btn-move"
       onhold={() => call(() => api.machine('go-origin', { fast: ui.jogFast }))}
       disabled={!originGate.ok}
       title={plain(originGate.reason).text}
-    >Go origin</HoldButton>
+    >{t("Go origin")}</HoldButton>
     <HoldButton
       class="btn btn-move"
       label={t("Calibrate Z")}
@@ -169,9 +169,9 @@
       onhold={() => call(() => api.machine('frame'))}
       disabled={!readiness.frame.ok}
       title={plain(readiness.frame.reason).text}
-    ><i class="ic ic-frame"></i>Frame · laser off</HoldButton>
+    ><i class="ic ic-frame"></i>{t("Frame · laser off")}</HoldButton>
     <button class="btn btn-ghost go-xy" disabled={!readiness.position.ok} title={plain(readiness.position.reason).text} onclick={() => (goingTo = true)}>
-      Go to X/Y…
+      {t("Go to X/Y…")}
     </button>
   </div>
 
@@ -179,8 +179,8 @@
     <div class="jog" class:disabled={!canJog} title={jogTitle}>
       {@render corner(false, true)}{@render key(1, true, 'ic-arrow-up', 'Y+', readiness.xy_jog[1]![1]!.ok)}{@render corner(true, true)}
       {@render key(0, false, 'ic-arrow-left', 'X−', readiness.xy_jog[0]![0]!.ok)}
-      <button class="hub" onclick={() => (ui.jogFast = !ui.jogFast)} title="Tap to switch speed">
-        <strong>{ui.jogFast ? 'Fast' : 'Slow'}</strong>
+      <button class="hub" onclick={() => (ui.jogFast = !ui.jogFast)} title={t("Tap to switch speed")}>
+        <strong>{ui.jogFast ? t('Fast') : t('Slow')}</strong>
         <small>{jogSpeedText}</small>
       </button>
       {@render key(0, true, 'ic-arrow-right', 'X+', readiness.xy_jog[0]![1]!.ok)}
@@ -191,20 +191,19 @@
       <button
         class="hub"
         onclick={() => selectAuxiliary(auxiliary === 'z' ? 'w' : 'z')}
-        aria-label={auxiliary === 'z' ? 'Z head; switch to W table' : 'W table; switch to Z head'}
-        title={auxiliary === 'z' ? 'Tap for W table' : 'Tap for Z head'}
+        aria-label={t(auxiliary === 'z' ? 'Z head; switch to W table' : 'W table; switch to Z head')}
+        title={auxiliary === 'z' ? t('Tap for W table') : t('Tap for Z head')}
       >
         <strong>{auxiliary.toUpperCase()}</strong>
-        <small>{auxiliary === 'z' ? 'Head' : t("Table")}</small>
-        <small>Tap for {auxiliary === 'z' ? 'W' : 'Z'}</small>
+        <small>{auxiliary === 'z' ? t('Head') : t("Table")}</small>
+        <small>{t('Tap for {0}', auxiliary === 'z' ? 'W' : 'Z')}</small>
       </button>
       {@render key(auxiliary, false, 'ic-arrow-down', auxiliary === 'z' ? 'Z down' : 'W−', auxiliaryDown)}
     </div>
   </div>
   {#if readiness.xy_recovery}
     <p class="muted auxiliary-hint" role="status">
-      X/Y limit recovery: hold an available direction to move away up to 1 mm at 1 mm/s or slower.
-      Release between presses. Once clear, use Home.
+      {t("X/Y limit recovery: hold an available direction to move away up to 1 mm at 1 mm/s or slower. Release between presses. Once clear, use Home.")}
     </p>
   {/if}
   {#if auxiliary === 'w'}
@@ -213,12 +212,11 @@
         <span>W <strong>{quantity(feedback?.table_mm, 'mm')}</strong></span>
         <button class="btn btn-ghost" onclick={editTableSpeed}>{quantity(tableSpeed, 'mm/s')}</button>
       </div>
-    {:else}<p class="muted auxiliary-hint">W table motion is not enabled in the loaded machine configuration.</p>{/if}
-  {:else if !headEnabled}<p class="muted auxiliary-hint">No head controller configured.</p>
+    {:else}<p class="muted auxiliary-hint">{t("W table motion is not enabled in the loaded machine configuration.")}</p>{/if}
+  {:else if !headEnabled}<p class="muted auxiliary-hint">{t("No head controller configured.")}</p>
   {:else if readiness.head_recovery}
     <p class="muted auxiliary-hint" role="status">
-      Z limit recovery: hold the available direction to move up to 1 mm at 1 mm/s or slower.
-      Release between presses. Once clear, use Home.
+      {t("Z limit recovery: hold the available direction to move up to 1 mm at 1 mm/s or slower. Release between presses. Once clear, use Home.")}
     </p>
   {/if}
  </div>

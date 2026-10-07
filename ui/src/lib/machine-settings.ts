@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 import { field as recipeField, stageOf } from './recipe';
 import { quantity } from './units.svelte';
 
@@ -76,7 +77,7 @@ export function groupName(path: string): string {
   const axis = name.match(/^PMachineAxisConfig_(\d)$/);
   if (axis) return `${['X axis', 'Y axis', 'Auxiliary axis 2', 'Z head axis', 'W table axis'][Number(axis[1])] ?? 'Axis'} settings`;
   const layer = name.match(/^P(CO2)?LayerParam(\d+)$/);
-  if (layer) return `${layer[1] ? 'CO₂' : 'Fiber'} layer ${layer[2]}`;
+  if (layer) return t('{0} layer {1}', layer[1] ? 'CO₂' : t('Fiber'), layer[2]);
   return groups[name] ?? readable(name.replace(/^P/, ''));
 }
 export const groupKey = (path: string): string => path.split('/').slice(0, 3).join('/');

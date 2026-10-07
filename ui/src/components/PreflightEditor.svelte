@@ -40,7 +40,7 @@
   }
 
   async function choose(kind: JobPreflight['kind']): Promise<void> {
-    if (kind === 'off' && choice !== 'off' && !await ui.confirm({ title: 'Turn this job’s checklist off?', body: 'Start will run this job without asking for any preflight checks.', confirm: 'Turn checklist off', danger: true })) return;
+    if (kind === 'off' && choice !== 'off' && !await ui.confirm({ title: 'Turn this job’s checklist off?', body: 'Start will run this job without asking for any preflight checks.', confirm: t('Turn checklist off'), danger: true })) return;
     if (kind === 'custom' && !custom.length && preferences) custom = structuredClone($state.snapshot(preferences[mode].steps));
     choice = kind;
   }
@@ -64,36 +64,36 @@
   }
 </script>
 
-<Modal title={scope === 'postflight' ? 'Postflight defaults' : scope === 'pause' ? 'Pause defaults' : scope === 'defaults' ? 'Preflight defaults' : 'Job preflight'} onclose={close}>
+<Modal title={scope === 'postflight' ? t('Postflight defaults') : scope === 'pause' ? t('Pause defaults') : scope === 'defaults' ? t('Preflight defaults') : t('Job preflight')} onclose={close}>
   {#if preferences}
     {#if scope !== 'job'}
-      <div class="seg block"><button class:on={mode === 'fiber'} onclick={() => (mode = 'fiber')}>{t("Fiber")}</button><button class:on={mode === 'co2'} onclick={() => (mode = 'co2')}>CO₂</button></div>
+      <div class="seg block"><button class:on={mode === 'fiber'} onclick={() => (mode = 'fiber')}>{t("Fiber")}</button><button class:on={mode === 'co2'} onclick={() => (mode = 'co2')}>{t("CO₂")}</button></div>
       {#if scope === 'pause'}
-        <label class="preflight-toggle"><input type="checkbox" bind:checked={preferences.pause[mode].enabled}>Show when paused and before Resume</label>
+        <label class="preflight-toggle"><input type="checkbox" bind:checked={preferences.pause[mode].enabled}>{t("Show when paused and before Resume")}</label>
         <CheckEditor phase="pause" bind:steps={preferences.pause[mode].steps} />
       {:else if scope === 'postflight'}
-        <label class="preflight-toggle"><input type="checkbox" bind:checked={preferences.postflight[mode].enabled}>Show after job completion</label>
+        <label class="preflight-toggle"><input type="checkbox" bind:checked={preferences.postflight[mode].enabled}>{t("Show after job completion")}</label>
         <CheckEditor phase="postflight" bind:steps={preferences.postflight[mode].steps} />
       {:else}
-        <label class="preflight-toggle"><input type="checkbox" bind:checked={preferences[mode].enabled}>Show before Start</label>
+        <label class="preflight-toggle"><input type="checkbox" bind:checked={preferences[mode].enabled}>{t("Show before Start")}</label>
         <CheckEditor bind:steps={preferences[mode].steps} />
       {/if}
     {:else}
       <div class="seg block"><button
-          class:on={choice === 'inherit'} onclick={() => choose('inherit')}>Use defaults</button><button
-          class:on={choice === 'custom'} onclick={() => choose('custom')}>Custom</button><button
+          class:on={choice === 'inherit'} onclick={() => choose('inherit')}>{t("Use defaults")}</button><button
+          class:on={choice === 'custom'} onclick={() => choose('custom')}>{t("Custom")}</button><button
           class:on={choice === 'off'} onclick={() => choose('off')}>{t("Off")}</button></div>
       {#if choice === 'custom'}
         <CheckEditor bind:steps={custom} />
       {:else if choice === 'inherit'}
-        <p class="muted">{laserLabel(mode)} defaults · {preferences[mode].enabled ? plural(preferences[mode].steps.length, 'check') : 'checklist off'}</p>
+        <p class="muted">{t('{0} defaults', laserLabel(mode))} · {preferences[mode].enabled ? plural(preferences[mode].steps.length, 'check') : t('checklist off')}</p>
         {#if preferences[mode].enabled}<ul class="inherited">{#each preferences[mode].steps as step}<li>{step.text}</li>{/each}</ul>{/if}
       {:else}
-        <p class="muted">This job's checklist is off.</p>
+        <p class="muted">{t("This job's checklist is off.")}</p>
       {/if}
     {/if}
-    <div class="editor-footer"><button class="btn btn-ghost" onclick={close}>{t("Close")}</button><button class="btn btn-primary" disabled={saving} onclick={save}>{saving ? 'Saving…' : scope !== 'job' ? 'Review changes' : t("Save")}</button></div>
-  {:else if !error}<p class="muted">Loading checklist…</p>{/if}
+    <div class="editor-footer"><button class="btn btn-ghost" onclick={close}>{t("Close")}</button><button class="btn btn-primary" disabled={saving} onclick={save}>{saving ? t('Saving…') : scope !== 'job' ? t('Review changes') : t("Save")}</button></div>
+  {:else if !error}<p class="muted">{t("Loading checklist…")}</p>{/if}
   {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
 </Modal>
 

@@ -1,16 +1,17 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
   import Modal from './Modal.svelte';
   import { access } from '../lib/access.svelte';
 
   const discovery = $derived(access.info?.discovery.error ?? (
-    access.info?.discovery.ready ? 'Open this address on any phone, tablet or computer connected to the same network.'
-    : access.info?.discovery.enabled ? 'Announcing the local address…'
-    : 'Local network sharing is off.'));
+    access.info?.discovery.ready ? t('Open this address on any phone, tablet or computer connected to the same network.')
+    : access.info?.discovery.enabled ? t('Announcing the local address…')
+    : t('Local network sharing is off.')));
 </script>
 
-<Modal title="Local network" onclose={() => access.manage = false}>
+<Modal title={t("Local network")} onclose={() => access.manage = false}>
   <div class="network-address">
-    <span>OpenLaser on your network</span>
+    <span>{t("OpenLaser on your network")}</span>
     <strong>{access.info?.address.replace('http://', '')}</strong>
     <p>{discovery}</p>
   </div>

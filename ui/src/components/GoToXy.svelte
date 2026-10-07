@@ -50,13 +50,13 @@
   }
 </script>
 
-<Modal title="Go to X/Y" {onclose}>
+<Modal title={t("Go to X/Y")} {onclose}>
   <div class="goto">
-    <div class="seg" role="group" aria-label="Coordinates">
+    <div class="seg" role="group" aria-label={t("Coordinates")}>
       <button class:on={frame === 'job'} aria-pressed={frame === 'job'} disabled={!origin} onclick={() => chooseFrame('job')}>{t("Job")}</button>
       <button class:on={frame === 'machine'} aria-pressed={frame === 'machine'} onclick={() => chooseFrame('machine')}>{t("Machine")}</button>
     </div>
-    <p class="muted">{frame === 'job' ? 'Measured from the job origin.' : origin ? 'Measured from the machine home.' : 'Measured from the machine home. Set a job origin to use job coordinates.'}</p>
+    <p class="muted">{frame === 'job' ? t('Measured from the job origin.') : origin ? t('Measured from the machine home.') : t('Measured from the machine home. Set a job origin to use job coordinates.')}</p>
     <div class="fields">
       {#each [0, 1] as axis (axis)}
         <button class="field" onclick={() => edit(axis as 0 | 1)}><span>{axis === 0 ? 'X' : 'Y'}</span><strong>{distance(shown[axis]!)}</strong><small>{unitLabel('mm')}</small></button>

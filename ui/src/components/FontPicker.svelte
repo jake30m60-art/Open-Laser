@@ -29,7 +29,7 @@
   });
 
   function style(face: FontFace): string {
-    const weight = ({ 100: 'Thin', 200: 'Extra light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra bold', 900: 'Black' } as Record<number, string>)[face.weight] ?? `Weight ${face.weight}`;
+    const weight = ({ 100: t('Thin'), 200: t('Extra light'), 300: t('Light'), 400: t('Regular'), 500: t('Medium'), 600: t('Semibold'), 700: t('Bold'), 800: t('Extra bold'), 900: t('Black') } as Record<number, string>)[face.weight] ?? `Weight ${face.weight}`;
     return [weight, face.style === 'normal' ? '' : face.style, face.stretch === 'normal' ? '' : face.stretch].filter(Boolean).join(' · ');
   }
 
@@ -58,24 +58,24 @@
 </script>
 
 <div class="font-picker">
-  <div class="font-heading"><span>Font</span><button class="font-import" disabled={busy} onclick={() => { osk.close(); fileInput.click(); }}>{importing ? 'Importing…' : t("+ Import fonts")}</button></div>
-  <input bind:this={fileInput} type="file" accept=".ttf,.otf,.ttc,.otc" multiple aria-label="Import font files" onchange={importFiles} hidden />
+  <div class="font-heading"><span>{t("Font")}</span><button class="font-import" disabled={busy} onclick={() => { osk.close(); fileInput.click(); }}>{importing ? t('Importing…') : t("+ Import fonts")}</button></div>
+  <input bind:this={fileInput} type="file" accept=".ttf,.otf,.ttc,.otc" multiple aria-label={t("Import font files")} onchange={importFiles} hidden />
   <div class="font-defaults">
     {#each [['sans', 'Sans'], ['serif', 'Serif'], ['mono', 'Mono']] as [id, label]}
       <button class:on={!font && family === id} aria-pressed={!font && family === id} disabled={busy} onclick={() => { family = id as TextOptions['family']; font = undefined; }}>{t(label)}</button>
     {/each}
   </div>
   {#if fonts.length}
-    <div class="font-imported-heading"><span>Imported fonts</span><small>{fonts.length}</small></div>
-    {#if fonts.length > 8}<input class="font-search" aria-label="Search imported fonts" placeholder="Search fonts…" bind:value={filter} />{/if}
-    <div class="font-list" aria-label="Imported fonts">
+    <div class="font-imported-heading"><span>{t("Imported fonts")}</span><small>{fonts.length}</small></div>
+    {#if fonts.length > 8}<input class="font-search" aria-label={t("Search imported fonts")} placeholder={t("Search fonts…")} bind:value={filter} />{/if}
+    <div class="font-list" aria-label={t("Imported fonts")}>
       {#each visible as face (face.id)}
         <button class:on={font === face.id} aria-pressed={font === face.id} title={face.name} disabled={busy} onclick={() => font = face.id}><span>{face.family}</span><small>{style(face)}</small></button>
       {/each}
-      {#if !visible.length}<span class="muted">No matching fonts.</span>{/if}
+      {#if !visible.length}<span class="muted">{t("No matching fonts.")}</span>{/if}
     </div>
   {/if}
-  <p class="font-help">TTF, OTF or font collections · Saved in OpenLaser for text and SVG imports.</p>
+  <p class="font-help">{t("TTF, OTF or font collections · Saved in OpenLaser for text and SVG imports.")}</p>
   {#if notices.length}<div class="font-notices" role="status">{#each notices as notice}<p>{notice}</p>{/each}</div>{/if}
   {#each errors as error}<p class="warn-text" role="alert">{error}</p>{/each}
 </div>

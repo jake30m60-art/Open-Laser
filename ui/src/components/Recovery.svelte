@@ -19,7 +19,7 @@
   let sending = $state(false), clearance = $state(false), error = $state(''), search = $state('');
   let distance = $state(1);
   const busy = $derived(!!doc.machine.operation || sending || reviewing);
-  const label = (kind: string): string => kind === 'pre_pierce' ? 'Pre-pierce' : kind === 'film' ? 'Film removal' : 'Cut';
+  const label = (kind: string): string => kind === 'pre_pierce' ? t('Pre-pierce') : kind === 'film' ? t('Film removal') : 'Cut';
   const available = $derived(recovery.steps.flatMap((s, index) => s.status === 'skipped' ? [] : [{ ...s, index }]));
   const previous = $derived(selected ? available.some(s => s.index < selected.pass) : false);
   const next = $derived(selected ? available.some(s => s.index > selected.pass) : false);
@@ -27,12 +27,12 @@
     !search.trim()
     || `${s.pass.ordinal + 1} ${label(s.pass.kind)} ${s.status}`.toLowerCase().includes(search.trim().toLowerCase())));
   const title = $derived(
-    page === 'main' ? 'Restart job'
-    : page === 'adjust' ? 'Adjust restart'
-    : page === 'paths' ? 'Choose a path'
-    : 'Prepare restart');
-  const stepName = $derived(step ? `${label(step.pass.kind)} ${step.pass.ordinal + 1}` : 'Choose a path');
-  const along = $derived(selected ? `${fmt(selected.fraction * 100, 1)}% along the path` : 'Tap the drawing or choose here');
+    page === 'main' ? t('Restart job')
+    : page === 'adjust' ? t('Adjust restart')
+    : page === 'paths' ? t('Choose a path')
+    : t('Prepare restart'));
+  const stepName = $derived(step ? `${t(label(step.pass.kind))} ${step.pass.ordinal + 1}` : t('Choose a path'));
+  const along = $derived(selected ? t('{0}% along the path', fmt(selected.fraction * 100, 1)) : t('Tap the drawing or choose here'));
   async function call(action: () => Promise<unknown>, after?: () => void): Promise<void> {
     if (busy) return;
     sending = true; error = '';
@@ -70,42 +70,42 @@
   $effect(() => { void resetKey; clearance = false; page = 'main'; });
 </script>
 
-<aside class="panel side recovery-side" aria-label="Job recovery">
+<aside class="panel side recovery-side" aria-label={t("Job recovery")}>
   <div class="recovery-heading">
     {#if page !== 'main'}<button class="back" disabled={busy} onclick={toMain} aria-label={t("Back to restart")}>‹</button>{/if}
     <div>
       <h2>{title}</h2>
-      <p>{completed} {t("of")} {recovery.steps.length} paths complete{skipped ? ` · ${skipped} skipped` : ''}</p>
+      <p>{t('{0} of {1} paths complete{2}', completed, recovery.steps.length, skipped ? ` · ${t('{0} skipped', skipped)}` : '')}</p>
     </div>
   </div>
   <div class="recovery-content">
     {#if page === 'main'}
-      <p class="help">Tap a path on the drawing to choose where to restart. Completed paths stay grey.</p>
+      <p class="help">{t("Tap a path on the drawing to choose where to restart. Completed paths stay grey.")}</p>
       <div class="restart-card">
-        <span class="eyebrow">Restart from</span>
+        <span class="eyebrow">{t("Restart from")}</span>
         <div class="path-nav">
-          <button class="arrow" aria-label="Previous restart path" disabled={busy || !previous} onclick={() => change({ kind: 'previous' })}>‹</button>
+          <button class="arrow" aria-label={t("Previous restart path")} disabled={busy || !previous} onclick={() => change({ kind: 'previous' })}>‹</button>
           <button class="path-choice" disabled={busy} onclick={() => page = 'paths'}>
             <strong>{stepName}</strong>
             <span>{along}</span>
           </button>
-          <button class="arrow" aria-label="Next restart path" disabled={busy || !next} onclick={() => change({ kind: 'next' })}>›</button>
+          <button class="arrow" aria-label={t("Next restart path")} disabled={busy || !next} onclick={() => change({ kind: 'next' })}>›</button>
         </div>
         {#if recovery.position}
           <p class="position">X {length(recovery.position[0])} · Y {length(recovery.position[1])} {unitLabel('mm')}</p>
         {/if}
       </div>
       <button class="row-action" disabled={busy || !selected} onclick={() => page = 'adjust'}>
-        <span>{t("Adjust restart point")}<small>Move back, skip an outline or recall a point</small></span>
+        <span>{t("Adjust restart point")}<small>{t("Move back, skip an outline or recall a point")}</small></span>
         <span>›</span>
       </button>
       <HoldButton
         class="btn btn-move block"
         disabled={busy || !recovery.ready || !selected || !doc.readiness.jog.ok}
-        onhold={() => call(() => api.moveRestart(recovery.revision))}>Move head here · laser off</HoldButton>
+        onhold={() => call(() => api.moveRestart(recovery.revision))}>{t("Move head here · laser off")}</HoldButton>
     {:else if page === 'paths'}
-      <input class="path-search" aria-label="Find restart path" type="search" bind:value={search} placeholder="Path number or status…" />
-      <div class="paths" role="group" aria-label="Restart paths">
+      <input class="path-search" aria-label={t("Find restart path")} type="search" bind:value={search} placeholder={t("Path number or status…")} />
+      <div class="paths" role="group" aria-label={t("Restart paths")}>
         {#each shown as item}
           <button class="path-row" aria-pressed={selected?.pass === item.index} disabled={busy} onclick={() => choose(item.index)}>
             <strong>{label(item.pass.kind)} {item.pass.ordinal + 1}</strong>
@@ -114,66 +114,66 @@
         {/each}
       </div>
     {:else if page === 'adjust'}
-      <p class="help">Fine-tune the point highlighted on the drawing.</p>
+      <p class="help">{t("Fine-tune the point highlighted on the drawing.")}</p>
       <div class="distance">
-        <span>Step distance</span>
+        <span>{t("Step distance")}</span>
         <button class="value" disabled={busy} onclick={stepDistance}>{quantity(distance, 'mm')}</button>
       </div>
       <div class="step-pair">
         <button class="btn" disabled={busy || !selected} onclick={() => change({ kind: 'backward', distance })}>{t("← Back")}</button>
-        <button class="btn" disabled={busy || !selected} onclick={() => change({ kind: 'forward', distance })}>Forward →</button>
+        <button class="btn" disabled={busy || !selected} onclick={() => change({ kind: 'forward', distance })}>{t("Forward →")}</button>
       </div>
       <button class="row-action" disabled={busy || !selected} onclick={fraction}>
-        <span>Position along path</span>
+        <span>{t("Position along path")}</span>
         <strong>{selected ? `${fmt(selected.fraction * 100, 1)}%` : '—'}</strong>
       </button>
-      <div class="group"><span class="eyebrow">Saved points</span>
+      <div class="group"><span class="eyebrow">{t("Saved points")}</span>
         {#if recovery.last_pause}
           <button class="row-action" disabled={busy} onclick={() => changeThenMain({ kind: 'last_pause' })}>
-            <span>Return to last pause</span>
+            <span>{t("Return to last pause")}</span>
             <span>›</span>
           </button>
         {/if}
         {#if recovery.good}
           <button class="row-action" disabled={busy} onclick={() => changeThenMain({ kind: 'last_good' })}>
-            <span>Return to marked point</span>
+            <span>{t("Return to marked point")}</span>
             <span>›</span>
           </button>
         {/if}
         <button class="row-action" disabled={busy || !selected} onclick={() => changeThenMain({ kind: 'mark_good' })}>
-          <span>Mark this point as good</span>
+          <span>{t("Mark this point as good")}</span>
           <span>＋</span>
         </button>
       </div>
       <div class="group">
-        <span class="eyebrow">What to cut</span>
+        <span class="eyebrow">{t("What to cut")}</span>
         <button class="row-action" disabled={busy || !selected} onclick={() => changeThenMain({ kind: 'skip' })}>
-          <span>Skip this outline</span>
+          <span>{t("Skip this outline")}</span>
           <span>›</span>
         </button>
         {#if skipped}
           <button class="row-action" disabled={busy} onclick={() => changeThenMain({ kind: 'include_all' })}>
-            <span>Restore skipped outlines</span>
+            <span>{t("Restore skipped outlines")}</span>
             <span>{skipped}</span>
           </button>
         {/if}
       </div>
     {:else}
-      <p class="help">Establish the machine reference, then confirm that the sheet still matches the drawing.</p>
+      <p class="help">{t("Establish the machine reference, then confirm that the sheet still matches the drawing.")}</p>
       {#if !doc.machine.session.homed}
         <HoldButton
           class="btn btn-move block"
           disabled={busy || !doc.readiness.home.ok}
-          onhold={() => call(() => api.machine('home'))}>Home machine</HoldButton>
+          onhold={() => call(() => api.machine('home'))}>{t("Home machine")}</HoldButton>
       {/if}
       <label class="clearance">
         <input type="checkbox" bind:checked={clearance} disabled={busy} />
-        <span>The sheet is in the same position and the restart path is clear.</span>
+        <span>{t("The sheet is in the same position and the restart path is clear.")}</span>
       </label>
       <button
         class="btn btn-primary block"
         disabled={busy || !clearance || !selected || !doc.readiness.jog.ok}
-        onclick={confirmPosition}>Confirm restart position</button>
+        onclick={confirmPosition}>{t("Confirm restart position")}</button>
     {/if}
     {#if recovery.problem || error}<p role="alert" class="recovery-error">{error || recovery.problem}</p>{/if}
   </div>
@@ -182,9 +182,9 @@
       <HoldButton
         class="btn btn-start xl block"
         disabled={busy || !selected || !doc.readiness.resume.ok}
-        onhold={primary}>{reviewing ? 'Preparing…' : 'Resume from here'}</HoldButton>
+        onhold={primary}>{reviewing ? t('Preparing…') : t('Resume from here')}</HoldButton>
     {:else if page === 'main'}
-      <button class="btn btn-start xl block" disabled={busy || !selected} onclick={primary}>Prepare restart</button>
+      <button class="btn btn-start xl block" disabled={busy || !selected} onclick={primary}>{t("Prepare restart")}</button>
     {:else if page !== 'prepare'}
       <button class="btn btn-primary block" disabled={busy} onclick={toMain}>{t("Done")}</button>
     {/if}

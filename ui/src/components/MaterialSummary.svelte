@@ -15,17 +15,17 @@
 </script>
 
 {#if variant === 'line'}
-  <span class="summary-line">{#each items.filter((i) => i.set) as item, n (item.key)}{#if n}<span class="sep" aria-hidden="true">·</span>{' '}{/if}<span class="item"><span class="k">{t(item.label)}</span> {item.value}</span>{/each}</span>
+  <span class="summary-line">{#each items.filter((i) => i.set) as item, n (item.key)}{#if n}<span class="sep" aria-hidden="true">·</span>{' '}{/if}<span class="item"><span class="k">{t(item.label)}</span> {t(item.value)}</span>{/each}</span>
 {:else if variant === 'compact'}
   <dl class="summary-compact">
     {#each items as item (item.key)}
-      <div class:unset={!item.set}><dt>{t(item.label)}</dt><dd>{item.value}</dd></div>
+      <div class:unset={!item.set}><dt>{t(item.label)}</dt><dd>{t(item.value)}</dd></div>
     {/each}
   </dl>
 {:else}
   <dl class="summary-grid">
     {#each items as item (item.key)}
-      <div class:unset={!item.set}><dt>{t(item.label)}</dt><dd>{item.value}</dd></div>
+      <div class:unset={!item.set}><dt>{t(item.label)}</dt><dd>{t(item.value)}</dd></div>
     {/each}
   </dl>
 {/if}

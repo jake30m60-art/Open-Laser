@@ -14,7 +14,7 @@
   const others = $derived(jobs.filter((j) => j.recipe.key !== key));
 
   function copy(id: string, name: string): void {
-    api.copyFeatures(id).then(() => { ui.setupPanel = null; ui.say(`Machining settings copied from ${name}.`); }).catch((error) => ui.say(explain(error), true));
+    api.copyFeatures(id).then(() => { ui.setupPanel = null; ui.say(t('Machining settings copied from {0}.', name)); }).catch((error) => ui.say(explain(error), true));
   }
 </script>
 
@@ -23,15 +23,15 @@
   <div class="mat-row" class:same
     role="button" tabindex="0" onclick={() => copy(j.id, j.name)} onkeydown={(e) => { if (e.key === 'Enter') copy(j.id, j.name); }}
   ><div class="swatch" style="background:var(--panel-2)"></div><div class="minw0"><div class="name"><span class="txt">{j.name}</span></div><div
-    class="meta">{recipeLabel(j.recipe)} · {j.features_on.join(', ') || 'nothing on'}</div></div><span
+    class="meta">{recipeLabel(j.recipe)} · {j.features_on.join(', ') || t('nothing on')}</div></div><span
     class="chev"><i class="ic ic-chev-right"></i></span></div>
 {/snippet}
 
-<p class="feat-desc">Copy machining defaults. Place manual points and bridges again.</p>
+<p class="feat-desc">{t("Copy machining defaults. Place manual points and bridges again.")}</p>
 <div class="stack">
-  {#if same.length}<div class="divider same">Same recipe · {recipeLabel(draft.recipe)}</div>{/if}
+  {#if same.length}<div class="divider same">{t('Same recipe')} · {recipeLabel(draft.recipe)}</div>{/if}
   {#each same as j}{@render row(j, true)}{/each}
-  {#if others.length}<div class="divider">Other recipes</div>{/if}
+  {#if others.length}<div class="divider">{t("Other recipes")}</div>{/if}
   {#each others as j}{@render row(j, false)}{/each}
-  {#if !jobs.length}<p class="muted">No saved jobs yet.</p>{/if}
+  {#if !jobs.length}<p class="muted">{t("No saved jobs yet.")}</p>{/if}
 </div>

@@ -104,7 +104,7 @@
   </button>
 {/snippet}
 
-<div class="tool-bar {variant} {className}" class:corner role="toolbar" aria-label={label}>
+<div class="tool-bar {variant} {className}" class:corner role="toolbar" aria-label={t(label)}>
   <div class="tool-row" class:editing>
     <!-- The tools scroll; Order stays in reach at the end. -->
     <div class="tiles" bind:this={row}>
@@ -114,7 +114,7 @@
     </div>
     {#if editing || !selected}
       <button class="tile arrange" class:on={editing}
-        title={editing ? 'Finish arranging' : 'Drag the tools into your order'} onclick={() => (editing = !editing)}>
+        title={editing ? t('Finish arranging') : t('Drag the tools into your order')} onclick={() => (editing = !editing)}>
         <i class="ic {editing ? 'ic-check' : 'ic-grip'}"></i><small>{editing ? t("Done") : t("Order")}</small>
       </button>
     {/if}

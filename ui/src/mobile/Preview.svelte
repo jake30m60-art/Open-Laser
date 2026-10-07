@@ -1,12 +1,13 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
   import { boxOf, viewBoxFor, pathOf, type Polyline } from '../lib/svg';
-  let { outline, label = 'Job preview', small = false }: { outline: Polyline[]; label?: string; small?: boolean } = $props();
+  let { outline, label = t('Job preview'), small = false }: { outline: Polyline[]; label?: string; small?: boolean } = $props();
   const box = $derived(boxOf(outline));
   const viewbox = $derived(box ? viewBoxFor(box, small ? 1 : 1.7, 1, .12) : '0 0 100 60');
   const drawing = $derived(outline.map(line => pathOf(line)).join(' '));
 </script>
 <div class="preview" class:small>
-  <svg viewBox={viewbox} role="img" aria-label={label}><path d={drawing} /></svg>
+  <svg viewBox={viewbox} role="img" aria-label={t(label)}><path d={drawing} /></svg>
 </div>
 <style>
   .preview { width:100%; height:190px; padding:18px; background:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px),var(--panel-2); background-size:22px 22px; overflow:hidden; border-radius:14px; }

@@ -108,7 +108,7 @@
       <button class="name" disabled={busy} onclick={rename}>
         <strong>{layer.name}</strong><small>{tr("{0} · Rename", plural(layer.contours, 'shape'))}</small>
       </button>
-      <button class="icon-btn" class:off={hidden} aria-label={hidden ? 'Show on the drawing' : 'Hide on the drawing'} onclick={() => ui.toggleDrawingLayer(name)}>
+      <button class="icon-btn" class:off={hidden} aria-label={hidden ? tr('Show on the drawing') : tr('Hide on the drawing')} onclick={() => ui.toggleDrawingLayer(name)}>
         <i class="ic {hidden ? 'ic-eye-off' : 'ic-eye'}"></i>
       </button>
     </div>
@@ -167,7 +167,7 @@
                 <div class="chips">
                   {#each m.recipes as r (r.id)}
                     <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => use(r.id)}>
-                      {r.thickness_mm > 0 ? `${quantity(r.thickness_mm, 'mm')} · ` : ''}{r.gas}
+                      {r.thickness_mm > 0 ? `${quantity(r.thickness_mm, 'mm')} · ` : ''}{tr(r.gas)}
                     </button>
                   {/each}
                 </div>

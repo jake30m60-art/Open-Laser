@@ -22,7 +22,7 @@
   const common = $derived(features.common ?? defaultCommon(selectedContours));
   const summary = $derived(features.common
     ? `${plural(common.contours.length, 'contour')} in this common-edge group`
-    : 'Select adjacent contours on the drawing, then switch on common edges.');
+    : t('Select adjacent contours on the drawing, then switch on common edges.'));
   const useSelected = () => set(f => { if (f.common) f.common.contours = [...selectedContours]; });
   const setTolerance = (v: number) => set(f => { f.common!.tolerance = v; });
   const setOvercut = (v: boolean) => set(f => { f.common!.allow_overcut = v; });

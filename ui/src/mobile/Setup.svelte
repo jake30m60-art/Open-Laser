@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tl } from '../i18n/index';
   import { t } from '../i18n/index';
 
   import { api } from '../api/client';
@@ -40,9 +41,9 @@
     .sort((a,b) => Number(b.laser === doc.mode) - Number(a.laser === doc.mode)
       || Number(b.favourite) - Number(a.favourite)
       || a.name.localeCompare(b.name)));
-  const materialName = $derived(draft?.recipe ? recipeLabel(draft.recipe) : 'Choose a material');
+  const materialName = $derived(draft?.recipe ? recipeLabel(draft.recipe) : t('Choose a material'));
   const partsHint = $derived(
-    draft?.parts.length === 1 ? '1 part · Add more to cut them together' : `${draft?.parts.length} parts side by side · Add more`,
+    draft?.parts.length === 1 ? t('1 part · Add more to cut them together') : t('{0} parts side by side · Add more', draft?.parts.length),
   );
   async function perform(action: () => Promise<unknown>): Promise<void> {
     if (blocked) return;
@@ -72,17 +73,17 @@
     <div class="phone-page-title"><h1>{t("Setup")}</h1></div>
     {#if draft}
       <section class="phone-job-card">
-        <div class="phone-job-heading"><div><h2>{job?.name ?? (draft.name || 'Current job')}</h2></div></div>
+        <div class="phone-job-heading"><div><h2>{job?.name ?? (draft.name || t('Current job'))}</h2></div></div>
         <Preview {outline} />
         <div class="phone-job-spec">
           <span>{size(draft.preview?.bounds ?? part?.bounds ?? null)}</span>
-          <button class="phone-text-action" disabled={blocked} onclick={() => edit('layout')}>Edit layout</button>
+          <button class="phone-text-action" disabled={blocked} onclick={() => edit('layout')}>{tl("Edit layout")}</button>
         </div>
       </section>
       <button class="phone-material" disabled={blocked} onclick={() => material = true}>
         <i class="ic ic-layers"></i>
         <span>
-          <small>Material</small><strong>{materialName}</strong>
+          <small>{tl("Material")}</small><strong>{materialName}</strong>
         </span>
         <i class="ic ic-arrow-right"></i>
       </button>
@@ -91,21 +92,21 @@
           <span>{t("Parts")}<small>{partsHint}</small></span><i class="ic ic-plus"></i>
         </button>
         <button disabled={blocked} onclick={() => texting = true}>
-          <span>{t("Add text")}<small>Letters welded into cutting outlines</small></span><i class="ic ic-plus"></i>
+          <span>{t("Add text")}<small>{tl("Letters welded into cutting outlines")}</small></span><i class="ic ic-plus"></i>
         </button>
         <button disabled={blocked} onclick={() => tools = true}>
-          <span>Machining<small>{active ? t("{0} tools on", active) : 'Default settings'}</small></span><i class="ic ic-arrow-right"></i>
+          <span>{tl("Machining")}<small>{active ? t("{0} tools on", active) : t('Default settings')}</small></span><i class="ic ic-arrow-right"></i>
         </button>
         <button disabled={blocked} onclick={() => preflight = true}>
-          <span>Preflight<small>{draft ? preflightLabel(draft) : ''}</small></span><i class="ic ic-arrow-right"></i>
+          <span>{tl("Preflight")}<small>{draft ? preflightLabel(draft) : ''}</small></span><i class="ic ic-arrow-right"></i>
         </button>
       </div>
     {:else}
       <div class="phone-empty">
         <i class="ic ic-folder"></i>
-        <h2>No part open</h2>
+        <h2>{tl("No part open")}</h2>
         <p>{t("Choose a part or saved job to set up, or start from text.")}</p>
-        <button class="phone-primary" onclick={() => ui.tab = 'parts'}>Go to Parts</button>
+        <button class="phone-primary" onclick={() => ui.tab = 'parts'}>{tl("Go to Parts")}</button>
         <button class="phone-text-action" onclick={() => texting = true}>{t("Add text")}</button>
       </div>
     {/if}
@@ -113,18 +114,18 @@
   {#if draft}<div class="phone-run-footer">
     <div class="phone-secondary-actions">
       <button class="btn btn-ghost" disabled={blocked || !draft.recipe} onclick={save}>{saveLabel(draft)}</button>
-      <button class="btn btn-ghost" disabled={blocked || !doc.readiness.compile.ok} onclick={() => review(true)}>Dry run</button>
+      <button class="btn btn-ghost" disabled={blocked || !doc.readiness.compile.ok} onclick={() => review(true)}>{tl("Dry run")}</button>
     </div>
     <button class="phone-primary" disabled={blocked || !doc.readiness.compile.ok} onclick={() => review(false)}>
-      {busy ? 'Preparing…' : 'Go to Run'}<i class="ic ic-arrow-right"></i>
+      {busy ? t('Preparing…') : t('Go to Run')}<i class="ic ic-arrow-right"></i>
     </button>
     {#if !doc.readiness.compile.ok}<p class="phone-readiness">{plain(doc.readiness.compile.reason).text}</p>{/if}
   </div>{/if}
 </div>
 
-{#if material}<Modal title="Material" onclose={() => material = false}>
+{#if material}<Modal title={tl("Material")} onclose={() => material = false}>
   <div class="phone-material-picker">
-    <input type="search" aria-label="Search materials" placeholder="Search materials" bind:value={search} />
+    <input type="search" aria-label={tl("Search materials")} placeholder={tl("Search materials")} bind:value={search} />
     {#each recipes as recipe}
       <button disabled={busy} onclick={() => pickRecipe(recipe.id)}>
         <strong>{recipeLabel(recipe)}</strong>
@@ -132,11 +133,11 @@
         <MaterialSummary source={recipe} variant="line" />
       </button>
     {:else}
-      <p>No matching materials.</p>
+      <p>{tl("No matching materials.")}</p>
     {/each}
   </div>
 </Modal>{/if}
-{#if tools}<Modal title="Machining" onclose={() => tools = false}>
+{#if tools}<Modal title={tl("Machining")} onclose={() => tools = false}>
   <div class="phone-action-list">
     {#each TOOLS as tool}
       <button onclick={() => openTool(tool.id as FeatureId)}>

@@ -19,7 +19,7 @@ export const value = (text: string | null | undefined): string => {
  */
 export const plural = (count: number, singular: string, many = `${singular}s`): string => `${count} ${t(count === 1 ? singular : many)}`;
 
-export const laserLabel = (laser: LaserMode | null | undefined): string => (laser === 'co2' ? 'CO₂' : laser === 'fiber' ? 'Fiber' : '—');
+export const laserLabel = (laser: LaserMode | null | undefined): string => (laser === 'co2' ? 'CO₂' : laser === 'fiber' ? t('Fiber') : '—');
 
 export const recipeLabel = (recipe: Pick<RecipeView, 'name' | 'thickness_mm' | 'gas'> | null | undefined): string =>
   recipe ? `${recipe.name} · ${quantity(recipe.thickness_mm, 'mm')} · ${recipe.gas}` : 'No material';

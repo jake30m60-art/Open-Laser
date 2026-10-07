@@ -30,16 +30,16 @@
     if (busy || !picks.length) return;
     await withBusy((b) => (busy = b), async () => {
       await api.addParts(picks);
-      ui.say(`Added ${plural(picks.length, 'part')} beside the sheet · Undo takes them off`);
+      ui.say(t('Added {0} beside the sheet · Undo takes them off', plural(picks.length, 'part')));
       onclose();
     });
   }
 </script>
 
 <Modal title={t("Add parts to this job")} wide onclose={() => { if (!busy) onclose(); }}>
-  <p class="muted">Picked parts go beside the sheet in the order picked, each its own shape. Nest parts can arrange them afterwards.</p>
-  <label class="search"><i class="ic ic-search"></i><input type="search" aria-label="Search parts" placeholder="Search parts" bind:value={search} /></label>
-  <div class="add-list" role="group" aria-label="Library parts">
+  <p class="muted">{t("Picked parts go beside the sheet in the order picked, each its own shape. Nest parts can arrange them afterwards.")}</p>
+  <label class="search"><i class="ic ic-search"></i><input type="search" aria-label={t("Search parts")} placeholder={t("Search parts")} bind:value={search} /></label>
+  <div class="add-list" role="group" aria-label={t("Library parts")}>
     {#each parts as part (part.id)}
       {@const already = inJob.has(part.id)}
       {@const pick = picks.indexOf(part.id)}
@@ -49,7 +49,7 @@
         <span class="name"><strong>{part.name}</strong><small>{already ? t("Already in this job") : `${size(part.bounds)} · ${plural(part.contours, 'path')}`}</small></span>
       </button>
     {:else}
-      <p class="muted">No parts match.</p>
+      <p class="muted">{t("No parts match.")}</p>
     {/each}
   </div>
   <div class="actions">

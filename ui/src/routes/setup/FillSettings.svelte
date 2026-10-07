@@ -25,9 +25,9 @@
   const shading = $derived(fill.image ?? defaultImage());
   const shade = (change: Partial<ImageFill>) => apply({ image: { ...shading, ...change } });
   const MODES: Array<[ImageMode, string, string]> = [
-    ['grayscale', 'Grayscale', 'Power follows the gray: dark parts with the most power, light ones with the least.'],
-    ['dither', 'Dithering', 'Dots at full power, spread so their density gives the gray. Often the clearer choice on metal.'],
-    ['threshold', 'Black and white', 'Full power where darker than middle gray, nothing elsewhere: for logos and line art.'],
+    ['grayscale', tr('Grayscale'), tr('Power follows the gray: dark parts with the most power, light ones with the least.')],
+    ['dither', tr('Dithering'), tr('Dots at full power, spread so their density gives the gray. Often the clearer choice on metal.')],
+    ['threshold', tr('Black and white'), tr('Full power where darker than middle gray, nothing elsewhere: for logos and line art.')],
   ];
 
   const needed = $derived(speed ? Math.ceil(scanRunUp(speed)) : null);
@@ -35,10 +35,10 @@
   const fmt = (n: number, d = 2) => Number(n.toFixed(d)).toString();
   type Passes = { passes: number; pass_angle: number; pass_shift: number };
   const PRESETS: Array<[string, Passes]> = [
-    ['Single', { passes: 1, pass_angle: 0, pass_shift: 0 }],
-    ['Crosshatch', { passes: 2, pass_angle: 90, pass_shift: 0 }],
-    ['Interleaved', { passes: 2, pass_angle: 0, pass_shift: 0.5 }],
-    ['Deeper ×3', { passes: 3, pass_angle: 0, pass_shift: 0 }],
+    [tr('Single'), { passes: 1, pass_angle: 0, pass_shift: 0 }],
+    [tr('Crosshatch'), { passes: 2, pass_angle: 90, pass_shift: 0 }],
+    [tr('Interleaved'), { passes: 2, pass_angle: 0, pass_shift: 0.5 }],
+    [tr('Deeper ×3'), { passes: 3, pass_angle: 0, pass_shift: 0 }],
   ];
   /** Whether the fill's passes are this preset's: shown lit, as the choice in force. */
   const matches = (p: Passes) => fill.passes === p.passes && (p.passes === 1 || (Math.abs(fill.pass_angle - p.pass_angle) < 1e-6 && Math.abs(fill.pass_shift - p.pass_shift) < 1e-6));

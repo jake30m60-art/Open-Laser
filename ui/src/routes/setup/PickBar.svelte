@@ -19,11 +19,11 @@
 
   const hint = $derived.by(() => {
     switch (picking.feature) {
-      case 'joints': return 'Tap a contour where a joint should hold it';
-      case 'cooling': return 'Tap a contour where the cut should pause to cool';
-      case 'start': return 'Tap a contour where its cut should start';
-      case 'bridges': return picking.bridgeReview ? picking.error ? 'Invalid bridge. Undo the last bridge or cancel.' : 'Review the bridge preview, then click the drawing to confirm.' : picking.first ? 'Tap the other end of the bridge' : 'Tap the first end of the bridge';
-      case 'order': return `Tap the contours in cutting order · ${picked} of ${total}`;
+      case 'joints': return t('Tap a contour where a joint should hold it');
+      case 'cooling': return t('Tap a contour where the cut should pause to cool');
+      case 'start': return t('Tap a contour where its cut should start');
+      case 'bridges': return picking.bridgeReview ? picking.error ? t('Invalid bridge. Undo the last bridge or cancel.') : 'Review the bridge preview, then click the drawing to confirm.' : picking.first ? t('Tap the other end of the bridge') : t('Tap the first end of the bridge');
+      case 'order': return t('Tap the contours in cutting order · {0} of {1}', picked, total);
     }
   });
   const draftError = $derived(server.doc?.draft?.error);

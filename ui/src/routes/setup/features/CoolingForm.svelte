@@ -19,7 +19,7 @@
     pick: (feature: PickFeature) => void;
   } = $props();
 
-  const PLACEMENTS = [['automatic', 'Automatic'], ['manual', 'Picked']] as const;
+  const PLACEMENTS = [['automatic', t('Automatic')], ['manual', t('Picked')]] as const;
   const cooling = $derived(features.cooling ?? defaultCooling());
 
   const setDwell = (v: number) => set((f) => { f.cooling!.dwell = Math.max(1, Math.round(v * 1000)); });
@@ -40,7 +40,7 @@
   const clearPicked = () => set((f) => { f.cooling!.placement = { manual: [] }; });
 </script>
 
-<button class="btn btn-soft" onclick={() => askPercentages(features, 'cooling', contours, set)} disabled={!on}>Enter positions (%)…</button>
+<button class="btn btn-soft" onclick={() => askPercentages(features, 'cooling', contours, set)} disabled={!on}>{t("Enter positions (%)…")}</button>
 <Stepper label={t("Dwell")} value={cooling.dwell / 1000} unit="s" step={0.1} disabled={!on} apply={setDwell} />
 <Chips label={t("Placement")} options={PLACEMENTS} current={'automatic' in cooling.placement ? 'automatic' : 'manual'} disabled={!on} apply={setPlacement} />
 {#if 'automatic' in cooling.placement}

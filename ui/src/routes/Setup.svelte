@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tl } from '../i18n/index';
   import ManualCut from '../components/ManualCut.svelte';
   import JobOverview from './setup/JobOverview.svelte';
   import { t } from '../i18n/index';
@@ -121,9 +122,9 @@
 <aside class="panel side setup-side" class:spread={ui.setupPanel === null} class:compact bind:this={settingsPanel}>
   <div class="setup-settings" class:spread={ui.setupPanel === null}>
   {#if !draft}
-    <h2>No part open</h2>
-    <p class="muted">Pick a part or a saved job on the Parts page, or start from text.</p>
-    <div class="side-foot"><button class="btn btn-ghost lg block" onclick={() => (texting = true)}>{t("Add text")}</button><button class="btn btn-primary lg block" onclick={() => (ui.tab = 'parts')}>Go to Parts</button></div>
+    <h2>{tl("No part open")}</h2>
+    <p class="muted">{tl("Pick a part or a saved job on the Parts page, or start from text.")}</p>
+    <div class="side-foot"><button class="btn btn-ghost lg block" onclick={() => (texting = true)}>{t("Add text")}</button><button class="btn btn-primary lg block" onclick={() => (ui.tab = 'parts')}>{tl("Go to Parts")}</button></div>
   {:else if ui.setupPanel === 'copy'}
     <CopyPanel />
   {:else if ui.setupPanel === 'clipboard'}

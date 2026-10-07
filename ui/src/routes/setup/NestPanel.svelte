@@ -59,19 +59,19 @@
   /** What a source is, in words: a title and a line under it. */
   function describe(source: StockSource | undefined): { title: string; detail: string } {
     if (!source) return stock?.kind === 'outline'
-      ? { title: t("Drawing outline"), detail: 'One sheet · not cut' }
-      : { title: t("No sheets yet"), detail: 'Add the sheets to nest on' };
+      ? { title: t("Drawing outline"), detail: t('One sheet · not cut') }
+      : { title: t("No sheets yet"), detail: t('Add the sheets to nest on') };
     if (source.kind === 'remnant') {
       const sheet = library.remnants.find((r) => r.id === source.id);
-      return { title: sheet?.name ?? 'Remnant', detail: sheet
-        ? `Remnant · ${boundsLabel(sheet.bounds)}`
-        : 'No longer available' };
+      return { title: sheet?.name ?? t('Remnant'), detail: sheet
+        ? `${t('Remnant')} · ${boundsLabel(sheet.bounds)}`
+        : t('No longer available') };
     }
     if (source.kind === 'stock') {
       const item = library.stock.find((i) => i.id === source.id);
       return item
-        ? { title: sheetLabel(item.width_mm, item.height_mm), detail: `Rack · ${source.count} of ${item.quantity}` }
-        : { title: t("Rack sheets"), detail: 'No longer on the rack' };
+        ? { title: sheetLabel(item.width_mm, item.height_mm), detail: t('Rack · {0} of {1}', source.count, item.quantity) }
+        : { title: t("Rack sheets"), detail: t('No longer on the rack') };
     }
     return { title: sheetLabel(source.width, source.height), detail: `New · ${plural(source.count, 'sheet')}` };
   }
@@ -112,19 +112,19 @@
     const onHand = library.stock.find((i) => i.id === source.id)?.quantity ?? 0;
     edit(plan.map((s, i) => i === index ? { ...source, count: Math.min(onHand, Math.max(1, Math.round(count))) } : s));
   }
-  const quantityTitle = $derived(selected === 1 ? 'Selected part quantity' : `${draft.groups.length} parts on this sheet`);
+  const quantityTitle = $derived(selected === 1 ? t('Selected part quantity') : t('{0} parts on this sheet', draft.groups.length));
   const quantityHint = $derived(selected === 1
-    ? 'Including this one'
-    : extra.length ? `${plural(total, 'part')} in all · tap a part to change its quantity` : 'Tap a part to set its quantity');
+    ? t('Including this one')
+    : extra.length ? t('{0} in all · tap a part to change its quantity', plural(total, 'part')) : t('Tap a part to set its quantity'));
   const liveNote = $derived(live
-    ? `Showing sheet ${first + live.sheet}`
+    ? t('Showing sheet {0}', first + live.sheet)
     : '');
   const applyLabel = $derived(result?.sheets.length === 1 ? 'layout' : `${result?.sheets.length} sheets`);
   const rotations: [NestSettings['rotation'], string, string][] = [
-    ['any', 'Dense', 'Any angle'],
-    ['half_turn', 'Keep grain', '0° / 180°'],
-    ['across', 'Across grain', '90° / 270°'],
-    ['fixed', 'Fixed', 'No rotation'],
+    ['any', t('Dense'), t('Any angle')],
+    ['half_turn', t('Keep grain'), '0° / 180°'],
+    ['across', t('Across grain'), '90° / 270°'],
+    ['fixed', t('Fixed'), t('No rotation')],
   ];
   $effect(() => {
     const key = `${draft.generation}/${draft.job ?? ''}/${draft.sheets?.active ?? 0}`;
@@ -176,7 +176,7 @@
     if (busy || result?.running) return;
     if (!plan.length && stock?.kind !== 'outline') { chooseNext(); return; }
     if (extra.some(q => !Number.isInteger(q.quantity) || q.quantity > 500)) {
-      error = 'Enter a whole quantity from 1 to 500.';
+      error = t('Enter a whole quantity from 1 to 500.');
       return;
     }
     busy = true; error = ''; ui.nestPicking = false; previewPage = null; page = 0;
@@ -235,7 +235,7 @@
 {#if ready && result}
   <div class="result-summary">
     <strong>{plural(result.total, 'part')}</strong>
-    <span>{t("Across")} {plural(result.sheets.length, 'sheet')} · every requested copy placed</span>
+    <span>{t("Across")} {plural(result.sheets.length, 'sheet')} · {t('every requested copy placed')}</span>
   </div>
   <div class="preview-pages" role="group" aria-label={t("Nesting preview sheets")}>
     {#each result.sheets as sheet, i}
@@ -268,10 +268,10 @@
           <span class="plan-name"><strong>{said.title}</strong>{#if said.detail}<small>{said.detail}</small>{/if}</span>
           {#if source?.kind === 'stock'}
             <button class="plan-count" aria-label={t("Sheets to use")}
-              onclick={() => osk.number('Rack sheets to use', source.count, 'sheets', (v) => setCount(i, v))}>{source.count}</button>
+              onclick={() => osk.number(t('Rack sheets to use'), source.count, 'sheets', (v) => setCount(i, v))}>{source.count}</button>
           {:else if source?.kind === 'sheet'}
             <button class="plan-count" aria-label={t("New sheets to use")}
-              onclick={() => osk.number('New sheets to use', source.count, 'sheets', (v) => setCount(i, v))}>{source.count}</button>
+              onclick={() => osk.number(t('New sheets to use'), source.count, 'sheets', (v) => setCount(i, v))}>{source.count}</button>
           {/if}
           {#if source}
             <button class="plan-remove" aria-label={t("Leave out")} onclick={() => edit(plan.filter((_, j) => j !== i))}><i class="ic ic-x"></i></button>
@@ -298,17 +298,17 @@
     <div class="quantity">
       <span>{quantityTitle}<small>{quantityHint}</small></span>
       {#if selected === 1}
-        <button class="number" onclick={() => { const key = part![0]!; number('Part quantity', quantity, 'copies', v => quantities[key] = v); }}>{quantity}</button>
+        <button class="number" onclick={() => { const key = part![0]!; number(t('Part quantity'), quantity, 'copies', v => quantities[key] = v); }}>{quantity}</button>
       {:else}
         <button class="btn btn-ghost" onclick={onselectall}>{t("Select all")}</button>
       {/if}
     </div>
     <div class="distances">
-      <button class="value" onclick={() => number('Distance between parts', settings.spacing, 'mm', v => settings.spacing = v)}>
+      <button class="value" onclick={() => number(t('Distance between parts'), settings.spacing, 'mm', v => settings.spacing = v)}>
         <span>{t("Part spacing")}</span>
         <strong>{measure(settings.spacing, 'mm')}</strong>
       </button>
-      <button class="value" onclick={() => number('Sheet edge margin', settings.margin, 'mm', v => settings.margin = v)}>
+      <button class="value" onclick={() => number(t('Sheet edge margin'), settings.margin, 'mm', v => settings.margin = v)}>
         <span>{t("Edge margin")}</span>
         <strong>{measure(settings.margin, 'mm')}</strong>
       </button>
@@ -316,7 +316,7 @@
     {#if plan.some((source) => source.kind === 'remnant') || stock?.kind === 'remnant'}
       <button
         class="value remnant-buffer"
-        onclick={() => number('Extra remnant clearance', settings.remnant_clearance, 'mm', v => settings.remnant_clearance = v)}>
+        onclick={() => number(t('Extra remnant clearance'), settings.remnant_clearance, 'mm', v => settings.remnant_clearance = v)}>
         <span>{t("Extra remnant clearance")}<small>{t("Old cutouts + sheet edge")}</small></span>
         <strong>{measure(settings.remnant_clearance, 'mm')}</strong>
       </button>
@@ -344,10 +344,10 @@
 {#if error}<p class="error" role="alert">{error}</p>{/if}
 <details class="credits">
   <summary>{t("Powered by Sparrow · credits")}</summary>
-  <p><a href="https://github.com/JeroenGar/sparrow" target="_blank" rel="noreferrer">Sparrow</a> {t("and")}
-    <a href="https://github.com/JeroenGar/jagua-rs" target="_blank" rel="noreferrer">jagua-rs</a> {t("by Jeroen Gardeyn, KU Leuven.")}
-    <a href="/licenses/sparrow-MIT.txt" target="_blank" rel="noreferrer">MIT</a> /
-    <a href="/licenses/jagua-rs-MPL-2.0.txt" target="_blank" rel="noreferrer">MPL-2.0</a>.</p>
+  <p><a href="https://github.com/JeroenGar/sparrow" target="_blank" rel="noreferrer">{t("Sparrow")}</a> {t("and")}
+    <a href="https://github.com/JeroenGar/jagua-rs" target="_blank" rel="noreferrer">{t("jagua-rs")}</a> {t("by Jeroen Gardeyn, KU Leuven.")}
+    <a href="/licenses/sparrow-MIT.txt" target="_blank" rel="noreferrer">{t("MIT")}</a> /
+    <a href="/licenses/jagua-rs-MPL-2.0.txt" target="_blank" rel="noreferrer">{t("MPL-2.0")}</a>.</p>
 </details>
 </div>
 {#if ready && result}
@@ -358,7 +358,7 @@
 {:else if !result?.running}
   <div class="nest-actions">
     <button class="btn btn-primary lg block primary" disabled={busy || ui.nestPicking} onclick={start}>
-      {busy ? 'Preparing…' : t("Preview sheets")}
+      {busy ? t('Preparing…') : t("Preview sheets")}
     </button>
   </div>
 {/if}

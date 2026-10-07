@@ -41,15 +41,15 @@
 <Modal title={item ? `${item.material} · ${sheetLabel(item.width_mm, item.height_mm)}` : remnant!.name} {onclose}>
   <div class="stock-editor">
     <p class="muted">
-      {#if item}{quantity(item.thickness_mm, 'mm')} · {laserLabel(item.laser)} · full sheets on the rack
+      {#if item}{quantity(item.thickness_mm, 'mm')} · {laserLabel(item.laser)} · {t('full sheets on the rack')}
       {:else if remnant}{remnant.material} · {quantity(remnant.thickness_mm, 'mm')} · {laserLabel(remnant.mode)} ·
-        remnant, {plural(remnant.cutouts.length, 'cut area')}{/if}
+        {t('remnant')}, {plural(remnant.cutouts.length, 'cut area')}{/if}
     </p>
     {#if item}
       <SheetCount label="On hand" prompt="Sheets on hand" value={item.quantity} disabled={busy} onchange={setCount} />
     {/if}
     {#if folders.length}
-      <h4>Kept in</h4>
+      <h4>{t("Kept in")}</h4>
       <div class="chips">
         {#each [{ id: '', path: 'No folder' }, ...folders] as f (f.id)}
           <button class="chip" class:on={((item ?? remnant)!.folder ?? '') === f.id} disabled={busy} onclick={() => move(f.id)}>{f.path}</button>
@@ -58,8 +58,8 @@
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <div class="actions">
-      {#if item}<button class="btn btn-ghost danger" disabled={busy} onclick={remove}>{confirming ? 'Tap again to remove' : 'Remove this size'}</button>
-      {:else}<button class="btn btn-ghost" disabled={busy} onclick={() => inspecting = true}>Inspect remnant</button>{/if}
+      {#if item}<button class="btn btn-ghost danger" disabled={busy} onclick={remove}>{confirming ? t('Tap again to remove') : t('Remove this size')}</button>
+      {:else}<button class="btn btn-ghost" disabled={busy} onclick={() => inspecting = true}>{t("Inspect remnant")}</button>{/if}
       <button class="btn" onclick={onclose}>{t("Done")}</button>
     </div>
   </div>

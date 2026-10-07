@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../i18n/index';
   import { boundsLabel } from '../lib/sheet-sizes';
   import { quantity } from '../lib/units.svelte';
   import { onMount, untrack } from 'svelte';
@@ -28,11 +29,11 @@
   }
   /** The line under a sheet card: why it cannot be chosen, or its state. */
   function sheetStatus(sheet: SheetView): string {
-    if (onchoose && !compatible(sheet)) return 'Choose a matching material first';
-    if (sheet.used) return 'Used by a later cut';
-    if (sheet.state === 'remnant') return 'Ready to nest';
-    if (sheet.state === 'completed') return 'Ready to inspect';
-    return 'Unfinished cut';
+    if (onchoose && !compatible(sheet)) return t('Choose a matching material first');
+    if (sheet.used) return t('Used by a later cut');
+    if (sheet.state === 'remnant') return t('Ready to nest');
+    if (sheet.state === 'completed') return t('Ready to inspect');
+    return t('Unfinished cut');
   }
   async function load(more = false): Promise<void> {
     busy = true; error = '';
@@ -74,12 +75,12 @@
   {#if !onchoose}
     <div class="library-tools">
       <div class="seg">
-        <button class:on={rack} disabled={busy} onclick={() => rack = true}>On hand</button>
-        <button class:on={!rack} disabled={busy} onclick={() => showSheets(false)}>Cut history</button>
+        <button class:on={rack} disabled={busy} onclick={() => rack = true}>{t("On hand")}</button>
+        <button class:on={!rack} disabled={busy} onclick={() => showSheets(false)}>{t("Cut history")}</button>
       </div>
-      {#if !rack}<button class="btn btn-ghost" disabled={busy} onclick={() => adding = true}>Mark a saved job as cut</button>{/if}
+      {#if !rack}<button class="btn btn-ghost" disabled={busy} onclick={() => adding = true}>{t("Mark a saved job as cut")}</button>{/if}
     </div>
-  {:else}<p class="intro">Earlier cut areas stay clear.</p>{/if}
+  {:else}<p class="intro">{t("Earlier cut areas stay clear.")}</p>{/if}
   {#if rack}<StockRack />{:else}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   <div class="sheets-grid">
@@ -103,23 +104,23 @@
   </div>
   {#if loaded && !items.length}
     <div class="empty">
-      <strong>{remnants ? 'No remaining sheets saved yet' : 'No cut sheets recorded yet'}</strong>
+      <strong>{remnants ? t('No remaining sheets saved yet') : t('No cut sheets recorded yet')}</strong>
       <p>{remnants
-        ? 'Inspect a finished cut in Cut history to save what is left.'
-        : 'Finished cuts appear here.'}</p>
-      {#if !onchoose && remnants}<button class="btn" onclick={() => showSheets(false)}>View cut history</button>{/if}
+        ? t('Inspect a finished cut in Cut history to save what is left.')
+        : t('Finished cuts appear here.')}</p>
+      {#if !onchoose && remnants}<button class="btn" onclick={() => showSheets(false)}>{t("View cut history")}</button>{/if}
     </div>
   {/if}
-  {#if next}<button class="btn more" disabled={busy} onclick={() => load(true)}>Load older sheets</button>{/if}
-  {#if busy && !items.length}<p>Loading sheets…</p>{/if}
+  {#if next}<button class="btn more" disabled={busy} onclick={() => load(true)}>{t("Load older sheets")}</button>{/if}
+  {#if busy && !items.length}<p>{t("Loading sheets…")}</p>{/if}
   {/if}
 </div>
 
 {#if inspected}<RemnantInspector id={inspected} onclose={() => inspected = null} onchanged={() => { void load(); }} />{/if}
 {#if adding}
-  <Modal title="Mark a saved job as already cut" onclose={closeAdding}>
-    <p class="intro">Choose a job you already cut.</p>
-    <input class="job-search" type="search" bind:value={search} placeholder="Find a saved job…" aria-label="Find a cut job" />
+  <Modal title={t("Mark a saved job as already cut")} onclose={closeAdding}>
+    <p class="intro">{t("Choose a job you already cut.")}</p>
+    <input class="job-search" type="search" bind:value={search} placeholder={t("Find a saved job…")} aria-label={t("Find a cut job")} />
     <div class="job-choices">
       {#each jobs as job}
         <button disabled={busy} onclick={() => report(job.id)}>

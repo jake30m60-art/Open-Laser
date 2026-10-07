@@ -206,12 +206,12 @@
   /** The kind tag on a card: a job says how many parts it cuts. */
   const kindTag = (c: Card): string =>
     c.kind === 'job' ? (c.parts > 1 ? `Job · ${plural(c.parts, 'part')}` : t("Job"))
-    : c.kind === 'stock' ? t("Sheets") : c.kind === 'remnant' ? t("Remnant") : 'Part';
+    : c.kind === 'stock' ? t("Sheets") : c.kind === 'remnant' ? t("Remnant") : t('Part');
 
-  const emptyTitle = $derived(q || filtered ? 'Nothing matches' : t("Empty folder"));
+  const emptyTitle = $derived(q || filtered ? t('Nothing matches') : t("Empty folder"));
   const emptyHint = $derived(
-    q ? 'Try a shorter word, a material, a size, or a folder name.'
-    : filtered ? 'Clear the filter to see everything.'
+    q ? t('Try a shorter word, a material, a size, or a folder name.')
+    : filtered ? t('Clear the filter to see everything.')
     : t("Import DXF or SVG, or move parts here."),
   );
 </script>
@@ -229,7 +229,7 @@
     </div>{/if}
   </div>
   <div class="toolbar parts-filters">
-    <div class="seg" role="group" aria-label="Library type">
+    <div class="seg" role="group" aria-label={t("Library type")}>
       {#each [['all', 'All'], ['part', 'Parts'], ['job', 'Jobs'], ['sheet', 'Sheets']] as [k, label]}
         <button class:on={kindFilter === k} aria-pressed={kindFilter === k} onclick={() => (kindFilter = k as typeof kindFilter)}>{t(label)}</button>
       {/each}
@@ -246,7 +246,7 @@
           {filterName}{#if favourites}<i class="ic ic-star-fill"></i>{/if}<i class="ic ic-chev-down"></i>
         </button>
         {#if filterOpen}<div class="filter-pop" role="group" aria-label={t("Filter")}>
-          <span class="filter-label">Laser</span>
+          <span class="filter-label">{t("Laser")}</span>
           <div class="seg block">
             {#each LASERS as [k, label]}
               <button class:on={laserFilter === k} aria-pressed={laserFilter === k} onclick={() => (laserFilter = k)}>
@@ -255,7 +255,7 @@
             {/each}
           </div>
           <button class="btn btn-ghost block fav-toggle" class:on={favourites} aria-pressed={favourites} onclick={() => (favourites = !favourites)}>
-            <i class="ic {favourites ? 'ic-star-fill' : 'ic-star'}"></i>Favorites only
+            <i class="ic {favourites ? 'ic-star-fill' : 'ic-star'}"></i>{t("Favorites only")}
           </button>
           {#if filtered}<button class="btn btn-ghost block" onclick={clearFilter}>{t("Clear filter")}</button>{/if}
         </div>{/if}
@@ -276,9 +276,9 @@
   {#if kindFilter === 'sheet'}<SheetLibrary />{:else}
   <div class="crumbs">
     {#if q}
-      <span class="muted">Results everywhere for</span> <strong>“{q}”</strong>
+      <span class="muted">{t("Results everywhere for")}</span> <strong>“{q}”</strong>
     {:else if favourites}
-      <span class="muted">Favorites in every folder</span>
+      <span class="muted">{t("Favorites in every folder")}</span>
     {:else}
       <button class="crumb-btn" onclick={() => (ui.folder = null)}>{t("All parts")}</button>
       {#each folderPath(ui.folder) as f}
@@ -297,7 +297,7 @@
           tabindex="0"
           onclick={() => openFolder(item.folder)}
           onkeydown={(e) => { if (e.key === 'Enter') { ui.folder = item.folder.id; } }}>
-          <button class="fav" class:on={item.folder.favourite} aria-label="Star" onclick={(e) => starFolder(e, item.folder)}>
+          <button class="fav" class:on={item.folder.favourite} aria-label={t("Star")} onclick={(e) => starFolder(e, item.folder)}>
             <i class="ic {item.folder.favourite ? 'ic-star-fill' : 'ic-star'}"></i>
           </button>
           <div class="thumb"><i class="ic ic-folder lg"></i></div>
@@ -320,7 +320,7 @@
             <span class="pick-mark" class:on={pick >= 0} aria-hidden="true">{pick >= 0 ? pick + 1 : ''}</span>
           {/if}
           {#if c.kind === 'part' || c.kind === 'job'}
-            <button class="fav" class:on={c.favourite} aria-label="Star" onclick={(e) => starCard(e, c)}>
+            <button class="fav" class:on={c.favourite} aria-label={t("Star")} onclick={(e) => starCard(e, c)}>
               <i class="ic {c.favourite ? 'ic-star-fill' : 'ic-star'}"></i>
             </button>
           {/if}
@@ -337,7 +337,7 @@
           </div>
           <div class="tags">
             {#if c.laser}<span class="tag {c.laser}">{laserLabel(c.laser)}</span>{/if}
-            <span class="tag">{kindTag(c)}</span>
+            <span class="tag">{t(kindTag(c))}</span>
             {#if c.contours}<span class="tag">{plural(c.contours, 'path')}</span>{/if}
           </div>
         </div>

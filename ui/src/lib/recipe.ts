@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 // The recipe as the operator edits it: one semantic control per family of
 // the vendor's attributes, on three pages. Cutting is the six controls
 // along the path; Piercing is one mode and its stages in the order they
@@ -175,7 +176,7 @@ export function bare(key: string, value: string): string {
   const f = field(key);
   if (value === '') return '—';
   if (f.kind === 'gas') return gasName(value);
-  if (f.kind === 'flag') return isOn(value) ? 'On' : 'Off';
+  if (f.kind === 'flag') return t(isOn(value) ? 'On' : 'Off');
   return numeric(value) ? displayNumber(value, f.unit ?? '').replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '') : value;
 }
 
@@ -227,7 +228,7 @@ export const mode = (v: Values): Mode => (isOn(v['EnableSmoothPierce']) ? 'smoot
 /** The mode as the page names it. */
 export const modeName = (v: Values): string => {
   const m = mode(v);
-  return m === 'smooth' ? 'Smooth piercing' : m === 'staged' ? plural(stageCount(v), 'piercing stage') : 'No piercing';
+  return m === 'smooth' ? t('Smooth piercing') : m === 'staged' ? plural(stageCount(v), 'piercing stage') : t('No piercing');
 };
 /** The native bank of the visible stage: stages run from the highest bank down. */
 export const bankOf = (count: number, visible: number): number => count - 1 - visible;

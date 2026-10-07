@@ -123,18 +123,18 @@
 <section class="panel main">
   <div class="panel-head recipe-head">
     <div class="recipe-identity">
-      {#if art}<img class="art" src={art} alt={recipe.photo ? 'Sample cut' : ''}>{:else}<div class="art blank"><i class="ic ic-layers"></i></div>{/if}
+      {#if art}<img class="art" src={art} alt={recipe.photo ? tr('Sample cut') : ''}>{:else}<div class="art blank"><i class="ic ic-layers"></i></div>{/if}
       <div class="recipe-details">
         <div class="recipe-eyebrow"><h3>{tr("Material library")}</h3><span class="tag {recipe.laser}">{laserLabel(recipe.laser)}</span>{#if engraving}<span class="tag">{tr("Engraving")}</span>{/if}</div>
         <h1>{recipe.name}</h1>
-        <div class="recipe-spec"><strong>{recipe.thickness_mm > 0 ? quantity(recipe.thickness_mm, 'mm') : tr("No thickness set")}</strong><span>sheet thickness</span></div>
+        <div class="recipe-spec"><strong>{recipe.thickness_mm > 0 ? quantity(recipe.thickness_mm, 'mm') : tr("No thickness set")}</strong><span>{tr("sheet thickness")}</span></div>
         <div class="recipe-source"><span title={recipe.file_name ?? `Bank ${recipe.layer}`}>{recipe.file_name ?? `Bank ${recipe.layer}`}</span>{#if recipe.updated}<span>{tr("Edited {0}", ago(recipe.updated))}</span>{/if}</div>
       </div>
     </div>
     <div class="recipe-use">
       <button
         class="btn btn-ghost icon-only star" class:on={recipe.favourite} onclick={star}
-        aria-label={recipe.favourite ? 'Unstar material' : 'Star material'} aria-pressed={recipe.favourite}
+        aria-label={recipe.favourite ? tr('Unstar material') : tr('Star material')} aria-pressed={recipe.favourite}
       ><i class="ic {recipe.favourite ? 'ic-star-fill' : 'ic-star'}"></i></button>
       <button class="btn btn-primary" onclick={use} disabled={!doc.draft}>{doc.draft ? tr("Use in current job") : tr("Open a part to use it")}</button>
     </div>
@@ -148,7 +148,7 @@
     </div>
   </div>
   <div class="setup-strip">
-    <span><b>{tr("Setup")}</b><span class="text">{noteLine || 'No setup note yet'}</span></span>
+    <span><b>{tr("Setup")}</b><span class="text">{noteLine || tr('No setup note yet')}</span></span>
     <button class="btn btn-ghost" onclick={note}>{tr("Edit setup")}</button>
   </div>
   <div class="recipe-summary"><MaterialSummary source={summary} /></div>

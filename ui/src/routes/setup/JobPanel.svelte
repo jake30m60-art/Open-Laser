@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tl } from '../../i18n/index';
   import { t } from '../../i18n/index';
 
   import { beginProject, editPart } from '../../lib/sketch-workflow';
@@ -24,7 +25,7 @@
   const recipe = $derived(draft.recipe);
   /** Selects a part's shapes on the drawing, when there is one to select on. */
   let { onselectpart }: { onselectpart?: (first: number, count: number) => void } = $props();
-  const nameOf = (id: string) => doc.library.parts.find((p) => p.id === id)?.name ?? 'Missing part';
+  const nameOf = (id: string) => doc.library.parts.find((p) => p.id === id)?.name ?? t('Missing part');
   let adding = $state(false);
   let texting = $state(false);
   const job = $derived(doc.library.jobs.find((j) => j.id === draft.job) ?? null);
@@ -34,14 +35,14 @@
   const partsLabel = $derived(draft.parts.length === 1 ? nameOf(draft.parts[0]!.id) : `${draft.parts.length} parts`);
   /** The note beside a part in the list: whether it is on this sheet, and how many copies or paths. */
   function partNote(here: number, copies: number, contours: number): string {
-    if (!here) return 'Not on this sheet';
+    if (!here) return t('Not on this sheet');
     return copies > 1 ? `${copies} copies · Select` : `${plural(contours, 'path')} · Select`;
   }
 
   /** Cuts run on the material; a mark among other layers needs its own recipe. */
   const layersMissing = $derived(draft.layers.some((l) => !l.chosen));
   function layerHow(layer: DraftLayer): string {
-    const mode = layer.mode === 'mark' ? 'Mark' : 'Cut';
+    const mode = layer.mode === 'mark' ? t('Mark') : 'Cut';
     if (!layer.output) return `${mode} · Off`;
     if (!layer.chosen) return `${mode} · Choose a recipe`;
     return `${mode} · ${layer.recipe ? recipeLabel(layer.recipe) : 'Material'}`;
@@ -88,7 +89,7 @@
         </li>
       {/each}
     </ul>
-    <p class="muted">Delete a part's shapes on the drawing to take it out of the job.</p>
+    <p class="muted">{tl("Delete a part's shapes on the drawing to take it out of the job.")}</p>
   {/if}
 </div>
 
@@ -99,40 +100,40 @@
       {#if art}<img class="swatch" src={art} alt="">{:else}<span class="swatch" style="background:var(--panel-2)"></span>{/if}
       <span class="mat-text">
         <strong>{recipe.name}</strong>
-        <small>{quantity(recipe.thickness_mm, 'mm')} · {recipe.gas} · {laserLabel(recipe.laser)}</small>
+        <small>{quantity(recipe.thickness_mm, 'mm')} · {tl(recipe.gas)} · {laserLabel(recipe.laser)}</small>
       </span>
     {:else}
       <span class="swatch" style="background:var(--warn-soft)"></span>
-      <span class="mat-text"><strong class="warn-text">{t("Choose a material")}</strong><small>Required before running</small></span>
+      <span class="mat-text"><strong class="warn-text">{t("Choose a material")}</strong><small>{tl("Required before running")}</small></span>
     {/if}
     <span class="link">{t("Change")}</span>
   </button>
   {#if recipe}<MaterialSummary source={recipe} variant="compact" />{/if}
   {#if draft.layers.length}
-    <label class="layer-choice">Bearbeitungsbereich
+    <label class="layer-choice">{tl("Bearbeitungsbereich")}
       <select bind:value={selectedLayer}>{#each draft.layers as layer (layer.name)}<option value={layer.name}>{layer.name} · {layerHow(layer)}</option>{/each}</select>
     </label>
-    <button class="btn btn-ghost" onclick={() => ui.layerSheet = selectedLayer}>Bearbeitungseinstellungen öffnen</button>
+    <button class="btn btn-ghost" onclick={() => ui.layerSheet = selectedLayer}>{tl("Bearbeitungseinstellungen öffnen")}</button>
   {/if}
 </div>
 
-{#if draft.calibration}<p class="correction-status">Correction off</p>{:else if draft.correction}<p class="correction-status">Matrix correction</p>{/if}
+{#if draft.calibration}<p class="correction-status">{tl("Correction off")}</p>{:else if draft.correction}<p class="correction-status">{tl("Matrix correction")}</p>{/if}
 
 <div class="card2 compact rows">
   <div class="info-row">
-    <span><strong>Machining</strong><small>{on} {t("of")} {optional} on{#if draft.feature_source} · from {draft.feature_source.name}{/if}</small></span>
-    <span><strong>Preflight</strong><small>{preflightLabel(draft)}</small></span>
+    <span><strong>{tl("Machining")}</strong><small>{tl('{0} of {1} on', on, optional)}{#if draft.feature_source} · {tl('from {0}', draft.feature_source.name)}{/if}</small></span>
+    <span><strong>{tl("Preflight")}</strong><small>{preflightLabel(draft)}</small></span>
     <button class="btn btn-ghost" onclick={() => (checklist = true)}>{t("Edit")}</button>
   </div>
 </div>
 
 <div class="stats">
-  <div><b>{displayNumber(draft.preview?.length_mm, 'mm', 0)}</b><span>{unitLabel('mm')} cut</span></div>
-  <div><b>{draft.compiled ? draft.compiled.pierces.length : '—'}</b><span>pierces</span></div>
-  <div><b>{draft.compiled ? seconds(draft.compiled.seconds) : '—'}</b><span>est. time</span></div>
+  <div><b>{displayNumber(draft.preview?.length_mm, 'mm', 0)}</b><span>{tl('{0} cut', unitLabel('mm'))}</span></div>
+  <div><b>{draft.compiled ? draft.compiled.pierces.length : '—'}</b><span>{tl("pierces")}</span></div>
+  <div><b>{draft.compiled ? seconds(draft.compiled.seconds) : '—'}</b><span>{tl("est. time")}</span></div>
 </div>
 {#if draft.compiled?.plan.some((pass) => pass.omitted_cooling > 0)}
-  <p class="muted">{draft.compiled.plan.reduce((n, pass) => n + pass.omitted_cooling, 0)} cooling points skipped within {quantity(0.2, 'mm')} of endpoints.</p>
+  <p class="muted">{tl('{0} cooling points skipped within {1} of endpoints.', draft.compiled.plan.reduce((n, pass) => n + pass.omitted_cooling, 0), quantity(0.2, 'mm'))}</p>
 {/if}
 {#if draft.error}<div class="warn-text draft-error">{plain(draft.error).text}</div>{/if}
 {#if draft.compiled}<GasLaserCard />{/if}
@@ -141,9 +142,9 @@
 <div class="stack">
   <div class="row">
     <button class="btn btn-ghost lg" onclick={save} disabled={!recipe}>{saveLabel(draft)}</button>
-    <button class="btn btn-ghost lg" onclick={() => review(true)} disabled={!doc.readiness.compile.ok} title={doc.readiness.compile.reason ?? ''}>Dry run</button>
+    <button class="btn btn-ghost lg" onclick={() => review(true)} disabled={!doc.readiness.compile.ok} title={doc.readiness.compile.reason ?? ''}>{tl("Dry run")}</button>
   </div>
-  <button class="btn btn-primary xl block" onclick={() => review(false)} disabled={!doc.readiness.compile.ok} title={doc.readiness.compile.reason ?? ''}>Go to Run →</button>
+  <button class="btn btn-primary xl block" onclick={() => review(false)} disabled={!doc.readiness.compile.ok} title={doc.readiness.compile.reason ?? ''}>{tl("Go to Run →")}</button>
 </div>
 
 {#if sheet}<MaterialSheet onclose={() => (sheet = false)} />{/if}

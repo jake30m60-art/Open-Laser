@@ -28,7 +28,7 @@
       <p>{access.error ? t("Your workspace will return when the connection is restored.") : moving ? t("Wait for motion to finish, or stop it here.") : t("Take control to use this screen.")}</p>
       {#if error}<p class="control-error" role="alert">{error}</p>{/if}
       {#if access.error}<button class="take-control" onclick={() => access.refresh()}>{t("Try again")}</button>
-      {:else}<button class="take-control" disabled={access.busy || moving} onclick={take}>{access.busy ? 'Switching…' : t("Take control")}</button>{/if}
+      {:else}<button class="take-control" disabled={access.busy || moving} onclick={take}>{access.busy ? t('Switching…') : t("Take control")}</button>{/if}
       {#if server.doc?.readiness.stop.ok && server.link}<button class="stop-motion" onclick={stop}><i class="ic ic-stop"></i>{t("Stop motion")}</button>{/if}
     </div>
   </div>

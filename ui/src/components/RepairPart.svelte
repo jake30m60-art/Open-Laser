@@ -13,7 +13,7 @@
   import { quantity } from '../lib/units.svelte';
 
   let { part, onclose, onsaved }: { part: { id: string; name: string }; onclose: () => void; onsaved?: (id: string) => Promise<void> | void } = $props();
-  const TOLERANCES = [['Fine', 0.01], ['Standard', 0.05], ['Coarse', 0.1], ['Rough', 0.5]] as const;
+  const TOLERANCES = [[t('Fine'), 0.01], [t('Standard'), 0.05], [t('Coarse'), 0.1], [t('Rough'), 0.5]] as const;
   let tolerance = $state(0.05);
   let result = $state<RepairView | null>(null);
   let checking = $state(false), saving = $state(false), error = $state('');

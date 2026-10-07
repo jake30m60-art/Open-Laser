@@ -18,12 +18,12 @@
   let busy = $state(false), error = $state('');
   const status = $derived(
     !sheet ? ''
-    : sheet.used ? 'Used by a later job'
-    : sheet.state === 'remnant' ? 'Ready to nest'
-    : sheet.reported ? 'Marked cut by operator'
-    : sheet.state === 'completed' ? 'Job completed'
-    : 'Unfinished cut');
-  const dimensions: [string, number][] = $derived([['Width', width], ['Height', height], ['Front-left X', x], ['Front-left Y', y]]);
+    : sheet.used ? t('Used by a later job')
+    : sheet.state === 'remnant' ? t('Ready to nest')
+    : sheet.reported ? t('Marked cut by operator')
+    : sheet.state === 'completed' ? t('Job completed')
+    : t('Unfinished cut'));
+  const dimensions: [string, number][] = $derived([[t('Width'), width], [t('Height'), height], [t('Front-left X'), x], [t('Front-left Y'), y]]);
   onMount(() => {
     void api.sheet(id).then(value => {
       sheet = value;
@@ -68,32 +68,32 @@
   }
 </script>
 
-<Modal title={sheet?.state === 'remnant' ? 'Remaining sheet' : 'Save remaining sheet'} wide onclose={close}>
+<Modal title={sheet?.state === 'remnant' ? t('Remaining sheet') : t('Save remaining sheet')} wide onclose={close}>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if sheet}
     <div class="remnant-review">
       <div class="shape">
         <SheetShape outline={sheet.outline} cutouts={sheet.cutouts} />
         <div class="shape-key">
-          <span><i></i>Remaining material</span>
-          <span><i class="removed"></i>Cut areas kept clear</span>
+          <span><i></i>{t("Remaining material")}</span>
+          <span><i class="removed"></i>{t("Cut areas kept clear")}</span>
         </div>
       </div>
       <div class="details">
         <span class="eyebrow">{t(status)}</span>
         <h3>{sheet.name}</h3>
         <p>{sheet.material} · {quantity(sheet.thickness_mm, 'mm')} · {laserLabel(sheet.mode)}</p>
-        <p>{sheet.cutouts.length} cut areas will be excluded from future nests. Check the remaining sheet against this drawing before saving it.</p>
+        <p>{t('{0} cut areas will be excluded from future nests. Check the remaining sheet against this drawing before saving it.', sheet.cutouts.length)}</p>
         {#if sheet.clearance > 0}
-          <p>Previous kerf and leads keep at least {quantity(sheet.clearance, 'mm')} clear around cut areas.</p>
+          <p>{t('Previous kerf and leads keep at least {0} clear around cut areas.', quantity(sheet.clearance, 'mm'))}</p>
         {/if}
         {#if sheet.state === 'completed' && !sheet.used}
-          <button class="field" disabled={busy} onclick={() => osk.text('Remnant name', name, v => name = v)}>
+          <button class="field" disabled={busy} onclick={() => osk.text(t('Remnant name'), name, v => name = v)}>
             <span>{t("Name")}</span>
             <strong>{name}</strong>
           </button>
           {#if !sheet.boundary_known}
-            <p class="missing">This job had no sheet boundary. Enter the actual sheet size and its front-left corner in the drawing shown.</p>
+            <p class="missing">{t("This job had no sheet boundary. Enter the actual sheet size and its front-left corner in the drawing shown.")}</p>
             <div class="dimensions">
               {#each dimensions as [label, value]}
                 <button class="field" disabled={busy} onclick={() => editDimension(label, value)}>
@@ -105,17 +105,17 @@
           {/if}
         {/if}
         {#if sheet.state === 'interrupted' || sheet.state === 'cutting'}
-          <p class="missing">This record has no completed cut. Resume the job to finish it; planned part areas stay reserved.</p>
+          <p class="missing">{t("This record has no completed cut. Resume the job to finish it; planned part areas stay reserved.")}</p>
         {/if}
         <div class="primary">
           {#if sheet.state === 'completed' && !sheet.used}
             <button
               class="btn btn-primary lg block"
               disabled={busy || !name.trim() || width <= 0 || height <= 0}
-              onclick={() => run(save)}>Save inspected remnant</button>
+              onclick={() => run(save)}>{t("Save inspected remnant")}</button>
           {:else if sheet.state === 'remnant' && !sheet.used}
             <button class="btn btn-primary lg block" disabled={busy || !server.doc?.draft} onclick={() => run(use)}>
-              Use as nesting stock
+              {t("Use as nesting stock")}
             </button>
           {:else}
             <button class="btn lg block" onclick={onclose}>{t("Done")}</button>
@@ -123,7 +123,7 @@
         </div>
       </div>
     </div>
-  {:else if !error}<p>Loading sheet…</p>{/if}
+  {:else if !error}<p>{t("Loading sheet…")}</p>{/if}
 </Modal>
 
 <style>

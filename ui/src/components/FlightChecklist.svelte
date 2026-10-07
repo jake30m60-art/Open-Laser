@@ -33,8 +33,8 @@
   const allChecked = $derived([...new Set([...checked, ...satisfied])].sort((a, b) => a - b));
   const done = $derived(allChecked.length + Number(!!preflight?.confirm_gas && gasReady));
   const complete = $derived(done === total);
-  const title = $derived(postflight ? 'Postflight Checklist' : preflight?.intent === 'resume' ? 'Pause Checklist' : 'Preflight Checklist');
-  const button = $derived(postflight ? 'Done' : preflight?.intent === 'resume' ? 'Resume' : preflight?.dry_run ? 'Start dry run' : 'Start cutting');
+  const title = $derived(postflight ? t('Postflight Checklist') : preflight?.intent === 'resume' ? t('Pause Checklist') : t('Preflight Checklist'));
+  const button = $derived(postflight ? t('Done') : preflight?.intent === 'resume' ? t('Resume') : preflight?.dry_run ? t('Start dry run') : t('Start cutting'));
 
   function toggle(index: number, on: boolean): void {
     checked = on ? [...checked.filter((i) => i !== index), index] : checked.filter((i) => i !== index);
@@ -62,7 +62,7 @@
   $effect(() => {
     const next = context;
     if (previous && previous !== next) {
-      untrack(() => { error = 'Setup changed. Check again.'; void refresh(); });
+      untrack(() => { error = t('Setup changed. Check again.'); void refresh(); });
     }
     previous = next;
   });
@@ -121,21 +121,21 @@
   }
 
   function actionTitle(action: CheckAction): string {
-    if (movesMachine(action)) return 'Moves the machine';
-    return action.kind === 'gas_test' || action.kind === 'job_gas_test' ? 'Opens the gas briefly, then closes it' : 'Changes the job origin';
+    if (movesMachine(action)) return t('Moves the machine');
+    return t(action.kind === 'gas_test' || action.kind === 'job_gas_test' ? 'Opens the gas briefly, then closes it' : 'Changes the job origin');
   }
 </script>
 
 <Modal {title} dismissable={!submitting && !busy} onclose={() => { if (!submitting) close(); }}>
-  {#snippet actions()}<button class="btn btn-ghost" aria-label={`Edit ${title.toLowerCase()}`} disabled={submitting || busy || loading} onclick={edit}>{t("Edit")}</button>{/snippet}
-  <div class="preflight-progress"><span>{postflight ? postflight.notice.name : preflight?.intent === 'resume' ? t("Before resuming") : preflight?.dry_run ? 'Dry run · laser off' : 'Machine and material'}</span><strong>{done} / {total}</strong></div>
+  {#snippet actions()}<button class="btn btn-ghost" aria-label={t('Edit {0}', t(title))} disabled={submitting || busy || loading} onclick={edit}>{t("Edit")}</button>{/snippet}
+  <div class="preflight-progress"><span>{postflight ? postflight.notice.name : preflight?.intent === 'resume' ? t("Before resuming") : preflight?.dry_run ? t('Dry run · laser off') : t('Machine and material')}</span><strong>{done} / {total}</strong></div>
   <div class="preflight-checks">
     {#each review.steps as step, i}
       <div class="preflight-check" class:checked={allChecked.includes(i)} class:motion={movesMachine(step.action)}>
         <label><input
             type="checkbox" checked={allChecked.includes(i)} disabled={submitting || busy || loading || satisfied.includes(i)}
             onchange={(event) => toggle(i, event.currentTarget.checked)}><span>{step.text}{#if movesMachine(step.action)}<small
-            class="motion-label">Moves machine</small>{/if}{#if satisfied.includes(i)}<small>{t("Auto-checked")}</small>{/if}</span></label>
+            class="motion-label">{t("Moves machine")}</small>{/if}{#if satisfied.includes(i)}<small>{t("Auto-checked")}</small>{/if}</span></label>
         {#if step.action}<HoldButton
             class="btn {movesMachine(step.action) ? 'btn-move' : 'btn-ghost'}" kind={holdKind(step.action)}
             disabled={busy || loading || submitting || !server.link} onhold={() => action(i)} title={actionTitle(step.action)}
@@ -143,16 +143,16 @@
       </div>
     {/each}
     {#if preflight?.confirm_gas}
-      <div class="preflight-check" class:checked={gasReady}><label><input type="checkbox" bind:checked={gasReady} disabled={submitting || busy || loading}><span>Gas supply is ready<small>{preflight.gases.join(' · ')}</small></span></label></div>
+      <div class="preflight-check" class:checked={gasReady}><label><input type="checkbox" bind:checked={gasReady} disabled={submitting || busy || loading}><span>{t("Gas supply is ready")}<small>{preflight.gases.join(' · ')}</small></span></label></div>
     {/if}
   </div>
   {#if error}<p class="warn-text" role="alert">{error}</p>{:else if !readiness.ok && !submitting && readiness.reason !== 'a manual output is active'}<p class="muted">{diagnosticText(readiness.reason ?? '')}</p>{/if}
   <div class="preflight-footer">
     {#if busy}<button class="btn btn-stop" onclick={stop}>{t("Stop motion")}</button>{:else}<button class="btn btn-ghost" onclick={close} disabled={submitting}>{postflight || preflight?.intent === 'resume' ? t("Close") : t("Cancel")}</button>{/if}
     {#if preflight}
-      <HoldButton class="btn lg btn-start" disabled={!complete || !readiness.ok || !server.link || submitting || busy || loading} onhold={start}>{submitting ? 'Starting…' : button}</HoldButton>
+      <HoldButton class="btn lg btn-start" disabled={!complete || !readiness.ok || !server.link || submitting || busy || loading} onhold={start}>{submitting ? t('Starting…') : button}</HoldButton>
     {:else}
-      <button class="btn lg btn-primary" disabled={!complete || !readiness.ok || !server.link || submitting || busy || loading} onclick={start}>{submitting ? 'Closing…' : button}</button>
+      <button class="btn lg btn-primary" disabled={!complete || !readiness.ok || !server.link || submitting || busy || loading} onclick={start}>{submitting ? t('Closing…') : button}</button>
     {/if}
   </div>
 </Modal>

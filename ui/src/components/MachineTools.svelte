@@ -36,7 +36,7 @@
   onMount(() => held.mount());
   $effect(() => { if (!server.link || !access.canControl) held.cancel(); });
   let gasPressure = $state(5);
-  const portLabel = (port: number | null | undefined): string => (port ? `Output ${port}` : 'Unassigned');
+  const portLabel = (port: number | null | undefined): string => (port ? t('Output {0}', port) : t('Unassigned'));
   function hold(event: PointerEvent, output: OutputRequest): void {
     held.press(event, (lease) => api.machine('outputs', { output, lease }));
   }
@@ -53,10 +53,10 @@
   }
 </script>
 
-<Modal title="Machine tests" wide onclose={close}>
+<Modal title={t("Machine tests")} wide onclose={close}>
   <div class="machine-tools">
-    <div class="setting-group"><h3>Laser mode</h3>
-      <div class="setting"><div class="lbl">Operating mode<small>Hold to switch · the XY reference is kept</small></div>
+    <div class="setting-group"><h3>{t("Laser mode")}</h3>
+      <div class="setting"><div class="lbl">{t("Operating mode")}<small>{t("Hold to switch · the XY reference is kept")}</small></div>
         <div class="seg">
           {#each MODES as mode}
             {#if doc.mode === mode}
@@ -72,32 +72,32 @@
 
     <ManualTests />
 
-    <div class="setting-group"><h3>Manual outputs</h3>
-      <div class="setting"><div class="lbl">Hold a button<small>Release to turn off.</small></div></div>
+    <div class="setting-group"><h3>{t("Manual outputs")}</h3>
+      <div class="setting"><div class="lbl">{t("Hold a button")}<small>{t("Release to turn off.")}</small></div></div>
       <div class="setting">
-        <div class="lbl">Pointer<small>{laserLabel(doc.mode)} · {portLabel(bindings?.outputs.pointer_port)}</small></div>
+        <div class="lbl">{t("Pointer")}<small>{laserLabel(doc.mode)} · {portLabel(bindings?.outputs.pointer_port)}</small></div>
         <button class="btn btn-ghost deadman" disabled={!bindings?.outputs.pointer || !readiness.outputs.ok} onpointerdown={(event) => hold(event, { kind: 'pointer' })}>
-          Hold
+          {t("Hold")}
         </button>
       </div>
       <div class="setting">
-        <div class="lbl">Shutter<small>{laserLabel(doc.mode)} · {portLabel(bindings?.outputs.shutter_port)}</small></div>
+        <div class="lbl">{t("Shutter")}<small>{laserLabel(doc.mode)} · {portLabel(bindings?.outputs.shutter_port)}</small></div>
         <button class="btn btn-warn deadman" disabled={!bindings?.outputs.shutter || !readiness.outputs.ok} onpointerdown={(event) => hold(event, { kind: 'shutter' })}>
-          Hold
+          {t("Hold")}
         </button>
       </div>
       {#each GAS as name, selector}
         {#if bindings?.outputs.gas[selector]}
           <div class="setting">
-            <div class="lbl">{name}<small>valve{selector < 3 ? t("and proportional pressure") : ''}</small></div>
+            <div class="lbl">{name}<small>{t('valve')}{selector < 3 ? ' ' + t("and proportional pressure") : ''}</small></div>
             <button class="btn btn-warn deadman" disabled={!readiness.outputs.ok} onpointerdown={(event) => hold(event, { kind: 'gas', selector, pressure: gasPressure })}>
-              Hold
+              {t("Hold")}
             </button>
           </div>
         {/if}
       {/each}
       <div class="setting">
-        <div class="lbl">Gas pressure<small>for the proportional valve</small></div>
+        <div class="lbl">{t("Gas pressure")}<small>{t("for the proportional valve")}</small></div>
         <button class="val" data-numpad onclick={editGasPressure}>{quantity(gasPressure, 'bar')}</button>
       </div>
       {#if !readiness.outputs.ok && readiness.outputs.reason}<p class="gate-reason">{plain(readiness.outputs.reason).text}</p>{/if}

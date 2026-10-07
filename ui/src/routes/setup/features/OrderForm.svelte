@@ -23,7 +23,7 @@
   const STRATEGIES: ReadonlyArray<readonly [string, string]> = [
     ...(['as_drawn', 'nearest', 'left_to_right', 'right_to_left', 'bottom_to_top', 'top_to_bottom'] as const)
       .map((s) => [s, WORDS[s]!] as const),
-    ['manual', 'Picked'],
+    ['manual', t('Picked')],
   ];
 
   const order = $derived(features.order);
@@ -57,7 +57,7 @@
     <button class="btn btn-soft" onclick={() => pick('order')}>{t("Pick again")}</button>
   </div>
 {/if}
-<button class="btn btn-soft" onclick={typedOrder}>Enter contour order…</button>
+<button class="btn btn-soft" onclick={typedOrder}>{t("Enter contour order…")}</button>
 <p class="muted">{t("Inside to outside: cut nested inner contours before their enclosing outline.")}</p>
 <Toggle label={t("Inside to outside")} value={order.inner_first} disabled={!on} apply={setInnerFirst} />
 <Toggle label={t("Circles first")} value={order.circles_first} disabled={!on} apply={setCirclesFirst} />

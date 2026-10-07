@@ -23,7 +23,7 @@
   const fly = $derived(features.fly ?? defaultFly(selectedContours));
   const summary = $derived(features.fly
     ? `${plural(fly.contours.length, 'contour')} cut flying. Contours with arcs are cut as usual.`
-    : 'Select the contours on the drawing, such as a grid of square holes, then switch on the flying cut.');
+    : t('Select the contours on the drawing, such as a grid of square holes, then switch on the flying cut.'));
   const useSelected = () => set(f => { if (f.fly) f.fly.contours = [...selectedContours]; });
   const setRunUp = (v: number) => set(f => { f.fly!.run_up = Math.min(50, v); });
   const setOvercut = (v: number) => set(f => { f.fly!.overcut = Math.min(2, v); });

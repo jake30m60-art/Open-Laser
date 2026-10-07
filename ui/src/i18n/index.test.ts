@@ -6,7 +6,7 @@ afterEach(() => setLocale('en'));
 describe('operator translations', () => {
   it('translates German labels while preserving unknown text', () => {
     setLocale('de');
-    expect(t('Flying cut')).toBe('Flugschneiden');
+    expect(t('Flying cut')).toBe('Flycutting');
     expect(t('Part quantity')).toBe('Teileanzahl');
     expect(t('radius')).toBe('radius');
     expect(t('Mein Teil.dxf')).toBe('Mein Teil.dxf');

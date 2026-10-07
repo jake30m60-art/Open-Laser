@@ -1,6 +1,7 @@
 // What the UI remembers for itself: the page, selections, and the bar.
 import type { Features, NestLive, Pick, Preview } from '../api';
 import { SETTINGS_PAGES } from '../lib/navigation';
+import { t } from '../i18n/index';
 
 export type Tab = 'parts' | 'setup' | 'run' | 'materials' | 'machine' | 'sketch';
 /** A question before a destructive or machine-changing action (DESIGN.md, Touch rules). */
@@ -187,7 +188,8 @@ class Ui {
 
   /** Shows a note; an error stays until dismissed or replaced. */
   say(text: string, error = false): void {
-    this.toast = { text, error, at: Date.now() };
+    // Fixed messages are written in English and shown in the screen's language.
+    this.toast = { text: t(text), error, at: Date.now() };
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = error ? null : setTimeout(() => { this.toast = null; }, 2600);
   }

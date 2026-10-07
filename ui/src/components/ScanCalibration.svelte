@@ -2,6 +2,7 @@
   let session: { speeds: number[]; angle: number; threeAngles: boolean; length: number; spacing: number; origin: [number, number] | null; recipeId: string | null } | null = null;
 </script>
 <script lang="ts">
+  import { t as tl } from '../i18n/index';
   // Engraving calibration: how far engraved lines land behind where they
   // were meant to, per laser, scan angle and speed. The test engraves, per
   // speed, one four-line group for each direction, scanned both ways
@@ -274,7 +275,7 @@
           {#if origin}{tr("Test corner X {0} · Y {1} mm · {2} × {3} mm", fmt(origin[0], 0), fmt(origin[1], 0), fmt(testSize[0], 0), fmt(testSize[1], 0))}{#if !fits} · <span class="warn-text">{tr("does not fit there")}</span>{/if}{/if}
           {tr("· {0} of {1} measurements saved", measured, tests.length)}
         </p>
-        <p class="progress">Die Blöcke liegen dicht beieinander. Laserfreie Hochlauffahrten dürfen sich überlappen; Hochlaufreserve und Tischgrenzen bleiben berücksichtigt.</p>
+        <p class="progress">{tl("Die Blöcke liegen dicht beieinander. Laserfreie Hochlauffahrten dürfen sich überlappen; Hochlaufreserve und Tischgrenzen bleiben berücksichtigt.")}</p>
         <div class="corner-buttons">
           <button class="btn btn-ghost" onclick={() => (zoomTest = !zoomTest)}>{zoomTest ? tr("Show full bed") : tr("Enlarge test preview")}</button>
           <button class="btn btn-ghost" disabled={busy} onclick={() => moveOrigin(0)}>{tr("Corner X")}</button>
@@ -294,18 +295,18 @@
           </div>
           <div class="settings">
             <button disabled={busy} onclick={() => { threeAngles = !threeAngles; current = 0; }}><span>{tr("Test directions")}</span><strong>{threeAngles ? '0° / 45° / 90°' : tr("Custom angle")}</strong><small>{tr("Click to switch between three directions and one angle")}</small></button>
-            {#if !threeAngles}<button disabled={busy} onclick={() => number('Scan angle', angle, '°', v => { angle = v; current = 0; }, v => v >= 0 && v < 360, 'Enter 0 to 359°.')}><span>{tr("Scan angle")}</span><strong>{fmt(angle, 1)}°</strong><small>{tr("0° along X · 90° along Y")}</small></button>{/if}
-            <button disabled={busy} onclick={() => number('Line length', length, 'mm', (v) => (length = v), (v) => v >= 3 && v <= 50, 'Enter 3 to 50 mm.')}><span>{tr("Line length")}</span><strong>{fmt(length, 1)} mm</strong></button>
-            <button disabled={busy} onclick={() => number('Line spacing', spacing, 'mm', (v) => (spacing = v), (v) => v >= 0.3 && v <= 5, 'Enter 0.3 to 5 mm.')}><span>{tr("Line spacing")}</span><strong>{fmt(spacing, 2)} mm</strong><small>{tr("Wide enough to tell the lines apart")}</small></button>
+            {#if !threeAngles}<button disabled={busy} onclick={() => number(tr('Scan angle'), angle, '°', v => { angle = v; current = 0; }, v => v >= 0 && v < 360, tr('Enter 0 to 359°.'))}><span>{tr("Scan angle")}</span><strong>{fmt(angle, 1)}°</strong><small>{tr("0° along X · 90° along Y")}</small></button>{/if}
+            <button disabled={busy} onclick={() => number(tr('Line length'), length, 'mm', (v) => (length = v), (v) => v >= 3 && v <= 50, tr('Enter 3 to 50 mm.'))}><span>{tr("Line length")}</span><strong>{fmt(length, 1)} mm</strong></button>
+            <button disabled={busy} onclick={() => number(tr('Line spacing'), spacing, 'mm', (v) => (spacing = v), (v) => v >= 0.3 && v <= 5, tr('Enter 0.3 to 5 mm.'))}><span>{tr("Line spacing")}</span><strong>{fmt(spacing, 2)} mm</strong><small>{tr("Wide enough to tell the lines apart")}</small></button>
           </div>
           <p>{tr("Automatic ramp reserve: machine acceleration {0} mm/s², ramp time {1} ms; 50% extra distance plus 5 mm. One row per speed, 0° / 45° / 90° from left to right.", fmt(data.acceleration, 0), fmt(data.acceleration_time * 1000, 0))}</p>
           <label class="recipe">
             <span>{tr("Recipe for power and frequency")}</span>
             <select bind:value={recipeId} disabled={busy || !recipes.length}>
-              {#if !recipes.length}<option value={null}>Kein Gravurrezept vorhanden</option>{/if}
-              {#each recipes as r (r.id)}<option value={r.id}>{r.name} · {r.gas}</option>{/each}
+              {#if !recipes.length}<option value={null}>{tl("Kein Gravurrezept vorhanden")}</option>{/if}
+              {#each recipes as r (r.id)}<option value={r.id}>{r.name} · {tr(r.gas)}</option>{/each}
             </select>
-            {#if !recipe}<small>Für diesen Laser zuerst ein Gravurrezept in der Materialbibliothek anlegen.</small><button class="btn btn-ghost" onclick={() => ui.tab = 'materials'}>Zur Materialbibliothek</button>{/if}
+            {#if !recipe}<small>{tl("Für diesen Laser zuerst ein Gravurrezept in der Materialbibliothek anlegen.")}</small><button class="btn btn-ghost" onclick={() => ui.tab = 'materials'}>{tl("Zur Materialbibliothek")}</button>{/if}
           </label>
           <button class="btn btn-ghost" disabled={busy} onclick={() => { if (bed) origin = [bed.min.x + before[0] + 10, bed.min.y + before[1] + 10]; }}>{tr("Place with safe edge clearance")}</button>
           <button class="btn btn-primary lg" disabled={busy || !fits || !recipe} onclick={loadTest}>{tr("Load test in Setup")}</button>

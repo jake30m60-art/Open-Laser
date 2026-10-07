@@ -90,73 +90,73 @@
       step = 'saved';
     });
   }
-  const beforeLabel = $derived(method === 'pressure' ? 'Cylinder pressure before' : method === 'weight' ? 'Cylinder weight before' : method === 'meter' ? 'Flow meter reading' : 'Volume used');
+  const beforeLabel = $derived(method === 'pressure' ? t('Cylinder pressure before') : method === 'weight' ? t('Cylinder weight before') : method === 'meter' ? t('Flow meter reading') : t('Volume used'));
   const unit = $derived(method === 'pressure' ? 'bar' : method === 'weight' ? 'kg' : method === 'meter' ? 'L/min' : 'L');
 </script>
 
-<Modal title="{t("Calibrate")} {GAS_NAMES[gas]}" dismissable={!running} {onclose}>
+<Modal title="{t("Calibrate")} {t(GAS_NAMES[gas])}" dismissable={!running} {onclose}>
   <div class="cal" style="--gas:{GAS_COLORS[gas]}">
     <ol class="steps">
-      <li class:on={step === 'setup'}>Note the supply</li>
-      <li class:on={step === 'running'}>Open 60 s</li>
+      <li class:on={step === 'setup'}>{t("Note the supply")}</li>
+      <li class:on={step === 'running'}>{t("Open 60 s")}</li>
       <li class:on={step === 'measure' || step === 'saved'}>{t("Measure")}</li>
     </ol>
 
     {#if step === 'setup'}
-      <p class="muted">Fit the nozzle, keep the head clear of the sheet and nothing else on this gas. Then note the supply before opening the valve.</p>
+      <p class="muted">{t("Fit the nozzle, keep the head clear of the sheet and nothing else on this gas. Then note the supply before opening the valve.")}</p>
       {#if routes.length > 1}
-        <div class="choices" role="group" aria-label="Valve">{#each routes as r (r.selector)}<button
+        <div class="choices" role="group" aria-label={t("Valve")}>{#each routes as r (r.selector)}<button
             class="btn" class:btn-primary={r.selector === selector} aria-pressed={r.selector === selector}
             onclick={() => (selector = r.selector)}>{r.name}</button>{/each}</div>
       {/if}
       <div class="fields">
-        <button class="field" onclick={() => numberAtLeast('Test pressure', pressure, 'bar', v => { if (v > 0 && v <= 100) pressure = v; })}><span>{route?.pressure ? 'Pressure' : 'Regulator pressure'}</span><strong>{quantity(pressure, 'bar')}</strong></button>
-        <button class="field" onclick={() => numberAtLeast('Nozzle diameter', diameter, 'mm', v => { if (v > 0 && v <= 20) diameter = v; })}><span>Nozzle</span><strong>{quantity(diameter, 'mm', 1)}</strong></button>
+        <button class="field" onclick={() => numberAtLeast(t('Test pressure'), pressure, 'bar', v => { if (v > 0 && v <= 100) pressure = v; })}><span>{route?.pressure ? t('Pressure') : t('Regulator pressure')}</span><strong>{quantity(pressure, 'bar')}</strong></button>
+        <button class="field" onclick={() => numberAtLeast(t('Nozzle diameter'), diameter, 'mm', v => { if (v > 0 && v <= 20) diameter = v; })}><span>{t("Nozzle")}</span><strong>{quantity(diameter, 'mm', 1)}</strong></button>
         <div class="field seg-field"><span>{t("Nozzle type")}</span><div class="seg"><button
-              class:on={nozzleType === 'single'} onclick={() => (nozzleType = 'single')}>Single</button><button
-              class:on={nozzleType === 'double'} onclick={() => (nozzleType = 'double')}>Double</button></div></div>
+              class:on={nozzleType === 'single'} onclick={() => (nozzleType = 'single')}>{t("Single")}</button><button
+              class:on={nozzleType === 'double'} onclick={() => (nozzleType = 'double')}>{t("Double")}</button></div></div>
       </div>
-      <div class="seg methods" role="group" aria-label="How you measure">{#each METHODS as m (m.id)}<button class:on={method === m.id} aria-pressed={method === m.id} onclick={() => (method = m.id)}>{m.label}</button>{/each}</div>
+      <div class="seg methods" role="group" aria-label={t("How you measure")}>{#each METHODS as m (m.id)}<button class:on={method === m.id} aria-pressed={method === m.id} onclick={() => (method = m.id)}>{m.label}</button>{/each}</div>
       <p class="muted">{METHODS.find(m => m.id === method)?.hint}{method === 'pressure' ? '. Let the gauge settle for a few minutes after the test.' : '.'}</p>
       {#if method === 'pressure' || method === 'weight'}
         <div class="fields">
           <button class="field" onclick={() => numberAtLeast(beforeLabel, before, unit, v => (before = v))}><span>{beforeLabel}</span><strong>{quantity(before, unit, 1)}</strong></button>
-          {#if method === 'pressure'}<button class="field" onclick={() => numberAtLeast('Cylinder water capacity', capacity, 'L', v => { if (v > 0) capacity = v; })}><span>Water capacity</span><strong>{quantity(capacity, 'L', 0)}</strong></button>{/if}
+          {#if method === 'pressure'}<button class="field" onclick={() => numberAtLeast(t('Cylinder water capacity'), capacity, 'L', v => { if (v > 0) capacity = v; })}><span>{t("Water capacity")}</span><strong>{quantity(capacity, 'L', 0)}</strong></button>{/if}
         </div>
       {/if}
-      <p class="expect">The estimate for 60 s is <b>{expected === null ? '—' : volume(expected)}</b>.</p>
-      {#if !route}<p class="gate-reason">This machine has no {GAS_NAMES[gas]} valve.</p>
-      {:else if !bound}<p class="gate-reason">The {route.name} valve has no output assigned.</p>
-      {:else if !doc.readiness.outputs.ok}<p class="gate-reason">{doc.readiness.outputs.reason ?? 'The machine is not ready for outputs.'}</p>
-      {:else if needsBefore}<p class="gate-reason">Enter the {method === 'pressure' ? 'cylinder pressure' : 'cylinder weight'} before the test first.</p>{/if}
-      <HoldButton class="btn btn-warn lg block" disabled={!route || !bound || !doc.readiness.outputs.ok || needsBefore} onhold={open}>Open gas for 60 s</HoldButton>
+      <p class="expect">{t("The estimate for 60 s is")} <b>{expected === null ? '—' : volume(expected)}</b>.</p>
+      {#if !route}<p class="gate-reason">{t('This machine has no {0} valve.', t(GAS_NAMES[gas]))}</p>
+      {:else if !bound}<p class="gate-reason">{t('The {0} valve has no output assigned.', route.name)}</p>
+      {:else if !doc.readiness.outputs.ok}<p class="gate-reason">{doc.readiness.outputs.reason ?? t('The machine is not ready for outputs.')}</p>
+      {:else if needsBefore}<p class="gate-reason">{t(method === 'pressure' ? t('Enter the cylinder pressure before the test first.') : t('Enter the cylinder weight before the test first.'))}</p>{/if}
+      <HoldButton class="btn btn-warn lg block" disabled={!route || !bound || !doc.readiness.outputs.ok || needsBefore} onhold={open}>{t("Open gas for 60 s")}</HoldButton>
     {:else if step === 'running'}
       <div class="running">
-        <div class="countdown"><b>{remaining}</b><span>s left</span></div>
-        <p>{GAS_NAMES[gas]} is flowing at {quantity(pressure, 'bar')}.{#if method === 'meter'} Read the flow meter now.{/if}</p>
+        <div class="countdown"><b>{remaining}</b><span>{t("s left")}</span></div>
+        <p>{t('{0} is flowing at {1}.', t(GAS_NAMES[gas]), quantity(pressure, 'bar'))}{#if method === 'meter'} {t('Read the flow meter now.')}{/if}</p>
         <button class="btn btn-stop xl block" onclick={stop}>{t("Stop")}</button>
       </div>
     {:else if step === 'measure'}
-      {#if elapsed < TEST_SECONDS - 2}<p class="warn-text">The valve closed after {elapsed} s; the estimate below covers {elapsed} s.</p>{/if}
+      {#if elapsed < TEST_SECONDS - 2}<p class="warn-text">{t('The valve closed after {0} s; the estimate below covers {0} s.', elapsed)}</p>{/if}
       <div class="fields">
         {#if method === 'pressure' || method === 'weight'}
           <div class="field static"><span>{beforeLabel}</span><strong>{quantity(before, unit, 1)}</strong></div>
-          <button class="field" onclick={() => numberAtLeast(method === 'pressure' ? 'Cylinder pressure after' : 'Cylinder weight after', after, unit, v => (after = v))}><span>{t("After")}</span><strong>{quantity(after, unit, 1)}</strong></button>
+          <button class="field" onclick={() => numberAtLeast(method === 'pressure' ? t('Cylinder pressure after') : t('Cylinder weight after'), after, unit, v => (after = v))}><span>{t("After")}</span><strong>{quantity(after, unit, 1)}</strong></button>
         {:else}
           <button class="field" onclick={() => numberAtLeast(beforeLabel, before, unit, v => (before = v))}><span>{beforeLabel}</span><strong>{quantity(before, unit, 1)}</strong></button>
         {/if}
       </div>
       <div class="stats">
-        <div><b>{volume(measured)}</b><span>Measured</span></div>
-        <div><b>{expected === null ? '—' : volume(expected)}</b><span>Estimated</span></div>
-        <div><b>{measured !== null && expected ? `×${(measured / expected).toFixed(2)}` : '—'}</b><span>Factor</span></div>
+        <div><b>{volume(measured)}</b><span>{t("Measured")}</span></div>
+        <div><b>{expected === null ? '—' : volume(expected)}</b><span>{t("Estimated")}</span></div>
+        <div><b>{measured !== null && expected ? `×${(measured / expected).toFixed(2)}` : '—'}</b><span>{t("Factor")}</span></div>
       </div>
       <div class="row-actions">
-        <button class="btn btn-ghost" onclick={() => (step = 'setup')}>Test again</button>
+        <button class="btn btn-ghost" onclick={() => (step = 'setup')}>{t("Test again")}</button>
         <button class="btn btn-primary" disabled={measured === null || busy} onclick={save}>{t("Save calibration")}</button>
       </div>
     {:else}
-      <p class="done">{GAS_NAMES[gas]} estimates now use ×{factor?.toFixed(2)}.</p>
+      <p class="done">{t('{0} estimates now use ×{1}.', t(GAS_NAMES[gas]), factor?.toFixed(2))}</p>
       <button class="btn btn-primary block" onclick={onclose}>{t("Done")}</button>
     {/if}
   </div>

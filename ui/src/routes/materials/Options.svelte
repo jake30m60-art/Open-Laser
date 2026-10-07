@@ -23,31 +23,31 @@
         id: 'start', title: t("Start work Segment"), status: start.enabled ? 'On' : 'Off',
         text: start.enabled
           ? `${shown('UD_UpLen', start.length)} at ${shown('UD_UpSpeed', start.speed)}${start.legacy ? ' · legacy slow start' : ''}`
-          : 'Use the main cutting settings',
+          : t('Use the main cutting settings'),
       },
       {
         id: 'end', title: t("End work Segment"), status: on('UD_DownEnable') ? 'On' : 'Off',
         text: on('UD_DownEnable')
           ? `${mm('UD_DownLen')} at ${shown('UD_DownSpeed', v['UD_DownSpeed'] ?? '')}`
-          : 'Use the main cutting settings',
+          : t('Use the main cutting settings'),
       },
       {
-        id: 'timing', title: 'Delay Parameters', status: `${bare('LaserOnDelay', v['LaserOnDelay'] ?? '0')} ms`,
-        text: 'Start dwell · end dwell · after-off wait',
+        id: 'timing', title: t('Delay Parameters'), status: `${bare('LaserOnDelay', v['LaserOnDelay'] ?? '0')} ms`,
+        text: t('Start dwell · end dwell · after-off wait'),
       },
       {
-        id: 'head', title: 'Head movement',
-        status: head === 'fixed' ? 'Fixed height'
-          : head === 'absolute' ? 'Absolute height'
-          : on('NoFollow') ? 'Following off'
-          : 'Following',
+        id: 'head', title: t('Head movement'),
+        status: head === 'fixed' ? t('Fixed height')
+          : head === 'absolute' ? t('Absolute height')
+          : on('NoFollow') ? t('Following off')
+          : t('Following'),
         text: `${mm('UpHeight')} retract · ${on('ShortDistNoUp') ? 'keep height on short moves' : 'lift between contours'}`
           + `${ed.a.gas && (on('ShortDistGasKeepOn') || on('NoCloseGasInManu')) ? ' · gas kept' : ''}`,
       },
       {
         id: 'curves', title: t("Dynamic Power"),
         status: on('PowerAdjustWithSpeed') || on('FreqAdjustWithSpeed') ? 'On' : 'Off',
-        text: 'Adjust Cut Power and frequency as the speed changes',
+        text: t('Adjust Cut Power and frequency as the speed changes'),
       },
       {
         id: 'residue', title: t("Clean Residue"),
@@ -63,30 +63,30 @@
         text: on('PreDrill')
           ? `${caps?.pre_pierce_batch == null ? '? contours' : plural(caps.pre_pierce_batch, 'contour')} per batch`
             + `${m === 'staged' ? '' : ' · needs staged piercing'}`
-          : 'Pierce a batch of contours before cutting them',
+          : t('Pierce a batch of contours before cutting them'),
       },
       {
         id: 'film', title: t("With Film"), status: on('WithFilm') ? 'On' : 'Off',
         text: on('WithFilm')
-          ? (film ? `Film process: ${recipeLabel(film)}` : 'Choose a film process')
-          : 'Run a separate pass before the cut',
+          ? (film ? t('Film process: {0}', recipeLabel(film)) : t('Choose a film process'))
+          : t('Run a separate pass before the cut'),
       },
       {
-        id: 'shift', title: 'Graph Shift', status: on('EnableContourShift') ? 'On' : 'Off',
-        text: on('EnableContourShift') ? `X ${mm('ContourShiftXDist')} · Y ${mm('ContourShiftYDist')}` : 'Apply an explicit X / Y offset',
+        id: 'shift', title: t('Graph Shift'), status: on('EnableContourShift') ? 'On' : 'Off',
+        text: on('EnableContourShift') ? `X ${mm('ContourShiftXDist')} · Y ${mm('ContourShiftYDist')}` : t('Apply an explicit X / Y offset'),
       },
     ];
     return list;
   });
 </script>
 
-<div class="section-head"><div><h2>Process options</h2><p class="muted">Optional behaviour, with the active settings visible at a glance.</p></div></div>
+<div class="section-head"><div><h2>{t("Process options")}</h2><p class="muted">{t("Optional behaviour, with the active settings visible at a glance.")}</p></div></div>
 <div class="option-grid">
   {#each cards as card (card.id)}
     <button class="option" onclick={() => onopen(card.id)}>
       <div class="option-top">
         <strong>{card.title}</strong>
-        <span class="status" class:off={card.status === 'Off'} class:warn={card.status === 'Inactive'}>{card.status}</span>
+        <span class="status" class:off={card.status === 'Off'} class:warn={card.status === 'Inactive'}>{t(card.status)}</span>
       </div>
       <p>{card.text}</p>
     </button>

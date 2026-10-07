@@ -67,14 +67,14 @@
       const n = picks.length;
       ui.partPicks = null;
       ui.tab = 'setup';
-      const opened = n > 1 ? `${n} parts side by side · Nest parts fills a sheet` : 'Part opened';
-      ui.say(add ? `Added ${plural(n, 'part')} beside the sheet · Undo takes them off` : opened);
+      const opened = n > 1 ? t('{0} side by side · Nest parts fills a sheet', plural(n, 'part')) : t('Part opened');
+      ui.say(add ? t('Added {0} beside the sheet · Undo takes them off', plural(n, 'part')) : opened);
     });
   }
   const picksNote = $derived(
-    picks.length ? `${plural(picks.length, 'part')} picked · laid out in this order` : 'Tap the parts to cut together.',
+    picks.length ? t('{0} picked · laid out in this order', plural(picks.length, 'part')) : t('Tap the parts to cut together.'),
   );
-  const setupLabel = $derived(picks.length > 1 ? `Set up job with ${picks.length} parts` : 'Set up job');
+  const setupLabel = $derived(picks.length > 1 ? t('Set up job with {0}', plural(picks.length, 'part')) : t('Set up job'));
   function toggleFavorites(): void {
     actions = false;
     favorites = !favorites;
@@ -90,13 +90,13 @@
   <h1>{t("Parts")}</h1>
   <div class="phone-title-actions">
     <button class="btn btn-ghost pick-toggle" aria-pressed={picking} disabled={blocked} onclick={() => (ui.partPicks = picking ? null : [])}>
-      {picking ? t("Cancel") : 'Pick parts'}
+      {picking ? t("Cancel") : t('Pick parts')}
     </button>
-    <button class="phone-icon" aria-label="Library actions" onclick={() => actions = true}><i class="ic ic-plus"></i></button>
+    <button class="phone-icon" aria-label={t("Library actions")} onclick={() => actions = true}><i class="ic ic-plus"></i></button>
   </div>
 </div>
 <SkippedFiles />
-<div class="phone-segments" role="group" aria-label="Library type">
+<div class="phone-segments" role="group" aria-label={t("Library type")}>
   {#each [['all','All'],['parts','Parts'],['jobs','Jobs'],['sheets','Sheets']] as [id,label]}
     <button aria-pressed={kind === id} onclick={() => kind = id as typeof kind}>{t(label)}</button>
   {/each}
@@ -106,9 +106,9 @@
 {:else}
   <label class="phone-search">
     <i class="ic ic-search"></i>
-    <input type="search" aria-label="Search parts and jobs" placeholder="Search parts and jobs" bind:value={search} />
+    <input type="search" aria-label={t("Search parts and jobs")} placeholder={t("Search parts and jobs")} bind:value={search} />
   </label>
-  {#if favorites}<div class="phone-filter-note">Favorites <button onclick={() => favorites = false}>{t("Clear")}</button></div>{/if}
+  {#if favorites}<div class="phone-filter-note">{t("Favorites")} <button onclick={() => favorites = false}>{t("Clear")}</button></div>{/if}
   <div class="phone-library-list">
     {#each items as { item, kind: type } (item.id)}
       {@const pick = picking && type === 'parts' ? picks.indexOf(item.id) : -1}
@@ -133,9 +133,9 @@
     {:else}
       <div class="phone-empty">
         <i class="ic ic-folder"></i>
-        <h2>{search ? 'Nothing matches' : 'No parts or jobs yet'}</h2>
-        <p>{search ? 'Try a name or material.' : 'Import a drawing to set up your first job.'}</p>
-        {#if !search}<button class="btn btn-primary" onclick={() => actions = true}>Import a drawing</button>{/if}
+        <h2>{search ? t('Nothing matches') : t('No parts or jobs yet')}</h2>
+        <p>{search ? t('Try a name or material.') : t('Import a drawing to set up your first job.')}</p>
+        {#if !search}<button class="btn btn-primary" onclick={() => actions = true}>{t("Import a drawing")}</button>{/if}
       </div>
     {/each}
   </div>
@@ -146,7 +146,7 @@
     <p>{picksNote}</p>
     {#if doc.draft}
       <button class="btn btn-ghost" disabled={busy || blocked || !picks.length || inDraft} onclick={() => finish(true)}>{t("Add to")} {doc.draft.name}</button>
-      {#if inDraft}<p class="gate-reason">A picked part is already in {doc.draft.name}.</p>{/if}
+      {#if inDraft}<p class="gate-reason">{t('A picked part is already in {0}.', doc.draft.name)}</p>{/if}
     {/if}
     <button class="phone-primary" disabled={busy || blocked || !picks.length} onclick={() => finish(false)}>
       {setupLabel}<i class="ic ic-arrow-right"></i>
@@ -154,15 +154,15 @@
   </div>
 {/if}
 
-{#if actions}<Modal title="Library actions" onclose={() => actions = false}>
+{#if actions}<Modal title={t("Library actions")} onclose={() => actions = false}>
   <div class="phone-import-actions"><ImportParts /></div>
   <div class="phone-action-list">
-    <button onclick={toggleFavorites}>Favorites<i class="ic ic-arrow-right"></i></button>
-    <button onclick={showHistory}>History<i class="ic ic-arrow-right"></i></button>
+    <button onclick={toggleFavorites}>{t("Favorites")}<i class="ic ic-arrow-right"></i></button>
+    <button onclick={showHistory}>{t("History")}<i class="ic ic-arrow-right"></i></button>
   </div>
 </Modal>{/if}
 {#if history}<EditHistory onclose={() => history = false} />{/if}
-{#if details}<Modal title="Part details" onclose={() => details = false}><div class="phone-part-details"><PartsSide /></div></Modal>{/if}
+{#if details}<Modal title={t("Part details")} onclose={() => details = false}><div class="phone-part-details"><PartsSide /></div></Modal>{/if}
 
 <style>
   .phone-title-actions { display:flex; align-items:center; gap:8px; }

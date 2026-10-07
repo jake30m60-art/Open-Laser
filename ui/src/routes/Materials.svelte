@@ -59,7 +59,7 @@
       await api.updateRecipe(submitted.id, submitted.change);
       recipeEdits.finish(submitted, true);
       const remaining = recipeEdits.count(submitted.id);
-      ui.say(remaining ? 'Submitted changes saved. Your newer edits are still staged.' : 'Recipe saved.');
+      ui.say(remaining ? t('Submitted changes saved. Your newer edits are still staged.') : t('Recipe saved.'));
       return remaining === 0;
     } catch (error) {
       recipeEdits.finish(submitted, false);
@@ -70,7 +70,7 @@
   async function discard(): Promise<void> {
     if (!recipe) return;
     const count = recipeEdits.count(recipe.id);
-    const confirmed = await ui.confirm({ title: 'Discard these recipe edits?', body: t("{0} edited {1} thrown away; {2} keeps its saved values.", count, count === 1 ? 'value is' : 'values are', recipe.name), confirm: t("Discard edits"), danger: true });
+    const confirmed = await ui.confirm({ title: 'Discard these recipe edits?', body: t("{0} edited {1} thrown away; {2} keeps its saved values.", count, t(count === 1 ? 'value is' : 'values are'), recipe.name), confirm: t("Discard edits"), danger: true });
     if (confirmed) recipeEdits.discard(recipe.id);
   }
   function add(): void {
@@ -103,18 +103,18 @@
 {:else if recipe}
   <Recipe {recipe} saving={!!recipeEdits.saving[recipe.id]} {values} {edits} {film} onset={set} onfilm={setFilm} oncopy={copy} onsave={save} ondiscard={discard} />
 {:else}
-  <section class="panel main"><div class="empty"><h2>No recipes yet</h2>Import a process library or create a recipe from a machine bank.</div></section>
+  <section class="panel main"><div class="empty"><h2>{t("No recipes yet")}</h2>{t("Import a process library or create a recipe from a machine bank.")}</div></section>
 {/if}
 {/if}
 
 {#if leaving}
   {@const next = leaving}
-  <Modal title="Save this recipe?" onclose={() => (leaving = null)}>
-    <p class="muted">This recipe has {plural(pending, 'staged change')}. Save or discard them before opening {next.name} · {quantity(next.thickness_mm, 'mm')}.</p>
+  <Modal title={t("Save this recipe?")} onclose={() => (leaving = null)}>
+    <p class="muted">{t('This recipe has {0}. Save or discard them before opening {1}.', plural(pending, 'staged change'), `${next.name} · ${quantity(next.thickness_mm, 'mm')}`)}</p>
     <div class="row">
-      <button class="btn btn-ghost" onclick={() => (leaving = null)}>Stay</button>
+      <button class="btn btn-ghost" onclick={() => (leaving = null)}>{t("Stay")}</button>
       <button class="btn btn-ghost" onclick={() => { discard(); leaving = null; select(next); }}>{t("Discard")}</button>
-      <button class="btn btn-primary" onclick={async () => { if (await save()) { leaving = null; select(next); } }}>Save and open</button>
+      <button class="btn btn-primary" onclick={async () => { if (await save()) { leaving = null; select(next); } }}>{t("Save and open")}</button>
     </div>
   </Modal>
 {/if}

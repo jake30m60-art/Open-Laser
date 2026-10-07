@@ -49,50 +49,50 @@
   const unpriced = $derived(!!estimate && estimate.cost === null);
   /** Folded, the card is one line: laser time, gas and cost for one run. */
   let open = $state(false);
-  const brief = $derived(!estimate ? 'After compiling'
+  const brief = $derived(!estimate ? t('After compiling')
     : [duration(estimate.laser), perRun === null ? null : `${volume(perRun)} ${gasLabel(estimate)}`,
       estimate.cost === null ? null : money(estimate.cost, currency)].filter(Boolean).join(' · '));
-  const costNote = $derived(perRun === null ? 'Set the nozzle in the recipe, or a manual flow, to estimate gas.' : 'Enter gas prices to see costs.');
+  const costNote = $derived(t(perRun === null ? 'Set the nozzle in the recipe, or a manual flow, to estimate gas.' : 'Enter gas prices to see costs.'));
 </script>
 
 <div class="card2 gas-card" class:folded={!open}>
   <button class="fold" aria-expanded={open} onclick={() => (open = !open)}>
-    <span><strong>Gas &amp; laser</strong><small>{brief}</small></span>
+    <span><strong>{t('Gas & laser')}</strong><small>{brief}</small></span>
     <i class="ic ic-chev-down" class:open></i>
   </button>
   {#if open}
   <div class="card2-head"><span></span>
-    <div class="runs" role="group" aria-label="Runs">
-      <button class="step" aria-label="One run fewer" disabled={runs <= 1} onclick={() => step(-1)}>−</button>
+    <div class="runs" role="group" aria-label={t("Runs")}>
+      <button class="step" aria-label={t("One run fewer")} disabled={runs <= 1} onclick={() => step(-1)}>−</button>
       <span class="count"><b>{runs}</b> {runs === 1 ? 'run' : 'runs'}</span>
-      <button class="step" aria-label="One run more" disabled={runs >= 99} onclick={() => step(1)}>+</button>
+      <button class="step" aria-label={t("One run more")} disabled={runs >= 99} onclick={() => step(1)}>+</button>
     </div>
   </div>
   {#if estimate}
     <div class="stats">
-      <div><b>{duration(estimate.laser * runs)}</b><span>Laser on</span></div>
-      <div><b>{perRun === null ? '—' : volume(perRun * runs)}</b><span>{gasLabel(estimate)} used</span></div>
-      <div><b>{estimate.cost === null ? '—' : money(estimate.cost * runs, currency)}</b><span>Gas cost</span></div>
+      <div><b>{duration(estimate.laser * runs)}</b><span>{t("Laser on")}</span></div>
+      <div><b>{perRun === null ? '—' : volume(perRun * runs)}</b><span>{t('{0} used', gasLabel(estimate))}</span></div>
+      <div><b>{estimate.cost === null ? '—' : money(estimate.cost * runs, currency)}</b><span>{t("Gas cost")}</span></div>
     </div>
     <p class="detail">
-      {#each estimate.gases as line, i}{#if i}, {/if}<span class="dot" style="background:{GAS_COLORS[line.gas]}"></span>{GAS_NAMES[line.gas]} {quantity(line.pressure, 'bar')}{/each}
-      {#if estimate.nozzle} · {quantity(estimate.nozzle.diameter, 'mm', 1)} {estimate.nozzle.kind} nozzle{:else} · no nozzle in the recipe{/if}
-      · {estimate.pierces * runs} pierces · {quantity(estimate.cut * runs / 1000, 'm', 1)} cut
+      {#each estimate.gases as line, i}{#if i}, {/if}<span class="dot" style="background:{GAS_COLORS[line.gas]}"></span>{t(GAS_NAMES[line.gas])} {quantity(line.pressure, 'bar')}{/each}
+      {#if estimate.nozzle} · {t('{0} {1} nozzle', quantity(estimate.nozzle.diameter, 'mm', 1), t(estimate.nozzle.kind))}{:else} · {t('no nozzle in the recipe')}{/if}
+      · {t('{0} pierces', estimate.pierces * runs)} · {t('{0} cut', quantity(estimate.cut * runs / 1000, 'm', 1))}
     </p>
     {#if perRun === null || unpriced}
-      <p class="note">{costNote}{#if settingsPage !== undefined} <button class="link-btn" onclick={openSettings}>Gas costs</button>{/if}</p>
+      <p class="note">{costNote}{#if settingsPage !== undefined} <button class="link-btn" onclick={openSettings}>{t("Gas costs")}</button>{/if}</p>
     {/if}
   {:else}
-    <p class="note">{draft?.recipe ? 'Estimates appear once the job is compiled.' : 'Choose a material to estimate gas and laser time.'}</p>
+    <p class="note">{draft?.recipe ? t('Estimates appear once the job is compiled.') : t('Choose a material to estimate gas and laser time.')}</p>
   {/if}
 
   <div class="past">
-    <h4>Past runs</h4>
+    <h4>{t("Past runs")}</h4>
     {#if error}<p class="note warn-text">{error}</p>{/if}
     {#if history.length}
-      <p class="summary">This job: {duration(total.laser)} laser, {volume(total.litres)} gas, {money(total.cost, total.currency)}</p>
-      <div class="table" role="table" aria-label="Past runs">
-        <div class="row head" role="row"><span role="columnheader">When</span><span role="columnheader"></span><span role="columnheader">Laser</span><span role="columnheader">Gas</span><span role="columnheader">Cost</span></div>
+      <p class="summary">{t('This job: {0} laser, {1} gas, {2}', duration(total.laser), volume(total.litres), money(total.cost, total.currency))}</p>
+      <div class="table" role="table" aria-label={t("Past runs")}>
+        <div class="row head" role="row"><span role="columnheader">{t("When")}</span><span role="columnheader"></span><span role="columnheader">{t("Laser")}</span><span role="columnheader">{t("Gas")}</span><span role="columnheader">{t("Cost")}</span></div>
         {#each history as run (run.id)}
           <div class="row" role="row">
             <span role="cell">{ago(run.finished)}</span>
@@ -104,7 +104,7 @@
         {/each}
       </div>
     {:else if !error}
-      <p class="note">Costs appear here after the first run.</p>
+      <p class="note">{t("Costs appear here after the first run.")}</p>
     {/if}
   </div>
   {/if}

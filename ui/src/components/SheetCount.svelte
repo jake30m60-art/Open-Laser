@@ -18,9 +18,9 @@
 
 <div class="count">
   <span>{t(label)}</span>
-  <button aria-label="One fewer" disabled={disabled || value <= min} onclick={() => set(value - 1)}><i class="ic ic-minus"></i></button>
+  <button aria-label={t("One fewer")} disabled={disabled || value <= min} onclick={() => set(value - 1)}><i class="ic ic-minus"></i></button>
   <button class="number" {disabled} onclick={() => osk.number(prompt, value, 'sheets', set)}>{value}</button>
-  <button aria-label="One more" {disabled} onclick={() => set(value + 1)}><i class="ic ic-plus"></i></button>
+  <button aria-label={t("One more")} {disabled} onclick={() => set(value + 1)}><i class="ic ic-plus"></i></button>
 </div>
 
 <style>

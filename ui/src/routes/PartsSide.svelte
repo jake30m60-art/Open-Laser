@@ -22,7 +22,7 @@
   const item = $derived(job && jobParts.length === job.parts.length ? job : part);
   const folderName = $derived.by(() => {
     const id = item?.folder ?? null;
-    return folderPath(library.folders, id).map((folder) => folder.name).join(' / ') || 'All parts';
+    return folderPath(library.folders, id).map((folder) => folder.name).join(' / ') || t('All parts');
   });
 
   async function run(action: () => Promise<unknown>, then?: () => void): Promise<void> {
@@ -51,7 +51,7 @@
   async function remove(): Promise<void> {
     const what = job ? 'job' : 'part';
     const confirmed = await ui.confirm({
-      title: `Delete this ${what}?`,
+      title: t('Delete this {0}?', t(what)),
       body: t("“{0}” leaves the library. Library history can undo it.", item?.name ?? ''),
       confirm: t("Delete {0}", what),
       danger: true,
@@ -90,38 +90,38 @@
     <div class="side-preview"><svg viewBox={thumb} role="img" aria-label="Drawing of {item.name}">{#each outline as line}<path
       d={pathOf(line)} fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>{/each}</svg></div>
     <div class="side-title">
-      <div><h2>{item.name}</h2><div class="muted">{job ? 'Saved job' : 'Part'}{#if job} · {laserLabel(job.recipe.laser)}{/if} · updated {ago(item.updated)}</div></div>
+      <div><h2>{item.name}</h2><div class="muted">{job ? t('Saved job') : t('Part')}{#if job} · {laserLabel(job.recipe.laser)}{/if} · {t('updated {0}', ago(item.updated))}</div></div>
     </div>
     <dl class="kv">
       <dt>{t("Bounding box")}</dt><dd>{size(item.bounds)}</dd>
       <dt>{t("Cut paths")}</dt><dd>{item.contours}</dd>
-      <dt>{t("Material")}</dt><dd>{#if job}{recipeLabel(job.recipe)}{:else}<span class="muted">not set</span>{/if}</dd>
+      <dt>{t("Material")}</dt><dd>{#if job}{recipeLabel(job.recipe)}{:else}<span class="muted">{t("not set")}</span>{/if}</dd>
       {#if job && jobParts.length > 1}
         <dt>{t("Parts")}</dt><dd>{jobParts.map((p) => p.name).join(', ')}</dd>
       {:else}
-        <dt>Source</dt><dd class="mono">{(jobParts[0] ?? part)?.file_name}</dd>
+        <dt>{t("Source")}</dt><dd class="mono">{(jobParts[0] ?? part)?.file_name}</dd>
       {/if}
       <dt>{t("Folder")}</dt><dd>{folderName}</dd>
     </dl>
     <div class="item-meta">
-      <button class="meta-notes" onclick={editNotes}><span class="meta-label">{t("Notes")}<span class="edit-label">{t("Edit")}</span></span><span class:placeholder={!item.notes}>{item.notes || 'Add a note'}</span></button>
+      <button class="meta-notes" onclick={editNotes}><span class="meta-label">{t("Notes")}<span class="edit-label">{t("Edit")}</span></span><span class:placeholder={!item.notes}>{item.notes || t('Add a note')}</span></button>
     </div>
     <div class="item-actions">
-      <button class="btn btn-ghost" onclick={duplicate}>Duplicate</button>
+      <button class="btn btn-ghost" onclick={duplicate}>{t("Duplicate")}</button>
       <button class="btn btn-ghost" onclick={rename}>{t("Rename")}</button>
       <button class="btn btn-ghost" onclick={remove}>{t("Delete")}</button>
     </div>
     {#if part}<button class="btn btn-ghost block" onclick={() => editPart(part.id)}>{t("Edit drawing in sketch")}</button>
-    <button class="btn btn-ghost block" onclick={() => (simplifying = true)}>Simplify drawing…</button>
+    <button class="btn btn-ghost block" onclick={() => (simplifying = true)}>{t("Simplify drawing…")}</button>
     <button class="btn btn-ghost block" onclick={() => (repairing = true)}>{t("Repair contours…")}</button>{/if}
     </div>
     <div class="side-foot">
       {#if job}
-        <button class="btn btn-ghost lg block" onclick={() => open('setup')}>Open in Setup</button>
+        <button class="btn btn-ghost lg block" onclick={() => open('setup')}>{t("Open in Setup")}</button>
         <button class="btn btn-primary lg block" onclick={() => open('run')}>{t("▶ Run again")}</button>
       {:else if part}
-        <button class="btn btn-ghost lg block" onclick={() => (ui.partPicks = [part.id])}>Cut with other parts…</button>
-        <button class="btn btn-primary lg block" onclick={() => open('setup')}>Set up job →</button>
+        <button class="btn btn-ghost lg block" onclick={() => (ui.partPicks = [part.id])}>{t("Cut with other parts…")}</button>
+        <button class="btn btn-primary lg block" onclick={() => open('setup')}>{t("Set up job →")}</button>
       {/if}
     </div>
   {/if}

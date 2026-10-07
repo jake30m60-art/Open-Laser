@@ -12,7 +12,7 @@
   import { quantity } from '../lib/units.svelte';
 
   let { part, onclose }: { part: PartView; onclose: () => void } = $props();
-  const TOLERANCES = [['Fine', 0.01], ['Standard', 0.02], ['Coarse', 0.05], ['Rough', 0.1]] as const;
+  const TOLERANCES = [[t('Fine'), 0.01], [t('Standard'), 0.02], [t('Coarse'), 0.05], [t('Rough'), 0.1]] as const;
   let tolerance = $state(0.02);
   let result = $state<SimplifyView | null>(null);
   let checking = $state(false), saving = $state(false), error = $state('');
@@ -40,7 +40,7 @@
       const view = await api.simplifyPart(id, tolerance, true);
       onclose();
       if (view.part) ui.selected = view.part;
-      ui.say(`Saved ${name} simplified · ${count(view.curves_before)} → ${count(view.curves_after)} lines and arcs`);
+      ui.say(t('Saved {0} simplified · {1} → {2} lines and arcs', name, count(view.curves_before), count(view.curves_after)));
     } catch (e) {
       error = explain(e);
     } finally {
@@ -53,29 +53,27 @@
   }
 </script>
 
-<Modal title="Simplify drawing" onclose={() => { if (!saving) onclose(); }}>
-  <p class="muted">Joins runs of short lines, as CAD exports flatten curves, into the arcs and lines they follow, removes contours that repeat
-    another on the same layer, and drops specks. Nothing moves further than the tolerance. It is saved as a new part; {part.name} stays as it is
-    for the jobs that use it.</p>
-  <div class="tolerances" role="group" aria-label="Tolerance">
+<Modal title={t("Simplify drawing")} onclose={() => { if (!saving) onclose(); }}>
+  <p class="muted">{t('Joins runs of short lines, as CAD exports flatten curves, into the arcs and lines they follow, removes contours that repeat another on the same layer, and drops specks. Nothing moves further than the tolerance. It is saved as a new part; {0} stays as it is for the jobs that use it.', part.name)}</p>
+  <div class="tolerances" role="group" aria-label={t("Tolerance")}>
     {#each TOLERANCES as [label, value]}
       <button aria-pressed={tolerance === value} disabled={saving} onclick={() => (tolerance = value)}><strong>{t(label)}</strong><small>{quantity(value, 'mm', 3)}</small></button>
     {/each}
   </div>
   <dl class="outcome" aria-live="polite">
     {#if result}
-      <dt>Lines and arcs</dt><dd>{count(result.curves_before)} → <strong>{count(result.curves_after)}</strong></dd>
+      <dt>{t("Lines and arcs")}</dt><dd>{count(result.curves_before)} → <strong>{count(result.curves_after)}</strong></dd>
       <dt>{t("Contours")}</dt><dd>{count(result.contours_before)} → <strong>{count(result.contours_after)}</strong>{#if result.repeats || result.specks}<small
         >{dropped(result)}</small>{/if}</dd>
     {:else if checking}
-      <dt>Checking…</dt><dd></dd>
+      <dt>{t("Checking…")}</dt><dd></dd>
     {/if}
   </dl>
   {#if result && !changed}<p class="gate-reason">{t("Already as simple as this tolerance allows.")}</p>{/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   <div class="actions">
     <button class="btn btn-ghost lg" disabled={saving} onclick={onclose}>{t("Cancel")}</button>
-    <button class="btn btn-primary lg" disabled={saving || checking || !changed} onclick={save}>{saving ? 'Saving…' : 'Save as new part'}</button>
+    <button class="btn btn-primary lg" disabled={saving || checking || !changed} onclick={save}>{saving ? t('Saving…') : t('Save as new part')}</button>
   </div>
 </Modal>
 

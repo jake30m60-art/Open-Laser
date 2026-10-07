@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 // The one material summary every screen shows: the library, the recipe,
 // Setup's material card and picker, Run and the phone. The same values in
 // the same order under the same names, so an operator reads a recipe the
@@ -58,7 +59,7 @@ export function nozzleText(diameter: string | null | undefined, kind: string | n
 export function pierceText(summary: Pick<RecipeSummary, 'pierce_stages' | 'smooth_pierce'>): string {
   if (summary.smooth_pierce) return 'Smooth';
   const n = summary.pierce_stages;
-  return n ? plural(n, 'stage') : 'None';
+  return n ? plural(n, 'stage') : t('None');
 }
 
 /** Every summary value in order; `—` where the recipe does not say. */
