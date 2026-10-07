@@ -280,11 +280,24 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
         .layers
         .iter()
         .map(|l| (l.name.clone(), mapped.features.for_layer(&l.name).into_owned()))
-        .collect();
+        .collect::<std::collections::BTreeMap<_, _>>();
+    // A selection's own machining over each layer its contours are on.
+    let mut selected = std::collections::BTreeMap::new();
+    for (at, selection) in mapped.features.contour_machining.iter().enumerate() {
+        for sourced in bridged.iter().filter(|c| c.sources.iter().any(|s| selection.contours.contains(s))) {
+            let layer = &sourced.contour.layer;
+            if selected.contains_key(&(at, layer.clone())) {
+                continue;
+            }
+            let base = layered.get(layer).unwrap_or(&mapped.features);
+            selected.insert((at, layer.clone()), base.machined(&selection.machining, &selection.own));
+        }
+    }
     let mut preparation = Preparation {
         drawing,
         mapped: &mapped,
         layered,
+        selected,
         warnings: Vec::new(),
         work: MATCHING_WORK,
     };
@@ -524,6 +537,18 @@ fn validate_drawing(drawing: &Drawing, features: &Features) -> Result<()> {
     for layer in features.layers.iter().filter(|l| l.machining.is_some()) {
         check(&features.for_layer(&layer.name))?;
     }
+    for (at, selection) in features.contour_machining.iter().enumerate() {
+        if selection.contours.iter().any(|&i| i >= contours) {
+            return Err(feature("selection", "select the contours again: the drawing has changed"));
+        }
+        if features.contour_machining[..at]
+            .iter()
+            .any(|other| other.contours.iter().any(|c| selection.contours.contains(c)))
+        {
+            return Err(feature("selection", "a contour belongs to more than one selection"));
+        }
+        check(&features.machined(&selection.machining, &selection.own))?;
+    }
     if features.fly.as_ref().is_some_and(|f| f.contours.iter().any(|&i| i >= contours)) {
         return Err(feature("flying cut", "select the contours again: the drawing has changed"));
     }
@@ -616,13 +641,26 @@ struct Preparation<'a> {
     mapped: &'a provenance::Remapped,
     /// The features of each layer with its own entry.
     layered: std::collections::BTreeMap<String, Features>,
+    /// The features of each selection with its own machining, by its place
+    /// in the job's list and the layer.
+    selected: std::collections::BTreeMap<(usize, String), Features>,
     warnings: Vec<String>,
     work: usize,
 }
 
 impl Preparation<'_> {
-    /// The features a layer's contours are prepared with.
-    fn machining(&self, layer: &str) -> &Features {
+    /// The features a contour is prepared with: its selection's, else its
+    /// layer's, else the job's.
+    fn machining(&self, layer: &str, sources: &[usize]) -> &Features {
+        let selection = self
+            .mapped
+            .features
+            .contour_machining
+            .iter()
+            .position(|m| sources.iter().any(|s| m.contours.contains(s)));
+        if let Some(features) = selection.and_then(|at| self.selected.get(&(at, layer.to_owned()))) {
+            return features;
+        }
         self.layered.get(layer).unwrap_or(&self.mapped.features)
     }
 
@@ -633,7 +671,7 @@ impl Preparation<'_> {
         depth: usize,
     ) -> Result<(PreparedContour, order::Item)> {
         let edited = self.mapped.lead_overrides.get(&index);
-        let features = self.machining(&sourced.contour.layer);
+        let features = self.machining(&sourced.contour.layer, &sourced.sources);
         let leads = features.leads.as_ref().map(|leads| leads.resolved(edited));
         let lead_target = if leads.as_ref().is_some_and(|l| l.entry.is_some() || l.exit.is_some()) {
             match edited {
@@ -643,7 +681,7 @@ impl Preparation<'_> {
         } else {
             None
         };
-        let (contour, frame) = self.shape(index, &sourced.contour, depth)?;
+        let (contour, frame) = self.shape(index, &sourced.contour, &sourced.sources, depth)?;
         let film = contour.curves.clone();
         let segments = self.segments(&contour, sourced, &frame)?;
         let counterclockwise = contour.signed_area() >= 0.;
@@ -673,11 +711,12 @@ impl Preparation<'_> {
         &mut self,
         index: usize,
         source: &Contour,
+        sources: &[usize],
         depth: usize,
     ) -> Result<(Contour, joints::Frame)> {
         let closed = source.is_closed();
         let hole = depth % 2 == 1;
-        let features = self.machining(&source.layer);
+        let features = self.machining(&source.layer, sources);
         let (kerf, direction, position) =
             (features.kerf, features.start.direction, features.start.position);
         let picked = features.start.spots.iter().find(|s| index == s.contour).map(|s| s.fraction);
@@ -710,7 +749,7 @@ impl Preparation<'_> {
         sourced: &bridge::Sourced,
         frame: &joints::Frame,
     ) -> Result<Vec<openlaser_core::toolpath::PreparedSegment>> {
-        let features = self.machining(&contour.layer);
+        let features = self.machining(&contour.layer, &sourced.sources);
         let seam = features.seam;
         let mut segments =
             joints::split(contour, features.joints.as_ref(), features.cooling.as_ref(), frame)?;

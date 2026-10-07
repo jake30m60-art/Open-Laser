@@ -55,6 +55,12 @@ pub struct Features {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[cfg_attr(feature = "typescript", ts(as = "Option<Vec<FillRegion>>", optional))]
     pub fill_regions: Vec<FillRegion>,
+    /// Machining chosen for a selection of contours, over their layer's
+    /// and the job's: leads on one hole only, joints on some parts. A
+    /// placed contour belongs to one selection at most.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "typescript", ts(as = "Option<Vec<ContourMachining>>", optional))]
+    pub contour_machining: Vec<ContourMachining>,
     /// Work only these placed contours; None works every active contour.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "typescript", ts(optional))]
@@ -76,6 +82,42 @@ pub struct FillRegion {
     /// Directly nested placed boundaries excluded from the selected face.
     #[serde(default)]
     pub holes: Vec<usize>,
+}
+
+/// One part of the machining a selection of contours can set for itself.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MachiningPart {
+    /// Entry and exit leads.
+    Leads,
+    /// Micro-joints.
+    Joints,
+    /// Cooling stops.
+    Cooling,
+    /// Kerf compensation.
+    Kerf,
+    /// Start position, direction and seam.
+    Start,
+}
+
+impl MachiningPart {
+    /// Every part, as a layer with its own machining sets them.
+    pub const ALL: [Self; 5] = [Self::Leads, Self::Joints, Self::Cooling, Self::Kerf, Self::Start];
+}
+
+/// Machining a selection of placed contours sets for itself. Each part
+/// named in `own` replaces what the contours' layer or the job gives them;
+/// the rest still follows the layer. Picked places stay the job's.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ContourMachining {
+    /// Placed contour identities, before bridges.
+    pub contours: Vec<usize>,
+    /// The parts this selection sets itself.
+    pub own: Vec<MachiningPart>,
+    /// Its settings for those parts; the others are ignored.
+    pub machining: Machining,
 }
 
 /// What a layer does to the sheet.
@@ -169,33 +211,61 @@ impl Features {
             (None, LayerMode::Mark) => Machining::default(),
             (None, LayerMode::Cut) => return std::borrow::Cow::Borrowed(self),
         };
+        std::borrow::Cow::Owned(self.machined(&own, &MachiningPart::ALL))
+    }
+
+    /// The selection of contours `sources` belongs to, if one has its own
+    /// machining.
+    #[must_use]
+    pub fn selection_of(&self, sources: &[usize]) -> Option<&ContourMachining> {
+        self.contour_machining.iter().find(|m| sources.iter().any(|s| m.contours.contains(s)))
+    }
+
+    /// These features with the `parts` of `own` in place of theirs, keeping
+    /// the picked places: manual joints and cooling stops, chosen starts and
+    /// lead edits.
+    #[must_use]
+    pub fn machined(&self, own: &Machining, parts: &[MachiningPart]) -> Self {
         let mut features = self.clone();
-        features.leads = own.leads.map(|mut leads| {
-            leads.overrides = self.leads.as_ref().map(|l| l.overrides.clone()).unwrap_or_default();
-            leads
-        });
-        features.joints = own.joints.map(|mut joints| {
-            if matches!(joints.placement, JointPlacement::Manual(_)) {
-                joints.placement = match self.joints.as_ref().map(|j| &j.placement) {
-                    Some(manual @ JointPlacement::Manual(_)) => manual.clone(),
-                    _ => JointPlacement::Manual(Vec::new()),
-                };
+        for part in parts {
+            match part {
+                MachiningPart::Leads => {
+                    features.leads = own.leads.clone().map(|mut leads| {
+                        leads.overrides =
+                            self.leads.as_ref().map(|l| l.overrides.clone()).unwrap_or_default();
+                        leads
+                    });
+                }
+                MachiningPart::Joints => {
+                    features.joints = own.joints.clone().map(|mut joints| {
+                        if matches!(joints.placement, JointPlacement::Manual(_)) {
+                            joints.placement = match self.joints.as_ref().map(|j| &j.placement) {
+                                Some(manual @ JointPlacement::Manual(_)) => manual.clone(),
+                                _ => JointPlacement::Manual(Vec::new()),
+                            };
+                        }
+                        joints
+                    });
+                }
+                MachiningPart::Cooling => {
+                    features.cooling = own.cooling.clone().map(|mut cooling| {
+                        if matches!(cooling.placement, CoolingPlacement::Manual(_)) {
+                            cooling.placement = match self.cooling.as_ref().map(|c| &c.placement) {
+                                Some(manual @ CoolingPlacement::Manual(_)) => manual.clone(),
+                                _ => CoolingPlacement::Manual(Vec::new()),
+                            };
+                        }
+                        cooling
+                    });
+                }
+                MachiningPart::Kerf => features.kerf = own.kerf,
+                MachiningPart::Start => {
+                    features.start = Start { spots: self.start.spots.clone(), ..own.start.clone() };
+                    features.seam = own.seam;
+                }
             }
-            joints
-        });
-        features.cooling = own.cooling.map(|mut cooling| {
-            if matches!(cooling.placement, CoolingPlacement::Manual(_)) {
-                cooling.placement = match self.cooling.as_ref().map(|c| &c.placement) {
-                    Some(manual @ CoolingPlacement::Manual(_)) => manual.clone(),
-                    _ => CoolingPlacement::Manual(Vec::new()),
-                };
-            }
-            cooling
-        });
-        features.kerf = own.kerf;
-        features.start = Start { spots: self.start.spots.clone(), ..own.start };
-        features.seam = own.seam;
-        std::borrow::Cow::Owned(features)
+        }
+        features
     }
 
     /// Machining defaults for another drawing. Widths, speeds and automatic
@@ -217,6 +287,7 @@ impl Features {
         features.skip_layers.clear();
         features.layer_edits.clear();
         features.layers.clear();
+        features.contour_machining.clear();
         features
     }
 
@@ -269,6 +340,10 @@ impl Features {
         if let OrderStrategy::Manual(order) = &mut features.order.strategy {
             *order = order.iter().filter_map(|&contour| renumber(contour)).collect();
         }
+        for selection in &mut features.contour_machining {
+            selection.contours = selection.contours.iter().filter_map(|&i| renumber(i)).collect();
+        }
+        features.contour_machining.retain(|selection| !selection.contours.is_empty());
         features
     }
 }
@@ -885,6 +960,11 @@ mod tests {
             skip_layers: vec!["NOTES".into()],
             layer_edits: vec![LayerEdit { contour: 2, layer: "Etch".into() }],
             fill_regions: vec![FillRegion { contour:2, holes:vec![3] }],
+            contour_machining: vec![ContourMachining {
+                contours: vec![1],
+                own: vec![MachiningPart::Joints],
+                machining: Machining::default(),
+            }],
             only_contours: Some(vec![2]),
             rasters: Vec::new(),
             layers: vec![Layer {

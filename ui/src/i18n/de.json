@@ -2507,5 +2507,11 @@
   "Dense": "Dicht",
   "Keep grain": "Faserrichtung beibehalten",
   "Trace inner contours too": "Innenkonturen auch abfahren",
-  "Off, only the outer outlines are traced: holes such as the inside of an O stay without an edge line.": "Aus: nur die Außenkonturen werden abgefahren; Löcher wie das Innere eines O bleiben ohne Randlinie."
+  "Off, only the outer outlines are traced: holes such as the inside of an O stay without an edge line.": "Aus: nur die Außenkonturen werden abgefahren; Löcher wie das Innere eines O bleiben ohne Randlinie.",
+  "Selection ({0})": "Auswahl ({0})",
+  "Whole job": "Ganzer Auftrag",
+  "The selected contours have their own settings.": "Die ausgewählten Konturen haben eigene Einstellungen.",
+  "Use the layer’s or job’s again": "Wieder wie Ebene/Auftrag",
+  "A change applies to the selected contours only.": "Eine Änderung gilt nur für die ausgewählten Konturen.",
+  "Pick where a contour's cut starts; its lead-in attaches there.": "Festlegen, wo der Schnitt einer Kontur beginnt; der Anschnitt setzt dort an."
 }

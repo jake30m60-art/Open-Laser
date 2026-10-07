@@ -95,7 +95,7 @@
       return;
     }
     try {
-      await featureEdits.change((features) => Object.assign(features, toggled(features, id, selectedContours)));
+      await featureEdits.change((features) => Object.assign(features, toggled(features, id, selectedContours, true)));
     } catch (error) {
       ui.say(explain(error), true);
     }

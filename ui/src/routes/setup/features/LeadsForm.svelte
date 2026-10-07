@@ -3,21 +3,27 @@
 
   // Lead-ins and lead-outs: the open tab picks which one is edited.
   import Chips from '../../../components/params/Chips.svelte';
+  import Placed from '../../../components/params/Placed.svelte';
+  import { featureEdits } from '../../../stores/feature-edits';
+  import { ui } from '../../../stores/ui.svelte';
+  import { explain } from '../../../lib/format';
   import Stepper from '../../../components/params/Stepper.svelte';
   import Toggle from '../../../components/params/Toggle.svelte';
   import { defaultLeads } from '../../../lib/features';
   import { plural } from '../../../lib/format';
   import { leadFor, setLeadOverrides } from '../../../lib/lead-overrides';
   import type { Features, Lead, Leads, Preview } from '../../../api';
-  import type { SetFeatures } from './form';
+  import type { PickFeature, SetFeatures } from './form';
 
-  let { features, on, tab, selectedContours, set, preview }: {
+  let { features, on, tab, selectedContours, set, pick, preview }: {
     features: Features;
     on: boolean;
     /** 0 edits the lead-in, 1 the lead-out. */
     tab: number;
     selectedContours: number[];
     set: SetFeatures;
+    /** Starts picking places on the drawing, here the cut's start points. */
+    pick: (feature: PickFeature) => void;
     /** The drawing's contours, where the selection's leads attach; none
      *  while a layer's own machining is edited. */
     preview: Preview | null;
@@ -74,6 +80,10 @@
   function resetOverrides(): void {
     set(f => { f.leads!.overrides = []; });
   }
+  /** Chosen starts are the job's, whatever the leads apply to. */
+  function clearStarts(): void {
+    featureEdits.change((f) => { f.start.spots = []; }).catch((error) => ui.say(explain(error), true));
+  }
 </script>
 
 {#if targets.length && features.leads}
@@ -97,6 +107,11 @@
   <Chips label={t("Side")} options={SIDES} current={leads.side} disabled={!on} apply={setSide} />
   <Toggle label={t("Closed contours only")} value={leads.closed_only} disabled={!on} apply={setClosedOnly} />
 {/if}
+{#if tab === 0}
+  <h4 class="lead-start">{t("Start point")}</h4>
+  <p class="muted lead-note">{t("Pick where a contour's cut starts; its lead-in attaches there.")}</p>
+  <Placed count={features.start.spots.length} what="chosen start" onclear={clearStarts} onpick={() => pick('start')} />
+{/if}
 {#if leads.overrides?.length}
   <p class="muted" style="font-size:var(--t-sm)">{plural(leads.overrides.length, 'contour')} {t("with individual lead settings")}</p>
   <button class="btn btn-soft" disabled={!on || !selectionEdited} onclick={useDefaultsForSelection}>{t("Use job defaults for selection")}</button>
@@ -107,4 +122,5 @@
   .lead-scope { margin: 4px 0 8px; }
   .lead-scope button { flex: 1; }
   .lead-note { font-size: var(--t-sm); margin: 0 0 6px; }
+  .lead-start { margin: 10px 0 2px; font-size: var(--t-sm); color: var(--ink-2); }
 </style>

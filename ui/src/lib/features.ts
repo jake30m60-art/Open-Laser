@@ -4,6 +4,8 @@ import { plural } from './format';
 // The machining features as the tool bar shows them: which are on, their
 // one-line state, and sensible values when switched on.
 import type { Bridges, CommonEdges, Cooling, Features, FlyCut, Joints, Kerf, Leads } from '../api';
+import { machined, offEverywhere, onAnywhere } from './selection-machining';
+import type { MachiningPart } from '../api';
 
 export interface Tool { id: string; short: string; name: string; desc: string; optional: boolean }
 
@@ -40,8 +42,14 @@ export function isOn(features: Features, id: string): boolean {
   }
 }
 
-export function toggled(features: Features, id: string, contours: number[] = []): Features {
+export function toggled(features: Features, id: string, contours: number[] = [], everywhere = false): Features {
   const f = { ...features };
+  // For the whole job, off means off on every contour: layers and selections
+  // with machining of their own lose it too, and on is the job's again.
+  if (everywhere && (id === 'leads' || id === 'joints' || id === 'cooling' || id === 'kerf') && onAnywhere(features, id)) {
+    offEverywhere(f, id);
+    return f;
+  }
   if (id === 'leads') f.leads = f.leads ? null : defaultLeads();
   if (id === 'joints') f.joints = f.joints ? null : defaultJoints();
   if (id === 'cooling') f.cooling = f.cooling ? null : defaultCooling();
@@ -93,10 +101,17 @@ export function toolbarState(features: Features, id: string, layers: readonly st
     const state=stateOf(view,id);
     return isOn(view,id) && state!==base ? [l.name+': '+state] : [];
   });
+  // Selections with their own setting of this feature, as one line.
+  const chosen=(features.contour_machining ?? []).filter(m=>m.own.includes(id as MachiningPart));
+  if(chosen.length){
+    const count=chosen.reduce((n,m)=>n+m.contours.length,0);
+    const states=[...new Set(chosen.map(m=>stateOf(machined(features,m.machining,[id as MachiningPart]),id)))];
+    active.push(t('Selection ({0})', count)+': '+states.join(', '));
+  }
   return active.length ? active.join(' · ') : base;
 }
 
 export function toolbarOn(features: Features,id:string):boolean {
  if(isOn(features,id))return true;
- return (features.layers ?? []).some(l=>l.machining && ['leads','joints','cooling','kerf'].includes(id) && !!l.machining[id as 'leads'|'joints'|'cooling'|'kerf']);
+ return (id==='leads'||id==='joints'||id==='cooling'||id==='kerf') && onAnywhere(features,id);
 }

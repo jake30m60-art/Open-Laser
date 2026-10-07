@@ -25,6 +25,8 @@
   import type { PickFeature, SetFeatures } from './features/form';
   import type { Features } from '../../api';
   import { hasOwn, LAYER_MACHINING, scoped, setOwn, swatchColor } from '../../lib/drawing-layers';
+  import { SELECTION_MACHINING, clearSelection, selectionHasOwn, selectionView, setSelection } from '../../lib/selection-machining';
+  import type { MachiningPart } from '../../api';
 
   let { id, ontoggle, selectedContours, onfocus = () => {}, compact = false }: {
     id: FeatureId;
@@ -39,28 +41,47 @@
   const base = $derived(featureEdits.value(draft));
   /** Leads, joints, cooling, kerf and start can be a layer's own. */
   const perLayer = $derived((LAYER_MACHINING as readonly string[]).includes(id) && (draft.layers.length > 1 || draft.layers.some(l => l.mode === 'mark')));
-  const scope = $derived(perLayer && draft.layers.some((l) => l.name === ui.machiningLayer) ? ui.machiningLayer : null);
-  const features = $derived(scope ? scoped(base, scope) : base);
+  const layerScope = $derived(perLayer && draft.layers.some((l) => l.name === ui.machiningLayer) ? ui.machiningLayer : null);
+  /** With contours selected, leads, joints, cooling, kerf and start are
+   *  edited for those contours alone, unless the operator picks a wider scope. */
+  const perSelection = $derived((SELECTION_MACHINING as readonly string[]).includes(id) && selectedContours.length > 0);
+  let wider = $state(false);
+  $effect(() => { void selectedContours.join(','); wider = false; });
+  const inSelection = $derived(perSelection && !wider);
+  const chosen = $derived(inSelection ? [...selectedContours] : []);
+  /** The layer the first chosen contour is on, which it otherwise follows. */
+  const chosenLayer = $derived(inSelection ? draft.preview?.contours.find((c) => c.sources.includes(chosen[0]!))?.layer ?? null : null);
+  const scope = $derived(inSelection ? null : layerScope);
+  const features = $derived(inSelection ? selectionView(base, chosen[0]!, chosenLayer) : scope ? scoped(base, scope) : base);
   const own = $derived(scope ? hasOwn(base, scope) : false);
+  const selectionOwn = $derived(inSelection && selectionHasOwn(base, chosen, id as MachiningPart));
   const on = $derived(isOn(features, id));
   const order = $derived(draft.layers.map((l) => l.name));
   let tab = $state(0);
   $effect(() => { void id; tab = 0; });
 
-  /** An edit to the job's machining, or, with a layer chosen, to that
-   *  layer's own, which the edit gives it when it has none yet. */
+  /** An edit to the job's machining; with a layer chosen, to that layer's
+   *  own; with contours selected, to theirs alone. */
   const set: SetFeatures = (change) => {
     const layer = scope;
-    const edit = layer
-      ? (f: Features) => { const view = structuredClone(scoped(f, layer)); change(view); setOwn(f, layer, view, order); }
-      : change;
+    const contours = chosen, contourLayer = chosenLayer, part = id as MachiningPart;
+    const edit = inSelection
+      ? (f: Features) => { const view = structuredClone(selectionView(f, contours[0]!, contourLayer)); change(view); setSelection(f, contours, part, view); }
+      : layer
+        ? (f: Features) => { const view = structuredClone(scoped(f, layer)); change(view); setOwn(f, layer, view, order); }
+        : change;
     featureEdits.change(edit).catch((error) => ui.say(explain(error), true));
   };
   /** The layer goes back to the job's machining. */
   const useJob = () => { const layer = scope; if (layer) featureEdits.change((f) => setOwn(f, layer, null, order)).catch((error) => ui.say(explain(error), true)); };
-  /** On or off; for a layer, its own. */
+  /** The selected contours follow their layer or the job again for this feature. */
+  const useLayerForSelection = () => {
+    const contours = chosen, part = id as MachiningPart;
+    featureEdits.change((f) => clearSelection(f, contours, part)).catch((error) => ui.say(explain(error), true));
+  };
+  /** On or off; for a layer or a selection, its own. */
   function toggle(): void {
-    if (!scope) { ontoggle(); return; }
+    if (!scope && !inSelection) { ontoggle(); return; }
     set((f) => { Object.assign(f, toggled(f, id)); });
   }
 
@@ -68,7 +89,8 @@
    *  picked on the drawing are the job's, whichever layer they are on. */
   function pick(feature: PickFeature): void {
     if (scope) { ui.say(t("Places picked on the drawing apply to every layer. Choose All layers to pick them.")); return; }
-    const staged = structuredClone($state.snapshot(features));
+    // Picked places are the job's: a selection's view must not become the job's machining.
+    const staged = structuredClone($state.snapshot(inSelection ? base : features));
     if (feature === 'bridges' && !staged.bridges) staged.bridges = defaultBridges();
     ui.picking = { feature, first: null, order: [], revision: draft.revision, features: staged, marks: [] };
   }
@@ -97,16 +119,24 @@
   </div>
 {/if}
 <p class="feat-desc">{t(tool.desc)}</p>
-{#if perLayer}
+{#if perSelection || perLayer}
   <div class="scope" role="group" aria-label={t("Applies to")}>
-    <button class="chip" class:on={!scope} onclick={() => (ui.machiningLayer = null)}>{t("All layers")}</button>
-    {#each draft.layers as layer (layer.name)}
-      <button class="chip" class:on={scope === layer.name} onclick={() => (ui.machiningLayer = layer.name)}>
+    {#if perSelection}
+      <button class="chip" class:on={inSelection} onclick={() => (wider = false)}>{t('Selection ({0})', selectedContours.length)}{selectionHasOwn(base, selectedContours, id as MachiningPart) ? ' ·' : ''}</button>
+    {/if}
+    <button class="chip" class:on={!inSelection && !scope} onclick={() => { wider = true; ui.machiningLayer = null; }}>{perLayer ? t("All layers") : t("Whole job")}</button>
+    {#each perLayer ? draft.layers : [] as layer (layer.name)}
+      <button class="chip" class:on={scope === layer.name} onclick={() => { wider = true; ui.machiningLayer = layer.name; }}>
         <span class="layer-swatch" style:--layer={swatchColor(draft.layers, layer.name)}></span>{layer.name}{hasOwn(base, layer.name) ? ' ·' : ''}
       </button>
     {/each}
   </div>
-  {#if scope}
+  {#if inSelection}
+    <p class="muted scope-note">
+      {#if selectionOwn}{t('The selected contours have their own settings.')} <button class="link" onclick={useLayerForSelection}>{t('Use the layer’s or job’s again')}</button>
+      {:else}{t('A change applies to the selected contours only.')}{/if}
+    </p>
+  {:else if scope}
     <p class="muted scope-note">
       {#if own}{tl('{0} has its own settings.', scope)} <button class="link" onclick={useJob}>{tl("Use the job's")}</button>
       {:else if draft.layers.find((l) => l.name === scope)?.mode === 'mark'}{tl('{0} is a mark, so it has none; a change gives it its own.', scope)}
@@ -129,7 +159,7 @@
 {#if id === 'joints' || id === 'start'}<Tabs names={['Basic', t('More')]} bind:active={tab} />{/if}
 <div class="stack" style="opacity:{on ? 1 : 0.45}">
   {#if id === 'leads'}
-    <LeadsForm {features} {on} {tab} {selectedContours} {set} preview={scope ? null : draft.preview} />
+    <LeadsForm {features} {on} {tab} selectedContours={inSelection ? [] : selectedContours} {set} {pick} preview={scope || inSelection ? null : draft.preview} />
   {:else if id === 'joints'}
     <JointsForm {features} {on} {tab} contours={draft.placed.length} {set} {pick} />
   {:else if id === 'cooling'}
