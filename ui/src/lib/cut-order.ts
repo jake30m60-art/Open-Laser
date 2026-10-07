@@ -1,13 +1,13 @@
 import type { Preview } from '../api';
 
 type Point = [number, number];
-export type PreviewSegment = { a: Point; b: Point; contour: number; length: number };
+export type PreviewSegment = { a: Point; b: Point; contour: number; length: number; kind: string };
 
 /** Display geometry only; this animation does not estimate machine timing. */
 export function orderSegments(preview: Preview | null): PreviewSegment[] {
   return (preview?.contours ?? []).flatMap((c, contour) => c.paths.flatMap(p => p.points.slice(1).map((point, i) => {
     const a = p.points[i]! as Point, b = point as Point;
-    return { a, b, contour, length: Math.hypot(b[0] - a[0], b[1] - a[1]) };
+    return { a, b, contour, length: Math.hypot(b[0] - a[0], b[1] - a[1]), kind: p.kind };
   })));
 }
 
@@ -22,4 +22,19 @@ export function orderPosition(segments: PreviewSegment[], progress: number): { p
   }
   const last = segments.at(-1);
   return last ? { point: last.b, contour: last.contour } : null;
+}
+
+/** What the head has run up to `progress`, as Mlaser colours it: the cut
+ *  stretches and the moves with the laser off, each as one SVG path. */
+export function orderTrail(segments: PreviewSegment[], progress: number): { cut: string; moved: string } {
+  let left = Math.max(0, Math.min(1, progress)) * segments.reduce((sum, s) => sum + s.length, 0);
+  const cut: string[] = [], moved: string[] = [];
+  for (const s of segments) {
+    if (left <= 0) break;
+    const t = s.length > 0 ? Math.min(1, left / s.length) : 1;
+    const end: Point = [s.a[0] + (s.b[0] - s.a[0]) * t, s.a[1] + (s.b[1] - s.a[1]) * t];
+    (s.kind === 'travel' ? moved : cut).push(`M${s.a[0]} ${s.a[1]}L${end[0]} ${end[1]}`);
+    left -= s.length;
+  }
+  return { cut: cut.join(''), moved: moved.join('') };
 }

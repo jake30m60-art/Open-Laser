@@ -291,7 +291,15 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     };
     let mut warnings = preparation.warnings;
     let contours = match &features.fly {
-        Some(fly) => flying::fly(contours, fly, &mut warnings)?,
+        Some(fly) => {
+            let marked: Vec<&str> = features
+                .layers
+                .iter()
+                .filter(|l| l.mode == LayerMode::Mark)
+                .map(|l| l.name.as_str())
+                .collect();
+            flying::fly(contours, fly, &marked, &mut warnings)?
+        }
         None => contours,
     };
     let contours = fills(contours, features)?;

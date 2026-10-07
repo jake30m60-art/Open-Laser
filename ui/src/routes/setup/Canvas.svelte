@@ -19,7 +19,7 @@
   import { api } from '../../api/client';
   import { featureEdits } from '../../stores/feature-edits';
   import { LatestPick, orderGroups } from '../../lib/picking';
-  import { orderPosition, orderSegments } from '../../lib/cut-order';
+  import { orderPosition, orderSegments, orderTrail } from '../../lib/cut-order';
   import { copiedLeadOverrides, setLeadOverrides } from '../../lib/lead-overrides';
   import { draggedLead, leadHandlesOf, type LeadHandle } from '../../lib/lead-handles';
   import { t } from '../../i18n/index';
@@ -637,6 +637,8 @@
   let leadDrag = $state<{ handle: LeadHandle; targets: Spot[]; point: Point; revision: number } | null>(null);
   const orderPaths = $derived(orderSegments(preview));
   const playback = $derived(ui.setupPanel === 'order' ? orderPosition(orderPaths, orderProgress) : null);
+  /** What the playback has run so far, coloured over the drawing. */
+  const trail = $derived(playback && orderProgress > 0 ? orderTrail(orderPaths, orderProgress) : null);
 
   /** Shapes on their way to a layer, while their layer is chosen. */
   let assigning = $state<number[] | null>(null);
@@ -766,6 +768,10 @@
       {/each}
       </g>
       {#each ui.picking?.marks ?? [] as [x, y]}<circle class="mark bridge" cx={x} cy={y} r={mark} />{/each}
+      {#if trail}
+        <path class="trail-moved" d={trail.moved} vector-effect="non-scaling-stroke" />
+        <path class="trail-cut" d={trail.cut} vector-effect="non-scaling-stroke" />
+      {/if}
       {#if playback}
         <circle cx={playback.point[0]} cy={playback.point[1]} r={mark * 1.7} fill="var(--accent)" stroke="var(--bg)" vector-effect="non-scaling-stroke" />
       {/if}

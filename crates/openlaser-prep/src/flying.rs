@@ -280,12 +280,18 @@ fn passes(
 pub(crate) fn fly(
     contours: Vec<PreparedContour>,
     fly: &FlyCut,
+    marked: &[&str],
     warnings: &mut Vec<String>,
 ) -> Result<Vec<PreparedContour>> {
     check_fly(fly)?;
+    // Marked layers engrave or trace: a flying cut leaves them as they are.
     let selected: Vec<bool> = contours
         .iter()
-        .map(|c| !c.sources.is_empty() && c.sources.iter().all(|s| fly.contours.contains(s)))
+        .map(|c| {
+            !c.sources.is_empty()
+                && !marked.contains(&c.layer.as_str())
+                && c.sources.iter().all(|s| fly.contours.contains(s))
+        })
         .collect();
     let flying: Vec<bool> =
         contours.iter().zip(&selected).map(|(c, &s)| s && straight(c)).collect();
@@ -613,7 +619,7 @@ mod tests {
     fn a_row_of_squares_flies_in_four_lines() {
         let row: Vec<_> = (0..5).map(|i| rect(i, float(i) * 15., 0., 10., 10.)).collect();
         let mut warnings = Vec::new();
-        let out = fly(row, &settings((0..5).collect()), &mut warnings).unwrap();
+        let out = fly(row, &settings((0..5).collect()), &[], &mut warnings).unwrap();
         // Two horizontal lines, and five vertical pairs on ten vertical lines.
         assert_eq!(out.iter().filter(|c| matches!(c.segments[1].curve, Curve::Line { start, end } if (start.y - end.y).abs() < 1e-9)).count(), 2);
         assert_eq!(out.len(), 12);
@@ -633,7 +639,7 @@ mod tests {
     #[test]
     fn lines_of_one_direction_alternate() {
         let grid: Vec<_> = (0..2).map(|i| rect(i, 0., float(i) * 15., 10., 10.)).collect();
-        let out = fly(grid, &settings(vec![0, 1]), &mut Vec::new()).unwrap();
+        let out = fly(grid, &settings(vec![0, 1]), &[], &mut Vec::new()).unwrap();
         let horizontal: Vec<_> = out
             .iter()
             .filter(|c| matches!(c.segments[0].curve, Curve::Line { start, end } if (start.y - end.y).abs() < 1e-9))
@@ -653,7 +659,7 @@ mod tests {
         )];
         let contours = vec![rect(0, 0., 0., 10., 10.), rect(1, 50., 0., 10., 10.), circle];
         let mut warnings = Vec::new();
-        let out = fly(contours, &settings(vec![0, 2]), &mut warnings).unwrap();
+        let out = fly(contours, &settings(vec![0, 2]), &[], &mut warnings).unwrap();
         assert_eq!(warnings.len(), 1);
         assert!(out.iter().any(|c| c.sources == vec![1] && c.closed));
         assert!(out.iter().any(|c| c.sources == vec![2] && c.closed));
@@ -672,7 +678,7 @@ mod tests {
     #[test]
     fn webs_too_thin_to_fly_are_refused() {
         let contours = vec![rect(0, 0., 0., 10., 10.), rect(1, 10.2, 0., 10., 10.)];
-        assert!(fly(contours, &settings(vec![0, 1]), &mut Vec::new()).is_err());
+        assert!(fly(contours, &settings(vec![0, 1]), &[], &mut Vec::new()).is_err());
     }
 
     #[test]
@@ -739,7 +745,7 @@ mod tests {
                 cells.push(hexagon(cells.len(), a * float(i) + b * float(j), radius));
             }
         }
-        let out = fly(cells, &settings((0..9).collect()), &mut Vec::new()).unwrap();
+        let out = fly(cells, &settings((0..9).collect()), &[], &mut Vec::new()).unwrap();
         let total: f64 = out.iter().map(cut_length).sum();
         assert!((total - 9. * 6. * radius).abs() < 1e-6, "every edge once: {total}");
         let mut directions: Vec<i64> = out
@@ -771,15 +777,15 @@ mod tests {
         let dx = |c: &PreparedContour| c.segments[0].curve.end().x - c.segments[0].curve.start().x;
 
         let one_way = FlyCut { one_way: true, ..settings((0..3).collect()) };
-        let out = fly(grid(), &one_way, &mut Vec::new()).unwrap();
+        let out = fly(grid(), &one_way, &[], &mut Vec::new()).unwrap();
         assert!(out.iter().filter(|c| horizontal(c)).all(|c| dx(c) > 0.));
 
         let far = FlyCut { from_far_side: true, ..settings((0..3).collect()) };
-        let out = fly(grid(), &far, &mut Vec::new()).unwrap();
+        let out = fly(grid(), &far, &[], &mut Vec::new()).unwrap();
         assert!((out[0].segments[0].curve.start().y - 40.).abs() < 1e-9, "the top line first");
 
         let flipped = FlyCut { directions_reversed: true, ..settings((0..3).collect()) };
-        let out = fly(grid(), &flipped, &mut Vec::new()).unwrap();
+        let out = fly(grid(), &flipped, &[], &mut Vec::new()).unwrap();
         assert!(!horizontal(&out[0]), "vertical lines first");
         assert!(horizontal(out.last().unwrap()));
     }
@@ -893,5 +899,15 @@ mod tests {
         let path = fill(&[&square], &vertical).map(one_path).unwrap();
         let lit: Vec<_> = path.segments.iter().filter(|s| !s.process.joint).collect();
         assert!((lit[0].curve.start().y + 0.3).abs() < 1e-9, "90° takes 0.3 mm");
+    }
+
+    #[test]
+    fn marked_layers_stay_out_of_a_flying_cut() {
+        let mut cells: Vec<_> = (0..3).map(|i| rect(i, 0., float(i) * 15., 10., 10.)).collect();
+        for c in &mut cells {
+            c.layer = "Mark".into();
+        }
+        // Every selected contour is on a marked layer: nothing can fly.
+        assert!(fly(cells, &settings(vec![0, 1]), &["Mark"], &mut Vec::new()).is_err());
     }
 }

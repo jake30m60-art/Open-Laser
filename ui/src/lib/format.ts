@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 // Small formatters shared by the pages.
 import type { LaserMode, RecipeView } from '../api';
 import { distance, quantity, unitLabel } from './units.svelte';
@@ -16,7 +17,7 @@ export const value = (text: string | null | undefined): string => {
  * A count with its noun, singular for exactly one: `plural(1, 'path')` is
  * "1 path", `plural(3, 'path')` "3 paths", `plural(2, 'cut area')` "2 cut areas".
  */
-export const plural = (count: number, singular: string, many = `${singular}s`): string => `${count} ${count === 1 ? singular : many}`;
+export const plural = (count: number, singular: string, many = `${singular}s`): string => `${count} ${t(count === 1 ? singular : many)}`;
 
 export const laserLabel = (laser: LaserMode | null | undefined): string => (laser === 'co2' ? 'CO₂' : laser === 'fiber' ? 'Fiber' : '—');
 
