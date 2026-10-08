@@ -20,3 +20,9 @@
     <button class="btn btn-soft" onclick={onpick} {disabled}>{t("Pick")}</button>
   </div>
 </div>
+
+<style>
+  /* A long label pushes the buttons onto their own line instead of off the panel. */
+  .param { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+</style>

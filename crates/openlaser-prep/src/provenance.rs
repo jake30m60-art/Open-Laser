@@ -77,6 +77,17 @@ impl<'a> Projection<'a> {
                 continue;
             }
             let owned = self.owners.get(&spot.contour).map_or(&[][..], Vec::as_slice);
+            // A place on a contour left out by "only these contours" waits
+            // for the whole job; it is not lost.
+            if owned.is_empty()
+                && self
+                    .features
+                    .only_contours
+                    .as_ref()
+                    .is_some_and(|ids| !ids.contains(&spot.contour))
+            {
+                continue;
+            }
             // Length and projection each visit these curves. Charge only the
             // owners we actually inspect, so selecting the whole sheet stays
             // proportional to its geometry instead of the number of pairs.

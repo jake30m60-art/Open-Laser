@@ -71,18 +71,45 @@ pub(crate) fn attached(
     let side = if counterclockwise == inside { 1. } else { -1. };
     let first = segments[0].curve;
     let last = segments[segments.len() - 1].curve;
-    let entry = leads
-        .entry
-        .map_or_else(Vec::new, |lead| shape(lead, first.start(), first.tangent(0.), side, true));
-    let exit = leads
-        .exit
-        .map_or_else(Vec::new, |lead| shape(lead, last.end(), last.tangent(1.), side, false));
+    // A closed contour starting in a corner: a straight lead comes in along
+    // the bisector of the corner on the waste side, so it lies in a hole and
+    // outside an outline whichever way the corner turns.
+    let bisector = if closed { corner(last.tangent(1.), first.tangent(0.), side) } else { None };
+    let entry = leads.entry.map_or_else(Vec::new, |lead| match bisector {
+        Some(b) if lead.shape == LeadShape::Line => {
+            vec![Curve::Line { start: first.start() + b * lead.length.0, end: first.start() }]
+        }
+        _ => shape(lead, first.start(), first.tangent(0.), side, true),
+    });
+    let exit = leads.exit.map_or_else(Vec::new, |lead| match bisector {
+        Some(b) if lead.shape == LeadShape::Line => {
+            vec![Curve::Line { start: last.end(), end: last.end() + b * lead.length.0 }]
+        }
+        _ => shape(lead, last.end(), last.tangent(1.), side, false),
+    });
     let tag = |role| SegmentProcess { lead: Some(role), ..SegmentProcess::default() };
     let mut all: Vec<_> =
         entry.into_iter().map(|curve| PreparedSegment::new(curve, tag(LeadRole::Entry))).collect();
     all.extend(segments);
     all.extend(exit.into_iter().map(|curve| PreparedSegment::new(curve, tag(LeadRole::Exit))));
     all
+}
+
+/// The unit bisector into the waste of a corner where travel turns from
+/// `incoming` to `outgoing`; none where the contour runs on smoothly.
+fn corner(incoming: Point, outgoing: Point, side: f64) -> Option<Point> {
+    let (a, b) = (incoming.norm(), outgoing.norm());
+    if a < 1e-12 || b < 1e-12 {
+        return None;
+    }
+    let (incoming, outgoing) = (incoming * (1. / a), outgoing * (1. / b));
+    // Below about two degrees the contour runs on smoothly.
+    if incoming.cross(outgoing).abs() < 0.035 && incoming.dot(outgoing) > 0. {
+        return None;
+    }
+    let waste = incoming.rotated(side * FRAC_PI_2) + outgoing.rotated(side * FRAC_PI_2);
+    let length = waste.norm();
+    (length > 1e-6).then(|| waste * (1. / length))
 }
 
 /// The curves of one lead at `anchor`, where the contour's tangent is
