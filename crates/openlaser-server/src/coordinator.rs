@@ -1377,6 +1377,16 @@ impl Coordinator {
         Ok(())
     }
 
+    /// Removes one bridge and keeps the others where they are; returns how
+    /// many later bridges had to go with it.
+    pub fn remove_bridge(&mut self, index: usize) -> Result<usize> {
+        let draft = self.draft_mut()?;
+        let drawing = draft.drawing()?.clone();
+        let dropped = draft.remove_bridge(&drawing, index)?;
+        self.reprepare();
+        Ok(dropped)
+    }
+
     /// Copies machining defaults; picked locations stay with the saved job.
     pub fn copy_features(&mut self, job: &Id) -> Result<()> {
         let job = self.library.job(job)?.clone();

@@ -853,6 +853,72 @@ impl Draft {
         Ok(())
     }
 
+    /// The part's drawing with the job's bridges on its first copy cut into
+    /// it, in the part's own coordinates, for editing as a sketch; none when
+    /// no bridge lies on the part alone. Bridges joining it to another part
+    /// stay out: they belong to the layout, not to the part.
+    pub fn bridged_part(&self, part: &Id) -> Result<Option<Drawing>> {
+        let Some(bridges) = &self.current.features.bridges else { return Ok(None) };
+        if bridges.connections.is_empty() {
+            return Ok(None);
+        }
+        let sources = self.sources().ok_or_else(|| {
+            crate::Error::Refused("this job's drawing is not loaded; open the job again".into())
+        })?;
+        let index = sources
+            .parts()
+            .position(|p| p == part)
+            .ok_or_else(|| crate::Error::Refused("that part is not in this job".into()))?;
+        let range = sources.range(index);
+        let placed = &self.current.placed;
+        let Some(copy) = placed.iter().filter(|p| range.contains(&p.source)).map(|p| p.copy).min() else {
+            return Ok(None);
+        };
+        let own: Vec<usize> = (0..placed.len())
+            .filter(|&i| range.contains(&placed[i].source) && placed[i].copy == copy)
+            .collect();
+        let drawing = sources.drawing();
+        let sheet = place(drawing, placed);
+        let features = placed_bridges(&sheet, &self.current.features, placed)?;
+        let results = openlaser_prep::bridged_contours(&sheet, &features)?;
+        // A result is bridged when it joins contours or shares its sources
+        // with another result, as the halves of a split do.
+        let bridged = |sources: &Vec<usize>| {
+            sources.len() > 1 || results.iter().filter(|(other, _)| other == sources).count() > 1
+        };
+        let mut covered = Vec::new();
+        let mut contours = Vec::new();
+        for (from, contour) in &results {
+            if !bridged(from) || !from.iter().all(|s| own.contains(s)) {
+                continue;
+            }
+            contours.push(placed[from[0]].transform.inverse().contour(contour));
+            covered.extend(from.iter().copied());
+        }
+        if contours.is_empty() {
+            return Ok(None);
+        }
+        for &i in &own {
+            if !covered.contains(&i) {
+                contours.push(drawing.contours[placed[i].source].clone());
+            }
+        }
+        Ok(Some(Drawing { contours }))
+    }
+
+    /// Removes one bridge, `index` from 0, and keeps the others where they
+    /// are on the sheet. Returns how many later bridges went with it because
+    /// they were drawn on its channel.
+    pub fn remove_bridge(&mut self, drawing: &Drawing, index: usize) -> Result<usize> {
+        let sheet = place(drawing, &self.current.placed);
+        let transforms: Vec<_> = self.current.placed.iter().map(|p| p.transform).collect();
+        let (bridges, dropped) =
+            openlaser_prep::without_bridge(&sheet, &self.current.features, &transforms, index)?;
+        self.remember();
+        self.current.features.bridges = Some(bridges);
+        Ok(dropped)
+    }
+
     /// The view.
     #[must_use]
     pub fn view(&self) -> DraftView {
@@ -1153,6 +1219,20 @@ impl PartSwap<'_> {
         grouping: &mut Grouping,
         nesting: &mut Option<Nesting>,
     ) -> Result<()> {
+        // Bridges on other parts stay where they are on the sheet; those on
+        // this part go, as an edited part carries its own bridges in its shape.
+        let kept_ends: Vec<[openlaser_core::geometry::Point; 2]> = match &features.bridges {
+            Some(bridges) if !bridges.connections.is_empty() => {
+                let transforms: Vec<_> = placed.iter().map(|p| p.transform).collect();
+                openlaser_prep::bridge_ends(&place(self.old.drawing(), placed), features, &transforms)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|(_, joined)| !joined.iter().any(|&i| self.before.contains(&placed[i].source)))
+                    .map(|(ends, _)| ends)
+                    .collect()
+            }
+            _ => Vec::new(),
+        };
         let mut next = Vec::new();
         let mut map = vec![None; placed.len()];
         let mut copies = std::collections::BTreeSet::new();
@@ -1194,10 +1274,6 @@ impl PartSwap<'_> {
         }
         *features = features.renumbered_locations(|i| map.get(i).copied().flatten());
         remap_layer_edits(features, |s| self.contour(s));
-        // Evolving bridge references cannot safely survive changed source topology.
-        if let Some(bridges) = &mut features.bridges {
-            bridges.connections.clear();
-        }
         if let OrderStrategy::Manual(order) = &mut features.order.strategy {
             for i in 0..next.len() {
                 if !order.contains(&i) {
@@ -1207,6 +1283,25 @@ impl PartSwap<'_> {
         }
         *grouping = grouping.remapped(|i| map.get(i).copied().flatten());
         *placed = next;
+        // Evolving bridge references cannot survive changed topology as
+        // numbers; the kept bridges are found again by their ends.
+        if let Some(width) = features.bridges.as_ref().map(|b| b.width.0) {
+            let mut again = Vec::new();
+            if !kept_ends.is_empty() {
+                let transforms: Vec<_> = placed.iter().map(|p| p.transform).collect();
+                let sheet = place(self.new.drawing(), placed);
+                let mut bare = features.clone();
+                bare.bridges = None;
+                if let Ok((found, _)) =
+                    openlaser_prep::bridges_from_ends(&sheet, &bare, &transforms, width, &kept_ends)
+                {
+                    again = found;
+                }
+            }
+            if let Some(bridges) = &mut features.bridges {
+                bridges.connections = again;
+            }
+        }
         Ok(())
     }
 }

@@ -68,6 +68,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/parts/review", post(review_part))
         .route("/api/parts/{id}", post(update_part).delete(remove_part))
         .route("/api/parts/{id}/drawing", get(part_drawing))
+        .route("/api/draft/part/{id}/bridged", get(bridged_part_drawing))
         .route("/api/parts/{id}/sketch", post(save_part_sketch))
         .route("/api/draft/replace-part", post(replace_draft_part))
         .route("/api/parts/{id}/duplicate", post(duplicate_part))
@@ -103,6 +104,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/draft/job/{id}", post(open_job))
         .route("/api/draft/recipe/{id}", post(set_recipe))
         .route("/api/draft/features", post(set_features))
+        .route("/api/draft/bridges/remove", post(remove_bridge))
         .route("/api/draft/layers", post(change_layers))
         .route("/api/draft/preflight", post(set_preflight))
         .route("/api/draft/copy/{id}", post(copy_features))
@@ -492,6 +494,15 @@ async fn part_drawing(State(shared): State<Shared>, Path(id): Path<String>) -> R
     Ok(Json(json!({ "name": part.name, "drawing": part.drawing, "sketch": part.sketch })))
 }
 
+/// The part with the open job's bridges cut into it, for the sketch; null
+/// when no bridge lies on it alone.
+async fn bridged_part_drawing(State(shared): State<Shared>, Path(id): Path<String>) -> Reply {
+    let c = shared.lock().await;
+    let draft = c.draft.as_ref().ok_or_else(|| Error::Refused("open a part first".into()))?;
+    let drawing = draft.bridged_part(&Id::from(id.as_str()))?;
+    Ok(Json(json!({ "drawing": drawing })))
+}
+
 /// Retain editable sketch geometry, constraints and dimensions with the part.
 async fn save_part_sketch(State(shared): State<Shared>, Path(id): Path<Id>, Json(sketch): Json<Value>) -> Reply {
     if !["points","entities","constraints"].iter().all(|key|sketch.get(key).is_some_and(Value::is_array)) || sketch.get("next").and_then(Value::as_u64).is_none() {
@@ -775,6 +786,20 @@ async fn set_features(
         Ok(Value::Null)
     })
     .await
+}
+
+/// Which bridge to remove, from 0.
+#[derive(serde::Deserialize)]
+struct BridgeIndex {
+    index: usize,
+}
+
+async fn remove_bridge(
+    State(shared): State<Shared>,
+    Query(v): Query<Revision>,
+    Json(which): Json<BridgeIndex>,
+) -> Reply {
+    edit(&shared, Some(v.revision), |c| Ok(json!({ "dropped": c.remove_bridge(which.index)? }))).await
 }
 
 async fn change_layers(

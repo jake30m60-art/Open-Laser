@@ -198,6 +198,8 @@ export const api = {
   updatePart: (id: string, change: ItemChange) => post(`/api/parts/${id}`, change),
   savePartSketch: (id:string,sketch:import('../sketch/model').Sketch)=>post('/api/parts/'+encodeURIComponent(id)+'/sketch',sketch),
   replaceDraftPart: (old:string,next:string,revision:number)=>draftPost('/api/draft/replace-part',{old,new:next},revision),
+  /** The part with the open job's bridges cut into it; null when none lies on it alone. */
+  bridgedPart: (id: string) => request<{ drawing: import('../sketch/from-drawing').SourceDrawing | null }>('GET', `/api/draft/part/${encodeURIComponent(id)}/bridged`),
   partDrawing: (id: string) => request<{ name: string; drawing: import('../sketch/from-drawing').SourceDrawing; sketch?: import('../sketch/model').Sketch }>('GET', `/api/parts/${encodeURIComponent(id)}/drawing`),
   duplicatePart: (id: string) => post<{ ok: true; id: string }>(`/api/parts/${id}/duplicate`),
   /** What simplifying a part's drawing within `tolerance` mm does; `save` keeps it as a new part. */
@@ -237,6 +239,8 @@ export const api = {
   openJob: (id: string) => openDraft(`/api/draft/job/${id}`),
   setRecipe: (id: string) => draftPost(`/api/draft/recipe/${id}`),
   setFeatures: (features: Features, revision?: number) => draftPost('/api/draft/features', features, revision),
+  /** Removes one bridge, from 0; the others stay where they are. */
+  removeBridge: (index: number) => draftPost<{ dropped: number }>('/api/draft/bridges/remove', { index }),
   /** Moves shapes between layers, names a layer, or chooses how a layer is cut; one undo step. */
   changeLayers: (change: LayerChange, revision?: number) => draftPost('/api/draft/layers', change, revision),
   copyFeatures: (jobId: string) => draftPost(`/api/draft/copy/${jobId}`),

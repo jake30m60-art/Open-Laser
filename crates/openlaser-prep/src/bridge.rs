@@ -38,6 +38,34 @@ pub(crate) fn apply(
     resolve(contours, bridges, |_, point| Ok(point)).map(|(list, _)| list)
 }
 
+/// The placed contours each bridge joins or splits, through the bridges
+/// before it.
+pub(crate) fn involved(contours: &[(usize, &Contour)], bridges: &Bridges) -> Result<Vec<Vec<usize>>> {
+    let mut list: Vec<Sourced> = contours
+        .iter()
+        .map(|(index, contour)| Sourced { sources: vec![*index], contour: (*contour).clone() })
+        .collect();
+    let mut all = Vec::new();
+    for (number, bridge) in bridges.connections.iter().enumerate() {
+        let (mut a, mut b) = (bridge.first.contour, bridge.second.contour);
+        if a >= list.len() || b >= list.len() {
+            return Err(Error::Bridge { index: number + 1, reason: "refers to a contour that is not there".into() });
+        }
+        let mut sources = list[a].sources.clone();
+        sources.extend(list[b].sources.iter().copied());
+        sources.sort_unstable();
+        sources.dedup();
+        all.push(sources);
+        let (mut pa, mut pb) = (bridge.first.point, bridge.second.point);
+        if a > b {
+            std::mem::swap(&mut a, &mut b);
+            std::mem::swap(&mut pa, &mut pb);
+        }
+        join(&mut list, a, b, [pa, pb], bridges.width.0).map_err(|reason| Error::Bridge { index: number + 1, reason })?;
+    }
+    Ok(all)
+}
+
 /// Resolve local picks while the contour list evolves. Every result names
 /// the original placed contours, including after joins and splits.
 pub(crate) fn resolve(
@@ -71,24 +99,79 @@ pub(crate) fn resolve(
             std::mem::swap(&mut a, &mut b);
             std::mem::swap(&mut pick_a, &mut pick_b);
         }
-        if a != b && list[a].contour.layer != list[b].contour.layer {
-            return Err(fail("both ends must be on the same processing layer; a bridge cannot merge cutting and engraving".into()));
-        }
-        let second = (a != b).then(|| &list[b].contour);
-        let pieces =
-            splice(&list[a].contour, second, [pick_a, pick_b], bridges.width.0).map_err(fail)?;
-        let mut sources = list[a].sources.clone();
-        if a != b {
-            sources.extend(list[b].sources.iter().copied());
-            list.remove(b);
-        }
-        sources.sort_unstable();
-        sources.dedup();
-        let results =
-            pieces.into_iter().map(|contour| Sourced { sources: sources.clone(), contour });
-        list.splice(a..=a, results);
+        join(&mut list, a, b, [pick_a, pick_b], bridges.width.0).map_err(fail)?;
     }
     Ok((list, placed))
+}
+
+/// One bridge between list entries `a` <= `b` at sheet points `ends`: the
+/// result takes the place of `a`, and `b` leaves the list.
+fn join(list: &mut Vec<Sourced>, a: usize, b: usize, ends: [Point; 2], width: f64) -> std::result::Result<(), String> {
+    if a != b && list[a].contour.layer != list[b].contour.layer {
+        return Err("both ends must be on the same processing layer; a bridge cannot merge cutting and engraving".into());
+    }
+    let second = (a != b).then(|| &list[b].contour);
+    let pieces = splice(&list[a].contour, second, ends, width)?;
+    let mut sources = list[a].sources.clone();
+    if a != b {
+        sources.extend(list[b].sources.iter().copied());
+        list.remove(b);
+    }
+    sources.sort_unstable();
+    sources.dedup();
+    let results = pieces.into_iter().map(|contour| Sourced { sources: sources.clone(), contour });
+    list.splice(a..=a, results);
+    Ok(())
+}
+
+/// How far a bridge end may lie from the line it was snapped to.
+const END_TOLERANCE_MM: f64 = 0.05;
+
+/// The bridges again from their ends on the sheet, for a list that has
+/// lost one: each end is found on the contour it lies on as the list now
+/// evolves, so later bridges no longer depend on the removed one's
+/// numbering. A bridge whose end no longer lies on any contour, because it
+/// was drawn on the removed bridge's channel, is dropped and counted.
+/// `local` turns a sheet point into its owner's local coordinates.
+pub(crate) fn rebuild(
+    contours: &[(usize, &Contour)],
+    width: f64,
+    ends: &[[Point; 2]],
+    local: impl Fn(usize, Point) -> Result<Point>,
+) -> Result<(Vec<Bridge>, usize)> {
+    let mut list: Vec<Sourced> = contours
+        .iter()
+        .map(|(index, contour)| Sourced { sources: vec![*index], contour: (*contour).clone() })
+        .collect();
+    let nearest = |list: &[Sourced], point: Point| {
+        list.iter()
+            .enumerate()
+            .filter_map(|(i, c)| project(&c.contour, point).map(|(p, _)| (i, p.distance(point))))
+            .filter(|&(_, distance)| distance <= END_TOLERANCE_MM)
+            .min_by(|x, y| x.1.total_cmp(&y.1))
+            .map(|(i, _)| i)
+    };
+    let mut kept = Vec::new();
+    let mut dropped = 0;
+    for &[first, second] in ends {
+        let (Some(a), Some(b)) = (nearest(&list, first), nearest(&list, second)) else {
+            dropped += 1;
+            continue;
+        };
+        let pick = |at: usize, point: Point| -> Result<Pick> {
+            Ok(Pick { contour: at, point: local(list[at].sources[0], point)? })
+        };
+        let bridge = Bridge { first: pick(a, first)?, second: pick(b, second)? };
+        let (lo, hi, ends) = if a <= b { (a, b, [first, second]) } else { (b, a, [second, first]) };
+        let mut next: Vec<Sourced> = list.iter().map(|c| Sourced { sources: c.sources.clone(), contour: c.contour.clone() }).collect();
+        if join(&mut next, lo, hi, ends, width).is_err() {
+            dropped += 1;
+            continue;
+        }
+        list = next;
+        kept.push(bridge);
+    }
+    Ok((kept, dropped))
 }
 
 /// The nearest point on `contour` to `point`, and how far along the

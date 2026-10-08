@@ -158,6 +158,81 @@ pub fn place_bridges(
     Ok(placed)
 }
 
+/// The bridges without the one at `index` (from 0), the others kept where
+/// they are on the sheet. Returns them with how many later bridges had to
+/// go too because they were drawn on the removed one's channel.
+pub fn without_bridge(
+    sheet: &Drawing,
+    features: &Features,
+    transforms: &[Transform],
+    index: usize,
+) -> Result<(Bridges, usize)> {
+    let Some(bridges) = &features.bridges else {
+        return Err(feature("bridges", "there are no bridges"));
+    };
+    if index >= bridges.connections.len() {
+        return Err(feature("bridges", "that bridge is not there"));
+    }
+    let ends: Vec<[Point; 2]> = bridge_ends(sheet, features, transforms)?
+        .into_iter()
+        .enumerate()
+        .filter(|&(at, _)| at != index)
+        .map(|(_, (ends, _))| ends)
+        .collect();
+    let (connections, dropped) = bridges_from_ends(sheet, features, transforms, bridges.width.0, &ends)?;
+    Ok((Bridges { width: bridges.width, connections }, dropped))
+}
+
+fn owner_transform(transforms: &[Transform], owner: usize) -> Result<Transform> {
+    transforms
+        .get(owner)
+        .filter(|t| t.is_similarity())
+        .copied()
+        .ok_or_else(|| feature("bridges", "the placed owner has no valid transform"))
+}
+
+/// Each bridge's ends on the sheet, with the placed contours it joins or
+/// splits.
+pub fn bridge_ends(
+    sheet: &Drawing,
+    features: &Features,
+    transforms: &[Transform],
+) -> Result<Vec<([Point; 2], Vec<usize>)>> {
+    let placed = place_bridges(sheet, features, transforms)?;
+    let Some(bridges) = &placed.bridges else { return Ok(Vec::new()) };
+    let involved = bridge::involved(&kept(sheet, &placed), bridges)?;
+    Ok(bridges
+        .connections
+        .iter()
+        .zip(involved)
+        .map(|(b, sources)| ([b.first.point, b.second.point], sources))
+        .collect())
+}
+
+/// Bridges again from their ends on the sheet, as the contours now lie:
+/// each end is found on the contour it lies on. Returns them with how many
+/// could not be placed again because an end no longer lies on a contour.
+pub fn bridges_from_ends(
+    sheet: &Drawing,
+    features: &Features,
+    transforms: &[Transform],
+    width: f64,
+    ends: &[[Point; 2]],
+) -> Result<(Vec<openlaser_core::features::Bridge>, usize)> {
+    bridge::rebuild(&kept(sheet, features), width, ends, |owner, point| {
+        Ok(owner_transform(transforms, owner)?.inverse().apply(point))
+    })
+}
+
+/// The sheet's contours after the bridges, each with the placed contours
+/// it was made from. Bridge picks must already be on the sheet.
+pub fn bridged_contours(sheet: &Drawing, features: &Features) -> Result<Vec<(Vec<usize>, Contour)>> {
+    Ok(bridge::apply(&kept(sheet, features), features.bridges.as_ref())?
+        .into_iter()
+        .map(|c| (c.sources, c.contour))
+        .collect())
+}
+
 /// The local-coordinate owner of a contour in the current bridge result.
 pub fn bridge_owner(sheet: &Drawing, placed: &Features, contour: usize) -> Result<usize> {
     bridge::apply(&kept(sheet, placed), placed.bridges.as_ref())?
@@ -382,11 +457,26 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
         let mut handled = std::collections::HashSet::new();
         for region in &explicit {
             if handled.contains(&region.contour) { continue; }
-            if let Some(joined) = contours.iter().find(|c| c.closed && c.layer == *name && c.sources.len() > 1 && c.sources.contains(&region.contour)) {
-                handled.extend(joined.sources.iter().copied());
-                boundaries_all.push(joined.clone());
-                owners.extend(joined.sources.iter().copied());
-                batches.push((vec![joined.clone()], joined.sources.clone()));
+            // A bridge joins the area with other contours or splits it into
+            // pieces: then the bridged pieces are the area, their channels
+            // left unengraved, rather than the drawing's own outline.
+            let pieces: Vec<&PreparedContour> = contours.iter()
+                .filter(|c| c.closed && c.layer == *name && c.sources.contains(&region.contour)).collect();
+            if pieces.len() > 1 || pieces.iter().any(|c| c.sources.len() > 1) {
+                let mut ids: Vec<usize> = pieces.iter().flat_map(|c| c.sources.iter().copied()).collect();
+                ids.sort_unstable();
+                ids.dedup();
+                let mut batch: Vec<PreparedContour> = pieces.iter().map(|c| (*c).clone()).collect();
+                let loose: Vec<usize> = region.holes.iter().copied().filter(|h| !ids.contains(h)).collect();
+                for hole in loose {
+                    let Some(prepared) = contours.iter().find(|c| c.closed && c.sources.contains(&hole)) else { continue };
+                    batch.push(prepared.clone());
+                    ids.push(hole);
+                }
+                handled.extend(ids.iter().copied());
+                boundaries_all.extend(batch.iter().cloned());
+                owners.extend(ids.iter().copied());
+                batches.push((batch, ids));
                 continue;
             }
             let from = boundaries_all.len();

@@ -2513,5 +2513,14 @@
   "The selected contours have their own settings.": "Die ausgewählten Konturen haben eigene Einstellungen.",
   "Use the layer’s or job’s again": "Wieder wie Ebene/Auftrag",
   "A change applies to the selected contours only.": "Eine Änderung gilt nur für die ausgewählten Konturen.",
-  "Pick where a contour's cut starts; its lead-in attaches there.": "Festlegen, wo der Schnitt einer Kontur beginnt; der Anschnitt setzt dort an."
+  "Pick where a contour's cut starts; its lead-in attaches there.": "Festlegen, wo der Schnitt einer Kontur beginnt; der Anschnitt setzt dort an.",
+  "Bridge {0} removed; {1} drawn on its channel went with it.": "Brücke {0} gelöscht; {1} auf ihrem Kanal gezeichnete wurden mit entfernt.",
+  "Bridge {0} removed.": "Brücke {0} gelöscht.",
+  "Remove bridge {0}": "Brücke {0} löschen",
+  "Remove": "Löschen",
+  "Checking the bridge…": "Brücke wird geprüft…",
+  "Click the second contour · snaps to the line": "Zweite Kontur anklicken · rastet an der Linie ein",
+  "Click the first contour of the next bridge": "Erste Kontur für die nächste Brücke anklicken",
+  "Take back the first point": "Ersten Punkt zurücknehmen",
+  "End bridge mode": "Brückenmodus beenden"
 }
