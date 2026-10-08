@@ -33,6 +33,7 @@ __pycache__/
 *.md
 !/README.md
 !/USAGE.md
+!/ANLEITUNG.md
 !/CONTRIBUTING.md
 !/CHANGELOG.md
 !/RELEASING.md
