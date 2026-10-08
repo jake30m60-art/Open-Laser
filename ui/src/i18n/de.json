@@ -3411,5 +3411,7 @@
   "Gweike": "Gweike",
   "Drag to scale the text": "Ziehen skaliert den Text",
   "Drag to move · corner handle scales · double click to edit · Del removes it.": "Ziehen verschiebt · Eckgriff skaliert · Doppelklick bearbeitet · Entf löscht.",
-  "Text only": "Nur Text"
+  "Text only": "Nur Text",
+  "Machine screen": "Maschinenbildschirm",
+  "Network screen": "Bildschirm im Netzwerk"
 }

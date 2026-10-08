@@ -24,7 +24,7 @@
   <div class="control-blocker">
     <div role="dialog" aria-modal="true" aria-labelledby="control-title" class="control-dialog">
       <div class="control-symbol"><i class="ic ic-target"></i></div>
-      <h1 id="control-title">{access.error ? t("Reconnecting to OpenLaser") : access.info.owner ? t("{0} has control", access.info.owner) : t("Use OpenLaser here")}</h1>
+      <h1 id="control-title">{access.error ? t("Reconnecting to OpenLaser") : access.info.owner ? t("{0} has control", t(access.info.owner)) : t("Use OpenLaser here")}</h1>
       <p>{access.error ? t("Your workspace will return when the connection is restored.") : moving ? t("Wait for motion to finish, or stop it here.") : t("Take control to use this screen.")}</p>
       {#if error}<p class="control-error" role="alert">{error}</p>{/if}
       {#if access.error}<button class="take-control" onclick={() => access.refresh()}>{t("Try again")}</button>
