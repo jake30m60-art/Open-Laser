@@ -1357,7 +1357,7 @@
   "Inside to outside: cut nested inner contours before their enclosing outline.": "Innen nach außen: innere Konturen vor ihrem umschließenden Außenumriss schneiden.",
   "After the first endpoint, the shaded band previews the channel width. Click the second endpoint to inspect the actual cut; Apply saves it, Cancel discards it.": "Nach dem ersten Endpunkt zeigt das farbige Band die Kanalbreite. Mit dem zweiten Klick den tatsächlichen Schnitt prüfen; Übernehmen speichert, Abbrechen verwirft.",
   "Select whole part": "Ganzes Teil auswählen",
-  "Selected contours: {0}. Click again to deselect.": "{0} Konturen ausgewählt. Erneuter Klick wählt ab.",
+  "Selected contours: {0}. Click again to deselect.": "Ausgewählte Konturen: {0}. Erneuter Klick wählt ab.",
   "Filled engraving uses scan run-ups at every hatch line. Entry and exit leads apply to contour paths.": "Bei Flächengravur gilt der Scan-Anlauf für jede Schraffurlinie. Anschnitt und Auslauf gelten für Konturpfade.",
   "Edit engraving run-ups": "Gravur-Anlauf bearbeiten",
   "Geometry error": "Geometriefehler",
