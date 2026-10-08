@@ -34,9 +34,9 @@
   };
 
   let kindFilter = $state<'all' | 'part' | 'job' | 'sheet' | 'sketch'>('all');
-  /** The server's sketches, read each time the Sketches tab opens. */
+  /** The server's sketches, read when the page opens and each time All or Sketches is chosen. */
   let remoteSketches = $state<RemoteSummary[] | null>(null);
-  $effect(() => { if (kindFilter === 'sketch') void listRemote().then((r) => { remoteSketches = r; }); });
+  $effect(() => { if (kindFilter === 'sketch' || kindFilter === 'all') void listRemote().then((r) => { remoteSketches = r; }); });
   const sketchCards = $derived.by((): Card[] => {
     const from = remoteSketches ?? sketchStore.documents.filter((d) => !d.remote).map((d) => ({ id: d.id, name: d.name, outline: sketchOutline(d.sketch), updated: d.updated ?? 0 }));
     return from.map((s) => {
@@ -105,7 +105,7 @@
       size: boundsLabel(r.bounds), contours: 0, favourite: false,
       updated: r.at, outline: [r.outline, ...r.cutouts], parts: 0,
     }));
-    return kindFilter === 'sketch' ? sketchCards : [...parts, ...jobs, ...stock, ...remnants];
+    return kindFilter === 'sketch' ? sketchCards : [...parts, ...jobs, ...stock, ...remnants, ...sketchCards];
   });
   let editingStock = $state<string | null>(null);
 
