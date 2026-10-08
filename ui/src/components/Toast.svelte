@@ -19,7 +19,7 @@
 {#if ui.toast}
   <div class="toast" class:error={ui.toast.error} role={ui.toast.error ? 'alert' : 'status'}>
     <span>{t(ui.toast.text)}{#if technicalDetail(ui.toast.text)}<details
-      class="toast-detail"><summary>{t("Details")}</summary><code>{technicalDetail(ui.toast.text)}</code></details>{/if}</span>{#if ui.toast.error}<button
+      class="toast-detail"><summary>{t("Details")}</summary><code>{technicalDetail(ui.toast.text)}</code></details>{/if}</span>{#if ui.toast.error || ui.toast.stay}<button
       class="toast-close" onclick={() => ui.dismissToast()}>OK</button>{/if}
   </div>
 {/if}

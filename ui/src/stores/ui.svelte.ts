@@ -131,7 +131,7 @@ class Ui {
   /** The settings search; while set, Settings lists every matching setting. */
   settingsQuery = $state('');
   theme = $state<'light' | 'dark'>(remembered('ol-theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-  toast = $state<{ text: string; error: boolean; at: number } | null>(null);
+  toast = $state<{ text: string; error: boolean; stay?: boolean; at: number } | null>(null);
   /** The confirmation on screen, if one is asked. */
   confirmation = $state<Confirmation | null>(null);
   modal = $state<'pending' | 'alarms' | 'material' | 'recipe' | 'outputs' | null>(null);
@@ -190,11 +190,11 @@ class Ui {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Shows a note; an error stays until dismissed or replaced. */
-  say(text: string, error = false): void {
+  say(text: string, error = false, stay = false): void {
     // Fixed messages are written in English and shown in the screen's language.
-    this.toast = { text: t(text), error, at: Date.now() };
+    this.toast = { text: t(text), error, stay, at: Date.now() };
     if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastTimer = error ? null : setTimeout(() => { this.toast = null; }, 2600);
+    this.toastTimer = error || stay ? null : setTimeout(() => { this.toast = null; }, 2600);
   }
 
   dismissToast(): void {

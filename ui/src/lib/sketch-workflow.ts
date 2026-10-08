@@ -26,5 +26,17 @@ export async function editPart(id: string, contour?: number): Promise<void> {
     ui.setupPanel = null; ui.tab = 'sketch';
     ui.say(bridged ? t('The job’s bridges are drawn into the sketch; saving replaces the part with them in it.')
       : t(replacement?'Saving replaces the part in this job. Undo restores the original; changed contour features need review.':'Editing source geometry as a new library part.'));
+    // A drawing of many short pieces (splines, scans) is heavy to edit; say what simplifying would leave.
+    const curves=drawing.contours.reduce((n,c)=>n+c.curves.length,0);
+    if(!sketch && !bridged && curves>MANY_CURVES) void simplifyHint(id,curves);
   } catch (error) { ui.say(explain(error),true); }
+}
+
+/** How many curves of a drawing make editing it as a sketch slow. */
+const MANY_CURVES = 150;
+async function simplifyHint(id: string, curves: number): Promise<void> {
+  try {
+    const view = await api.simplifyPart(id, 0.05, false);
+    if (view.curves_after < curves * 0.6) ui.say(t('This drawing has {0} lines and arcs. Parts › Simplify drawing (0.05 mm) would leave {1}; simplify first for a lighter sketch.', curves, view.curves_after), false, true);
+  } catch { /* only a hint */ }
 }

@@ -3413,5 +3413,6 @@
   "Drag to move · corner handle scales · double click to edit · Del removes it.": "Ziehen verschiebt · Eckgriff skaliert · Doppelklick bearbeitet · Entf löscht.",
   "Text only": "Nur Text",
   "Machine screen": "Maschinenbildschirm",
-  "Network screen": "Bildschirm im Netzwerk"
+  "Network screen": "Bildschirm im Netzwerk",
+  "This drawing has {0} lines and arcs. Parts › Simplify drawing (0.05 mm) would leave {1}; simplify first for a lighter sketch.": "Diese Zeichnung hat {0} Linien und Bögen. Teile › Zeichnung vereinfachen (0,05 mm) ließe {1} übrig; für eine leichtere Skizze zuerst vereinfachen."
 }
