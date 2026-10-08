@@ -1,6 +1,7 @@
 // Sketches kept on the server, so every screen sees the same ones. The
 // browser keeps a copy to open at once; the server's is the one that lasts.
 import { isSketch, placedText, point, type Sketch } from './model';
+import { sampled } from './curves';
 import type { SketchDocument, SketchTarget } from './documents';
 
 /** A sketch in the server's list, without its editing model. */
@@ -69,6 +70,7 @@ export function outline(sketch: Sketch): [number, number][][] {
   for (const e of sketch.entities) {
     if (e.construction) continue;
     if (e.kind === 'line') out.push([at(e.a), at(e.b)]);
+    else if (e.kind === 'ellipse' || e.kind === 'ellipse-arc' || e.kind === 'spline') out.push(sampled(sketch, e).map((p) => [p.x, p.y] as [number, number]));
     else {
       const c = point(sketch, e.c);
       const r = e.kind === 'circle' ? e.r : Math.hypot(point(sketch, e.a).x - c.x, point(sketch, e.a).y - c.y);

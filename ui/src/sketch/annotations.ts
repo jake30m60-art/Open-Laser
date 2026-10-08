@@ -37,8 +37,8 @@ export function measure(s: Sketch, d: Dimension): number {
     }
     case 'diameter': case 'radius': {
       const e = entityOf(s, d.curve);
-      if (!e || e.kind === 'line') return 0;
-      const r = e.kind === 'circle' ? e.r : dist(point(s, e.c), point(s, e.a));
+      if (!e || e.kind === 'line' || e.kind === 'spline') return 0;
+      const r = e.kind === 'arc' ? dist(point(s, e.c), point(s, e.a)) : e.r;
       return d.kind === 'diameter' ? 2 * r : r;
     }
     case 'angle': {
@@ -66,7 +66,7 @@ export function labelAnchor(s: Sketch, d: Dimension): Vec {
   switch (d.kind) {
     case 'distance': { const a = point(s, d.a), b = point(s, d.b); return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
     case 'offset': return point(s, d.point);
-    case 'diameter': case 'radius': { const e = entityOf(s, d.curve); return e && e.kind !== 'line' ? point(s, e.c) : { x: 0, y: 0 }; }
+    case 'diameter': case 'radius': { const e = entityOf(s, d.curve); return e && 'c' in e ? point(s, e.c) : { x: 0, y: 0 }; }
     case 'angle': {
       const a = direction(s, d.a), b = direction(s, d.b);
       return a && b ? meet(a.a, a.u, b.a, b.u) ?? a.a : { x: 0, y: 0 };
@@ -106,9 +106,9 @@ export function draw(s: Sketch, d: Dimension): Drawing | null {
     }
     case 'diameter': case 'radius': {
       const e = entityOf(s, d.curve);
-      if (!e || e.kind === 'line') return null;
+      if (!e || e.kind === 'line' || e.kind === 'spline') return null;
       const c = point(s, e.c);
-      const r = e.kind === 'circle' ? e.r : dist(c, point(s, e.a));
+      const r = e.kind === 'arc' ? dist(c, point(s, e.a)) : e.r;
       const u = dist(at, c) > 1e-9 ? scale(sub(at, c), 1 / dist(at, c)) : { x: 1, y: 0 };
       const far = add(c, scale(u, r));
       if (d.kind === 'radius') return { lines: [[c, far], [far, at]], arc: null, arrows: [{ at: far, toward: c }], text: at };

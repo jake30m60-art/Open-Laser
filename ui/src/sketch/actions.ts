@@ -3,7 +3,7 @@ import { t } from '../i18n/index';
 // constraints and its sketch dimension. Each takes clicks on points and
 // curves, may offer heads-up values, previews its result, and returns the
 // sketch to commit; the page solves it before keeping it.
-import { dist, shapeOf, sketchBounds, type Shape, type Vec } from './geometry';
+import { dist, distanceTo, shapeOf, sketchBounds, type Shape, type Vec } from './geometry';
 import { addConstraint, clone, merge, point, pointsOf, type Dimension, type Entity, type Id, type NewConstraint, type Sketch } from './model';
 import { breakAt, chains, chamfer, circularPattern, extend, fillet, mirror, offset, rectangularPattern, stretch, trim, type Outcome } from './modify';
 import { axisFor, labelAnchor, measure } from './annotations';
@@ -122,7 +122,7 @@ class Offset extends Action {
       const e = entityOf(ctx.sketch, id);
       if (!e) continue;
       const shape = shapeOf(ctx.sketch, e);
-      const d = shape.kind === 'line' ? lineDistance(shape.a, shape.b, cursor) : Math.abs(dist(cursor, shape.c) - shape.r);
+      const d = shape.kind === 'line' ? lineDistance(shape.a, shape.b, cursor) : shape.kind === 'poly' ? distanceTo(shape, cursor) : Math.abs(dist(cursor, shape.c) - shape.r);
       best = Math.min(best, d);
     }
     return Number.isFinite(best) ? Math.round(best * 100) / 100 : 1;
@@ -373,7 +373,7 @@ class Relate extends Action {
         add1({ kind, line: l.id }); return;
       }
       case 'fix': {
-        const pts = a.point !== null ? [a.point] : (() => { const e = entityOf(s, a.entity); return e ? (e.kind === 'line' ? [e.a, e.b] : e.kind === 'circle' ? [e.c] : [e.c, e.a, e.b]) : []; })();
+        const pts = a.point !== null ? [a.point] : (() => { const e = entityOf(s, a.entity); return e ? pointsOf(e) : []; })();
         const fixed = pts.every((id) => s.constraints.some((x) => x.kind === 'fix' && x.point === id));
         if (fixed) s.constraints = s.constraints.filter((x) => !(x.kind === 'fix' && pts.includes(x.point)));
         else for (const id of pts) if (!s.constraints.some((x) => x.kind === 'fix' && x.point === id)) add1({ kind: 'fix', point: id });
@@ -392,7 +392,7 @@ class Relate extends Action {
           add1({ kind: 'symmetric', a: ea.b, b: straight ? eb.b : eb.a, line });
           return;
         }
-        if (ea.kind !== 'line' && eb.kind !== 'line') {
+        if ('c' in ea && 'c' in eb) {
           add1({ kind: 'symmetric', a: ea.c, b: eb.c, line });
           add1({ kind: 'equal', a: ea.id, b: eb.id });
         }
@@ -432,7 +432,7 @@ class Dimensioning extends Action {
       // As Fusion: a point stands for itself, a circle or arc for its centre;
       // two lines give their distance when parallel and their angle when not.
       const eb = entityOf(s, b.entity);
-      const spot = (h: Hit, e: Entity | undefined): Id | null => h.point ?? (e && e.kind !== 'line' ? e.c : null);
+      const spot = (h: Hit, e: Entity | undefined): Id | null => h.point ?? (e && 'c' in e ? e.c : null);
       const lineOf = (h: Hit, e: Entity | undefined) => (h.point === null && e?.kind === 'line' ? e : null);
       const pa = spot(a, ea), pb = spot(b, eb), la = lineOf(a, ea), lb = lineOf(b, eb);
       if (la && lb) {

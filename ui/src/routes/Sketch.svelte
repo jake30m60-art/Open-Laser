@@ -76,6 +76,8 @@
     { id: 'arcc', label: t("Center point arc"), icon: 'M20 15A8 8 0 0 0 7 8.5M12 15h8M12 15L7 8.5M12 15m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0' },
     { id: 'polygon', label: t("Inscribed polygon"), key: 'P', icon: 'M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z' },
     { id: 'slot', label: t("Center to center slot"), icon: 'M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7M8 12h8' },
+    { id: 'ellipse', label: t("Ellipse"), key: 'E', icon: 'M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5M12 12h8.5M12 12m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0' },
+    { id: 'spline', label: t("Control point spline"), key: 'S', icon: 'M4 18C7 4 12 4 13 12s6 7 7-4M4 18m-1.4 0a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0M20 8m-1.4 0a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0' },
   ];
   const MODIFY: Button<ActionId>[] = [
     { id: 'fillet', label: t("Fillet"), icon: 'M4 20V12a8 8 0 0 1 8-8h8' },
@@ -101,7 +103,7 @@
     { id: 'equal', label: t("Equal"), glyph: '=' },
     { id: 'symmetric', label: t("Symmetric"), glyph: '⇔' },
   ];
-  const TOOL_KEYS: Record<string, ToolId> = { l: 'line', r: 'rect2', c: 'circle', a: 'arc3', p: 'polygon' };
+  const TOOL_KEYS: Record<string, ToolId> = { l: 'line', r: 'rect2', c: 'circle', a: 'arc3', p: 'polygon', e: 'ellipse', s: 'spline' };
   const ACTION_KEYS: Record<string, ActionId> = { d: 'dimension', t: 'trim', o: 'offset' };
 
   // ---- View: millimetres with Y up, drawn in screen pixels -------------------------------------
@@ -172,6 +174,7 @@
       const c = toScreen(shape.c), r = shape.r * view.s;
       return `M${c.x - r} ${c.y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
     }
+    if (shape.kind === 'poly') return shape.pts.map((p, i) => { const q = toScreen(p); return `${i ? 'L' : 'M'}${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }).join('') + (shape.closed ? 'Z' : '');
     const sw = sweep(shape.start, shape.end);
     const s = toScreen(polar(shape.c, shape.r, shape.start)), e = toScreen(polar(shape.c, shape.r, shape.end)), r = shape.r * view.s;
     if (sw > 2 * Math.PI - 1e-6) return pathOf({ kind: 'circle', c: shape.c, r: shape.r });
@@ -195,7 +198,9 @@
     id: e.id, construction: !!e.construction, d: pathOf(shapeOf(store.sketch, e)),
     defined: !!free && defined(e, free),
   })));
-  const centers = $derived(new Set(store.sketch.entities.flatMap((e) => (e.kind === 'line' ? [] : [e.c]))));
+  const centers = $derived(new Set(store.sketch.entities.flatMap((e) => ('c' in e ? [e.c] : []))));
+  /** Each spline's control polygon, drawn faintly so its poles read as handles. */
+  const controlPolygons = $derived(store.sketch.entities.flatMap((e) => (e.kind === 'spline' ? [e.poles.map((id, i) => { const q = toScreen(point(store.sketch, id)); return `${i ? 'L' : 'M'}${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }).join('')] : [])));
   const fixed = $derived(new Set(store.sketch.constraints.flatMap((c) => (c.kind === 'fix' ? [c.point] : []))));
   const handles = $derived(store.sketch.points.map((p) => ({ id: p.id, center: centers.has(p.id), defined: !!free && !free.points.has(p.id), fixed: fixed.has(p.id), ...toScreen(p) })));
 
@@ -710,6 +715,11 @@
       return [['Line', ''], ['Length', `${displayNumber(dist(a, b), 'mm')} ${unitLabel('mm')}`], ['Angle', `${(angle < 0 ? angle + 360 : angle).toFixed(2)}°`]] as Array<[string, string]>;
     }
     if (e.kind === 'circle') return [['Circle', ''], ['Diameter', `${displayNumber(2 * e.r, 'mm')} ${unitLabel('mm')}`]] as Array<[string, string]>;
+    if (e.kind === 'ellipse' || e.kind === 'ellipse-arc') {
+      const major = dist(point(s, e.c), point(s, e.m));
+      return [[e.kind === 'ellipse' ? 'Ellipse' : 'Elliptical arc', ''], ['Major radius', `${displayNumber(major, 'mm')} ${unitLabel('mm')}`], ['Minor radius', `${displayNumber(e.r, 'mm')} ${unitLabel('mm')}`]] as Array<[string, string]>;
+    }
+    if (e.kind === 'spline') return [['Spline', ''], ['Degree', String(e.degree)], ['Control points', String(e.poles.length)]] as Array<[string, string]>;
     const c = point(s, e.c), a = point(s, e.a), b = point(s, e.b);
     const r = dist(c, a);
     const sw = sweep(angleOf(c, a), angleOf(c, b));
@@ -791,6 +801,7 @@
       <g class="grid">{#each gridLines as g, i (i)}<path d={g.d} class:major={g.major} />{/each}</g>
       <path class="axis-x" d={`M0 ${origin.y}H${w}`} />
       <path class="axis-y" d={`M${origin.x} 0V${h}`} />
+      {#each controlPolygons as d, i (i)}<path {d} class="control-polygon" />{/each}
       {#each drawn as e (e.id)}
         <path d={e.d} class="curve" class:defined={e.defined} class:construction={e.construction} class:selected={store.selection.has(e.id)}
           class:hovered={!tool && hover?.entity === e.id && hover?.point === null} class:picked={picked.curves.includes(e.id)} />
@@ -987,6 +998,7 @@
   .axis-x { stroke: #d9534f; stroke-width: 1; opacity: .7; }
   .axis-y { stroke: #3f9a5a; stroke-width: 1; opacity: .7; }
   .curve { fill: none; stroke: var(--sketch); stroke-width: 1.8; stroke-linecap: round; }
+  .control-polygon { fill: none; stroke: var(--sketch-construction); stroke-width: 1; stroke-dasharray: 3 4; pointer-events: none; }
   .curve.defined { stroke: var(--ink); }
   .curve.construction { stroke: var(--sketch-construction); stroke-dasharray: 6 4; stroke-width: 1.3; }
   .curve.hovered { stroke: var(--accent); stroke-width: 3.2; opacity: .85; }

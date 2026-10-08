@@ -3438,5 +3438,18 @@
   "Disconnected": "Getrennt",
   "Mode switch done": "Moduswechsel fertig",
   "Paused; Resume returns to the saved position": "Pausiert; Fortsetzen fährt an die gespeicherte Position zurück",
-  "Process settings imported": "Prozesseinstellungen importiert"
+  "Process settings imported": "Prozesseinstellungen importiert",
+  "Ellipse": "Ellipse",
+  "Control point spline": "Spline über Kontrollpunkte",
+  "Pick the end of the major axis": "Ende der Hauptachse wählen",
+  "Set the minor radius": "Kleinen Radius festlegen",
+  "Major radius": "Großer Radius",
+  "Minor radius": "Kleiner Radius",
+  "Pick the next control point · click the first to close · Esc ends the spline": "Nächsten Kontrollpunkt wählen · ersten anklicken schließt · Esc beendet den Spline",
+  "Pick the first control point": "Ersten Kontrollpunkt wählen",
+  "Elliptical arc": "Ellipsenbogen",
+  "Spline": "Spline",
+  "Degree": "Grad",
+  "Control points": "Kontrollpunkte",
+  "This works on lines, arcs and circles; ellipses and splines are moved, copied, mirrored or patterned whole.": "Das geht mit Linien, Bögen und Kreisen; Ellipsen und Splines werden als Ganzes verschoben, kopiert, gespiegelt oder gemustert."
 }

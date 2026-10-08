@@ -2,7 +2,7 @@
 // points and curves, resizing circles, and keeping arcs whole when only
 // some of their points move.
 import { add, angleOf, dist, distanceTo, mid, shapeOf, sweep, type Vec } from './geometry';
-import { point, pointsOf, type Id, type Sketch } from './model';
+import { endsOf, point, pointsOf, type Id, type Sketch } from './model';
 
 /** Moves points to `origin` plus `delta`; `origin` holds where each point started. */
 export function translate(sketch: Sketch, origin: ReadonlyMap<Id, Vec>, delta: Vec): void {
@@ -67,8 +67,7 @@ export function hitPoint(sketch: Sketch, at: Vec, reach: number): Id | null {
 export function chain(sketch: Sketch, start: Id): Id[] {
   const ends = (id: Id): Id[] => {
     const e = sketch.entities.find((x) => x.id === id);
-    if (!e || e.kind === 'circle') return [];
-    return e.kind === 'line' ? [e.a, e.b] : [e.a, e.b];
+    return (e && endsOf(e)) ?? [];
   };
   const seen = new Set<Id>([start]);
   const queue = [start];

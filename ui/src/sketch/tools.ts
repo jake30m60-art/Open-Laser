@@ -6,10 +6,11 @@ import { t } from '../i18n/index';
 import {
   add, angleOf, circleThrough, cross, dist, dot, EPS, mid, onSweep, polar, scale, sub, type Shape, type Vec,
 } from './geometry';
-import { addConstraint, addEntity, addPoint, pointAt, type Id, type Sketch } from './model';
+import { addConstraint, addEntity, addPoint, clampedKnots, pointAt, type Id, type Sketch } from './model';
+import { splineAt } from './curves';
 import type { Snap } from './snap';
 
-export type ToolId = 'line' | 'rect2' | 'rectc' | 'circle' | 'circle2' | 'arc3' | 'arcc' | 'slot' | 'polygon';
+export type ToolId = 'line' | 'rect2' | 'rectc' | 'circle' | 'circle2' | 'arc3' | 'arcc' | 'slot' | 'polygon' | 'ellipse' | 'spline';
 
 /** One heads-up value: what the cursor gives now, or what was typed. */
 export interface Field {
@@ -497,6 +498,102 @@ class PolygonTool extends Tool {
   }
 }
 
+/** An ellipse: its centre, the end of its major axis, then how wide it is. */
+class EllipseTool extends Tool {
+  readonly id = 'ellipse';
+  readonly name = t("Ellipse");
+  hint(): string {
+    return this.picks.length === 0 ? t("Pick the center") : this.picks.length === 1 ? t("Pick the end of the major axis") : t("Set the minor radius");
+  }
+  /** The minor radius a cursor gives: its distance from the major axis. */
+  private minor(c: Vec, m: Vec, at: Vec): number {
+    const u = sub(m, c), l = Math.hypot(u.x, u.y);
+    return l < EPS ? 0 : Math.abs(cross(u, sub(at, c))) / l;
+  }
+  override fields(at: Snap): Field[] {
+    const [c, m] = this.picks;
+    if (!c) return [];
+    if (!m) return polarFields(c, at).map((f) => (f.key === 'length' ? { ...f, key: 'major', label: t("Major radius") } : f));
+    return [{ key: 'minor', label: t("Minor radius"), kind: 'length', value: this.minor(c, m, at) }];
+  }
+  override resolve(cursor: Snap, locked: Locked): Snap {
+    const [c, m] = this.picks;
+    if (!c) return cursor;
+    if (!m) return polarTarget(c, cursor, locked, 'major');
+    if (locked.minor === undefined) return cursor;
+    const u = sub(m, c), l = Math.hypot(u.x, u.y) || 1;
+    const n = { x: -u.y / l, y: u.x / l }, side = signOr1(dot(sub(cursor, c), n));
+    return moved(cursor, add(c, scale(n, side * locked.minor)));
+  }
+  private points(c: Vec, m: Vec, r: number): Vec[] {
+    const u = sub(m, c), l = Math.hypot(u.x, u.y) || 1, v = { x: (-u.y / l) * r, y: (u.x / l) * r };
+    return Array.from({ length: 97 }, (_, i) => { const a = (i / 96) * 2 * Math.PI; return add(c, add(scale(u, Math.cos(a)), scale(v, Math.sin(a)))); });
+  }
+  ghost(at: Snap): Ghost {
+    const [c, m] = this.picks;
+    if (!c) return ghost();
+    if (!m) return ghost([], [line(c, at)], [c]);
+    return ghost([{ kind: 'poly', pts: this.points(c, m, this.minor(c, m, at)), closed: true }], [line(c, m)], [c, m]);
+  }
+  click(sketch: Sketch, at: Snap): Outcome {
+    const [c, m] = this.picks;
+    if (!c) { this.picks.push(at); return 'more'; }
+    if (!m) { if (dist(c, at) < EPS) return 'ignored'; this.picks.push(at); return 'more'; }
+    const r = this.minor(c, m, at);
+    if (r < EPS) return 'ignored';
+    // The longer axis is the major one: a wide ellipse turns its axes.
+    const a = dist(c, m);
+    const u = sub(m, c), side = signOr1(cross(u, sub(at, c)));
+    const major = r <= a ? m : add(c, scale({ x: -u.y, y: u.x }, (side * r) / a));
+    const centre = use(sketch, c, this.automaticConstraints);
+    addEntity(sketch, { kind: 'ellipse', c: centre, m: r <= a ? use(sketch, m, this.automaticConstraints) : addPoint(sketch, major.x, major.y), r: Math.min(r, a) });
+    this.reset();
+    return 'done';
+  }
+}
+
+/** A spline through control points: each click adds a pole, clicking the
+ *  first pole closes it, Esc ends it. It runs through its first and last pole. */
+class SplineTool extends Tool {
+  readonly id = 'spline';
+  readonly name = t("Control point spline");
+  /** The spline being drawn and its first pole, once it has two. */
+  private drawing: { id: Id; first: Id } | null = null;
+  override reset(): void { super.reset(); this.drawing = null; }
+  hint(): string { return this.picks.length ? t("Pick the next control point · click the first to close · Esc ends the spline") : t("Pick the first control point"); }
+  override fields(at: Snap): Field[] { const from = this.anchor(); return from ? polarFields(from, at) : []; }
+  override resolve(cursor: Snap, locked: Locked): Snap { const from = this.anchor(); return from ? polarTarget(from, cursor, locked) : cursor; }
+  ghost(at: Snap): Ghost {
+    if (!this.picks.length) return ghost();
+    const poles = [...this.picks, at];
+    const degree = Math.min(3, poles.length - 1);
+    const knots = clampedKnots(poles.length, degree), top = knots[poles.length]!;
+    const pts = Array.from({ length: 121 }, (_, i) => splineAt(poles, degree, knots, undefined, (top * i) / 120));
+    return ghost([{ kind: 'poly', pts, closed: false }], poles.slice(1).map((p, i) => line(poles[i]!, p)), poles);
+  }
+  click(sketch: Sketch, at: Snap): Outcome {
+    const spline = this.drawing && sketch.entities.find((e) => e.id === this.drawing!.id);
+    if (this.picks.length && !(spline && spline.kind === 'spline') && this.drawing) this.reset();
+    if (!this.picks.length) { this.picks.push(at); return 'more'; }
+    if (dist(this.anchor()!, at) < EPS) return 'ignored';
+    const closing = !!this.drawing && at.point === this.drawing.first;
+    const pole = closing ? this.drawing!.first : use(sketch, at, this.automaticConstraints);
+    if (!this.drawing || !spline || spline.kind !== 'spline') {
+      const first = use(sketch, this.picks[0]!, this.automaticConstraints);
+      const id = addEntity(sketch, { kind: 'spline', poles: [first, pole], degree: 1, knots: clampedKnots(2, 1) });
+      this.drawing = { id, first };
+    } else {
+      spline.poles.push(pole);
+      spline.degree = Math.min(3, spline.poles.length - 1);
+      spline.knots = clampedKnots(spline.poles.length, spline.degree);
+    }
+    this.picks.push(at);
+    if (closing) { this.reset(); return 'done'; }
+    return 'more';
+  }
+}
+
+
 export function createTool(id: ToolId, automaticConstraints = false): Tool {
   switch (id) {
     case 'line': return new LineTool(automaticConstraints);
@@ -508,6 +605,8 @@ export function createTool(id: ToolId, automaticConstraints = false): Tool {
     case 'arcc': return new ArcCTool(automaticConstraints);
     case 'slot': return new SlotTool(automaticConstraints);
     case 'polygon': return new PolygonTool(automaticConstraints);
+    case 'ellipse': return new EllipseTool(automaticConstraints);
+    case 'spline': return new SplineTool(automaticConstraints);
   }
 }
 

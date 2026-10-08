@@ -1,5 +1,6 @@
 // Plane geometry for the sketch: angles in radians, counter-clockwise from +X.
 import { point, type Entity, type Sketch } from './model';
+import { sampled } from './curves';
 
 export interface Vec { x: number; y: number }
 
@@ -51,17 +52,29 @@ export function circleThrough(a: Vec, b: Vec, c: Vec): { c: Vec; r: number } | n
 export type Shape =
   | { kind: 'line'; a: Vec; b: Vec }
   | { kind: 'circle'; c: Vec; r: number }
-  | { kind: 'arc'; c: Vec; r: number; start: number; end: number };
+  | { kind: 'arc'; c: Vec; r: number; start: number; end: number }
+  /** An ellipse or spline, as the polyline it is drawn and hit with. */
+  | { kind: 'poly'; pts: Vec[]; closed: boolean };
+
+/** The line pieces of a polyline. */
+const pieces = (s: Extract<Shape, { kind: 'poly' }>): Extract<Shape, { kind: 'line' }>[] =>
+  s.pts.slice(1).map((b, i) => ({ kind: 'line', a: s.pts[i]!, b }));
 
 export function shapeOf(sketch: Sketch, e: Entity): Shape {
   if (e.kind === 'line') return { kind: 'line', a: point(sketch, e.a), b: point(sketch, e.b) };
   if (e.kind === 'circle') return { kind: 'circle', c: point(sketch, e.c), r: e.r };
+  if (e.kind !== 'arc') return { kind: 'poly', pts: sampled(sketch, e), closed: e.kind === 'ellipse' };
   const c = point(sketch, e.c), a = point(sketch, e.a), b = point(sketch, e.b);
   return { kind: 'arc', c, r: dist(c, a), start: angleOf(c, a), end: angleOf(c, b) };
 }
 
 /** The closest point of a shape to `p`. */
 export function nearest(shape: Shape, p: Vec): Vec {
+  if (shape.kind === 'poly') {
+    let best = shape.pts[0] ?? p, d = Infinity;
+    for (const piece of pieces(shape)) { const q = nearest(piece, p), dq = dist(p, q); if (dq < d) { d = dq; best = q; } }
+    return best;
+  }
   if (shape.kind === 'line') {
     const d = sub(shape.b, shape.a);
     const l2 = dot(d, d);
@@ -80,6 +93,7 @@ export const distanceTo = (shape: Shape, p: Vec): number => dist(p, nearest(shap
 export function midOf(shape: Shape): Vec | null {
   if (shape.kind === 'line') return mid(shape.a, shape.b);
   if (shape.kind === 'arc') return polar(shape.c, shape.r, shape.start + sweep(shape.start, shape.end) / 2);
+  if (shape.kind === 'poly' && !shape.closed) return shape.pts[Math.floor(shape.pts.length / 2)] ?? null;
   return null;
 }
 
@@ -92,14 +106,17 @@ function within(shape: Shape, p: Vec): boolean {
     const t = dot(sub(p, shape.a), d) / l2;
     return t >= -1e-9 && t <= 1 + 1e-9;
   }
+  if (shape.kind === 'poly') return true;
   return shape.kind === 'circle' || onSweep(angleOf(shape.c, p), shape.start, shape.end);
 }
 
 /** Where two shapes cross. */
 export function intersections(s: Shape, t: Shape): Vec[] {
+  if (s.kind === 'poly') return pieces(s).flatMap((piece) => intersections(piece, t));
+  if (t.kind === 'poly') return pieces(t).flatMap((piece) => intersections(s, piece));
   let found: Vec[];
   if (s.kind === 'line' && t.kind === 'line') found = lineLine(s.a, s.b, t.a, t.b);
-  else if (s.kind === 'line') found = lineCircle(s.a, s.b, (t as Exclude<Shape, { kind: 'line' }>).c, (t as Exclude<Shape, { kind: 'line' }>).r);
+  else if (s.kind === 'line') found = lineCircle(s.a, s.b, (t as Extract<Shape, { kind: 'circle' | 'arc' }>).c, (t as Extract<Shape, { kind: 'circle' | 'arc' }>).r);
   else if (t.kind === 'line') found = lineCircle(t.a, t.b, s.c, s.r);
   else found = circleCircle(s.c, s.r, t.c, t.r);
   return found.filter((p) => within(s, p) && within(t, p));
@@ -142,6 +159,10 @@ export interface Bounds { minX: number; minY: number; maxX: number; maxY: number
 
 /** The extent of a shape, arcs bounded by their quadrant points. */
 export function boundsOf(shape: Shape): Bounds {
+  if (shape.kind === 'poly') {
+    const xs = shape.pts.map((p) => p.x), ys = shape.pts.map((p) => p.y);
+    return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+  }
   if (shape.kind === 'line') {
     return { minX: Math.min(shape.a.x, shape.b.x), minY: Math.min(shape.a.y, shape.b.y), maxX: Math.max(shape.a.x, shape.b.x), maxY: Math.max(shape.a.y, shape.b.y) };
   }
@@ -183,6 +204,6 @@ export function touchesBox(shape: Shape, box: Bounds): boolean {
     if (intersections(shape, edge).length) return true;
   }
   // A shape with an end inside the box but crossing nothing is already inside.
-  const probe = shape.kind === 'line' ? shape.a : polar(shape.c, shape.r, shape.kind === 'arc' ? shape.start : 0);
+  const probe = shape.kind === 'line' ? shape.a : shape.kind === 'poly' ? shape.pts[0]! : polar(shape.c, shape.r, shape.kind === 'arc' ? shape.start : 0);
   return probe.x >= box.minX && probe.x <= box.maxX && probe.y >= box.minY && probe.y <= box.maxY;
 }

@@ -4,7 +4,7 @@
 import {
   add, angleOf, dist, dot, intersections, len, normalize, polar, scale, shapeOf, sub, sweep, type Shape, type Vec,
 } from './geometry';
-import { addConstraint, addEntity, addPoint, clone, point, pointsOf, remove, type Constraint, type Entity, type Id, type Sketch } from './model';
+import { addConstraint, addEntity, addPoint, clone, point, pointsOf, remove, type Arc, type Circle, type Constraint, type Entity, type Id, type Line, type Sketch } from './model';
 
 export type Outcome = { sketch: Sketch; created: Id[] } | { error: string };
 
@@ -15,6 +15,22 @@ const SAME = 1e-6;
 function entity(s: Sketch, id: Id): Entity {
   const e = s.entities.find((x) => x.id === id);
   if (!e) throw new Error(`sketch curve ${id} is missing`);
+  return e;
+}
+
+/** The curves trim, extend, break, fillet and offset work on. */
+type Basic = Line | Circle | Arc;
+const isBasic = (e: Entity): e is Basic => e.kind === 'line' || e.kind === 'circle' || e.kind === 'arc';
+/** Why an ellipse or spline is left as it is. */
+const NOT_BASIC = 'This works on lines, arcs and circles; ellipses and splines are moved, copied, mirrored or patterned whole.';
+
+/** A basic curve's shape: a line, circle or arc, never a polyline. */
+type Flat = Exclude<Shape, { kind: 'poly' }>;
+const flat = (s: Sketch, e: Basic): Flat => shapeOf(s, e) as Flat;
+
+function basic(s: Sketch, id: Id): Basic {
+  const e = entity(s, id);
+  if (!isBasic(e)) throw new Error(NOT_BASIC);
   return e;
 }
 
@@ -38,6 +54,7 @@ function endOn(s: Sketch, at: Vec, by: Id | null): Id {
 /** Where along a curve a position lies: a line's fraction, an arc's swept
  *  angle from its start, a circle's angle. */
 function paramOf(shape: Shape, p: Vec): number {
+  if (shape.kind === 'poly') return 0;
   if (shape.kind === 'line') {
     const d = sub(shape.b, shape.a);
     return dot(sub(p, shape.a), d) / dot(d, d);
@@ -47,12 +64,13 @@ function paramOf(shape: Shape, p: Vec): number {
 }
 
 function atParam(shape: Shape, t: number): Vec {
+  if (shape.kind === 'poly') return shape.pts[0]!;
   if (shape.kind === 'line') return add(shape.a, scale(sub(shape.b, shape.a), t));
   return polar(shape.c, shape.r, shape.kind === 'circle' ? t : shape.start + t);
 }
 
 /** The far end of a curve's parameter range. */
-const span = (shape: Shape): number => (shape.kind === 'line' ? 1 : shape.kind === 'arc' ? sweep(shape.start, shape.end) : TAU);
+const span = (shape: Shape): number => (shape.kind === 'line' || shape.kind === 'poly' ? 1 : shape.kind === 'arc' ? sweep(shape.start, shape.end) : TAU);
 
 /** Where other curves cross this one, by parameter, inside its range. */
 function crossings(s: Sketch, id: Id): Array<{ t: number; at: Vec; by: Id }> {
@@ -108,7 +126,7 @@ function around(s: Sketch, id: Id, click: Vec) {
 /** The stretch of a curve a trim at the click would remove, for previewing it. */
 export function stretch(s: Sketch, id: Id, click: Vec): Shape | null {
   const e = s.entities.find((x) => x.id === id);
-  if (!e) return null;
+  if (!e || !isBasic(e)) return null;
   const { shape, lo, hi } = around(s, id, click);
   if (shape.kind === 'circle') {
     if (!lo || !hi) return shape;
@@ -116,13 +134,16 @@ export function stretch(s: Sketch, id: Id, click: Vec): Shape | null {
   }
   const t0 = lo ? lo.t : 0, t1 = hi ? hi.t : span(shape);
   if (shape.kind === 'line') return { kind: 'line', a: atParam(shape, t0), b: atParam(shape, t1) };
+  if (shape.kind === 'poly') return null;
   return { kind: 'arc', c: shape.c, r: shape.r, start: shape.start + t0, end: shape.start + t1 };
 }
 
 /** Removes the stretch of a curve between the crossings around the click. */
 export function trim(source: Sketch, id: Id, click: Vec): Outcome {
   const s = clone(source);
-  const e = entity(s, id);
+  const found = entity(s, id);
+  if (!isBasic(found)) return { error: NOT_BASIC };
+  const e = found;
   const { lo, hi } = around(s, id, click);
   if (e.kind === 'circle') {
     if (!lo || !hi) { remove(s, [id]); return { sketch: s, created: [] }; }
@@ -161,7 +182,9 @@ export function trim(source: Sketch, id: Id, click: Vec): Outcome {
 /** Splits a curve at the crossings around the click, so that stretch stands alone. */
 export function breakAt(source: Sketch, id: Id, click: Vec): Outcome {
   const s = clone(source);
-  const e = entity(s, id);
+  const found = entity(s, id);
+  if (!isBasic(found)) return { error: NOT_BASIC };
+  const e = found;
   const { lo, hi } = around(s, id, click);
   if (!lo && !hi) return { error: 'Nothing crosses this curve there to break it at.' };
   const flag = e.construction ? { construction: true } : {};
@@ -196,7 +219,9 @@ export function breakAt(source: Sketch, id: Id, click: Vec): Outcome {
 /** Lengthens a line or arc from the end nearer the click to the next curve it meets. */
 export function extend(source: Sketch, id: Id, click: Vec): Outcome {
   const s = clone(source);
-  const e = entity(s, id);
+  const found = entity(s, id);
+  if (!isBasic(found)) return { error: NOT_BASIC };
+  const e = found;
   if (e.kind === 'circle') return { error: 'A circle has no end to extend.' };
   const atEnd = dist(click, point(s, e.b)) <= dist(click, point(s, e.a));
   const endId = atEnd ? e.b : e.a;
@@ -316,8 +341,8 @@ interface Link { id: Id; forward: boolean }
 
 /** The selected lines and arcs as chains joined end to end, each in order. */
 export function chains(s: Sketch, ids: readonly Id[]): Array<{ links: Link[]; closed: boolean }> {
-  const open = new Set(ids.filter((id) => entity(s, id).kind !== 'circle'));
-  const ends = (id: Id): [Id, Id] => { const e = entity(s, id); return e.kind === 'circle' ? [e.c, e.c] : [e.a, e.b]; };
+  const open = new Set(ids.filter((id) => { const e = entity(s, id); return isBasic(e) && e.kind !== 'circle'; }));
+  const ends = (id: Id): [Id, Id] => { const e = basic(s, id); return e.kind === 'circle' ? [e.c, e.c] : [e.a, e.b]; };
   const at = (p: Id) => [...open].filter((id) => ends(id).includes(p));
   const out: Array<{ links: Link[]; closed: boolean }> = [];
   while (open.size) {
@@ -348,7 +373,7 @@ export function chains(s: Sketch, ids: readonly Id[]): Array<{ links: Link[]; cl
 
 /** Start and end of a link as it runs. */
 function runEnds(s: Sketch, l: Link): [Vec, Vec] {
-  const e = entity(s, l.id);
+  const e = basic(s, l.id);
   if (e.kind === 'circle') { const c = point(s, e.c); return [c, c]; }
   const a = point(s, e.a), b = point(s, e.b);
   return l.forward ? [a, b] : [b, a];
@@ -358,8 +383,7 @@ function runEnds(s: Sketch, l: Link): [Vec, Vec] {
 function sideOf(s: Sketch, links: Link[], at: Vec): number {
   let best = { d: Infinity, side: 1 };
   for (const l of links) {
-    const e = entity(s, l.id);
-    const shape = shapeOf(s, e);
+    const shape = flat(s, basic(s, l.id));
     const near = shape.kind === 'line' ? atParam(shape, Math.max(0, Math.min(1, paramOf(shape, at)))) : polar(shape.c, shape.r, angleOf(shape.c, at));
     const d = dist(near, at);
     if (d >= best.d) continue;
@@ -378,8 +402,8 @@ function sideOf(s: Sketch, links: Link[], at: Vec): number {
 }
 
 /** The offset of one link `d` to its left: a line moved across, an arc with a new radius. */
-function offsetShape(s: Sketch, l: Link, d: number): Shape | null {
-  const shape = shapeOf(s, entity(s, l.id));
+function offsetShape(s: Sketch, l: Link, d: number): Flat | null {
+  const shape = flat(s, basic(s, l.id));
   if (shape.kind === 'line') {
     const [p, q] = runEnds(s, l);
     const n = scale({ x: -(q.y - p.y), y: q.x - p.x }, 1 / dist(p, q));
@@ -391,8 +415,8 @@ function offsetShape(s: Sketch, l: Link, d: number): Shape | null {
 }
 
 /** Where two offset curves meet nearest `near`, both taken as infinite lines or full circles. */
-function joint(s1: Shape, s2: Shape, near: Vec): Vec {
-  const big = (x: Shape): Shape => {
+function joint(s1: Flat, s2: Flat, near: Vec): Vec {
+  const big = (x: Flat): Flat => {
     if (x.kind !== 'line') return { kind: 'circle', c: x.c, r: x.r };
     const u = scale(sub(x.b, x.a), 1e5 / (dist(x.a, x.b) || 1));
     return { kind: 'line', a: sub(x.a, u), b: add(x.b, u) };
@@ -420,7 +444,7 @@ export function offset(source: Sketch, ids: readonly Id[], distance: number, tow
     const d = distance * sideOf(s, chain.links, toward);
     const shapes = chain.links.map((l) => offsetShape(s, l, d));
     if (shapes.some((x) => !x)) return { error: 'The offset would shrink an arc to nothing.' };
-    const offs = shapes as Shape[];
+    const offs = shapes as Flat[];
     // Each link's offset start and end as it runs, before the joints are found.
     const raw = chain.links.map((l, i): [Vec, Vec] => {
       const o = offs[i]!;
@@ -484,6 +508,9 @@ function copy(s: Sketch, ids: readonly Id[], move: (v: Vec) => Vec, keepAxes: bo
     let made: Id;
     if (e.kind === 'line') made = addEntity(s, { kind: 'line', a: pt(e.a), b: pt(e.b), ...flag });
     else if (e.kind === 'circle') made = addEntity(s, { kind: 'circle', c: pt(e.c), r: e.r, ...flag });
+    else if (e.kind === 'ellipse') made = addEntity(s, { kind: 'ellipse', c: pt(e.c), m: pt(e.m), r: e.r, ...flag });
+    else if (e.kind === 'ellipse-arc') made = addEntity(s, { kind: 'ellipse-arc', c: pt(e.c), m: pt(e.m), r: e.r, a: pt(reverseArcs ? e.b : e.a), b: pt(reverseArcs ? e.a : e.b), ...flag });
+    else if (e.kind === 'spline') made = addEntity(s, { kind: 'spline', poles: e.poles.map(pt), degree: e.degree, knots: [...e.knots], ...(e.weights ? { weights: [...e.weights] } : {}), ...flag });
     else made = reverseArcs ? addEntity(s, { kind: 'arc', c: pt(e.c), a: pt(e.b), b: pt(e.a), ...flag }) : addEntity(s, { kind: 'arc', c: pt(e.c), a: pt(e.a), b: pt(e.b), ...flag });
     curves.set(id, made);
   }
@@ -533,6 +560,13 @@ export function mirror(source: Sketch, ids: readonly Id[], line: Id): Outcome {
       const made = addEntity(s, { kind: 'circle', c: pt(e.c), r: e.r, ...flag });
       addConstraint(s, { kind: 'equal', a: id, b: made });
       created.push(made);
+    } else if (e.kind === 'ellipse') {
+      created.push(addEntity(s, { kind: 'ellipse', c: pt(e.c), m: pt(e.m), r: e.r, ...flag }));
+    } else if (e.kind === 'ellipse-arc') {
+      // As for arcs, the mirror image runs the other way round.
+      created.push(addEntity(s, { kind: 'ellipse-arc', c: pt(e.c), m: pt(e.m), r: e.r, a: pt(e.b), b: pt(e.a), ...flag }));
+    } else if (e.kind === 'spline') {
+      created.push(addEntity(s, { kind: 'spline', poles: e.poles.map(pt), degree: e.degree, knots: [...e.knots], ...(e.weights ? { weights: [...e.weights] } : {}), ...flag }));
     } else {
       // A mirror turns counter-clockwise into clockwise: the ends swap.
       const made = addEntity(s, { kind: 'arc', c: pt(e.c), a: pt(e.b), b: pt(e.a), ...flag });

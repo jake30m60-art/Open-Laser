@@ -24,7 +24,30 @@ export interface Circle extends Curve { kind: 'circle'; c: Id; r: number }
 /** Counter-clockwise from `a` to `b` around `c`; both ends lie at the same radius. */
 export interface Arc extends Curve { kind: 'arc'; c: Id; a: Id; b: Id }
 
-export type Entity = Line | Circle | Arc;
+/** A whole ellipse: `m` ends its major semi-axis, `r` is its minor semi-axis. */
+export interface Ellipse extends Curve { kind: 'ellipse'; c: Id; m: Id; r: number }
+/** Part of an ellipse, counter-clockwise from `a` to `b`; `c`, `m` and `r` as for an ellipse. */
+export interface EllipseArc extends Curve { kind: 'ellipse-arc'; c: Id; m: Id; r: number; a: Id; b: Id }
+/** A clamped B-spline through its first and last pole. `knots` has
+ *  poles + degree + 1 entries; `weights`, when set, make it rational. */
+export interface Spline extends Curve { kind: 'spline'; poles: Id[]; degree: number; knots: number[]; weights?: number[] }
+
+export type Entity = Line | Circle | Arc | Ellipse | EllipseArc | Spline;
+
+/** The two ends of an open curve. */
+export function endsOf(e: Entity): [Id, Id] | null {
+  switch (e.kind) {
+    case 'line': case 'arc': case 'ellipse-arc': return [e.a, e.b];
+    case 'spline': return [e.poles[0]!, e.poles.at(-1)!];
+    default: return null;
+  }
+}
+
+/** Knots of a clamped spline of `count` poles in even spans, as a drawn spline gets. */
+export function clampedKnots(count: number, degree: number): number[] {
+  const spans = Math.max(1, count - degree);
+  return [...Array<number>(degree + 1).fill(0), ...Array.from({ length: spans - 1 }, (_, i) => i + 1), ...Array<number>(degree + 1).fill(spans)];
+}
 
 /** Where a dimension's value is written: millimetres from the point it
  *  hangs on (see `labelAnchor`), so it moves with what it measures. */
@@ -93,7 +116,7 @@ export const emptySketch = (): Sketch => ({ points: [], entities: [], constraint
 export function clone(sketch: Sketch): Sketch {
   return {
     points: sketch.points.map((p) => ({ ...p })),
-    entities: sketch.entities.map((e) => ({ ...e })),
+    entities: sketch.entities.map((e) => (e.kind === 'spline' ? { ...e, poles: [...e.poles], knots: [...e.knots], ...(e.weights ? { weights: [...e.weights] } : {}) } : { ...e })),
     constraints: sketch.constraints.map((c) => ({ ...c })),
     ...(sketch.texts?.length ? { texts: sketch.texts.map((t) => ({ ...t })) } : {}),
     next: sketch.next,
@@ -127,7 +150,7 @@ export function pointAt(sketch: Sketch, x: number, y: number, at?: Id): Id {
   return at !== undefined && sketch.points.some((p) => p.id === at) ? at : addPoint(sketch, x, y);
 }
 
-type NewEntity = Line | Circle | Arc extends infer E ? (E extends Entity ? Omit<E, 'id'> : never) : never;
+type NewEntity = Entity extends infer E ? (E extends Entity ? Omit<E, 'id'> : never) : never;
 export type NewConstraint = Constraint extends infer C ? (C extends Constraint ? Omit<C, 'id'> : never) : never;
 
 export function addEntity(sketch: Sketch, entity: NewEntity): Id {
@@ -148,6 +171,9 @@ export function pointsOf(entity: Entity): Id[] {
     case 'line': return [entity.a, entity.b];
     case 'circle': return [entity.c];
     case 'arc': return [entity.c, entity.a, entity.b];
+    case 'ellipse': return [entity.c, entity.m];
+    case 'ellipse-arc': return [entity.c, entity.m, entity.a, entity.b];
+    case 'spline': return [...entity.poles];
   }
 }
 
@@ -186,6 +212,9 @@ export function merge(sketch: Sketch, from: Id, into: Id): void {
   for (const e of sketch.entities) {
     if (e.kind === 'line') { if (e.a === from) e.a = into; if (e.b === from) e.b = into; }
     else if (e.kind === 'circle') { if (e.c === from) e.c = into; }
+    else if (e.kind === 'spline') { e.poles = e.poles.map((p) => (p === from ? into : p)); }
+    else if (e.kind === 'ellipse') { if (e.c === from) e.c = into; if (e.m === from) e.m = into; }
+    else if (e.kind === 'ellipse-arc') { if (e.c === from) e.c = into; if (e.m === from) e.m = into; if (e.a === from) e.a = into; if (e.b === from) e.b = into; }
     else { if (e.c === from) e.c = into; if (e.a === from) e.a = into; if (e.b === from) e.b = into; }
   }
   for (const c of sketch.constraints) {

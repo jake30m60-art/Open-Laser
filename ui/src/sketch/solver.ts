@@ -6,7 +6,8 @@
 import { make_gcs_wrapper, SolveStatus, type GcsWrapper, type SketchPrimitive } from '@salusoft89/planegcs';
 import { resizedFillets } from './fillet-resize';
 import { angleOf, dist, sweep } from './geometry';
-import { clone, constraintRefs, point, pointsOf, type Constraint, type Entity, type Id, type Sketch } from './model';
+import { clone, constraintRefs, endsOf, point, pointsOf, type Constraint, type Ellipse, type EllipseArc, type Entity, type Id, type Sketch } from './model';
+import { arcParams, ellipseFrame } from './curves';
 
 let wrapper: GcsWrapper | null = null;
 let loading: Promise<void> | null = null;
@@ -72,7 +73,7 @@ export function lineAngle(sketch: Sketch, a: Id, b: Id): number {
 
 /** The end two lines or arcs share, if any. */
 function sharedEnd(sketch: Sketch, a: Id, b: Id): Id | null {
-  const ends = (id: Id): Id[] => { const e = entityOf(sketch, id); return !e || e.kind === 'circle' ? [] : [e.a, e.b]; };
+  const ends = (id: Id): Id[] => { const e = entityOf(sketch, id); return (e && endsOf(e)) ?? []; };
   const theirs = ends(b);
   return ends(a).find((p) => theirs.includes(p)) ?? null;
 }
@@ -83,6 +84,7 @@ function normalAt(sketch: Sketch, id: Id, at: Id): { x: number; y: number } {
   const e = entityOf(sketch, id)!;
   const p = point(sketch, at);
   if (e.kind === 'line') { const a = point(sketch, e.a), b = point(sketch, e.b); return { x: -(b.y - a.y), y: b.x - a.x }; }
+  if (e.kind === 'spline') return { x: 0, y: 0 };
   const c = point(sketch, e.c);
   return { x: c.x - p.x, y: c.y - p.y };
 }
@@ -124,6 +126,7 @@ function translate(sketch: Sketch, c: Constraint): SketchPrimitive[] {
     }
     case 'tangent': {
       const [ka, kb] = [kind(c.a), kind(c.b)];
+      if ([ka, kb].some((k) => k === 'ellipse' || k === 'ellipse-arc' || k === 'spline')) return [];
       let joint = sharedEnd(sketch, c.a, c.b);
       // A line meeting a circle at an on-curve endpoint is tangent there.
       // Angle-at-contact avoids the degenerate combination of distance-to-line
@@ -153,7 +156,7 @@ function translate(sketch: Sketch, c: Constraint): SketchPrimitive[] {
     }
     case 'concentric': {
       const a = entityOf(sketch, c.a), b = entityOf(sketch, c.b);
-      if (!a || !b || a.kind === 'line' || b.kind === 'line' || a.c === b.c) return [];
+      if (!a || !b || !('c' in a) || !('c' in b) || a.c === b.c) return [];
       return [{ id, type: 'p2p_coincident', p1_id: P(a.c), p2_id: P(b.c) }];
     }
     case 'midpoint': {
@@ -166,6 +169,7 @@ function translate(sketch: Sketch, c: Constraint): SketchPrimitive[] {
       if (k === 'line') return [{ id, type: 'point_on_line_pl', p_id: P(c.point), l_id: E(c.curve) }];
       if (k === 'circle') return [{ id, type: 'point_on_circle', p_id: P(c.point), c_id: E(c.curve) }];
       if (k === 'arc') return [{ id, type: 'point_on_arc', p_id: P(c.point), a_id: E(c.curve) }];
+      if ((k === 'ellipse' || k === 'ellipse-arc') && solvable(sketch, c.curve)) return [{ id, type: 'point_on_ellipse', p_id: P(c.point), e_id: E(c.curve) }];
       return [];
     }
     case 'symmetric': return [{ id, type: 'p2p_symmetric_ppl', p1_id: P(c.a), p2_id: P(c.b), l_id: E(c.line) }];
@@ -183,6 +187,7 @@ function translate(sketch: Sketch, c: Constraint): SketchPrimitive[] {
       const r = c.kind === 'diameter' ? c.value / 2 : c.value;
       if (k === 'circle') return [{ id, type: 'circle_radius', c_id: E(c.curve), radius: r }];
       if (k === 'arc') return [{ id, type: 'arc_radius', a_id: E(c.curve), radius: r }];
+      if ((k === 'ellipse' || k === 'ellipse-arc') && solvable(sketch, c.curve)) return [{ id, type: 'equal', param1: { o_id: E(c.curve), prop: 'radmin' }, param2: r }];
       return [];
     }
     case 'angle': {
@@ -192,6 +197,37 @@ function translate(sketch: Sketch, c: Constraint): SketchPrimitive[] {
   }
 }
 
+/** The curves with a size of their own besides their points: circles' radii, ellipses' minor semi-axes. */
+const sized = (e: Entity): e is Extract<Entity, { r: number }> => e.kind === 'circle' || e.kind === 'ellipse' || e.kind === 'ellipse-arc';
+
+/** Whether an ellipse can go to the solver: its major semi-axis no shorter than its minor. */
+function solvable(sketch: Sketch, id: Id): boolean {
+  const e = entityOf(sketch, id);
+  if (e?.kind !== 'ellipse' && e?.kind !== 'ellipse-arc') return false;
+  const { u } = ellipseFrame(sketch, e);
+  return Math.hypot(u.x, u.y) > e.r + 1e-9 && e.r > 1e-9;
+}
+
+/** An ellipse as PlaneGCS keeps one: centre, a focus and the minor
+ *  semi-axis, with the end of the major semi-axis held to its vertex. The
+ *  focus is the solver's own point; the sketch keeps the vertex. */
+function ellipsePrimitives(sketch: Sketch, e: Ellipse | EllipseArc): SketchPrimitive[] {
+  if (!solvable(sketch, e.id)) return [];
+  const { c, u } = ellipseFrame(sketch, e);
+  const a = Math.hypot(u.x, u.y), k = Math.sqrt(a * a - e.r * e.r) / a;
+  const focus = `f${e.id}`;
+  const out: SketchPrimitive[] = [{ id: focus, type: 'point', x: c.x + u.x * k, y: c.y + u.y * k, fixed: false }];
+  if (e.kind === 'ellipse') out.push({ id: E(e.id), type: 'ellipse', c_id: P(e.c), focus1_id: focus, radmin: e.r });
+  else {
+    const [start, end] = arcParams(sketch, e);
+    out.push({ id: E(e.id), type: 'arc_of_ellipse', c_id: P(e.c), focus1_id: focus, start_id: P(e.a), end_id: P(e.b), start_angle: start, end_angle: end, radmin: e.r });
+    out.push({ id: `r${e.id}`, type: 'arc_of_ellipse_rules', a_id: E(e.id) });
+  }
+  out.push({ id: `v${e.id}x`, type: 'internal_alignment_point2ellipse', e_id: E(e.id), p1_id: P(e.m), alignmentType: 0 });
+  out.push({ id: `v${e.id}y`, type: 'internal_alignment_point2ellipse', e_id: E(e.id), p1_id: P(e.m), alignmentType: 1 });
+  return out;
+}
+
 /** The whole sketch as solver primitives: points, then curves, then constraints. */
 function primitives(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<Id, number>, hold: boolean | ReadonlySet<Id>): SketchPrimitive[] {
   const fixed = new Set(sketch.constraints.flatMap((c) => (c.kind === 'fix' ? [c.point] : [])));
@@ -199,6 +235,9 @@ function primitives(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<I
   for (const e of sketch.entities) {
     if (e.kind === 'line') out.push({ id: E(e.id), type: 'line', p1_id: P(e.a), p2_id: P(e.b) });
     else if (e.kind === 'circle') out.push({ id: E(e.id), type: 'circle', c_id: P(e.c), radius: e.r });
+    else if (e.kind === 'ellipse' || e.kind === 'ellipse-arc') out.push(...ellipsePrimitives(sketch, e));
+    // A spline's poles are points like any other; its curve follows them.
+    else if (e.kind === 'spline') continue;
     else {
       const c = point(sketch, e.c), a = point(sketch, e.a), b = point(sketch, e.b);
       const start = angleOf(c, a);
@@ -228,6 +267,7 @@ function primitives(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<I
   radii.forEach((r, entity) => {
     const e = entityOf(sketch, entity);
     if (e?.kind === 'circle') out.push({ id: `t${entity}r`, type: 'circle_radius', c_id: E(entity), radius: r, temporary: true });
+    else if (e && (e.kind === 'ellipse' || e.kind === 'ellipse-arc') && solvable(sketch, entity)) out.push({ id: `t${entity}r`, type: 'equal', param1: { o_id: E(entity), prop: 'radmin' }, param2: r, temporary: true });
   });
   return out;
 }
@@ -293,12 +333,12 @@ export function solve(sketch: Sketch, pulls: readonly Pull[] = [], radii: Readon
     redundant.push(...result.redundant);
     dof += result.dof;
     for (const p of result.sketch.points) points.set(p.id, p);
-    for (const e of result.sketch.entities) if (e.kind === 'circle') sizes.set(e.id, e.r);
+    for (const e of result.sketch.entities) if (e.kind === 'circle' || e.kind === 'ellipse' || e.kind === 'ellipse-arc') sizes.set(e.id, e.r);
   }
   if (!ok) return { ok, sketch, conflicting, redundant, dof };
   const solved = clone(sketch);
   for (const p of solved.points) { const at = points.get(p.id); if (at) { p.x = at.x; p.y = at.y; } }
-  for (const e of solved.entities) if (e.kind === 'circle') e.r = sizes.get(e.id) ?? e.r;
+  for (const e of solved.entities) if (e.kind === 'circle' || e.kind === 'ellipse' || e.kind === 'ellipse-arc') e.r = sizes.get(e.id) ?? e.r;
   return { ok, sketch: solved, conflicting, redundant, dof };
 }
 
@@ -335,6 +375,9 @@ function solveSystem(sketch: Sketch, pulls: readonly Pull[], radii: ReadonlyMap<
     } else if (prim.type === 'circle') {
       const e = curves.get(String(prim.id));
       if (e?.kind === 'circle' && Number.isFinite(prim.radius) && prim.radius > 0) e.r = prim.radius;
+    } else if (prim.type === 'ellipse' || prim.type === 'arc_of_ellipse') {
+      const e = curves.get(String(prim.id));
+      if ((e?.kind === 'ellipse' || e?.kind === 'ellipse-arc') && Number.isFinite(prim.radmin) && prim.radmin > 0) e.r = prim.radmin;
     }
   }
   return { ok, sketch: solved, conflicting, redundant, dof };
@@ -367,7 +410,7 @@ export function freedom(sketch: Sketch, limit = 300): { points: Set<Id>; circles
 function everything(group: Sketch): { points: number[]; circles: number[] } {
   return {
     points: group.points.map((_, i) => i),
-    circles: group.entities.flatMap((e, i) => (e.kind === 'circle' ? [i] : [])),
+    circles: group.entities.flatMap((e, i) => (sized(e) ? [i] : [])),
   };
 }
 
@@ -380,10 +423,10 @@ function nudged(group: Sketch): { points: number[]; circles: number[] } {
     if (!moved.ok || dist(p, point(moved.sketch, p.id)) > step * 0.05) found.points.push(i);
   });
   group.entities.forEach((e, i) => {
-    if (e.kind !== 'circle') return;
+    if (!sized(e)) return;
     const grown = solveGroup(group, [], new Map([[e.id, e.r + step]]), false);
     const r = grown.sketch.entities.find((x) => x.id === e.id);
-    if (!grown.ok || (r?.kind === 'circle' && Math.abs(r.r - e.r) > step * 0.05)) found.circles.push(i);
+    if (!grown.ok || (r && sized(r) && Math.abs(r.r - e.r) > step * 0.05)) found.circles.push(i);
   });
   // Freedom left that no nudge found is still freedom: none of it is defined.
   return found.points.length || found.circles.length ? found : everything(group);
@@ -409,9 +452,9 @@ function likeness(group: Sketch): string {
 
 /** A curve is fully defined when none of its points, nor a circle's size, can move. */
 export function defined(entity: Entity, free: { points: Set<Id>; circles: Set<Id> }): boolean {
-  const pts = entity.kind === 'line' ? [entity.a, entity.b] : entity.kind === 'circle' ? [entity.c] : [entity.c, entity.a, entity.b];
+  const pts = pointsOf(entity);
   if (pts.some((p) => free.points.has(p))) return false;
-  return entity.kind !== 'circle' || !free.circles.has(entity.id);
+  return !sized(entity) || !free.circles.has(entity.id);
 }
 
 /** The points an edit is about: those of the constraints it adds or changes,

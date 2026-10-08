@@ -34,14 +34,14 @@ export interface SnapOptions {
 
 export function snap(sketch: Sketch, cursor: Vec, options: SnapOptions): Snap {
   const { reach, ignorePoints, ignoreEntities } = options;
-  const centers = new Set(sketch.entities.flatMap((e) => (e.kind === 'line' ? [] : [e.c])));
+  const centers = new Set(sketch.entities.flatMap((e) => ('c' in e ? [e.c] : [])));
   const curves = sketch.entities.filter((e) => !ignoreEntities?.has(e.id));
   const shapes: Array<{ id: Id; shape: Shape }> = curves.map((e) => ({ id: e.id, shape: shapeOf(sketch, e) }));
 
   const tangentSnaps: Snap[] = [];
   const anchor = options.anchor;
   if (options.tangent && anchor) for (const {id,shape} of shapes) {
-    if (shape.kind === 'line' || !(shape.r > 1e-9)) continue;
+    if (shape.kind === 'line' || shape.kind === 'poly' || !(shape.r > 1e-9)) continue;
     const dx=anchor.x-shape.c.x,dy=anchor.y-shape.c.y,d2=dx*dx+dy*dy;
     const onArc = (p: Vec) => shape.kind !== 'arc' || onSweep(angleOf(shape.c,p),shape.start,shape.end);
     if (Math.abs(Math.sqrt(d2)-shape.r)<1e-7 && onArc(anchor)) {
