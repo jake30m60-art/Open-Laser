@@ -15,6 +15,7 @@
   import { explain } from '../lib/format';
   import WorkspaceOverlays from '../components/WorkspaceOverlays.svelte';
   import Parts from './Parts.svelte';
+  import Sketch from '../routes/Sketch.svelte';
   import Setup from './Setup.svelte';
   import Run from './Run.svelte';
   import Settings from './Settings.svelte';
@@ -118,6 +119,7 @@
     {:else if section?.kind === 'recovery'}<RunReview compact recoveryEditor={section.restart ?? false} />
     {:else if section?.kind === 'machine'}<Machine compact sectionOnly />
     {:else if ui.tab === 'parts'}<Parts />
+    {:else if ui.tab === 'sketch'}<div class="phone-sketch"><Sketch /></div>
     {:else if ui.tab === 'setup'}<Setup {edit} />
     {:else if ui.tab === 'run'}<Run controls={showControls} review={showReview} />
     {:else if ui.tab === 'materials'}<Materials compact />
@@ -138,3 +140,11 @@
   </nav>
 </div>
 <WorkspaceOverlays nativeKeyboard />
+
+<style>
+  .phone-sketch { display:flex; flex-direction:column; gap:12px; min-width:0; }
+  .phone-sketch :global(.sketch-main) { height:720px; min-height:720px; }
+  .phone-sketch :global(.sketch-side) { width:100%; max-height:none; overflow:visible; }
+  .phone-sketch :global(.sketch-bar) { flex-wrap:nowrap; overflow-x:auto; flex:none; }
+  .phone-sketch :global(.sk-group) { flex:none; }
+</style>

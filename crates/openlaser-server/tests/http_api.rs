@@ -743,6 +743,7 @@ async fn an_image_engraves_in_shades_of_gray_and_runs_to_the_end() {
     {
         let c = server.shared.lock().await;
         let stored = c.library.part(&openlaser_library::Id::from(part.as_str())).unwrap();
+        assert!(c.document().library.parts.iter().any(|p| p.id == stored.id && p.has_image), "the library advertises its raster thumbnail");
         let image = stored.image.as_ref().expect("the part keeps its image");
         assert_eq!((image.raster.width, image.raster.height), (64, 16));
         assert!(image.raster.bitmap().starts_with(b"BM"), "the canvas gets a bitmap");

@@ -936,7 +936,7 @@
   "Edited": "bearbeitet",
   "Sans": "Serifenlos",
   "Serif": "Mit Serifen",
-  "Mono": "Nichtproportional",
+  "Mono": "Monospace",
   "Reconnecting to OpenLaser": "Verbindung zu OpenLaser wird wiederhergestellt",
   "Use OpenLaser here": "OpenLaser hier bedienen",
   "Take control": "Bedienung übernehmen",
@@ -3227,5 +3227,11 @@
   "Drag to move · double click to edit · Del removes it.": "Ziehen verschiebt · Doppelklick bearbeitet · Entf löscht.",
   "Size": "Größe",
   "Computer fonts": "Schriften des PCs",
-  "Reading the installed fonts…": "Installierte Schriften werden gelesen…"
+  "Reading the installed fonts…": "Installierte Schriften werden gelesen…",
+  "Search sketches": "Skizzen suchen",
+  "No sketches yet": "Noch keine Skizzen",
+  "Could not load sketches.": "Skizzen konnten nicht geladen werden.",
+  "The source says air, but this recipe selects the N₂ valve. Check the connected gas line before cutting.": "Die Quelle nennt Luft, dieses Rezept wählt aber das N₂-Ventil. Vor dem Schnitt die angeschlossene Gasleitung prüfen.",
+  "Left": "Links",
+  "Right": "Rechts"
 }

@@ -107,6 +107,7 @@
   // ---- View: millimetres with Y up, drawn in screen pixels -------------------------------------
   let w = $state(800);
   let h = $state(600);
+  const needsInitialFit = store.view === null;
   let view = $state(store.view ?? { cx: 100, cy: 60, s: 3 });
   $effect(() => { store.view = view; });
   let svg: SVGSVGElement | undefined = $state();
@@ -235,10 +236,11 @@
     view = { cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2, s: Math.min(w / (bw * 1.25), h / (bh * 1.25)) };
   }
   onMount(() => {
-    if (!store.view) requestAnimationFrame(fit);
+    const frame = requestAnimationFrame(() => { if (needsInitialFit || w < 600) fit(); });
     initSolver(wasmUrl)
       .then(() => { store.solverRevision++; store.refreshFreedom(); })
       .catch((e) => ui.say(t("The constraint solver did not load: {0}", explain(e)), true));
+    return () => cancelAnimationFrame(frame);
   });
 
   // ---- Pointer input ---------------------------------------------------------------------------
@@ -860,7 +862,7 @@
 <aside class="panel side sketch-side">
   <label for="sketch-archive">{t("Saved sketches")}</label>
   <div class="sketch-archive-row">
-    <select id="sketch-archive" value={store.activeDocument} onchange={e=>{store.openDocument(e.currentTarget.value);fit();}}>{#each store.documents as document}<option value={document.id}>{document.name}</option>{/each}</select>
+    <select id="sketch-archive" value={store.activeDocument} onchange={async e=>{if (await store.openDocument(e.currentTarget.value)) fit(); else ui.say(t('Could not load sketches.'), true);}}>{#each store.documents as document}<option value={document.id}>{document.name}</option>{/each}</select>
     <button class="sk-tool" title={'Gewählte Skizze entfernen: '+store.name} aria-label={'Gewählte Skizze entfernen: '+store.name} onclick={()=>{store.removeDocument();fit();}}><i class="ic ic-trash" aria-hidden="true"></i></button>
   </div>
   {#if store.removedDocuments.length}<button class="btn btn-soft" onclick={()=>{store.restoreDocument();fit();}}>Entfernen rückgängig: {store.removedDocuments.at(-1)?.name}</button>{/if}

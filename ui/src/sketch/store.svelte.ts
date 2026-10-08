@@ -295,13 +295,15 @@ export class SketchStore {
     this.openDocument(removed.id);
     try { localStorage.setItem(REMOVED,JSON.stringify(this.removedDocuments)); } catch {}
   }
-  openDocument(id:string): void {
+  async openDocument(id:string): Promise<boolean> {
     const wanted=this.documents.find(d=>d.id===id);
     // Another screen's sketch comes from the server first.
-    if(wanted?.remote){ void this.load(id).then(full=>{ if(full)this.openDocument(id); }); return; }
-    this.save(); const doc=this.documents.find(d=>d.id===id); if(!doc)return;
+    if(wanted?.remote){ const full = await this.load(id); if (!full) return false; }
+    const doc=this.documents.find(d=>d.id===id); if(!doc)return false;
+    this.save();
     this.activeDocument=doc.id;this.name=doc.name;this.target=doc.target;this.sourcePart=doc.sourcePart;this.jobKey=doc.jobKey;
     this.use(null);this.sketch=primaryRelations(doc.sketch);this.past=[];this.future=[];this.history();this.selection=new Set();this.view=null;this.save();this.refreshFreedom();
+    return true;
   }
 
   begin(sketch: Sketch, name: string, target: SketchTarget, sourcePart?:string, jobKey?:string): void {

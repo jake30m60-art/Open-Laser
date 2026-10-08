@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { listRemote, type RemoteSummary } from '../sketch/remote';
+  import { sketchStore } from '../sketch/store.svelte';
+  import { beginProject } from '../lib/sketch-workflow';
+  import { explain } from '../lib/format';
   import { t } from '../i18n/index';
 
   import SkippedFiles from '../components/SkippedFiles.svelte';
@@ -18,7 +22,27 @@
   import { livePicks, togglePick } from '../lib/job-parts';
   import { withBusy } from '../lib/busy';
 
-  let kind = $state<'all' | 'parts' | 'jobs' | 'sheets'>('all');
+  let kind = $state<'all' | 'parts' | 'jobs' | 'sheets' | 'sketches'>('all');
+  let sketches = $state<RemoteSummary[]>([]);
+  let sketchError = $state('');
+  let sketchLoading = $state(false);
+  $effect(() => {
+    if (kind !== 'sketches') return;
+    let active = true;
+    sketchLoading = true;
+    sketchError = '';
+    void listRemote().then(result => { if (active) { if (result) sketches = result; else sketchError = t('Could not load sketches.'); } })
+      .catch(error => { if (active) sketchError = explain(error); })
+      .finally(() => { if (active) sketchLoading = false; });
+    return () => { active = false; };
+  });
+  async function openSketch(id: string): Promise<void> {
+    try {
+      await sketchStore.sync();
+      if (!await sketchStore.openDocument(id)) { ui.say(t('Could not load sketches.'), true); return; }
+      ui.tab = 'sketch';
+    } catch (error) { ui.say(explain(error), true); }
+  }
   let search = $state('');
   let actions = $state(false);
   let history = $state(false);
@@ -97,12 +121,27 @@
 </div>
 <SkippedFiles />
 <div class="phone-segments" role="group" aria-label={t("Library type")}>
-  {#each [['all','All'],['parts','Parts'],['jobs','Jobs'],['sheets','Sheets']] as [id,label]}
+  {#each [['all','All'],['parts','Parts'],['jobs','Jobs'],['sketches','Sketches'],['sheets','Sheets']] as [id,label]}
     <button aria-pressed={kind === id} onclick={() => kind = id as typeof kind}>{t(label)}</button>
   {/each}
 </div>
 {#if kind === 'sheets'}
   <SheetLibrary />
+{:else if kind === 'sketches'}
+  <label class="phone-search"><input type="search" aria-label={t('Search sketches')} placeholder={t('Search sketches')} bind:value={search} /></label>
+  {#if sketchError}<p role="alert">{sketchError}</p>
+  {:else if sketchLoading}<p role="status">{t('Loading…')}</p>
+  {:else}
+    <div class="phone-library-list">
+      {#each sketches.filter(s => !search.trim() || fuzzyScore(s.name, search.trim()) > 0) as sketch (sketch.id)}
+        <button class="phone-library-item" onclick={() => openSketch(sketch.id)}>
+          <Preview outline={sketch.outline} label={sketch.name} small />
+          <span><strong>{sketch.name}</strong><small>{t('Edit as sketch')}</small></span>
+          <i class="ic ic-arrow-right"></i>
+        </button>
+      {:else}<p class="phone-empty">{t(search ? 'Nothing matches' : 'No sketches yet')}</p>{/each}
+    </div>
+  {/if}
 {:else}
   <label class="phone-search">
     <i class="ic ic-search"></i>
@@ -119,7 +158,9 @@
         disabled={blocked}
         aria-pressed={picking && type === 'parts' ? pick >= 0 : undefined}
         onclick={() => choose(item.id, type)}>
-        <Preview outline={item.outline} small />
+        {#if 'has_image' in item && item.has_image}
+          <img class="part-image" src={`${api.partImageUrl(item.id)}?v=${item.updated}`} alt={item.name} loading="lazy" />
+        {:else}<Preview outline={item.outline} small />{/if}
         <span>
           <strong>{item.name}</strong>
           <small>{type === 'jobs' && 'recipe' in item ? recipeLabel(item.recipe) : size(item.bounds)}</small>
@@ -157,6 +198,7 @@
 {#if actions}<Modal title={t("Library actions")} onclose={() => actions = false}>
   <div class="phone-import-actions"><ImportParts /></div>
   <div class="phone-action-list">
+    <button onclick={() => { actions = false; beginProject(); }}>{t("New project")}<i class="ic ic-arrow-right"></i></button>
     <button onclick={toggleFavorites}>{t("Favorites")}<i class="ic ic-arrow-right"></i></button>
     <button onclick={showHistory}>{t("History")}<i class="ic ic-arrow-right"></i></button>
   </div>
@@ -165,6 +207,7 @@
 {#if details}<Modal title={t("Part details")} onclose={() => details = false}><div class="phone-part-details"><PartsSide /></div></Modal>{/if}
 
 <style>
+  .part-image { width:64px; height:64px; flex:none; object-fit:contain; background:white; border-radius:12px; }
   .phone-title-actions { display:flex; align-items:center; gap:8px; }
   .pick-toggle { min-height:44px; }
   .pick-toggle[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }

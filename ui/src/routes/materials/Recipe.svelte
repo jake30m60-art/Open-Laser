@@ -8,6 +8,7 @@
   // flag flips in place, a gas is its chips, and text opens the keyboard.
   // Everything stays staged until Save.
   import Cutting from './Cutting.svelte';
+  import { airRecipeUsesNitrogen } from '../../lib/recipe-source';
   import Piercing from './Piercing.svelte';
   import Options from './Options.svelte';
   import Engraving from './Engraving.svelte';
@@ -151,6 +152,9 @@
     <span><b>{tr("Setup")}</b><span class="text">{noteLine || tr('No setup note yet')}</span></span>
     <button class="btn btn-ghost" onclick={note}>{tr("Edit setup")}</button>
   </div>
+  {#if airRecipeUsesNitrogen(recipe, values)}
+    <p class="gas-source-warning" role="alert">{tr('The source says air, but this recipe selects the N₂ valve. Check the connected gas line before cutting.')}</p>
+  {/if}
   <div class="recipe-summary"><MaterialSummary source={summary} /></div>
   <div class="recipe-tabs">
     <div class="seg">
@@ -185,3 +189,4 @@
 {#if sheet}
   <Sheets {ed} which={sheet} {recipe} {visible} recipes={doc.library.recipes} {film} {onfilm} onclose={() => (sheet = null)} />
 {/if}
+<style>.gas-source-warning { padding:12px; margin:8px 16px; border:1px solid var(--warn); border-radius:8px; color:var(--ink); }</style>

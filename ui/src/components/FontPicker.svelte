@@ -127,11 +127,11 @@
   .font-heading button { color: var(--accent); min-height: 44px; padding: 8px 12px; }
   button { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); color: var(--ink); font: inherit; cursor: pointer; padding: 10px 15px; }
   button.on { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
-  .font-defaults { display: flex; gap: 6px; }
+  .font-defaults { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
   .font-sources { display: flex; gap: 6px; }
   .font-system { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
   .font-system .font-list { max-height: 240px; }
-  .font-defaults button { flex: 1; }
+  .font-defaults button { min-width:0; overflow-wrap:anywhere; padding-inline:6px; }
   .font-imported-heading { margin-top: 6px; }
   .font-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: 170px; overflow: auto; }
   .font-list button { display: grid; gap: 5px; text-align: left; overflow-wrap: anywhere; }

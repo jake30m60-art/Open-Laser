@@ -30,7 +30,7 @@
   /** A card: a part, a saved job, or sheets kept in a folder. */
   type Card = {
     id: string; kind: 'part' | 'job' | 'stock' | 'remnant' | 'sketch'; name: string; search: string; folder: string | null; laser: 'fiber' | 'co2' | null;
-    material: string; size: string; contours: number; favourite: boolean; updated: number; outline: number[][][]; parts: number;
+    material: string; size: string; contours: number; favourite: boolean; updated: number; outline: number[][][]; parts: number; image?: string;
   };
 
   let kindFilter = $state<'all' | 'part' | 'job' | 'sheet' | 'sketch'>('all');
@@ -51,7 +51,7 @@
   /** Opens a sketch to edit; one only the server has is fetched first. */
   async function openSketch(id: string): Promise<void> {
     if (!sketchStore.documents.some((d) => d.id === id)) await sketchStore.sync();
-    sketchStore.openDocument(id);
+    if (!await sketchStore.openDocument(id)) { ui.say(t('Could not load sketches.'), true); return; }
     ui.tab = 'sketch';
   }
   let laserFilter = $state<'all' | 'fiber' | 'co2'>('all');
@@ -82,6 +82,7 @@
     const parts = library.parts.map((p): Card => ({
       id: p.id, kind: 'part', name: p.name, search: `${p.tags.join(' ')} ${p.notes}`, folder: p.folder, laser: null, material: '',
       size: size(p.bounds), contours: p.contours, favourite: p.favourite, updated: p.updated, outline: p.outline, parts: 1,
+      image: p.has_image ? `${api.partImageUrl(p.id)}?v=${p.updated}` : undefined,
     }));
     const jobs = library.jobs.flatMap((j: JobView): Card[] => {
       if (!hasAllParts(j, library.parts)) return [];
@@ -355,11 +356,15 @@
             </button>
           {/if}
           <div class="thumb">
+            {#if c.image}
+              <img class="part-image" src={c.image} alt={c.name} loading="lazy" />
+            {:else}
             <svg viewBox={thumb(c.outline)}>
               {#each c.outline as line}
                 <path d={pathOf(line)} fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
               {/each}
             </svg>
+            {/if}
           </div>
           <div class="title">{c.name}</div>
           <div class="sub">
@@ -416,6 +421,7 @@
   .filter-label { font-size:var(--t-sm); font-weight:600; color:var(--ink-3); }
   .fav-toggle { justify-content:flex-start; }
   .parts-grid .card { height:auto; min-height:0; }
+  .part-image { width:100%; height:100%; min-height:0; object-fit:contain; }
   .parts-grid .card .thumb { flex:1 1 64px; height:auto; min-height:64px; }
   .pick-mark { position:absolute; top:8px; left:8px; width:32px; height:32px; border-radius:50%; border:2px solid var(--ink-3); background:var(--panel); display:grid; place-items:center; font-weight:700; font-size:var(--t-sm); z-index:1; }
   .pick-mark.on { background:var(--accent); border-color:var(--accent); color:#fff; }

@@ -44,6 +44,10 @@ bounds: Bounds | null,
  */
 contours: number,
 /**
+ * Whether the part has a raster available at its image endpoint.
+ */
+has_image: boolean,
+/**
  * A thumbnail: the contours as polylines in drawing coordinates.
  */
 outline: Array<Array<[number, number]>>,

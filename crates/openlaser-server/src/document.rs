@@ -504,6 +504,8 @@ pub struct PartView {
     pub bounds: Option<Bounds>,
     /// How many contours it has.
     pub contours: usize,
+    /// Whether the part has a raster available at its image endpoint.
+    pub has_image: bool,
     /// A thumbnail: the contours as polylines in drawing coordinates.
     #[serde(serialize_with = "crate::display_path::micrometres")]
     pub outline: Vec<Vec<[f64; 2]>>,
@@ -544,6 +546,7 @@ impl PartView {
             file_name: part.file_name.clone(),
             bounds: part.bounds(),
             contours: part.drawing.contours.len(),
+            has_image: part.image.is_some(),
             outline: crate::display_path::thumbnail(&crate::draft::outline(&part.drawing, 64)),
             layers,
             favourite: part.favourite,

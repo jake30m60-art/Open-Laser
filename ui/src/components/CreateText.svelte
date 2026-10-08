@@ -108,7 +108,7 @@
       </div>{:else}<p class="muted text-face-note">{t("Weight and style come from the selected font.")}</p>{/if}
       <div><div class="text-label">{t("Align lines")}</div><div class="text-choices">
         {#each ['left', 'center', 'right'] as side}
-          <button class:on={alignment === side} aria-pressed={alignment === side} disabled={creating} onclick={() => (alignment = side as TextOptions['alignment'])}>{side[0]!.toUpperCase() + side.slice(1)}</button>
+          <button class:on={alignment === side} aria-pressed={alignment === side} disabled={creating} onclick={() => (alignment = side as TextOptions['alignment'])}>{t(side === 'left' ? 'Left' : side === 'right' ? 'Right' : 'Center')}</button>
         {/each}
       </div></div>
     </div>
@@ -126,7 +126,7 @@
 </Modal>
 
 <style>
-  .text-editor { display: grid; gap: 18px; }
+  .text-editor { display: grid; grid-template-columns:minmax(0,1fr); min-width:0; gap:18px; }
   .text-label { display: grid; gap: 8px; font-size: var(--t-sm); color: var(--ink-2); }
   textarea { width: 100%; resize: vertical; min-height: 100px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--ink); padding: 12px; font: inherit; font-size: var(--t-lg); line-height: 1.4; }
   .text-controls { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px 24px; }
