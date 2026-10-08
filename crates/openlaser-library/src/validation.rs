@@ -128,7 +128,12 @@ pub(crate) fn part(part: &Part, library: &Library) -> Result<()> {
     }
     if let Some(image) = &part.image {
         image.raster.check().map_err(Error::Invalid)?;
-        if !part.drawing.contours.get(image.frame).is_some_and(|c| c.is_closed()) {
+        if !part
+            .drawing
+            .contours
+            .get(image.frame)
+            .is_some_and(openlaser_core::geometry::Contour::is_closed)
+        {
             return Err(Error::Invalid("an image must be framed by a closed contour".into()));
         }
     }

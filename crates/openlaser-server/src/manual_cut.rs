@@ -21,6 +21,7 @@ pub struct ManualCut {
 
 impl Coordinator {
     /// Stages a separation cut; never starts machine motion or turns on the beam.
+    #[allow(clippy::needless_pass_by_value, reason = "the API hands the request over")]
     pub fn manual_cut(&mut self, cut: ManualCut) -> Result<()> {
         let bed = crate::correction::bed(self)?;
         for point in [cut.start, cut.end] {

@@ -57,6 +57,7 @@ pub async fn start(name: &str) -> (Simulator, Shared) {
 }
 
 /// Waits until the document satisfies `done`, within `seconds`.
+#[allow(clippy::expect_used, reason = "a test helper; a dead coordinator fails the test")]
 pub async fn until(shared: &Shared, seconds: u64, done: impl Fn(&Document) -> bool) {
     let mut documents = shared.lock().await.subscribe();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(seconds);

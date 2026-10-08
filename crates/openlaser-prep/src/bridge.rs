@@ -661,7 +661,7 @@ mod tests {
             inner.clone(),
             Contour {
                 layer: inner.layer.clone(),
-                curves: inner.curves.iter().rev().map(|c| c.reversed()).collect(),
+                curves: inner.curves.iter().rev().map(Curve::reversed).collect(),
             },
         ] {
             let result =

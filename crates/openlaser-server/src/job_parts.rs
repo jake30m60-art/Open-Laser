@@ -65,7 +65,10 @@ impl Coordinator {
             return Err(Error::Refused("the replacement already belongs to this job".into()));
         }
         let sources = Arc::new(self.library.job_drawing(&parts)?);
-        self.draft.as_mut().unwrap().replace_part(sources, index)?;
+        self.draft
+            .as_mut()
+            .ok_or_else(|| Error::Refused("open a part first".into()))?
+            .replace_part(sources, index)?;
         self.reprepare();
         Ok(())
     }

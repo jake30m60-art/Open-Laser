@@ -895,13 +895,13 @@ impl Draft {
         let results = openlaser_prep::bridged_contours(&sheet, &features)?;
         // A result is bridged when it joins contours or shares its sources
         // with another result, as the halves of a split do.
-        let bridged = |sources: &Vec<usize>| {
+        let is_bridged = |sources: &Vec<usize>| {
             sources.len() > 1 || results.iter().filter(|(other, _)| other == sources).count() > 1
         };
         let mut covered = Vec::new();
         let mut contours = Vec::new();
         for (from, contour) in &results {
-            if !bridged(from) || !from.iter().all(|s| own.contains(s)) {
+            if !is_bridged(from) || !from.iter().all(|s| own.contains(s)) {
                 continue;
             }
             contours.push(placed[from[0]].transform.inverse().contour(contour));
@@ -1808,7 +1808,7 @@ pub fn compile(
         })
         .collect::<Result<Vec<_>>>()?;
     let mut view = summary(&job, &program, blocks, dry_run, plan);
-    view.engraving_regions = prepared.preview.engraving_regions.clone();
+    view.engraving_regions.clone_from(&prepared.preview.engraving_regions);
     let filled = |layer: &str| view.engraving_regions.iter().any(|c| c.layer == layer);
     view.engraving_paths = prepared
         .preview
@@ -1981,8 +1981,8 @@ mod tests {
         assert!(marks.iter().any(|p| (p.points[0][1] - p.points.last().unwrap()[1]).abs() > 1.));
         for path in marks {
             for segment in path.points.windows(2) {
-                let x = (segment[0][0] + segment[1][0]) / 2.;
-                let y = (segment[0][1] + segment[1][1]) / 2.;
+                let x = segment[0][0].midpoint(segment[1][0]);
+                let y = segment[0][1].midpoint(segment[1][1]);
                 assert!(
                     !(x > 2.0001 && x < 7.9999 && y > 2.0001 && y < 7.9999),
                     "hole must stay clear"
@@ -2043,6 +2043,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::items_after_statements, reason = "the types belong to the second half")]
     fn failed_preparation_keeps_assigned_layers_without_toolpaths() {
         let mut drawing = square();
         let corners = [[0., 0.], [10., 10.], [0., 10.], [10., 0.]];
@@ -2138,8 +2139,7 @@ mod tests {
             }
         }
         drawing.contours.push(hole);
-        let mut f = Features::default();
-        f.only_contours = Some(vec![1]);
+        let mut f = Features { only_contours: Some(vec![1]), ..Features::default() };
         let selected = prepare(&drawing, &Placed::all(2), &f).unwrap();
         assert_eq!(selected.preview.contours.len(), 1);
         assert_eq!(selected.preview.contours[0].sources, vec![1]);
@@ -2170,10 +2170,13 @@ mod tests {
             }
         }
         drawing.contours.push(hole);
-        let mut f = Features::default();
-        f.layer_edits =
-            serde_json::from_value(serde_json::json!([{ "contour":0,"layer":"Engraving" }]))
-                .unwrap();
+        let mut f = Features {
+            layer_edits: serde_json::from_value(
+                serde_json::json!([{ "contour":0,"layer":"Engraving" }]),
+            )
+            .unwrap(),
+            ..Features::default()
+        };
         f.layers.push(Layer {
             name: "Engraving".into(),
             mode: LayerMode::Mark,
@@ -2209,8 +2212,8 @@ mod tests {
         assert!(!marks.is_empty());
         for path in marks {
             for span in path.points.windows(2) {
-                let x = (span[0][0] + span[1][0]) / 2.;
-                let y = (span[0][1] + span[1][1]) / 2.;
+                let x = span[0][0].midpoint(span[1][0]);
+                let y = span[0][1].midpoint(span[1][1]);
                 assert!(!(x > 2.0001 && x < 7.9999 && y > 2.0001 && y < 7.9999));
             }
         }

@@ -698,6 +698,7 @@ impl Library {
 
     /// A new part of `drawing` from the original kept as `sha256`, not yet
     /// stored.
+    #[allow(clippy::unused_self, reason = "a library method beside the others that store")]
     fn add_part_with(&self, file_name: &str, sha256: String, drawing: Drawing) -> Result<Part> {
         let name = clean_name(
             Path::new(file_name).file_stem().and_then(|s| s.to_str()).unwrap_or(file_name),

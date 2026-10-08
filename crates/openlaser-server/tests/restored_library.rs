@@ -41,6 +41,7 @@ fn forget_pinned_zero(after: &mut serde_json::Value, before: &serde_json::Value)
 #[tokio::test]
 #[ignore = "requires OPENLASER_TEST_LIBRARY (isolated writable copy), BACKUP and REPORT paths; \
             OPENLASER_TEST_RECIPE optionally gives a working copy without material one"]
+#[allow(clippy::too_many_lines, reason = "one end-to-end acceptance run")]
 async fn restored_library_compiles_and_executes() {
     let simulator = Simulator::start().await.unwrap();
     let control = simulator.control();

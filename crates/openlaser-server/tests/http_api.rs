@@ -839,6 +839,7 @@ async fn an_image_engraves_in_shades_of_gray_and_runs_to_the_end() {
 /// Repairing contours shows what it would do, saves the result as a new part
 /// that can stand in for the original in the open job, and keeps the original.
 #[tokio::test]
+#[allow(clippy::too_many_lines, reason = "one end-to-end repair story")]
 async fn repairing_contours_saves_a_part_that_replaces_the_faulty_one() {
     use openlaser_core::geometry::{Contour, Curve, Drawing};
     let server = Server::start().await;
@@ -887,7 +888,9 @@ async fn repairing_contours_saves_a_part_that_replaces_the_faulty_one() {
             .unwrap()
             .iter()
             .filter(|c| !c["problem"].is_null())
-            .flat_map(|c| c["sources"].as_array().unwrap().iter().filter_map(|s| s.as_u64()))
+            .flat_map(|c| {
+                c["sources"].as_array().unwrap().iter().filter_map(serde_json::Value::as_u64)
+            })
             .collect()
     };
     let state = |server: &Server| {

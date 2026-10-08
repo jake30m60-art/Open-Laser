@@ -337,6 +337,7 @@ pub fn bridge_boundaries(
 }
 
 /// Prepares `drawing` under `features`.
+#[allow(clippy::too_many_lines, reason = "preparation runs its stages in order in one place")]
 pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     validate_drawing(drawing, features)?;
     check_images(drawing, features)?;
@@ -416,10 +417,10 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     let ranks = layer_order(drawing, features);
     let rank = |layer: &str| ranks.iter().position(|l| l == layer).unwrap_or(ranks.len());
     let mut selected_order = features.order.clone();
-    if features.only_contours.is_some() {
-        if let openlaser_core::features::OrderStrategy::Manual(ids) = &mut selected_order.strategy {
-            ids.retain(|i| items.iter().any(|item| item.sources.contains(i)));
-        }
+    if features.only_contours.is_some()
+        && let openlaser_core::features::OrderStrategy::Manual(ids) = &mut selected_order.strategy
+    {
+        ids.retain(|i| items.iter().any(|item| item.sources.contains(i)));
     }
     let mut sequence = order::arrange(&items, &selected_order)?;
     sequence.sort_by_key(|&i| rank(&prepared[i].layer));
@@ -455,6 +456,7 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
 /// Each marked layer with a fill of its own: its closed shapes become one
 /// scan zigzag where the first of them ran, followed by the shapes
 /// themselves when the fill keeps its outlines.
+#[allow(clippy::too_many_lines, reason = "a fill's pieces, scan and outlines are built together")]
 fn fills(
     contours: Vec<PreparedContour>,
     features: &Features,

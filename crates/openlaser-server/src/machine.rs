@@ -1156,9 +1156,9 @@ pub async fn run_reviewed(
     let result = work(move || {
         let (program, mut view) =
             binding.job(&compiled.job, compiled.dry_run, compiled.view.plan.clone())?;
-        Arc::make_mut(&mut view).engraving_regions = compiled.view.engraving_regions.clone();
-        Arc::make_mut(&mut view).engraving_paths = compiled.view.engraving_paths.clone();
-        Arc::make_mut(&mut view).engraving_passes = compiled.view.engraving_passes.clone();
+        Arc::make_mut(&mut view).engraving_regions.clone_from(&compiled.view.engraving_regions);
+        Arc::make_mut(&mut view).engraving_paths.clone_from(&compiled.view.engraving_paths);
+        Arc::make_mut(&mut view).engraving_passes.clone_from(&compiled.view.engraving_passes);
         let held = Arc::new(Held {
             sheet,
             job: compiled.job.clone(),
@@ -1216,10 +1216,12 @@ pub async fn resume_reviewed(
             plan,
             recovery.return_position(),
         )?;
-        Arc::make_mut(&mut view).engraving_regions =
-            recovery.execution.compiled.engraving_regions.clone();
-        Arc::make_mut(&mut view).engraving_paths =
-            recovery.execution.compiled.engraving_paths.clone();
+        Arc::make_mut(&mut view)
+            .engraving_regions
+            .clone_from(&recovery.execution.compiled.engraving_regions);
+        Arc::make_mut(&mut view)
+            .engraving_paths
+            .clone_from(&recovery.execution.compiled.engraving_paths);
         Arc::make_mut(&mut view).engraving_passes = view
             .plan
             .iter()

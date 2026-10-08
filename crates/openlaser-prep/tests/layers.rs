@@ -358,7 +358,7 @@ fn bridged_engraving_uses_the_opened_boundary_not_the_old_hole() {
     for segment in path.contours.iter().flat_map(|c| &c.segments).filter(|s| !s.process.joint) {
         let a = segment.curve.start();
         let b = segment.curve.end();
-        let mid = Point::new((a.x + b.x) / 2., (a.y + b.y) / 2.);
+        let mid = Point::new(a.x.midpoint(b.x), a.y.midpoint(b.y));
         assert!(!(mid.x > 4. && mid.x < 10. && mid.y.abs() < 0.9), "bridge must remain clear");
     }
 }

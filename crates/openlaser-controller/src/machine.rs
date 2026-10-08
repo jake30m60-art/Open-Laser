@@ -114,6 +114,10 @@ impl Command {
         )
     }
 
+    #[allow(
+        clippy::match_same_arms,
+        reason = "the replies differ in type; the arms only look alike"
+    )]
     fn refuse(self, error: Error) {
         match self {
             Self::Connect(_, reply) => drop(reply.send(Err(error))),

@@ -31,6 +31,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// The router with embedded assets, or `ui_dir` for development builds.
+#[allow(clippy::too_many_lines, reason = "the route table is one list")]
 pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
     Router::new()
         .route("/api/state", get(state))

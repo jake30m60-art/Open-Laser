@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! The engraving calibration test: per speed, three blocks of four lines.
-#![allow(clippy::unwrap_used, clippy::expect_used, reason = "known offline fixtures")]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::cast_possible_truncation,
+    reason = "known offline fixtures with exact millimetre positions"
+)]
 mod common;
 
 use common::start;

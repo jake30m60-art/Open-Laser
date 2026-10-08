@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Offline tests for manually placed sheet separation lines.
-#![allow(clippy::unwrap_used, reason = "offline fixtures")]
+#![allow(
+    clippy::unwrap_used,
+    clippy::float_cmp,
+    reason = "offline fixtures with exact coordinates"
+)]
 mod common;
 use common::start;
 use openlaser_core::LaserMode;

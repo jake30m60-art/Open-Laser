@@ -568,7 +568,11 @@ fn shade(lines: &mut [Line], raster: &Raster, image: &ImageFill, pitch: f64) -> 
             }
             let mut row: Vec<u8> = Vec::new();
             for k in first..end {
-                #[allow(clippy::cast_precision_loss, reason = "cell indices stay small")]
+                #[allow(
+                    clippy::cast_precision_loss,
+                    clippy::cast_possible_wrap,
+                    reason = "cell indices stay small"
+                )]
                 let middle = line.at((k as f64 + 0.5) * pitch);
                 let dark = darkness(raster.gray_at(middle).unwrap_or(1.), image);
                 row.push(match image.mode {
@@ -598,7 +602,11 @@ fn shade(lines: &mut [Line], raster: &Raster, image: &ImageFill, pitch: f64) -> 
             else {
                 continue;
             };
-            #[allow(clippy::cast_precision_loss, reason = "cell indices stay small")]
+            #[allow(
+                clippy::cast_precision_loss,
+                clippy::cast_possible_wrap,
+                reason = "cell indices stay small"
+            )]
             let at = |cell: usize| (first + cell as i64) as f64 * pitch;
             spans.push((at(from), at(to + 1)));
             cells += to + 1 - from;
@@ -692,6 +700,7 @@ pub(crate) fn fill_framing(
 mod tests {
     use super::*;
 
+    #[allow(clippy::many_single_char_names, reason = "a rectangle is x, y, w, h")]
     fn rect(source: usize, x: f64, y: f64, w: f64, h: f64) -> PreparedContour {
         let p = [
             Point::new(x, y),
@@ -1120,6 +1129,7 @@ mod tests {
         let levels: Vec<u8> =
             lit(&paths).iter().flat_map(|s| s.process.levels.as_ref().unwrap().to_vec()).collect();
         assert!(levels.iter().all(|&l| l == 0 || l == 100), "dots are on or off");
+        #[allow(clippy::naive_bytecount, reason = "a test count, not a hot path")]
         let on = levels.iter().filter(|&&l| l == 100).count();
         // About half of the 1600 cells; trimming drops some off cells.
         assert!((700..=900).contains(&on), "{on} dots on");

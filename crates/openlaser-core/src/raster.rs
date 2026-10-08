@@ -100,6 +100,10 @@ impl Raster {
     /// The gray level at `point`, 0 black to 1 white, blended between the
     /// four nearest pixels; `None` outside the image.
     #[must_use]
+    #[allow(
+        clippy::many_single_char_names,
+        reason = "u, v and the corner grays are the bilinear formula"
+    )]
     pub fn gray_at(&self, point: Point) -> Option<f64> {
         let rel = point - self.origin;
         let det = self.across.cross(self.down);

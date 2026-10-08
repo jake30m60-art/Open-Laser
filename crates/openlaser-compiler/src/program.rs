@@ -2604,9 +2604,7 @@ mod tests {
     }
     #[test]
     fn laser_off_scan_ramps_display_as_travel_without_changing_motion() {
-        let mut ramp = SegmentProcess::default();
-        ramp.joint = true;
-        ramp.power = Some(0.);
+        let mut ramp = SegmentProcess { joint: true, power: Some(0.), ..SegmentProcess::default() };
         ramp.run_up = true;
         let contours = [Contour {
             segments: tagged(

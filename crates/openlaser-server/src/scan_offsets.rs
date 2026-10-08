@@ -359,7 +359,7 @@ impl Coordinator {
         let (acceleration, time) = self.scan_motion()?;
         for layer in &draft.current.features.layers {
             if layer.mode != LayerMode::Mark
-                || !layer.machining.as_ref().is_some_and(|m| m.fill.is_some())
+                || layer.machining.as_ref().is_none_or(|m| m.fill.is_none())
             {
                 continue;
             }
@@ -370,23 +370,19 @@ impl Coordinator {
                 .find(|c| c.layer == layer.name)
                 .and_then(|c| c.recipe.as_ref())
                 .or(draft.current.recipe.as_ref());
-            if let Some(recipe) = recipe {
-                if let Some(speed) = recipe
+            if let Some(recipe) = recipe
+                && let Some(speed) = recipe
                     .attributes
                     .get("CutSpeed")
                     .and_then(|v| v.parse::<f64>().ok())
                     .filter(|v| v.is_finite() && *v > 0.)
-                {
-                    let slow = ["SlowStartLength", "UD_UpLen", "UD_DownLen"]
-                        .iter()
-                        .filter_map(|k| recipe.attributes.get(*k)?.parse::<f64>().ok())
-                        .filter(|v| v.is_finite() && *v >= 0.)
-                        .fold(0., f64::max);
-                    ramps.insert(
-                        layer.name.clone(),
-                        run_up(speed, acceleration, time).max(slow + 5.),
-                    );
-                }
+            {
+                let slow = ["SlowStartLength", "UD_UpLen", "UD_DownLen"]
+                    .iter()
+                    .filter_map(|k| recipe.attributes.get(*k)?.parse::<f64>().ok())
+                    .filter(|v| v.is_finite() && *v >= 0.)
+                    .fold(0., f64::max);
+                ramps.insert(layer.name.clone(), run_up(speed, acceleration, time).max(slow + 5.));
             }
         }
         Ok(ramps)
@@ -442,6 +438,11 @@ impl Coordinator {
     /// Loads a coupon into Setup: one marked field per speed, each on its own
     /// layer with the recipe at that speed, scanned both ways at the angle
     /// and engraved without compensation.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::needless_pass_by_value,
+        reason = "one coupon is laid out, checked and staged in one place; the API hands it over"
+    )]
     pub fn scan_offset_coupon(&mut self, coupon: ScanCoupon) -> Result<()> {
         if coupon.speeds.is_empty() || coupon.speeds.len() > MAX_SPEEDS {
             return Err(Error::Request(format!("test 1 to {MAX_SPEEDS} speeds")));
@@ -483,7 +484,7 @@ impl Coordinator {
             .cloned()
             .ok_or_else(|| Error::Request("choose an engraving recipe".into()))?;
         if Some(recipe.laser) != self.mode
-            || !recipe.attributes.get("OpenLaserProcess").is_some_and(|v| v == "engrave")
+            || recipe.attributes.get("OpenLaserProcess").is_none_or(|v| v != "engrave")
         {
             return Err(Error::Request(
                 "calibration needs an engraving recipe for the active laser".into(),
@@ -696,6 +697,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "positions are exact sums of whole millimetres")]
     fn a_coupon_lays_speeds_four_to_a_row_upward() {
         // One block of four 10 mm lines, 1 mm apart.
         let size = group_size(10., 1., 0.);

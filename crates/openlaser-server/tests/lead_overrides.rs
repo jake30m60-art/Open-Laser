@@ -178,6 +178,7 @@ fn old_jobs_load_and_new_jobs_round_trip_without_reusing_contour_edits_on_other_
 #[tokio::test]
 async fn copies_take_their_selection_machining_along() {
     use openlaser_core::features::{ContourMachining, Machining, MachiningPart};
+    use openlaser_core::grouping::Grouping;
     let (_sim, shared) = common::start("copied-selection").await;
     {
         let mut c = shared.lock().await;
@@ -215,12 +216,13 @@ async fn copies_take_their_selection_machining_along() {
         // A copy of the selected square keeps its own leads; a bare copy has the job's.
         let relative = ContourMachining { contours: vec![0], ..own };
         assert_eq!(
-            c.add_pasted(&copy(30.), &[], &Default::default(), &[relative.clone()]).unwrap(),
+            c.add_pasted(&copy(30.), &[], &Grouping::default(), std::slice::from_ref(&relative))
+                .unwrap(),
             [1]
         );
         assert_eq!(c.add(&copy(60.)).unwrap(), [2]);
         let outside = ContourMachining { contours: vec![1], ..relative };
-        assert!(c.add_pasted(&copy(90.), &[], &Default::default(), &[outside]).is_err());
+        assert!(c.add_pasted(&copy(90.), &[], &Grouping::default(), &[outside]).is_err());
     }
     machine::prepare(&shared).await.unwrap();
     assert_lengths(shared.lock().await.draft.as_ref().unwrap(), &[4., 4., 2.]);

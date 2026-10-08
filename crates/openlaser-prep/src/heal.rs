@@ -160,9 +160,7 @@ fn loops(contour: &Contour, tolerance: f64) -> Option<(Vec<Contour>, usize)> {
         for &(t, node) in &*cut {
             if t <= EPS_T {
                 tokens.push(Token::Node(node));
-            } else if t >= 1. - EPS_T {
-                continue;
-            } else {
+            } else if t < 1. - EPS_T {
                 tokens.push(Token::Piece(curve.slice(from, t)));
                 tokens.push(Token::Node(node));
                 from = t;
@@ -305,6 +303,7 @@ fn along(center: Point, start_angle: f64, sweep: f64, point: Point) -> Option<f6
     }
 }
 
+#[allow(clippy::many_single_char_names, reason = "the quadratic a, b, c as in the formula")]
 fn line_arc(
     start: Point,
     end: Point,
