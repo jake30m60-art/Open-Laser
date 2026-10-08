@@ -275,7 +275,7 @@ impl Compiled {
 
     /// Whether the pass pierces standing before it moves: a pre-pierce
     /// point always, a cut when it pierces and does not open in a joint,
-    /// which enters at speed instead ([`Entry::for_cut`]).
+    /// which enters at speed instead (`Entry::for_cut`).
     #[must_use]
     pub fn pierces_on_entry(&self) -> bool {
         match self.pass.kind {
