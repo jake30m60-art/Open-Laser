@@ -193,6 +193,9 @@ export const api = {
   reviewPart: (name: string, bytes: ArrayBuffer, options?: ImportOptions) => request<ImportReview>('POST', `/api/parts/review?${partImportQuery(name, options)}`, undefined, bytes),
   previewText: (text: TextOptions) => post<TextPreview>('/api/text/preview', text),
   fonts: () => request<{ fonts: FontFace[] }>('GET', '/api/fonts'),
+  /** The fonts installed on the computer OpenLaser runs on. */
+  systemFonts: () => request<{ fonts: { file: string; families: string[] }[] }>('GET', '/api/fonts/system'),
+  importSystemFont: (file: string) => post<{ ok: true; fonts: FontFace[]; existing: boolean }>('/api/fonts/system', { file }),
   importFont: (name: string, bytes: ArrayBuffer) => request<{ ok: true; fonts: FontFace[]; existing: boolean }>('POST', `/api/fonts?name=${encodeURIComponent(name)}`, undefined, bytes),
   createText: (name: string, text: TextOptions) => post<{ ok: true; id: string; warnings: string[] }>('/api/parts/text', { name, text }),
   updatePart: (id: string, change: ItemChange) => post(`/api/parts/${id}`, change),

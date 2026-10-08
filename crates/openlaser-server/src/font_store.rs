@@ -101,6 +101,68 @@ impl Store {
     }
 }
 
+/// A font file installed on this computer, with the families it holds.
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct SystemFont {
+    /// Its full path, which names it for importing.
+    pub file: String,
+    /// The family names of its faces.
+    pub families: Vec<String>,
+}
+
+/// The folders the operating system keeps fonts in.
+fn system_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let env = |key: &str| std::env::var_os(key).map(PathBuf::from);
+    if cfg!(windows) {
+        dirs.extend(env("WINDIR").map(|w| w.join("Fonts")));
+        dirs.extend(env("LOCALAPPDATA").map(|l| l.join("Microsoft").join("Windows").join("Fonts")));
+    } else if cfg!(target_os = "macos") {
+        dirs.extend(["/Library/Fonts", "/System/Library/Fonts"].map(PathBuf::from));
+        dirs.extend(env("HOME").map(|h| h.join("Library").join("Fonts")));
+    } else {
+        dirs.extend(["/usr/share/fonts", "/usr/local/share/fonts"].map(PathBuf::from));
+        dirs.extend(env("HOME").map(|h| h.join(".local").join("share").join("fonts")));
+    }
+    dirs
+}
+
+/// The fonts installed on this computer, read once and kept.
+pub(crate) fn system_fonts() -> &'static [SystemFont] {
+    static FONTS: std::sync::OnceLock<Vec<SystemFont>> = std::sync::OnceLock::new();
+    FONTS.get_or_init(|| {
+        let mut files = Vec::new();
+        let mut stack = system_dirs();
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
+                if ["ttf", "otf", "ttc", "otc"].contains(&ext.as_str()) {
+                    files.push(path);
+                }
+            }
+        }
+        let mut out: Vec<SystemFont> = files
+            .into_iter()
+            .filter(|path| std::fs::metadata(path).is_ok_and(|m| m.len() < 64 * 1024 * 1024))
+            .filter_map(|path| {
+                let bytes = std::fs::read(&path).ok()?;
+                let fonts = Fonts::default().with_font("system", bytes).ok()?;
+                let mut families: Vec<String> = fonts.faces().iter().map(|f| f.family.clone()).collect();
+                families.sort();
+                families.dedup();
+                Some(SystemFont { file: path.to_string_lossy().into_owned(), families })
+            })
+            .collect();
+        out.sort_by(|a, b| a.families.cmp(&b.families));
+        out
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

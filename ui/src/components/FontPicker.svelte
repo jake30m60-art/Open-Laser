@@ -33,6 +33,33 @@
     return [weight, face.style === 'normal' ? '' : face.style, face.stretch === 'normal' ? '' : face.stretch].filter(Boolean).join(' · ');
   }
 
+  /** The computer's installed fonts, read when first shown. */
+  let system = $state<{ file: string; families: string[] }[] | null>(null);
+  let systemOpen = $state(false);
+  let systemFilter = $state('');
+  const systemVisible = $derived((system ?? []).filter((f) => f.families.join(' ').toLowerCase().includes(systemFilter.toLowerCase())).slice(0, 200));
+  async function openSystem(): Promise<void> {
+    systemOpen = !systemOpen;
+    if (!systemOpen || system) return;
+    try { system = (await api.systemFonts()).fonts; } catch (reason) { errors = [explain(reason)]; system = []; }
+  }
+  /** Takes an installed font into OpenLaser and chooses it. */
+  async function useSystem(file: string): Promise<void> {
+    if (busy) return;
+    importing = true; errors = []; notices = [];
+    try {
+      const result = await api.importSystemFont(file);
+      const merged = new Map(fonts.map(face => [face.id, face]));
+      for (const face of result.fonts) merged.set(face.id, face);
+      fonts = [...merged.values()].sort((a, b) => a.family.localeCompare(b.family) || a.name.localeCompare(b.name));
+      const regular = result.fonts.find((f) => f.weight === 400 && f.style === 'normal') ?? result.fonts[0];
+      if (regular) { font = regular.id; filter = ''; }
+      systemOpen = false;
+    } catch (reason) { errors = [explain(reason)]; }
+    importing = false;
+    onimport();
+  }
+
   async function importFiles(): Promise<void> {
     const files = [...(fileInput.files ?? [])];
     fileInput.value = '';
@@ -58,7 +85,21 @@
 </script>
 
 <div class="font-picker">
-  <div class="font-heading"><span>{t("Font")}</span><button class="font-import" disabled={busy} onclick={() => { osk.close(); fileInput.click(); }}>{importing ? t('Importing…') : t("+ Import fonts")}</button></div>
+  <div class="font-heading"><span>{t("Font")}</span><span class="font-sources">
+    <button class="font-import" class:on={systemOpen} disabled={busy} onclick={() => void openSystem()}>{t("Computer fonts")}</button>
+    <button class="font-import" disabled={busy} onclick={() => { osk.close(); fileInput.click(); }}>{importing ? t('Importing…') : t("+ Import fonts")}</button></span></div>
+  {#if systemOpen}
+    <div class="font-system">
+      <input class="font-search" aria-label={t("Search fonts…")} placeholder={t("Search fonts…")} bind:value={systemFilter} />
+      <div class="font-list">
+        {#if system === null}<span class="muted">{t("Reading the installed fonts…")}</span>{/if}
+        {#each systemVisible as f (f.file)}
+          <button disabled={busy} title={f.file} onclick={() => void useSystem(f.file)}><span style:font-family={`'${f.families[0]}'`}>{f.families.join(', ')}</span><small>{f.file.split(/[\\/]/).pop()}</small></button>
+        {/each}
+        {#if system && !systemVisible.length}<span class="muted">{t("No matching fonts.")}</span>{/if}
+      </div>
+    </div>
+  {/if}
   <input bind:this={fileInput} type="file" accept=".ttf,.otf,.ttc,.otc" multiple aria-label={t("Import font files")} onchange={importFiles} hidden />
   <div class="font-defaults">
     {#each [['sans', 'Sans'], ['serif', 'Serif'], ['mono', 'Mono']] as [id, label]}
@@ -87,6 +128,9 @@
   button { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); color: var(--ink); font: inherit; cursor: pointer; padding: 10px 15px; }
   button.on { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
   .font-defaults { display: flex; gap: 6px; }
+  .font-sources { display: flex; gap: 6px; }
+  .font-system { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
+  .font-system .font-list { max-height: 240px; }
   .font-defaults button { flex: 1; }
   .font-imported-heading { margin-top: 6px; }
   .font-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: 170px; overflow: auto; }

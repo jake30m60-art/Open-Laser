@@ -38,6 +38,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
             "/api/fonts",
             get(fonts).post(import_font).layer(DefaultBodyLimit::max(openlaser_svg::MAX_BYTES)),
         )
+        .route("/api/fonts/system", get(system_fonts).post(import_system_font))
         .route("/api/text/preview", post(preview_text))
         .route("/api/parts/text", post(import_text))
         .route("/api/library/history", get(edit_history))
@@ -378,6 +379,35 @@ async fn review_part(
 
 async fn fonts(State(shared): State<Shared>) -> Reply {
     Ok(Json(json!({ "fonts": shared.lock().await.fonts.fonts.faces() })))
+}
+
+/// The fonts installed on this computer, to take into OpenLaser by name.
+async fn system_fonts() -> Reply {
+    let fonts = tokio::task::spawn_blocking(|| crate::font_store::system_fonts().to_vec())
+        .await
+        .map_err(|e| Error::Refused(format!("font list task: {e}")))?;
+    Ok(Json(json!({ "fonts": fonts })))
+}
+
+#[derive(Deserialize)]
+struct SystemFontChoice {
+    file: String,
+}
+
+/// Imports an installed font as if its file were uploaded.
+async fn import_system_font(State(shared): State<Shared>, Json(choice): Json<SystemFontChoice>) -> Reply {
+    let file = choice.file;
+    let bytes = tokio::task::spawn_blocking(move || {
+        if !crate::font_store::system_fonts().iter().any(|f| f.file == file) {
+            return Err(Error::Request("that font is not installed on this computer".into()));
+        }
+        std::fs::read(&file).map(|b| (file, b)).map_err(|e| Error::Refused(format!("read font: {e}")))
+    })
+    .await
+    .map_err(|e| Error::Refused(format!("font task: {e}")))??;
+    let (name, body) = bytes;
+    let name = std::path::Path::new(&name).file_name().map_or_else(|| "font.ttf".into(), |n| n.to_string_lossy().into_owned());
+    import_font(State(shared), Query(Named { name }), axum::body::Bytes::from(body)).await
 }
 
 async fn import_font(
