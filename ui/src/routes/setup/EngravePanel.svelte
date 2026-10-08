@@ -29,6 +29,12 @@
   const cutting = $derived(draft.layers.filter((l) => l.mode !== 'mark'));
   const laser = $derived(draft.recipe?.laser ?? server.doc?.mode ?? 'fiber');
   const recipes = $derived((server.doc?.library.recipes ?? []).filter((r) => r.laser === laser && isEngraving(r)));
+  /** The engraving recipe last chosen for this laser on this screen, else the first. */
+  const LAST = (l: string) => `ol-last-engraving-${l}`;
+  let lastChosen = $state<string | null>(null);
+  $effect(() => { try { lastChosen = localStorage.getItem(LAST(laser)); } catch { lastChosen = null; } });
+  const preferred = $derived(recipes.find((r) => r.id === lastChosen) ?? recipes[0] ?? null);
+  function remember(recipe: RecipeView): void { lastChosen = recipe.id; try { localStorage.setItem(LAST(recipe.laser), recipe.id); } catch { /* not kept */ } }
   /** Every other recipe for the laser, offered when there is no engraving recipe. */
   const others = $derived((server.doc?.library.recipes ?? []).filter((r) => r.laser === laser && !isEngraving(r)));
   const fills = $derived(featureEdits.value(draft).layers ?? []);
@@ -71,8 +77,8 @@
       .catch((error) => ui.say(explain(error), true))
       .finally(() => { busy = false; });
   }
-  /** A layer engraves: marked, filled, with the first engraving recipe when it has none. */
-  async function engrave(layer: string, recipe: RecipeView | null = recipes[0] ?? null): Promise<void> {
+  /** A layer engraves: marked, filled, with the preferred engraving recipe when it has none. */
+  async function engrave(layer: string, recipe: RecipeView | null = preferred): Promise<void> {
     const edits: LayerChange[] = [{ kind: 'mode', layer, mode: 'mark' }, { kind: 'output', layer, on: true }];
     const current = draft.layers.find((l) => l.name === layer);
     if (recipe && !current?.recipe) edits.push({ kind: 'recipe', layer, recipe: recipe.id });
@@ -86,8 +92,8 @@
     busy = true;
     try {
       await api.setFeatures(snapshot.features, snapshot.revision);
-      if (selectedContours.length && !draft.layers.find(l => l.name === NAME)?.recipe && recipes[0]) {
-        await api.changeLayers({ kind: 'recipe', layer: NAME, recipe: recipes[0].id });
+      if (selectedContours.length && !draft.layers.find(l => l.name === NAME)?.recipe && preferred) {
+        await api.changeLayers({ kind: 'recipe', layer: NAME, recipe: preferred.id });
       }
       ui.say(tr("Engraving selection saved. Undo restores the previous engraving."));
       ui.setupPanel = null;
@@ -97,6 +103,7 @@
   async function useRecipe(layer: DraftLayer, recipe: RecipeView): Promise<void> {
     try {
       await change({ kind: 'recipe', layer: layer.name, recipe: recipe.id });
+      if (isEngraving(recipe)) remember(recipe);
       const currentFill = fillOfLayer(layer.name);
       if (currentFill) writeFill(layer.name, { ...fillOf(recipe.attributes), outline: currentFill.outline, outline_holes: currentFill.outline_holes });
     } catch { /* said */ }
