@@ -1482,7 +1482,30 @@ impl Coordinator {
         leads: &[openlaser_core::features::LeadOverride],
         grouping: &openlaser_core::grouping::Grouping,
     ) -> Result<Vec<usize>> {
+        self.add_pasted(contours, leads, grouping, &[])
+    }
+
+    /// Pastes contours as [`Self::add_grouped`] does, the copied selections'
+    /// own machining along: `machining` names contours of this paste.
+    pub fn add_pasted(
+        &mut self,
+        contours: &[(usize, Transform)],
+        leads: &[openlaser_core::features::LeadOverride],
+        grouping: &openlaser_core::grouping::Grouping,
+        machining: &[openlaser_core::features::ContourMachining],
+    ) -> Result<Vec<usize>> {
         grouping.validate(contours.len()).map_err(Error::Request)?;
+        let mut claimed = std::collections::BTreeSet::new();
+        for selection in machining {
+            if selection.contours.is_empty() || selection.own.is_empty() {
+                return Err(Error::Request("a copied selection sets nothing".into()));
+            }
+            if selection.contours.iter().any(|&c| c >= contours.len() || !claimed.insert(c)) {
+                return Err(Error::Request(
+                    "a copied selection names a contour outside the paste or twice".into(),
+                ));
+            }
+        }
         let draft = self.draft_mut()?;
         if contours.len()
             > openlaser_core::geometry::MAX_PLACED_CONTOURS
@@ -1503,7 +1526,17 @@ impl Coordinator {
         if leads.iter().any(|lead| lead.location.contour >= contours.len()) {
             return Err(Error::Request("a copied lead has no contour".into()));
         }
-        let added = self.draft_mut()?.add_grouped(contours, leads, grouping);
+        let draft = self.draft_mut()?;
+        let added = draft.add_grouped(contours, leads, grouping);
+        // Same undo step: add_grouped remembered the draft before the paste.
+        draft.current.features.contour_machining.extend(machining.iter().cloned().map(
+            |mut selection| {
+                for contour in &mut selection.contours {
+                    *contour = added[*contour];
+                }
+                selection
+            },
+        ));
         self.reprepare();
         Ok(added)
     }

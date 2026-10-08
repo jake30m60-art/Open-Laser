@@ -26,7 +26,7 @@
   import { t } from '../../i18n/index';
   import { arrowAlong } from '../../lib/direction';
   import { hatchStride, thinFill } from '../../lib/engraving';
-  import { pasteBatch, pasteable, type CopiedShapes, type PasteSettings } from '../../lib/copy-paste';
+  import { copiedMachining, pasteBatch, pasteable, type CopiedShapes, type PasteSettings } from '../../lib/copy-paste';
   import { server } from '../../stores/server.svelte';
   import { ui } from '../../stores/ui.svelte';
   import { osk } from '../../lib/osk.svelte';
@@ -170,6 +170,8 @@
     if (picks.some((c) => !inside.has(c))) picks = picks.filter((c) => inside.has(c));
   });
   const pickSet = $derived(new Set(picks));
+  /** Contours whose selection sets some machining itself; drawn with a dashed outline. */
+  const ownMachining = $derived(new Set((draft?.features.contour_machining ?? []).flatMap((m) => m.contours)));
   $effect(() => { selectedContours = updating ? [] : picks.length ? picks : contoursOf(selected); });
   $effect(() => {
     const next = fillAreas([...shapes.values()].flat(), selectedContours);
@@ -284,6 +286,7 @@
     const grouping = selected.map(g => (groups[g] ?? []).flatMap(i => relative.has(i) ? [relative.get(i)!] : []));
     clipboard = {
       parts: draft.parts.map((p) => p.id), contours, leads: copiedLeadOverrides(draft.features.leads, indices), grouping,
+      machining: copiedMachining(draft.features.contour_machining, indices),
       width: selection.maxX - selection.minX, height: selection.maxY - selection.minY, offset: [0, 0],
     };
     ui.setupPanel = 'clipboard';
@@ -295,7 +298,7 @@
     const placed = draft.placed.length;
     await withBusy((b) => (pasting = b), async () => {
       const batch = pasteBatch(copied, { ...pasteSettings, count }, placed);
-      const { contours, draft: saved } = await api.add(batch.contours, batch.lead_overrides, batch.grouping);
+      const { contours, draft: saved } = await api.add(batch.contours, batch.lead_overrides, batch.grouping, batch.contour_machining);
       copied.offset = batch.offset;
       if (saved?.revision === server.doc?.draft?.revision) pending = contours;
       ui.say(t('Pasted {0}.', plural(count, 'copy', 'copies')));
@@ -782,6 +785,7 @@
         {@const picked = contour.sources.every(s=>pickSet.has(s))}
         <g class="contour" class:picked class:output-excluded={ui.setupPanel === 'simulation' && contour.sources.some(s=>excluded.has(s))}>
         {#if picked}<path class="halo strong" d={contourPath(contour)} vector-effect="non-scaling-stroke"/>{/if}
+        {#if contour.sources.some((s) => ownMachining.has(s))}<path class="own-machining" d={contourPath(contour)} vector-effect="non-scaling-stroke"/>{/if}
         {#if filled.has(contour.layer) && preview?.engraving_regions?.some(r => r.sources[0] === contour.sources[0] && r.layer === contour.layer)}
           <path class="engrave-boundary" d={contourPath(contour)} style:stroke={colors.get(contour.layer)} vector-effect="non-scaling-stroke" />
         {/if}
@@ -955,6 +959,7 @@
 .error-chips .btn { min-width:44px; padding:0 10px; border:1px solid #ef4444; color:#ef4444; font-weight:700; }
 .error-outline { fill:none; stroke:#ef4444; stroke-width:3; pointer-events:none; }
 .raster { opacity:.85; pointer-events:none; }
+.own-machining { fill:none; stroke:#a78bfa; stroke-width:8; stroke-opacity:.8; stroke-dasharray:7 5; stroke-linejoin:round; pointer-events:none; }
 .error-halo { fill:none; stroke:#ef4444; stroke-width:12; stroke-opacity:.28; stroke-linejoin:round; pointer-events:none; }
 .error-location { fill:none; stroke:#ef4444; stroke-width:2; pointer-events:none; }
 </style>

@@ -120,7 +120,7 @@
     if (ok) run(apply);
   }
   function squareLabel(index: number): string {
-    return `Square ${index + 1}${data?.measurements[index] ? ', measured' : ', unmeasured'}`;
+    return t(data?.measurements[index] ? 'Square {0}, measured' : 'Square {0}, unmeasured', index + 1);
   }
   function squareSize(index: number): string {
     const m = data?.measurements[index];

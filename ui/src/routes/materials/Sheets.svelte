@@ -38,7 +38,7 @@
     mode: 'Piercing mode', review: t('Review changes'), inspector: t('Imported values'), start: t('Cut start'), end: t('Cut end'), timing: t('Timing'),
     head: t('Head movement'), curves: t('Speed compensation'), residue: t('Slag removal'), pre: t('Batch pre-piercing'), film: t('Film removal'), shift: t('Contour shift'),
   };
-  const title = $derived(which === 'refine' ? `Stage ${Math.min(visible, Math.max(0, count - 1)) + 1} refinements` : TITLES[which] ?? which);
+  const title = $derived(which === 'refine' ? t('Stage {0} refinements', Math.min(visible, Math.max(0, count - 1)) + 1) : TITLES[which] ?? which);
   const stages = $derived(Math.max(1, count));
   const setMode = (to: Mode, n = stages) => ed.setMany(modeEdits(v, to, n));
   const setHead = (to: HeadMode) => ed.set('ManuType', manuType(to, to === 'follow' ? count : 0));
@@ -46,7 +46,7 @@
   /** The film processes on offer: the other recipes for this laser. */
   const candidates = $derived(recipes.filter((r) => r.laser === recipe.laser && r.id !== recipe.id).sort((a, b) => a.name.localeCompare(b.name) || a.thickness_mm - b.thickness_mm));
   /** Where a change belongs, for the review. */
-  const context = (key: string) => { const s = stageOf(key); return s === null ? '' : `Stage ${count - s} · `; };
+  const context = (key: string) => { const s = stageOf(key); return s === null ? '' : `${t('Stage {0}', count - s)} · `; };
   const changes = $derived(Object.keys(ed.edits).sort().map((key) => ({ key, label: `${context(key)}${field(key).label}`, from: shown(key, recipe.attributes[key] ?? ''), to: shown(key, ed.edits[key] ?? '') })));
   const filmChanged = $derived((film?.id ?? null) !== (recipe.film ?? null));
   /** The two speed curves: the switch, the nodes and the smoothing of each. */
@@ -106,7 +106,7 @@
         {#if head !== 'follow'}<p class="muted">{t("A fixed or absolute head does not pierce in stages.")}</p>{/if}
         <div class="fields"><Field {ed} key="UpHeight" />{#if head === 'absolute'}<Field {ed} key="AdvFixHeightCutPos" />{/if}</div>
         <Field {ed} key="NoFollow" row />
-        <Field {ed} key="ShortDistNoUp" row note={caps?.short_transfer_mm != null ? `Under the machine's short-transfer distance of ${quantity(caps.short_transfer_mm, 'mm')}.` : "Under the machine's short-transfer distance."} />
+        <Field {ed} key="ShortDistNoUp" row note={caps?.short_transfer_mm != null ? t("Under the machine's short-transfer distance of {0}.", quantity(caps.short_transfer_mm, 'mm')) : t("Under the machine's short-transfer distance.")} />
       {:else}
         <div class="notice info">{tl("This laser runs without height control: the head is set by hand.")}</div>
       {/if}

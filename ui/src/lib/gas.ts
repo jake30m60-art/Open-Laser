@@ -117,5 +117,5 @@ export function calibrationStatus(costs: GasCosts, gas: GasKind): string {
   const c = supply.calibration;
   if (!c) return t('Not calibrated · nozzle estimate');
   const date = new Date(c.at * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-  return `Calibrated ×${c.factor.toFixed(2)} · ${date} · ${quantity(c.pressure, 'bar')} · ${quantity(c.nozzle.diameter, 'mm')} ${c.nozzle.kind}`;
+  return t('Calibrated ×{0} · {1} · {2} · {3} {4}', c.factor.toFixed(2), date, quantity(c.pressure, 'bar'), quantity(c.nozzle.diameter, 'mm'), t(c.nozzle.kind));
 }

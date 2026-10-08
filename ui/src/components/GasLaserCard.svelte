@@ -96,7 +96,7 @@
         {#each history as run (run.id)}
           <div class="row" role="row">
             <span role="cell">{ago(run.finished)}</span>
-            <span role="cell"><span class="state" class:done={run.outcome === 'done'}>{run.outcome === 'done' ? t("Done") : `Stopped ${Math.round(run.fraction * 100)}%`}</span></span>
+            <span role="cell"><span class="state" class:done={run.outcome === 'done'}>{run.outcome === 'done' ? t("Done") : t('Stopped {0}%', Math.round(run.fraction * 100))}</span></span>
             <span role="cell">{duration(run.consumption.laser)}</span>
             <span role="cell">{volume(litres(run.consumption))}</span>
             <span role="cell">{money(run.consumption.cost, run.currency)}</span>

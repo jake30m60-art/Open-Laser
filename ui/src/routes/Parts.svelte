@@ -230,7 +230,7 @@
 
   /** The kind tag on a card: a job says how many parts it cuts. */
   const kindTag = (c: Card): string =>
-    c.kind === 'job' ? (c.parts > 1 ? `Job · ${plural(c.parts, 'part')}` : t("Job"))
+    c.kind === 'job' ? (c.parts > 1 ? t('Job · {0}', plural(c.parts, 'part')) : t("Job"))
     : c.kind === 'stock' ? t("Sheets") : c.kind === 'remnant' ? t("Remnant") : c.kind === 'sketch' ? t('Sketch') : t('Part');
 
   const emptyTitle = $derived(q || filtered ? t('Nothing matches') : t("Empty folder"));

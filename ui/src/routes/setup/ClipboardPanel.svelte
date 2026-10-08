@@ -39,7 +39,7 @@
       class="choice" aria-pressed={settings.direction === direction.value} onclick={() => (settings.direction = direction.value)}
     >{direction.label}</button>{/each}</div>
   </fieldset>
-  <button class="btn btn-primary lg block paste" disabled={disabled || pasting} onclick={onpaste}>{pasting ? t('Pasting…') : `Paste ${plural(settings.count, 'copy', 'copies')}`}</button>
+  <button class="btn btn-primary lg block paste" disabled={disabled || pasting} onclick={onpaste}>{pasting ? t('Pasting…') : t('Paste {0}', plural(settings.count, 'copy', 'copies'))}</button>
   <p class="muted copy-note">{t("Each paste continues from the last copy. Undo removes the whole batch.")}</p>
 {:else}
   <p class="muted">{t("Select shapes on the drawing, then tap Copy.")}</p>

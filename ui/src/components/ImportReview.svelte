@@ -45,7 +45,7 @@
   }
 </script>
 
-<Modal title={`Review ${review.name}`} wide dismissable={!busy} onclose={onskip}>
+<Modal title={t('Review {0}', review.name)} wide dismissable={!busy} onclose={onskip}>
   <div class="import-review">
     <figure class="preview" aria-label={t("Preview")}>
       <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${review.contours} shapes`}>

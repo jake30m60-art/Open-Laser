@@ -1,3 +1,4 @@
+import { t } from '../i18n/index';
 import { distance, unitLabel } from '../lib/units.svelte';
 import type { Anchor, CheckAction } from '../api';
 
@@ -16,9 +17,9 @@ export const holdKind = (action: CheckAction): 'move' | 'zero' => action.kind ==
 export const canAutoCheck = (action: CheckAction | null): boolean => !!action && !['gas_test', 'job_gas_test', 'set_origin', 'set_origin_at'].includes(action.kind);
 export function actionName(action: CheckAction): string {
   const point = 'point' in action ? BED_POINTS.find(([p]) => p === action.point)?.[1].replace(/ \(.+\)/, '').toLowerCase() : '';
-  if (action.kind === 'gas_test' || action.kind === 'job_gas_test') return 'Test gas';
-  if (action.kind === 'move_xy') return `Move to ${distance(action.x)}, ${distance(action.y)} ${unitLabel('mm')}`;
-  if (action.kind === 'move_to') return `Move to ${point}`;
-  if (action.kind === 'set_origin' || action.kind === 'set_origin_at') return 'Verify sheet position on Run';
-  return ACTIONS.find(([kind]) => kind === action.kind)?.[1] ?? '';
+  if (action.kind === 'gas_test' || action.kind === 'job_gas_test') return t('Test gas');
+  if (action.kind === 'move_xy') return t('Move to {0}, {1} {2}', distance(action.x), distance(action.y), unitLabel('mm'));
+  if (action.kind === 'move_to') return t('Move to {0}', point);
+  if (action.kind === 'set_origin' || action.kind === 'set_origin_at') return t('Verify sheet position on Run');
+  return t(ACTIONS.find(([kind]) => kind === action.kind)?.[1] ?? '');
 }

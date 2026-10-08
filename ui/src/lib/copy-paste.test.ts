@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { pasteBatch, pasteable, type CopiedShapes, type PasteDirection } from './copy-paste';
+import { copiedMachining, pasteBatch, pasteable, type CopiedShapes, type PasteDirection } from './copy-paste';
 
 const copied = (): CopiedShapes => ({
   parts: ['part-a'], width: 20, height: 10, offset: [0, 0],
@@ -62,4 +62,13 @@ it('rejects invalid counts, gaps and oversized layouts before constructing a bat
   expect(pasteBatch(source, { count: 2, gap: 0, direction: 'right' }, 99994).contours).toHaveLength(6);
   expect(() => pasteBatch({ ...source, contours: [] }, { count: 1, gap: 0, direction: 'right' }, 0)).toThrow('Copy shapes');
   expect(source.offset).toEqual([0, 0]);
+});
+
+it('carries selection machining with each copy', () => {
+  const machining = (contours: number[]) => ({ contours, own: ['leads' as const], machining: { leads: null, joints: null, cooling: null, kerf: null, start: { position: 'keep' as const, direction: 'keep' as const, spots: [] }, seam: 'seal' as const } });
+  // Contours 4 and 9 are copied; 9 and an uncopied 2 share a selection.
+  const copied = copiedMachining([machining([2, 9]), machining([5])], [4, 9]);
+  expect(copied.map(m => m.contours)).toEqual([[1]]);
+  const batch = pasteBatch({ parts: [], contours: [{ source: 0, transform: [1, 0, 0, 1, 0, 0] }, { source: 1, transform: [1, 0, 0, 1, 0, 0] }], leads: [], grouping: [], machining: copied, width: 10, height: 10, offset: [0, 0] }, { count: 2, gap: 0, direction: 'right' }, 0);
+  expect(batch.contour_machining.map(m => m.contours)).toEqual([[1], [3]]);
 });

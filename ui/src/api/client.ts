@@ -12,6 +12,7 @@ import type { LayerChange, NewStock, SheetSize, StockChange } from './index';
 import type { PlacementChange, RepairView, SimplifyView, ImportOptions, ImportReview, Move } from './index';
 import type { Calibration, FlowEstimate, GasCosts, GasKind, Nozzle, RunRecord } from './index';
 import type { ManualCut } from './bindings/ManualCut';
+import type { ContourMachining } from './bindings/ContourMachining';
 import type { ScanCoupon, ScanOffsetsChange, ScanOffsetsView } from './index';
 
 /** A flow test: gas, gauge pressure, nozzle and seconds open. */
@@ -250,7 +251,7 @@ export const api = {
   /** Moves, turns or mirrors placed contours by `matrix`, applied after what they have; `null` puts them back. */
   transform: (contours: number[], matrix: Transform | null, revision?: number) => draftPost('/api/draft/transform', { contours, matrix }, revision),
   /** Puts drawing contours on the sheet as one more copy; their indices. */
-  add: (contours: Array<{ source: number; transform: Transform }>, lead_overrides: LeadOverride[] = [], grouping: number[][] = []) => draftPost<{ contours: number[] }>('/api/draft/add', { contours, lead_overrides, grouping }),
+  add: (contours: Array<{ source: number; transform: Transform }>, lead_overrides: LeadOverride[] = [], grouping: number[][] = [], contour_machining: ContourMachining[] = []) => draftPost<{ contours: number[] }>('/api/draft/add', { contours, lead_overrides, grouping, contour_machining }),
   /** Takes placed contours off the sheet, with the features on them. */
   remove: (contours: number[]) => draftPost('/api/draft/remove', { contours }),
   group: (contours: number[], together: boolean) => draftPost(together ? '/api/draft/group' : '/api/draft/ungroup', { contours }),

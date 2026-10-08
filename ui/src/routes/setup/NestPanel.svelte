@@ -73,7 +73,7 @@
         ? { title: sheetLabel(item.width_mm, item.height_mm), detail: t('Rack · {0} of {1}', source.count, item.quantity) }
         : { title: t("Rack sheets"), detail: t('No longer on the rack') };
     }
-    return { title: sheetLabel(source.width, source.height), detail: `New · ${plural(source.count, 'sheet')}` };
+    return { title: sheetLabel(source.width, source.height), detail: t('New · {0}', plural(source.count, 'sheet')) };
   }
   /** Sheets added to the list; they replace a drawing outline, which Undo brings back. */
   async function add(source: StockSource): Promise<void> {

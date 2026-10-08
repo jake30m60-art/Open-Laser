@@ -189,11 +189,11 @@ export function shown(key: string, value: string): string {
 /** Why a number is not accepted for `key`, or nothing. */
 export function refused(key: string, value: number): string | null {
   const f = field(key);
-  if (!Number.isFinite(value)) return 'Enter a number.';
+  if (!Number.isFinite(value)) return t('Enter a number.');
   const min = f.min ?? 0;
   const max = f.max ?? 100000;
-  if (value < min || value > max) return `Enter ${displayNumber(min, f.unit ?? '')} to ${displayNumber(max, f.unit ?? '')}${f.unit ? ` ${unitLabel(f.unit)}` : ''}.`;
-  if (f.whole && !Number.isInteger(value)) return `Enter ${min} to ${max} as a whole number.`;
+  if (value < min || value > max) return t('Enter {0} to {1}{2}.', displayNumber(min, f.unit ?? ''), displayNumber(max, f.unit ?? ''), f.unit ? ` ${unitLabel(f.unit)}` : '');
+  if (f.whole && !Number.isInteger(value)) return t('Enter {0} to {1} as a whole number.', min, max);
   return null;
 }
 

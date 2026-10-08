@@ -1,4 +1,4 @@
-import type { DraftView, LeadOverride, Transform } from '../api';
+import type { ContourMachining, DraftView, LeadOverride, Transform } from '../api';
 
 type Placed = { source: number; transform: Transform };
 export type PasteDirection = 'right' | 'left' | 'up' | 'down';
@@ -9,6 +9,8 @@ export interface CopiedShapes {
   contours: Placed[];
   leads: LeadOverride[];
   grouping: number[][];
+  /** Selections with their own machining, indexed like `contours`. */
+  machining?: ContourMachining[];
   width: number;
   height: number;
   offset: [number, number];
@@ -33,7 +35,7 @@ export function pasteBatch(copied: CopiedShapes, settings: PasteSettings, placed
     up: [0, copied.height + settings.gap], down: [0, -copied.height - settings.gap],
   };
   const [dx, dy] = steps[settings.direction];
-  const contours: Placed[] = [], lead_overrides: LeadOverride[] = [], grouping: number[][] = [];
+  const contours: Placed[] = [], lead_overrides: LeadOverride[] = [], grouping: number[][] = [], contour_machining: ContourMachining[] = [];
   let [x, y] = copied.offset;
   for (let i = 0; i < settings.count; i++) {
     x += dx; y += dy;
@@ -45,6 +47,17 @@ export function pasteBatch(copied: CopiedShapes, settings: PasteSettings, placed
     }
     for (const lead of copied.leads) lead_overrides.push({ ...lead, location: { ...lead.location, contour: first + lead.location.contour } });
     for (const group of copied.grouping) grouping.push(group.map(index => first + index));
+    for (const m of copied.machining ?? []) contour_machining.push({ ...(JSON.parse(JSON.stringify(m)) as ContourMachining), contours: m.contours.map(index => first + index) });
   }
-  return { contours, lead_overrides, grouping, offset: [x, y] as [number, number] };
+  return { contours, lead_overrides, grouping, contour_machining, offset: [x, y] as [number, number] };
+}
+
+/** The selections touching `indices`, cut down to them and renumbered by
+ *  their position in `indices`, as a copy carries them. */
+export function copiedMachining(list: readonly ContourMachining[] | undefined, indices: readonly number[]): ContourMachining[] {
+  const relative = new Map(indices.map((contour, at) => [contour, at]));
+  return (list ?? []).flatMap((m) => {
+    const contours = m.contours.flatMap((c) => (relative.has(c) ? [relative.get(c)!] : []));
+    return contours.length ? [{ ...(JSON.parse(JSON.stringify(m)) as ContourMachining), contours }] : [];
+  });
 }

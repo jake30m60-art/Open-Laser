@@ -920,6 +920,9 @@ struct AddRequest {
     /// Locations index the contours in this paste, not the existing sheet.
     #[serde(default)]
     lead_overrides: Vec<openlaser_core::features::LeadOverride>,
+    /// Copied selections with their own machining; contours index this paste.
+    #[serde(default)]
+    contour_machining: Vec<openlaser_core::features::ContourMachining>,
     /// Drawing contours, each with where it goes.
     contours: Vec<Added>,
 }
@@ -938,7 +941,12 @@ async fn add(
 ) -> Reply {
     let contours: Vec<_> = request.contours.into_iter().map(|c| (c.source, c.transform)).collect();
     edit(&shared, Some(v.revision), |c| {
-        Ok(json!({ "contours": c.add_grouped(&contours, &request.lead_overrides, &request.grouping)? }))
+        Ok(json!({ "contours": c.add_pasted(
+            &contours,
+            &request.lead_overrides,
+            &request.grouping,
+            &request.contour_machining,
+        )? }))
     })
     .await
 }

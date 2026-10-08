@@ -134,16 +134,15 @@
   function dupText(item: ImportItem, dup: ReturnType<typeof duplicatesOf>): string {
     if (dup.identical) return t('This exact file is already in the library');
     const what = `${item.material} ${quantity(item.thickness_mm, 'mm')} ${item.preview.gas}`;
-    return dup.recipes.length ? `${what} is already in the library` : `An earlier file in this import is also ${what}`;
+    return dup.recipes.length ? t('{0} is already in the library', what) : t('An earlier file in this import is also {0}', what);
   }
 
   async function save(): Promise<void> {
     if (unresolved || !saving.length) return;
     if (replacing) {
       const ok = await ui.confirm({
-        title: `Replace ${plural(replacing, 'recipe')}?`,
-        body: `${replacing === 1 ? 'Its' : 'Their'} values, note and source file are replaced by the imported file;`
-          + ' the name, star, photo and film process stay. Library history can undo it.',
+        title: t('Replace {0}?', plural(replacing, 'recipe')),
+        body: t('Values, note and source file are replaced by the imported file; the name, star, photo and film process stay. Library history can undo it.'),
         confirm: t('Replace {0}', replacing),
         danger: true,
       });

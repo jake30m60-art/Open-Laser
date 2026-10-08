@@ -105,7 +105,7 @@
           <div class="alarm-detail">
             {#if row.source === 'connection'}<span>{row.label}</span>{/if}
             <span>{t("First trip {0} · last trip {1}", date(row.first), date(row.last))}</span>
-            <span>{row.recovered ? `Recovered ${date(row.recovered)}` : t('Present at the last observation in that session')}</span>
+            <span>{row.recovered ? t('Recovered {0}', date(row.recovered)) : t('Present at the last observation in that session')}</span>
             {#if row.reset}<span>{t("Last reset {0} · {1}", date(row.reset.at), row.reset.ok ? t('completed') : t(row.reset.error ?? 'failed'))}</span>{/if}
             <span>{row.source}{#if row.id !== null} · {row.id}{/if}</span>
           </div>

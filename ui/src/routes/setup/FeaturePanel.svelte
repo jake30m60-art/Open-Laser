@@ -135,6 +135,7 @@
     <p class="muted scope-note">
       {#if selectionOwn}{t('The selected contours have their own settings.')} <button class="link" onclick={useLayerForSelection}>{t('Use the layer’s or job’s again')}</button>
       {:else}{t('A change applies to the selected contours only.')}{/if}
+      {t('Contours with their own settings have a dashed violet outline.')}
     </p>
   {:else if scope}
     <p class="muted scope-note">

@@ -174,3 +174,60 @@ fn old_jobs_load_and_new_jobs_round_trip_without_reusing_contour_edits_on_other_
     assert!(features.reusable().leads.unwrap().overrides.is_empty());
     assert_eq!(features.reusable().leads.unwrap().entry, features.leads.unwrap().entry);
 }
+
+#[tokio::test]
+async fn copies_take_their_selection_machining_along() {
+    use openlaser_core::features::{ContourMachining, Machining, MachiningPart};
+    let (_sim, shared) = common::start("copied-selection").await;
+    {
+        let mut c = shared.lock().await;
+        let part = c.library.add_part("square.dxf", b"copied selection fixture", square()).unwrap();
+        c.open_part(&part.id).unwrap();
+        let recipe = c
+            .add_recipe(&NewRecipe {
+                name: "Selection copy".into(),
+                laser: openlaser_core::LaserMode::Fiber,
+                thickness_mm: 1.,
+                values: Values::Bank(1),
+                gas: None,
+            })
+            .unwrap();
+        c.set_recipe(&recipe.id).unwrap();
+        let leads = |length| Leads {
+            entry: Some(lead(length)),
+            exit: None,
+            side: Side::Outside,
+            closed_only: true,
+            overrides: Vec::new(),
+        };
+        let own = ContourMachining {
+            contours: vec![0],
+            own: vec![MachiningPart::Leads],
+            machining: Machining { leads: Some(leads(4.)), ..Machining::default() },
+        };
+        c.set_features(Features {
+            leads: Some(leads(2.)),
+            contour_machining: vec![own.clone()],
+            ..Features::default()
+        })
+        .unwrap();
+        let copy = |x| [(0, Transform::translation(Point::new(x, 0.)))];
+        // A copy of the selected square keeps its own leads; a bare copy has the job's.
+        let relative = ContourMachining { contours: vec![0], ..own };
+        assert_eq!(
+            c.add_pasted(&copy(30.), &[], &Default::default(), &[relative.clone()]).unwrap(),
+            [1]
+        );
+        assert_eq!(c.add(&copy(60.)).unwrap(), [2]);
+        let outside = ContourMachining { contours: vec![1], ..relative };
+        assert!(c.add_pasted(&copy(90.), &[], &Default::default(), &[outside]).is_err());
+    }
+    machine::prepare(&shared).await.unwrap();
+    assert_lengths(shared.lock().await.draft.as_ref().unwrap(), &[4., 4., 2.]);
+    shared.lock().await.undo().unwrap();
+    shared.lock().await.undo().unwrap();
+    machine::prepare(&shared).await.unwrap();
+    let c = shared.lock().await;
+    assert_lengths(c.draft.as_ref().unwrap(), &[4.]);
+    assert_eq!(c.draft.as_ref().unwrap().current.features.contour_machining[0].contours, [0]);
+}
