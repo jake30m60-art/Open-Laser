@@ -88,7 +88,7 @@
     </button>
     {#if opened === m.key}
       {#each gasesOf(m) as gas (gas)}
-        <span class="gas">{gas}</span>
+        <span class="gas">{tr(gas)}</span>
         {#each m.recipes.filter((r) => r.gas === gas) as r (r.id)}
           <button
             class="rec" class:on={r.id === selected?.id} aria-pressed={r.id === selected?.id} onclick={() => onselect(r)}

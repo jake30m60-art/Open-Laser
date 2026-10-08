@@ -45,7 +45,7 @@ export interface Field {
 /** The controller's six gas selections, as the machine files number them. */
 export const GAS = ['Low Air', 'Low O₂', 'Low N₂', 'High Air', 'High O₂', 'High N₂'];
 /** A gas selector's name, or its number when the card has more. */
-export const gasName = (selector: number | string): string => GAS[Number(selector)] ?? `Selection ${selector}`;
+export const gasName = (selector: number | string): string => t(GAS[Number(selector)] ?? 'Selection {0}', selector);
 /** The `ManuType` for each piercing stage count under a following head. */
 export const LEVELS = [0, 2, 3, 4, 6, 7];
 /** The piercing stages each `ManuType` runs. */

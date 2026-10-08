@@ -3,7 +3,7 @@
   // Field and section names are built from parts ("Pierce stage 2 · Power",
   // "X axis settings"); each part is translated on its own.
   const tx = (label: string): string => label.split(' · ').map((part) => {
-    const stage = part.match(/^(Pierce stage|Piercing · stage) (\d+)$/) ?? part.match(/^(stage) (\d+)$/);
+    const stage = part.match(/^(Pierce stage duration alias|Pierce stage|stage) (\d+)$/);
     if (stage) return t(`${stage[1]} {0}`, stage[2]);
     const settings = part.match(/^(.+) settings$/);
     if (settings && t(part) === part) return t('{0} settings', t(settings[1]!));

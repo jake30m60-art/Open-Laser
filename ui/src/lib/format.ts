@@ -32,11 +32,11 @@ export const seconds = (s: number): string => {
 
 export const ago = (epochSeconds: number): string => {
   const delta = Math.max(0, Date.now() / 1000 - epochSeconds);
-  if (delta < 60) return 'just now';
-  if (delta < 3600) return `${Math.floor(delta / 60)} min ago`;
-  if (delta < 86400) return `${Math.floor(delta / 3600)} h ago`;
-  if (delta < 86400 * 14) return `${Math.floor(delta / 86400)} d ago`;
-  return `${Math.floor(delta / (86400 * 7))} w ago`;
+  if (delta < 60) return t('just now');
+  if (delta < 3600) return t('{0} min ago', Math.floor(delta / 60));
+  if (delta < 86400) return t('{0} h ago', Math.floor(delta / 3600));
+  if (delta < 86400 * 14) return t('{0} d ago', Math.floor(delta / 86400));
+  return t('{0} w ago', Math.floor(delta / (86400 * 7)));
 };
 
 export const size = (bounds: { min: { x: number; y: number }; max: { x: number; y: number } } | null): string =>

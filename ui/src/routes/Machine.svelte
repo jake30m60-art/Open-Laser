@@ -195,7 +195,7 @@
       <div class="setting"><div class="lbl">{t("Link")}<small>{t("UDP to the motion card")}</small></div><div class="val">{linkText}</div></div>
       <div class="setting"><div class="lbl">{t("Identity")}<small>{t("product · firmware")}</small></div><div class="val">{identityText}</div></div>
       <div class="setting">
-        <div class="lbl">{t("Scale · cycle")}<small>{t("{0} · interpolation", unitLabel('units/mm'))}</small></div>
+        <div class="lbl">{t("Scale · cycle")}<small>{t("{0} · interpolation", t(unitLabel('units/mm')))}</small></div>
         <div class="val">{scaleText}</div>
       </div>
       <div class="setting">
