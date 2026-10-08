@@ -101,6 +101,12 @@ export function clone(sketch: Sketch): Sketch {
 }
 
 /** A text's outlines where it lies in the sketch. */
+/** The text `k` times as large, its lower left corner where it was. */
+export const scaledText = (text: SketchText, k: number): SketchText => ({
+  ...text, size: text.size * k, width: text.width * k, height: text.height * k,
+  outline: text.outline.map((line) => line.map(([x, y]) => [x * k, y * k] as [number, number])),
+});
+
 export const placedText = (text: SketchText): [number, number][][] =>
   text.outline.map((line) => line.map(([x, y]) => [x + text.x, y + text.y] as [number, number]));
 

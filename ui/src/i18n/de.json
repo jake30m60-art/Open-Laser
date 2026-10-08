@@ -3408,5 +3408,8 @@
   "Recipe source": "Herkunft der Rezepte",
   "Own": "Eigene",
   "Samples": "Beispiele",
-  "Gweike": "Gweike"
+  "Gweike": "Gweike",
+  "Drag to scale the text": "Ziehen skaliert den Text",
+  "Drag to move · corner handle scales · double click to edit · Del removes it.": "Ziehen verschiebt · Eckgriff skaliert · Doppelklick bearbeitet · Entf löscht.",
+  "Text only": "Nur Text"
 }

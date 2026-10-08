@@ -18,7 +18,7 @@
   import { explain } from '../lib/format';
   import { displayNumber, toSource, unitLabel } from '../lib/units.svelte';
   import { sketchStore as store } from '../sketch/store.svelte';
-  import { clone, isDimension, merge, placedText, point, type Constraint, type Dimension, type Id, type Sketch, type SketchText } from '../sketch/model';
+  import { clone, isDimension, merge, placedText, point, scaledText, type Constraint, type Dimension, type Id, type Sketch, type SketchText } from '../sketch/model';
   import { angleOf, dist, polar, shapeOf, sketchBounds, sweep, insideBox, touchesBox, type Shape, type Vec } from '../sketch/geometry';
   import { gridStep, snap, type Snap } from '../sketch/snap';
   import { type Field, type Locked, type ToolId } from '../sketch/tools';
@@ -246,7 +246,7 @@
   // ---- Pointer input ---------------------------------------------------------------------------
   type Drag =
     | { kind: 'pan'; x: number; y: number; cx: number; cy: number }
-    | { kind: 'press'; x: number; y: number; start: Vec; moved: boolean; mode: 'tool' | 'action' | 'point' | 'move' | 'radius' | 'box' | 'label' | 'text'; target: Id | null; original: Sketch; origins: Map<Id, Vec>; shift: boolean }
+    | { kind: 'press'; x: number; y: number; start: Vec; moved: boolean; mode: 'tool' | 'action' | 'point' | 'move' | 'radius' | 'box' | 'label' | 'text' | 'text-scale'; target: Id | null; original: Sketch; origins: Map<Id, Vec>; shift: boolean }
     | { kind: 'pinch'; d: number; mid: Vec; view: { cx: number; cy: number; s: number }; model: Vec };
   let drag: Drag | null = null;
   /** The last click on a dimension's value, for telling a double click:
@@ -298,6 +298,8 @@
     if (tool) { drag = { ...base, mode: 'tool', target: null }; return; }
     if (action && !(dimension && !action.busy)) { drag = { ...base, mode: 'action', target: null }; return; }
     if (note !== null) { drag = { ...base, mode: 'label', target: note }; return; }
+    const scaling = scaleHandle();
+    if (scaling && Math.hypot(m.x - scaling.x, m.y - scaling.y) <= reach * 1.5) { drag = { ...base, mode: 'text-scale', target: scaling.id }; return; }
     const p = hitPoint(original, m, reach);
     if (p !== null) { drag = { ...base, mode: 'point', target: p, origins: originsOf(original, []).set(p, { ...point(original, p) }) }; return; }
     const id = hit(original, m, reach);
@@ -368,6 +370,16 @@
       return;
     }
     let delta = { x: m.x - drag.start.x, y: m.y - drag.start.y };
+    if (drag.mode === 'text-scale') {
+      // The corner follows the pointer along the diagonal; the opposite corner stays.
+      const target = drag.target, from = drag.original.texts?.find((x) => x.id === target);
+      if (!from || from.width <= 0 || from.height <= 0) return;
+      const k = Math.max(0.05, ((m.x - from.x) * from.width + (m.y - from.y) * from.height) / (from.width ** 2 + from.height ** 2));
+      const next = clone(drag.original), at = next.texts!.findIndex((x) => x.id === target);
+      next.texts![at] = scaledText(from, k);
+      store.preview(next);
+      return;
+    }
     if (drag.mode === 'text') {
       // A text moves as a whole; the grid catches its corner.
       if (store.gridSnap) delta = { x: Math.round(delta.x / minor) * minor, y: Math.round(delta.y / minor) * minor };
@@ -433,7 +445,7 @@
       box = null;
       return;
     }
-    if (d.mode === 'text') { store.commit(clone(store.sketch), d.original); return; }
+    if (d.mode === 'text' || d.mode === 'text-scale') { store.commit(clone(store.sketch), d.original); return; }
     const finished = clone(store.sketch);
     if (d.mode === 'point' && d.target !== null && dragSnap?.point !== undefined) merge(finished, d.target, dragSnap.point);
     dragSnap = null;
@@ -677,6 +689,11 @@
   // ---- What the side panel reports ---------------------------------------------------------------
   const selected = $derived(store.sketch.entities.filter((e) => store.selection.has(e.id)));
   const selectedNotes = $derived(store.sketch.constraints.filter((c) => store.selection.has(c.id)));
+  /** The one selected text's scale handle: its upper right corner, in millimetres. */
+  function scaleHandle(): { id: Id; x: number; y: number } | null {
+    const only = store.selection.size === 1 ? store.sketch.texts?.find((x) => store.selection.has(x.id)) : undefined;
+    return only ? { id: only.id, x: only.x + only.width, y: only.y + only.height } : null;
+  }
   const selectedTexts = $derived((store.sketch.texts ?? []).filter((x) => store.selection.has(x.id)));
   const NOTE_NAME: Record<Constraint['kind'], string> = {
     horizontal: 'Horizontal', vertical: 'Vertical', parallel: 'Parallel', perpendicular: 'Perpendicular', equal: 'Equal', collinear: 'Collinear',
@@ -701,7 +718,7 @@
   const status = $derived.by(() => {
     void store.solverRevision;
     if (!solverReady()) return 'Loading the constraint solver…';
-    if (!store.sketch.entities.length) return 'Empty sketch';
+    if (!store.sketch.entities.length) return store.sketch.texts?.length ? 'Text only' : 'Empty sketch';
     if (!free) return 'Checking…';
     const loose = store.sketch.entities.filter((e) => !defined(e, free)).length;
     return loose ? t("{0} of {1} curves can still move (blue)", loose, store.sketch.entities.length) : t("Fully defined");
@@ -781,6 +798,13 @@
       {#each store.sketch.texts ?? [] as tx (tx.id)}
         <path d={textPath(tx)} class="text-shape" class:selected={store.selection.has(tx.id)} fill-rule="evenodd" />
       {/each}
+      {#if selectedTexts.length === 1 && store.selection.size === 1}
+        {@const tx = selectedTexts[0]!}
+        {@const lo = toScreen({ x: tx.x, y: tx.y })}
+        {@const hi = toScreen({ x: tx.x + tx.width, y: tx.y + tx.height })}
+        <rect class="text-box" x={Math.min(lo.x, hi.x)} y={Math.min(lo.y, hi.y)} width={Math.abs(hi.x - lo.x)} height={Math.abs(hi.y - lo.y)} />
+        <rect class="text-scale" x={hi.x - 5} y={hi.y - 5} width="10" height="10"><title>{t("Drag to scale the text")}</title></rect>
+      {/if}
       {#each handles as p (p.id)}
         {#if p.center}
           <!-- A centre answers the cursor like an end point, so it can be dimensioned. -->
@@ -882,7 +906,7 @@
         <dt>{t("Font size")}</dt><dd>{displayNumber(tx.size, 'mm')} {unitLabel('mm')}</dd>
         <dt>{t("Size")}</dt><dd>{displayNumber(tx.width, 'mm')} × {displayNumber(tx.height, 'mm')} {unitLabel('mm')}</dd></dl>
       <button class="btn btn-ghost block sk-small" onclick={() => editText(tx.id)}>{t("Edit text")}</button>
-      <p class="muted">{t("Drag to move · double click to edit · Del removes it.")}</p>
+      <p class="muted">{t("Drag to move · corner handle scales · double click to edit · Del removes it.")}</p>
     {:else if selectedNotes.length === 1 && !selected.length}
       {@const n = selectedNotes[0]!}
       <dl><dt class="kind">{t(NOTE_NAME[n.kind])}</dt><dd>{#if isDimension(n)}{dimensionLabel(n.driven ? { ...n, value: measure(store.sketch, n) } : n, mm)}{/if}</dd></dl>
@@ -969,6 +993,8 @@
   .curve.selected { stroke: var(--accent); stroke-width: 3; }
   .text-shape { fill: color-mix(in srgb, var(--sketch) 12%, transparent); stroke: var(--sketch); stroke-width: 1.4; stroke-linejoin: round; }
   .text-shape.selected { stroke: var(--accent); stroke-width: 2.4; fill: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .text-box { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+  .text-scale { fill: var(--panel); stroke: var(--accent); stroke-width: 2; cursor: nesw-resize; }
   .curve.picked { stroke: var(--ok); stroke-width: 3.5; }
   .handle.picked { stroke: var(--ok); fill: var(--ok); }
   .handle { fill: var(--panel); stroke: var(--sketch); stroke-width: 1.2; }
