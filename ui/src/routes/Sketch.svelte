@@ -18,7 +18,7 @@
   import { explain } from '../lib/format';
   import { displayNumber, toSource, unitLabel } from '../lib/units.svelte';
   import { sketchStore as store } from '../sketch/store.svelte';
-  import { clone, isDimension, merge, point, type Constraint, type Dimension, type Id, type Sketch } from '../sketch/model';
+  import { clone, isDimension, merge, placedText, point, type Constraint, type Dimension, type Id, type Sketch, type SketchText } from '../sketch/model';
   import { angleOf, dist, polar, shapeOf, sketchBounds, sweep, insideBox, touchesBox, type Shape, type Vec } from '../sketch/geometry';
   import { gridStep, snap, type Snap } from '../sketch/snap';
   import { type Field, type Locked, type ToolId } from '../sketch/tools';
@@ -30,6 +30,36 @@
   import { evaluate } from '../sketch/expression';
 
   let textOpen=$state(false), importing=$state(false);
+  /** The sketch text being changed in the text dialog, if any. */
+  let editingText=$state<SketchText|null>(null);
+  /** The text whose outline box holds `m`, topmost first. */
+  function textAt(s: Sketch, m: Vec): Id | null {
+    const pad = reach;
+    const found = [...(s.texts ?? [])].reverse().find((x) => m.x >= x.x - pad && m.x <= x.x + x.width + pad && m.y >= x.y - pad && m.y <= x.y + x.height + pad);
+    return found?.id ?? null;
+  }
+  function editText(id: Id): void {
+    editingText = store.sketch.texts?.find((x) => x.id === id) ?? null;
+    if (editingText) textOpen = true;
+  }
+  /** A new text goes where the view is centred; a changed one keeps its corner. */
+  function placeText(text: Omit<SketchText, 'id' | 'x' | 'y'>): void {
+    const changing = editingText;
+    const error = store.change((s) => {
+      s.texts ??= [];
+      if (changing) {
+        const at = s.texts.findIndex((x) => x.id === changing.id);
+        if (at >= 0) s.texts[at] = { ...text, id: changing.id, x: changing.x, y: changing.y };
+        return;
+      }
+      const id = s.next++;
+      s.texts.push({ ...text, id, x: view.cx - text.width / 2, y: view.cy - text.height / 2 });
+      store.select([id]);
+    });
+    if (error) ui.say(error, true);
+    editingText = null;
+  }
+  const textPath = (text: SketchText): string => placedText(text).map((line) => line.map(([x, y], i) => { const q = toScreen({ x, y }); return `${i ? 'L' : 'M'}${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }).join('')).join('');
   let importInput:HTMLInputElement;
   async function insertPart(id:string){const {drawing}=await api.partDrawing(id);let ids:number[]=[];const error=store.change(s=>{ids=appendDrawing(s,drawing);});if(error)throw new Error(error);store.select(ids);fit();}
   async function importDrawing(event:Event){const input=event.currentTarget as HTMLInputElement,file=input.files?.[0];if(!file)return;importing=true;try{const {id,warnings}=await api.importPart(file.name,await file.arrayBuffer());await insertPart(id);if(warnings?.length)ui.say(warnings.join(' · '));}catch(e){ui.say(explain(e),true);}finally{importing=false;input.value='';}}
@@ -214,7 +244,7 @@
   // ---- Pointer input ---------------------------------------------------------------------------
   type Drag =
     | { kind: 'pan'; x: number; y: number; cx: number; cy: number }
-    | { kind: 'press'; x: number; y: number; start: Vec; moved: boolean; mode: 'tool' | 'action' | 'point' | 'move' | 'radius' | 'box' | 'label'; target: Id | null; original: Sketch; origins: Map<Id, Vec>; shift: boolean }
+    | { kind: 'press'; x: number; y: number; start: Vec; moved: boolean; mode: 'tool' | 'action' | 'point' | 'move' | 'radius' | 'box' | 'label' | 'text'; target: Id | null; original: Sketch; origins: Map<Id, Vec>; shift: boolean }
     | { kind: 'pinch'; d: number; mid: Vec; view: { cx: number; cy: number; s: number }; model: Vec };
   let drag: Drag | null = null;
   /** The last click on a dimension's value, for telling a double click:
@@ -269,6 +299,8 @@
     const p = hitPoint(original, m, reach);
     if (p !== null) { drag = { ...base, mode: 'point', target: p, origins: originsOf(original, []).set(p, { ...point(original, p) }) }; return; }
     const id = hit(original, m, reach);
+    const text = id === null ? textAt(original, m) : null;
+    if (text !== null) { drag = { ...base, mode: 'text', target: text }; return; }
     if (id === null) { drag = { ...base, mode: 'box', target: null }; return; }
     const entity = original.entities.find((x) => x.id === id)!;
     if (entity.kind === 'circle' && !store.selection.has(id)) { drag = { ...base, mode: 'radius', target: id }; return; }
@@ -332,6 +364,14 @@
       return;
     }
     let delta = { x: m.x - drag.start.x, y: m.y - drag.start.y };
+    if (drag.mode === 'text') {
+      // A text moves as a whole; the grid catches its corner.
+      if (store.gridSnap) delta = { x: Math.round(delta.x / minor) * minor, y: Math.round(delta.y / minor) * minor };
+      const next = clone(drag.original), target = drag.target;
+      const moving = next.texts?.find((x) => x.id === target), from = drag.original.texts?.find((x) => x.id === target);
+      if (moving && from) { moving.x = from.x + delta.x; moving.y = from.y + delta.y; store.preview(next); }
+      return;
+    }
     if (drag.mode === 'point' && drag.target !== null) {
       const from = drag.origins.get(drag.target)!;
       dragSnap = snap(drag.original, { x: from.x + delta.x, y: from.y + delta.y }, { reach, grid: store.gridSnap ? minor : 0, anchor: from, ignorePoints: new Set([drag.target]) });
@@ -361,9 +401,13 @@
     if (d.mode === 'action') { if (!d.moved || touch) act(hitAt(d.start), d.shift); return; }
     if (!d.moved) {
       if (d.mode === 'box') { if (!d.shift) store.select([]); return; }
-      if (d.mode === 'label' && d.target !== null) {
+      if ((d.mode === 'label' || d.mode === 'text') && d.target !== null) {
         const now = performance.now();
-        if (lastLabel?.id === d.target && now - lastLabel.at < 450) { lastLabel = null; editDimension(d.target); return; }
+        if (lastLabel?.id === d.target && now - lastLabel.at < 450) {
+          lastLabel = null;
+          if (d.mode === 'text') editText(d.target); else editDimension(d.target);
+          return;
+        }
         lastLabel = { id: d.target, at: now };
       }
       const id = d.mode === 'point' ? hit(store.sketch, d.start, reach) : d.target;
@@ -375,11 +419,17 @@
       const area = { minX: Math.min(a.x, b.x), maxX: Math.max(a.x, b.x), minY: Math.min(a.y, b.y), maxY: Math.max(a.y, b.y) };
       // Left to right selects what lies inside; right to left whatever the box touches, as in Fusion.
       const window = box.x1 >= box.x0;
-      const ids = store.sketch.entities.filter((x) => (window ? insideBox : touchesBox)(shapeOf(store.sketch, x), area)).map((x) => x.id);
+      const texts = (store.sketch.texts ?? []).filter((x) => {
+        const inside = x.x >= area.minX && x.y >= area.minY && x.x + x.width <= area.maxX && x.y + x.height <= area.maxY;
+        const touches = x.x <= area.maxX && x.x + x.width >= area.minX && x.y <= area.maxY && x.y + x.height >= area.minY;
+        return window ? inside : touches;
+      }).map((x) => x.id);
+      const ids = [...store.sketch.entities.filter((x) => (window ? insideBox : touchesBox)(shapeOf(store.sketch, x), area)).map((x) => x.id), ...texts];
       store.select(ids, d.shift ? 'add' : 'replace');
       box = null;
       return;
     }
+    if (d.mode === 'text') { store.commit(clone(store.sketch), d.original); return; }
     const finished = clone(store.sketch);
     if (d.mode === 'point' && d.target !== null && dragSnap?.point !== undefined) merge(finished, d.target, dragSnap.point);
     dragSnap = null;
@@ -408,6 +458,8 @@
     if (note !== null) { editDimension(note); return; }
     if (tool || action) return;
     const at = local(e);
+    const text = textAt(store.sketch, toModel(at.x, at.y));
+    if (text !== null && hit(store.sketch, toModel(at.x, at.y), reach) === null) { editText(text); return; }
     const id = hit(store.sketch, toModel(at.x, at.y), reach);
     if (id !== null) store.select(chain(store.sketch, id), e.shiftKey ? 'add' : 'replace');
   }
@@ -621,6 +673,7 @@
   // ---- What the side panel reports ---------------------------------------------------------------
   const selected = $derived(store.sketch.entities.filter((e) => store.selection.has(e.id)));
   const selectedNotes = $derived(store.sketch.constraints.filter((c) => store.selection.has(c.id)));
+  const selectedTexts = $derived((store.sketch.texts ?? []).filter((x) => store.selection.has(x.id)));
   const NOTE_NAME: Record<Constraint['kind'], string> = {
     horizontal: 'Horizontal', vertical: 'Vertical', parallel: 'Parallel', perpendicular: 'Perpendicular', equal: 'Equal', collinear: 'Collinear',
     tangent: 'Tangent', concentric: 'Concentric', midpoint: 'Midpoint', on: 'Coincident', symmetric: 'Symmetric', fix: 'Fixed',
@@ -657,7 +710,7 @@
   function setGrid(step: number | null): void { store.gridStep = step && step > 0 ? step : null; }
 </script>
 
-{#if textOpen}<CreateText onclose={()=>textOpen=false} oncreated={insertPart} />{/if}
+{#if textOpen}<CreateText onclose={()=>{textOpen=false;editingText=null;}} editing={editingText} onplace={placeText} />{/if}
 <svelte:window onkeydown={key} onkeyup={keyUp} />
 
 <section class="panel main sketch-main">
@@ -720,6 +773,9 @@
       {#each drawn as e (e.id)}
         <path d={e.d} class="curve" class:defined={e.defined} class:construction={e.construction} class:selected={store.selection.has(e.id)}
           class:hovered={!!action && hover?.entity === e.id} class:picked={picked.curves.includes(e.id)} />
+      {/each}
+      {#each store.sketch.texts ?? [] as tx (tx.id)}
+        <path d={textPath(tx)} class="text-shape" class:selected={store.selection.has(tx.id)} fill-rule="evenodd" />
       {/each}
       {#each handles as p (p.id)}
         {#if p.center}<path class="handle center" class:defined={p.defined} d={`M${p.x - 3} ${p.y}h6M${p.x} ${p.y - 3}v6`} />
@@ -813,7 +869,14 @@
 
   <div class="sk-facts">
     <h3>{t("Selection")}</h3>
-    {#if selectedNotes.length === 1 && !selected.length}
+    {#if selectedTexts.length === 1 && !selected.length && !selectedNotes.length}
+      {@const tx = selectedTexts[0]!}
+      <dl><dt class="kind">{t("Text")}</dt><dd>{tx.value.split('\n')[0]}</dd>
+        <dt>{t("Font size")}</dt><dd>{displayNumber(tx.size, 'mm')} {unitLabel('mm')}</dd>
+        <dt>{t("Size")}</dt><dd>{displayNumber(tx.width, 'mm')} × {displayNumber(tx.height, 'mm')} {unitLabel('mm')}</dd></dl>
+      <button class="btn btn-ghost block sk-small" onclick={() => editText(tx.id)}>{t("Edit text")}</button>
+      <p class="muted">{t("Drag to move · double click to edit · Del removes it.")}</p>
+    {:else if selectedNotes.length === 1 && !selected.length}
       {@const n = selectedNotes[0]!}
       <dl><dt class="kind">{t(NOTE_NAME[n.kind])}</dt><dd>{#if isDimension(n)}{dimensionLabel(n.driven ? { ...n, value: measure(store.sketch, n) } : n, mm)}{/if}</dd></dl>
       {#if isDimension(n)}<button class="btn btn-ghost block sk-small" onclick={() => editDimension(n.id)}>{t("Change value")}</button>{/if}
@@ -897,6 +960,8 @@
   .curve.construction { stroke: var(--sketch-construction); stroke-dasharray: 6 4; stroke-width: 1.3; }
   .curve.hovered { stroke-width: 3.2; }
   .curve.selected { stroke: var(--accent); stroke-width: 3; }
+  .text-shape { fill: color-mix(in srgb, var(--sketch) 12%, transparent); stroke: var(--sketch); stroke-width: 1.4; stroke-linejoin: round; }
+  .text-shape.selected { stroke: var(--accent); stroke-width: 2.4; fill: color-mix(in srgb, var(--accent) 16%, transparent); }
   .curve.picked { stroke: var(--ok); stroke-width: 3.5; }
   .handle.picked { stroke: var(--ok); fill: var(--ok); }
   .handle { fill: var(--panel); stroke: var(--sketch); stroke-width: 1.2; }

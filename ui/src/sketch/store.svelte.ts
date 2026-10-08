@@ -216,7 +216,7 @@ export class SketchStore {
 
   /** Drops selected ids that no longer exist. */
   private prune(): void {
-    const ids = new Set([...this.sketch.entities.map((e) => e.id), ...this.sketch.constraints.map((c) => c.id)]);
+    const ids = new Set([...this.sketch.entities.map((e) => e.id), ...this.sketch.constraints.map((c) => c.id), ...(this.sketch.texts ?? []).map((t) => t.id)]);
     if ([...this.selection].some((id) => !ids.has(id))) this.selection = new Set([...this.selection].filter((id) => ids.has(id)));
   }
 

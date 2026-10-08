@@ -3220,5 +3220,10 @@
   "units/in": "Inkremente/in",
   "just now": "gerade eben",
   "Sketches": "Skizzen",
-  "Edit as sketch": "Als Skizze bearbeiten"
+  "Edit as sketch": "Als Skizze bearbeiten",
+  "Change text": "Text ändern",
+  "Place in sketch": "In Skizze übernehmen",
+  "Edit text": "Text bearbeiten",
+  "Drag to move · double click to edit · Del removes it.": "Ziehen verschiebt · Doppelklick bearbeitet · Entf löscht.",
+  "Size": "Größe"
 }

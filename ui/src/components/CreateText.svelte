@@ -10,16 +10,27 @@
   import { osk } from '../lib/osk.svelte';
   import { explain, plural } from '../lib/format';
   import { boxOf, pathOf, viewBoxFor } from '../lib/svg';
+  import { untrack } from 'svelte';
+  import type { SketchText } from '../sketch/model';
 
-  let { onclose, oncreated }: { onclose: () => void; oncreated?: (id:string)=>Promise<void> } = $props();
-  let value = $state('OpenLaser');
-  let family = $state<TextOptions['family']>('sans');
-  let font = $state<string | undefined>();
+  let { onclose, oncreated, editing = null, onplace }: {
+    onclose: () => void;
+    oncreated?: (id:string)=>Promise<void>;
+    /** A sketch's text to change, prefilling the form. */
+    editing?: SketchText | null;
+    /** In a sketch: the text and its outlines go back as an object, not a part. */
+    onplace?: (text: Omit<SketchText, 'id' | 'x' | 'y'>) => void;
+  } = $props();
+  // The form starts from the text being changed, once.
+  const start = untrack(() => editing);
+  let value = $state(start?.value ?? 'OpenLaser');
+  let family = $state<TextOptions['family']>(start?.family ?? 'sans');
+  let font = $state<string | undefined>(start?.font);
   let importing = $state(false);
   let fontRevision = $state(0);
-  let size = $state(20);
-  let bold = $state(false);
-  let alignment = $state<TextOptions['alignment']>('left');
+  let size = $state(start?.size ?? 20);
+  let bold = $state(start?.bold ?? false);
+  let alignment = $state<TextOptions['alignment']>(start?.alignment ?? 'left');
   let preview = $state<TextPreview | null>(null);
   let pending = $state(false);
   let creating = $state(false);
@@ -46,7 +57,17 @@
 
   function close(): void { if (!creating && !importing) { osk.close(); onclose(); } }
 
+  /** The text as a sketch object: outlines from their box's lower left corner. */
+  function place(): void {
+    if (!preview || !box || !onplace) return;
+    const outline = preview.outline.map((line) => line.map(([x, y]) => [x! - box.minX, y! - box.minY] as [number, number]));
+    onplace({ value, family, font, size, bold, alignment, outline, width: box.maxX - box.minX, height: box.maxY - box.minY });
+    osk.close();
+    onclose();
+  }
+
   async function create(): Promise<void> {
+    if (onplace) { place(); return; }
     if (creating || importing || pending || !preview) return;
     creating = true;
     error = '';
@@ -100,7 +121,7 @@
     {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
     {#each preview?.warnings ?? [] as warning}<p class="warn-text" role="status">{warning}</p>{/each}
     <div class="text-footer"><span class="muted">{t("Overlapping letters are welded into cutting outlines.")}</span><button
-      class="btn btn-primary" disabled={creating || importing || pending || !preview} onclick={create}>{creating ? t("Adding…") : t("Add text")}</button></div>
+      class="btn btn-primary" disabled={creating || importing || pending || !preview} onclick={create}>{creating ? t("Adding…") : editing ? t("Change text") : onplace ? t("Place in sketch") : t("Add text")}</button></div>
   </div>
 </Modal>
 

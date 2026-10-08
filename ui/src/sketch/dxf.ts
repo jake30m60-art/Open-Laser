@@ -1,7 +1,7 @@
 // The sketch as an ASCII DXF (R12 entities, millimetres) for the part
 // importer and for other CAD programs. Construction geometry is left out.
 import { angleOf, dist } from './geometry';
-import { point, type Sketch } from './model';
+import { placedText, point, type Sketch } from './model';
 
 const num = (v: number): string => {
   const s = (Math.abs(v) < 1e-12 ? 0 : v).toFixed(6).replace(/\.?0+$/, '');
@@ -25,9 +25,18 @@ export function toDxf(sketch: Sketch): string {
       out.push('0', 'ARC', '8', layer, '10', num(c.x), '20', num(c.y), '30', '0', '40', num(dist(c, a)), '50', deg(angleOf(c, a)), '51', deg(angleOf(c, b)));
     }
   }
+  // Texts as their closed outlines.
+  for (const text of sketch.texts ?? []) {
+    for (const line of placedText(text)) {
+      const closed = line.length > 2 && Math.hypot(line[0]![0] - line.at(-1)![0], line[0]![1] - line.at(-1)![1]) < 1e-6;
+      const pts = closed ? line.slice(0, -1) : line;
+      out.push('0', 'LWPOLYLINE', '8', 'Text', '90', String(pts.length), '70', closed ? '1' : '0');
+      for (const [x, y] of pts) out.push('10', num(x), '20', num(y));
+    }
+  }
   out.push('0', 'ENDSEC', '0', 'EOF');
   return out.join('\r\n') + '\r\n';
 }
 
 /** Whether the sketch has anything to cut. */
-export const hasCut = (sketch: Sketch): boolean => sketch.entities.some((e) => !e.construction);
+export const hasCut = (sketch: Sketch): boolean => sketch.entities.some((e) => !e.construction) || !!sketch.texts?.length;

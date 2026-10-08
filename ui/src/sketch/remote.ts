@@ -1,6 +1,6 @@
 // Sketches kept on the server, so every screen sees the same ones. The
 // browser keeps a copy to open at once; the server's is the one that lasts.
-import { isSketch, point, type Sketch } from './model';
+import { isSketch, placedText, point, type Sketch } from './model';
 import type { SketchDocument, SketchTarget } from './documents';
 
 /** A sketch in the server's list, without its editing model. */
@@ -83,5 +83,6 @@ export function outline(sketch: Sketch): [number, number][][] {
       out.push(Array.from({ length: n + 1 }, (_, i) => [c.x + r * Math.cos(start + (sweep * i) / n), c.y + r * Math.sin(start + (sweep * i) / n)] as [number, number]));
     }
   }
+  for (const text of sketch.texts ?? []) out.push(...placedText(text));
   return out;
 }

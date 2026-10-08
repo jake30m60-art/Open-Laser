@@ -163,7 +163,10 @@ export function unionBounds(all: Bounds[]): Bounds | null {
 }
 
 export const sketchBounds = (sketch: Sketch): Bounds | null =>
-  unionBounds(sketch.entities.map((e) => boundsOf(shapeOf(sketch, e))));
+  unionBounds([
+    ...sketch.entities.map((e) => boundsOf(shapeOf(sketch, e))),
+    ...(sketch.texts ?? []).map((t) => ({ minX: t.x, minY: t.y, maxX: t.x + t.width, maxY: t.y + t.height })),
+  ]);
 
 /** Whether a shape lies entirely inside a box. */
 export function insideBox(shape: Shape, box: Bounds): boolean {

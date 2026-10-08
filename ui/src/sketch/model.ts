@@ -57,10 +57,33 @@ export type Constraint =
 export type Dimension = Extract<Constraint, { value: number }>;
 export const isDimension = (c: Constraint): c is Dimension => 'value' in c;
 
+/** Text kept as text: what it says and how it is set stay editable, and
+ *  its outlines, as the server set them, are what gets cut. */
+export interface SketchText {
+  id: Id;
+  value: string;
+  family: 'sans' | 'serif' | 'mono';
+  /** An imported font face, over the family. */
+  font?: string;
+  /** Letter height in millimetres. */
+  size: number;
+  bold: boolean;
+  alignment: 'left' | 'center' | 'right';
+  /** Where its outline box's lower left corner lies. */
+  x: number;
+  y: number;
+  /** Its outlines as polylines, from the box's lower left corner. */
+  outline: [number, number][][];
+  width: number;
+  height: number;
+}
+
 export interface Sketch {
   points: Point[];
   entities: Entity[];
   constraints: Constraint[];
+  /** Texts, each kept editable; absent in sketches without text. */
+  texts?: SketchText[];
   /** The next unused id, shared by points, entities and constraints. */
   next: Id;
 }
@@ -72,9 +95,14 @@ export function clone(sketch: Sketch): Sketch {
     points: sketch.points.map((p) => ({ ...p })),
     entities: sketch.entities.map((e) => ({ ...e })),
     constraints: sketch.constraints.map((c) => ({ ...c })),
+    ...(sketch.texts?.length ? { texts: sketch.texts.map((t) => ({ ...t })) } : {}),
     next: sketch.next,
   };
 }
+
+/** A text's outlines where it lies in the sketch. */
+export const placedText = (text: SketchText): [number, number][][] =>
+  text.outline.map((line) => line.map(([x, y]) => [x + text.x, y + text.y] as [number, number]));
 
 export function point(sketch: Sketch, id: Id): Point {
   const found = sketch.points.find((p) => p.id === id);
@@ -143,6 +171,7 @@ export function remove(sketch: Sketch, ids: Iterable<Id>): void {
   sketch.points = sketch.points.filter((p) => used.has(p.id));
   const alive = new Set([...used, ...sketch.entities.map((e) => e.id)]);
   sketch.constraints = sketch.constraints.filter((c) => !gone.has(c.id) && constraintRefs(c).every((r) => alive.has(r)));
+  if (sketch.texts) sketch.texts = sketch.texts.filter((t) => !gone.has(t.id));
 }
 
 /** Merges point `from` into `into`: every curve through `from` now passes through `into`. */
