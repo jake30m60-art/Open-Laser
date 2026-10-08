@@ -484,8 +484,14 @@ class PolygonTool extends Tool {
     if (dist(c, at) < EPS) return 'ignored';
     const k = this.corners(c, at, this.count(locked));
     const ids = k.map((p, i) => (i === 0 ? use(sketch, at, this.automaticConstraints) : addPoint(sketch, p.x, p.y)));
-    const lines = k.map((p, i) => addLine(sketch, ids[i]!, ids[(i + 1) % k.length]!, p, k[(i + 1) % k.length]!));
+    // One side may take an axis; on the circle the others would repeat it.
+    const lines = k.map((p, i) => addLine(sketch, ids[i]!, ids[(i + 1) % k.length]!, p, k[(i + 1) % k.length]!, false, i === 0));
     for (const other of lines.slice(1)) addConstraint(sketch, { kind: 'equal', a: lines[0]!, b: other });
+    // As FreeCAD draws one: every corner on a construction circle, so equal
+    // sides keep the polygon regular when a side or the circle is dimensioned.
+    const centre = use(sketch, c, this.automaticConstraints);
+    const circle = addEntity(sketch, { kind: 'circle', c: centre, r: dist(c, at), construction: true });
+    for (const id of ids) addConstraint(sketch, { kind: 'on', point: id, curve: circle });
     this.reset();
     return 'done';
   }

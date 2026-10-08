@@ -432,8 +432,84 @@ export function looseAfter(previous: Sketch, next: Sketch): Set<Id> {
   return loose;
 }
 
-/** Dimension edits prefer the older reference geometry without adding a permanent fix. */
+/** How each pair of lines meeting at a point turns there, by the sign of
+ *  their cross product; nearly straight pairs are left out. */
+function turnSigns(s: Sketch): Map<string, number> {
+  const lines = s.entities.filter((e): e is Extract<Entity, { kind: 'line' }> => e.kind === 'line' && !e.construction);
+  const at = new Map<Id, Extract<Entity, { kind: 'line' }>[]>();
+  for (const l of lines) for (const p of [l.a, l.b]) at.set(p, [...(at.get(p) ?? []), l]);
+  const out = new Map<string, number>();
+  for (const [p, meeting] of at) for (let i = 0; i < meeting.length; i++) for (let j = i + 1; j < meeting.length; j++) {
+    const a = meeting[i]!, b = meeting[j]!;
+    const from = point(s, p), ta = point(s, a.a === p ? a.b : a.a), tb = point(s, b.a === p ? b.b : b.a);
+    const u = { x: ta.x - from.x, y: ta.y - from.y }, v = { x: tb.x - from.x, y: tb.y - from.y };
+    const len = Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y);
+    const cross = u.x * v.y - u.y * v.x;
+    if (len > 1e-9 && Math.abs(cross) / len > 0.02) out.set(`${p}:${a.id}/${b.id}`, Math.sign(cross));
+  }
+  return out;
+}
+
+/** Whether a corner that was there before turns the other way now: part
+ *  of the shape folded over or mirrored. */
+function folded(before: Sketch, after: Sketch): boolean {
+  const a = turnSigns(before), b = turnSigns(after);
+  for (const [key, sign] of a) if (b.has(key) && b.get(key) !== sign) return true;
+  return false;
+}
+
+/** The dimensions whose value alone changed, old and new. */
+function valueChanges(previous: Sketch, next: Sketch): Map<Id, [number, number]> {
+  const out = new Map<Id, [number, number]>();
+  if (previous.points.length !== next.points.length || previous.entities.length !== next.entities.length) return out;
+  const before = new Map(previous.constraints.map((c) => [c.id, c]));
+  for (const c of next.constraints) {
+    const old = before.get(c.id);
+    if (!old || !('value' in c) || !('value' in old) || old.kind !== c.kind || old.value === c.value) continue;
+    if (JSON.stringify({ ...old, value: 0 }) !== JSON.stringify({ ...c, value: 0 })) continue;
+    out.set(c.id, [old.value, c.value]);
+  }
+  return out;
+}
+
+/** Dimension edits prefer the older reference geometry without adding a
+ *  permanent fix. A large change that would fold part of the shape over,
+ *  as the solver may jump to a mirrored solution, is made again in small
+ *  steps from one solution to the next, so the shape follows the value. */
 export function solveEdit(previous: Sketch, next: Sketch): Solved {
+  const direct = solveEditDirect(previous, next);
+  if (direct.ok && !folded(previous, direct.sketch)) return direct;
+  const changes = valueChanges(previous, next);
+  if (!changes.size) return direct;
+  let steps = 1;
+  for (const [id, [from, to]] of changes) {
+    const kind = next.constraints.find((c) => c.id === id)?.kind;
+    const n = kind === 'angle' ? Math.abs(to - from) / 5 : from > 0 && to > 0 ? Math.abs(Math.log(to / from)) / Math.log(1.1) : 1;
+    steps = Math.max(steps, Math.ceil(n));
+  }
+  steps = Math.min(60, Math.max(2, steps));
+  let current = previous;
+  let result: Solved = direct;
+  for (let k = 1; k <= steps; k++) {
+    const stage = clone(next);
+    stage.points = clone(current).points;
+    for (const c of stage.constraints) {
+      const change = changes.get(c.id);
+      if (!change || !('value' in c)) continue;
+      const [from, to] = change;
+      const kind = c.kind;
+      (c as { value: number }).value = k === steps ? to
+        : kind !== 'angle' && from > 0 && to > 0 ? from * Math.pow(to / from, k / steps)
+        : from + ((to - from) * k) / steps;
+    }
+    result = solveEditDirect(current, stage);
+    if (!result.ok) return direct;
+    current = result.sketch;
+  }
+  return folded(previous, result.sketch) && direct.ok ? direct : result;
+}
+
+function solveEditDirect(previous: Sketch, next: Sketch): Solved {
   const fillets = resizedFillets(previous, next);
   if (fillets.error) return {ok:false,sketch:next,conflicting:[],redundant:[],dof:-1,reason:fillets.error};
   next = fillets.sketch;

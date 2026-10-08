@@ -167,8 +167,12 @@ describe('shape tools', () => {
   it('draws a polygon with the typed side count', () => {
     const s = emptySketch();
     draw(s, 'polygon', [{ x: 0, y: 0 }, [{ x: 10, y: 0 }, { sides: 8, diameter: 50 }]]);
-    expect(s.entities).toHaveLength(8);
-    for (const p of s.points) expect(dist(p, { x: 0, y: 0 })).toBeCloseTo(25);
+    expect(s.entities.filter((e) => !e.construction)).toHaveLength(8);
+    // The corners lie on a construction circle round the centre, which keeps the polygon regular.
+    const circle = s.entities.find((e) => e.construction)!;
+    if (circle.kind !== 'circle') throw Error('circle');
+    expect(circle.r).toBeCloseTo(25);
+    for (const p of s.points.filter((p) => p.id !== circle.c)) expect(dist(p, { x: 0, y: 0 })).toBeCloseTo(25);
   });
 });
 
