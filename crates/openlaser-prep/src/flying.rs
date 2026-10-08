@@ -95,7 +95,11 @@ impl Line {
                     None => off(),
                     Some(i) => SegmentProcess {
                         levels: self.levels.get(i).map(|levels| {
-                            if reverse { levels.iter().rev().copied().collect() } else { levels.clone() }
+                            if reverse {
+                                levels.iter().rev().copied().collect()
+                            } else {
+                                levels.clone()
+                            }
                         }),
                         ..SegmentProcess::default()
                     },
@@ -273,7 +277,8 @@ fn passes(
             reverse = false;
             previous_family = Some(f);
         }
-        let line = Line { origin: group.origin, direction: group.direction, spans, levels: Vec::new() };
+        let line =
+            Line { origin: group.origin, direction: group.direction, spans, levels: Vec::new() };
         let mut sources: Vec<usize> =
             group.members.iter().flat_map(|&i| contours[i].sources.iter().copied()).collect();
         sources.sort_unstable();
@@ -516,9 +521,11 @@ fn zigzag(
 
 fn check_image(image: &ImageFill) -> Result<()> {
     let percent = |v: f64| v.is_finite() && (0. ..=100.).contains(&v);
-    if !percent(image.min_power) || !percent(image.max_power) || image.min_power > image.max_power
-    {
-        return Err(feature("image", "the powers must be 0 to 100 %, the least no more than the most"));
+    if !percent(image.min_power) || !percent(image.max_power) || image.min_power > image.max_power {
+        return Err(feature(
+            "image",
+            "the powers must be 0 to 100 %, the least no more than the most",
+        ));
     }
     if !(image.gamma.is_finite() && (0.1..=10.).contains(&image.gamma)) {
         return Err(feature("image", "the gamma must be 0.1 to 10"));
@@ -567,7 +574,13 @@ fn shade(lines: &mut [Line], raster: &Raster, image: &ImageFill, pitch: f64) -> 
                 row.push(match image.mode {
                     ImageMode::Grayscale if dark < 0.01 => 0,
                     ImageMode::Grayscale => percent(low + (high - low) * dark),
-                    ImageMode::Threshold => if dark >= 0.5 { percent(high) } else { 0 },
+                    ImageMode::Threshold => {
+                        if dark >= 0.5 {
+                            percent(high)
+                        } else {
+                            0
+                        }
+                    }
                     ImageMode::Dither => {
                         let value = dark + carry.remove(&k).unwrap_or(0.);
                         let on = value >= 0.5;
@@ -637,10 +650,15 @@ pub(crate) fn fill_framing(
         let offset = fill.scan_offset + calibrated_at(&fill.calibrated, angle);
         let mut lines = scan(&polygons, fill.spacing, angle, shift)?;
         if let Some(raster) = image {
-            let requested: f64 = lines.iter().flat_map(|l| &l.spans)
-                .map(|&(a,b)| ((b/fill.spacing).floor() - (a/fill.spacing).ceil()).max(0.)).sum();
+            let requested: f64 = lines
+                .iter()
+                .flat_map(|l| &l.spans)
+                .map(|&(a, b)| ((b / fill.spacing).floor() - (a / fill.spacing).ceil()).max(0.))
+                .sum();
             if requested + cells > f64::from(MAX_IMAGE_CELLS) {
-                return Err(Error::Limit(format!("the image needs more than {MAX_IMAGE_CELLS} cells; widen the line spacing")));
+                return Err(Error::Limit(format!(
+                    "the image needs more than {MAX_IMAGE_CELLS} cells; widen the line spacing"
+                )));
             }
             cells += requested;
             shade(&mut lines, raster, &shading, fill.spacing);
@@ -1081,9 +1099,8 @@ mod tests {
     #[test]
     fn a_mirrored_image_engraves_mirrored() {
         let frame = rect(0, -20., 0., 20., 10.);
-        let mirrored = halves().transformed(&openlaser_core::geometry::Transform([
-            -1., 0., 0., 1., 0., 0.,
-        ]));
+        let mirrored =
+            halves().transformed(&openlaser_core::geometry::Transform([-1., 0., 0., 1., 0., 0.]));
         let paths = fill_framing(&[&frame], &fill_of(1., 0., 2.), Some(&mirrored)).unwrap();
         for segment in lit(&paths) {
             let (a, b) = (segment.curve.start().x, segment.curve.end().x);

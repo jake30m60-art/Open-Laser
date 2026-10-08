@@ -485,7 +485,9 @@ impl Coordinator {
         if Some(recipe.laser) != self.mode
             || !recipe.attributes.get("OpenLaserProcess").is_some_and(|v| v == "engrave")
         {
-            return Err(Error::Request("calibration needs an engraving recipe for the active laser".into()));
+            return Err(Error::Request(
+                "calibration needs an engraving recipe for the active laser".into(),
+            ));
         }
         let bed = crate::correction::bed(self)?;
         let (acceleration, time) = self.scan_motion()?;
@@ -514,9 +516,7 @@ impl Coordinator {
                 ]
             })
             .collect();
-        let cell = [0, 1].map(|axis| {
-            sizes.iter().map(|size| size[axis]).fold(0., f64::max)
-        });
+        let cell = [0, 1].map(|axis| sizes.iter().map(|size| size[axis]).fold(0., f64::max));
         let columns = if angles.len() > 1 { angles.len() } else { COLUMNS };
         let corners: Vec<[f64; 2]> = (0..tests.len())
             .map(|i| {

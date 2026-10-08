@@ -15,9 +15,9 @@
 )]
 
 mod access;
-pub mod backup;
 pub mod alarm_history;
 pub mod api;
+pub mod backup;
 pub mod bindings;
 pub mod connect;
 pub mod coordinator;
@@ -29,7 +29,6 @@ pub mod document;
 pub mod draft;
 mod envelope;
 mod font_store;
-pub mod sketch_store;
 pub mod gas;
 mod imports;
 pub mod inventory;
@@ -37,8 +36,8 @@ pub mod job_parts;
 mod lan;
 pub mod layers;
 pub mod machine;
-pub mod manual_cut;
 mod machine_files;
+pub mod manual_cut;
 pub mod nesting;
 pub mod parameter_settings;
 pub mod placement;
@@ -50,6 +49,7 @@ pub mod scan_offsets;
 pub mod setup;
 pub mod sheet_sizes;
 pub mod sheets;
+pub mod sketch_store;
 pub mod soft_settings;
 pub mod stock_store;
 pub mod touch;

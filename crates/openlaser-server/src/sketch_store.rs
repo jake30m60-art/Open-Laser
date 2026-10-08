@@ -70,7 +70,9 @@ fn io(path: &Path, error: impl std::fmt::Display) -> Error {
 }
 
 fn valid_id(id: &str) -> bool {
-    !id.is_empty() && id.len() <= 80 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    !id.is_empty()
+        && id.len() <= 80
+        && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
 fn now() -> u64 {
@@ -143,12 +145,16 @@ impl Store {
     pub fn save(&self, mut document: SketchDocument) -> Result<SketchDocument> {
         let path = self.path(&document.id, false)?;
         let sketch = &document.sketch;
-        let shaped = ["points", "entities", "constraints"].iter().all(|k| sketch.get(k).is_some_and(Value::is_array));
+        let shaped = ["points", "entities", "constraints"]
+            .iter()
+            .all(|k| sketch.get(k).is_some_and(Value::is_array));
         if !shaped {
             return Err(Error::Request("a sketch has points, entities and constraints".into()));
         }
         if !path.exists() && self.list().len() + self.removed().len() >= MAX_SKETCHES {
-            return Err(Error::Refused(format!("at most {MAX_SKETCHES} sketches are kept; remove some first")));
+            return Err(Error::Refused(format!(
+                "at most {MAX_SKETCHES} sketches are kept; remove some first"
+            )));
         }
         document.name = document.name.trim().chars().take(200).collect();
         if document.name.is_empty() {
@@ -211,7 +217,9 @@ mod tests {
         assert_eq!(store.removed().len(), 1);
         store.restore("sketch-a").unwrap();
         assert_eq!(store.list().len(), 1);
-        assert!(store.save(SketchDocument { sketch: serde_json::json!({}), ..doc("bad") }).is_err());
+        assert!(
+            store.save(SketchDocument { sketch: serde_json::json!({}), ..doc("bad") }).is_err()
+        );
         assert!(store.get("../x").is_err());
         drop(std::fs::remove_dir_all(&root));
     }

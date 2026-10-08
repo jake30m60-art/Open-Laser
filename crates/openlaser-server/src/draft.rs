@@ -645,8 +645,16 @@ impl Draft {
     /// a job of several follows; a part that no longer fits its place is
     /// refused when prepared, as crossing a neighbour or leaving the stock.
     pub(crate) fn replace_part(&mut self, sources: Arc<JobDrawing>, index: usize) -> Result<()> {
-        let old=self.sources().ok_or_else(||crate::Error::Refused("source drawing missing".into()))?.clone();
-        let swap = PartSwap { old: &old, new: &sources, before: old.range(index), after: sources.range(index) };
+        let old = self
+            .sources()
+            .ok_or_else(|| crate::Error::Refused("source drawing missing".into()))?
+            .clone();
+        let swap = PartSwap {
+            old: &old,
+            new: &sources,
+            before: old.range(index),
+            after: sources.range(index),
+        };
         let mut next = self.current.clone();
         swap.apply(&mut next.placed, &mut next.features, &mut next.grouping, &mut next.nesting)?;
         if let Some(set) = &mut next.sheets {
@@ -656,8 +664,11 @@ impl Draft {
         }
         self.remember();
         self.current = next;
-        self.current.parts=sources.parts().cloned().collect();
-        self.source_count=sources.contours(); self.sources=Some(sources); self.prepared=None; self.compiled=None;
+        self.current.parts = sources.parts().cloned().collect();
+        self.source_count = sources.contours();
+        self.sources = Some(sources);
+        self.prepared = None;
+        self.compiled = None;
         self.engrave_new_images();
         Ok(())
     }
@@ -871,7 +882,8 @@ impl Draft {
             .ok_or_else(|| crate::Error::Refused("that part is not in this job".into()))?;
         let range = sources.range(index);
         let placed = &self.current.placed;
-        let Some(copy) = placed.iter().filter(|p| range.contains(&p.source)).map(|p| p.copy).min() else {
+        let Some(copy) = placed.iter().filter(|p| range.contains(&p.source)).map(|p| p.copy).min()
+        else {
             return Ok(None);
         };
         let own: Vec<usize> = (0..placed.len())
@@ -1132,7 +1144,8 @@ impl Draft {
             .iter()
             .enumerate()
             .filter_map(|(contour, placed)| {
-                let (_, raster) = sources.images().iter().find(|(frame, _)| *frame == placed.source)?;
+                let (_, raster) =
+                    sources.images().iter().find(|(frame, _)| *frame == placed.source)?;
                 Some(openlaser_core::raster::PlacedRaster {
                     contour,
                     raster: raster.transformed(&placed.transform),
@@ -1224,12 +1237,18 @@ impl PartSwap<'_> {
         let kept_ends: Vec<[openlaser_core::geometry::Point; 2]> = match &features.bridges {
             Some(bridges) if !bridges.connections.is_empty() => {
                 let transforms: Vec<_> = placed.iter().map(|p| p.transform).collect();
-                openlaser_prep::bridge_ends(&place(self.old.drawing(), placed), features, &transforms)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(|(_, joined)| !joined.iter().any(|&i| self.before.contains(&placed[i].source)))
-                    .map(|(ends, _)| ends)
-                    .collect()
+                openlaser_prep::bridge_ends(
+                    &place(self.old.drawing(), placed),
+                    features,
+                    &transforms,
+                )
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(_, joined)| {
+                    !joined.iter().any(|&i| self.before.contains(&placed[i].source))
+                })
+                .map(|(ends, _)| ends)
+                .collect()
             }
             _ => Vec::new(),
         };
@@ -1332,7 +1351,10 @@ pub(crate) fn engrave_images(features: &mut Features, layers: &[String]) {
                 name: name.clone(),
                 mode: LayerMode::Mark,
                 color: None,
-                machining: Some(Machining { fill: Some(Fill::for_image()), ..Machining::default() }),
+                machining: Some(Machining {
+                    fill: Some(Fill::for_image()),
+                    ..Machining::default()
+                }),
             });
         }
     }
@@ -1347,8 +1369,19 @@ pub fn prepare(drawing: &Drawing, placed: &[Placed], features: &Features) -> Res
     let features = placed_bridges(&sheet, features, placed)?;
     let toolpath = openlaser_prep::prepare(&sheet, &features)?;
     let bounds = if let Some(ids) = &features.only_contours {
-        Drawing { contours: sheet.contours.iter().enumerate().filter(|(i,c)| ids.contains(i) && !features.skip_layers.contains(&c.layer)).map(|(_,c)| c.clone()).collect() }.bounds()
-    } else { sheet.bounds() };
+        Drawing {
+            contours: sheet
+                .contours
+                .iter()
+                .enumerate()
+                .filter(|(i, c)| ids.contains(i) && !features.skip_layers.contains(&c.layer))
+                .map(|(_, c)| c.clone())
+                .collect(),
+        }
+        .bounds()
+    } else {
+        sheet.bounds()
+    };
     let mut display = preview(&toolpath, bounds);
     display.source_contours = Some(plain(&sheet).contours);
     display.engraving_regions = area_boundaries(&sheet, &features);
@@ -1385,30 +1418,42 @@ pub fn prepare(drawing: &Drawing, placed: &[Placed], features: &Features) -> Res
 
 fn area_boundaries(sheet: &Drawing, features: &Features) -> Vec<PreviewContour> {
     let mut originals = plain(sheet).contours;
-    if features.bridges.is_some() && let Ok(joined) = openlaser_prep::bridge_boundaries(sheet, features) {
-            for (sources, contour) in joined.into_iter().filter(|(sources, _)| sources.len() > 1) {
-                originals.retain(|c| !c.sources.iter().any(|s| sources.contains(s)));
-                let mut boundary = plain(&Drawing { contours: vec![contour] }).contours.remove(0);
-                boundary.sources = sources;
-                originals.push(boundary);
-            }
+    if features.bridges.is_some()
+        && let Ok(joined) = openlaser_prep::bridge_boundaries(sheet, features)
+    {
+        for (sources, contour) in joined.into_iter().filter(|(sources, _)| sources.len() > 1) {
+            originals.retain(|c| !c.sources.iter().any(|s| sources.contains(s)));
+            let mut boundary = plain(&Drawing { contours: vec![contour] }).contours.remove(0);
+            boundary.sources = sources;
+            originals.push(boundary);
+        }
     }
-    originals.iter().filter(|c| c.closed && !features.skip_layers.contains(&c.layer)
-        && features.only_contours.as_ref().is_none_or(|ids| ids.contains(&c.sources[0]))
-        && features.layers.iter().any(|l| l.name == c.layer
-            && l.mode == openlaser_core::features::LayerMode::Mark
-            && l.machining.as_ref().is_some_and(|m| m.fill.is_some()))
-        && (!features.fill_regions.iter().any(|r| r.holes.contains(&c.sources[0]))
-            || features.fill_regions.iter().any(|r| r.contour == c.sources[0])))
+    originals
+        .iter()
+        .filter(|c| {
+            c.closed
+                && !features.skip_layers.contains(&c.layer)
+                && features.only_contours.as_ref().is_none_or(|ids| ids.contains(&c.sources[0]))
+                && features.layers.iter().any(|l| {
+                    l.name == c.layer
+                        && l.mode == openlaser_core::features::LayerMode::Mark
+                        && l.machining.as_ref().is_some_and(|m| m.fill.is_some())
+                })
+                && (!features.fill_regions.iter().any(|r| r.holes.contains(&c.sources[0]))
+                    || features.fill_regions.iter().any(|r| r.contour == c.sources[0]))
+        })
         .map(|c| {
             let mut region = c.clone();
             if let Some(chosen) = features.fill_regions.iter().find(|r| r.contour == c.sources[0]) {
                 for &hole in &chosen.holes {
-                    if let Some(boundary) = originals.iter().find(|c| c.sources == [hole]) { region.paths.extend(boundary.paths.clone()); }
+                    if let Some(boundary) = originals.iter().find(|c| c.sources == [hole]) {
+                        region.paths.extend(boundary.paths.clone());
+                    }
                 }
             }
             region
-        }).collect()
+        })
+        .collect()
 }
 
 /// Keep editable outlines on a failed job, and show each valid filled marking
@@ -1419,12 +1464,22 @@ fn partial_preview(drawing: &Drawing, placed: &[Placed], features: &Features) ->
     let sheet = place(&relayered, placed);
     let mut display = plain(&sheet);
     display.source_contours = Some(display.contours.clone());
-    let invalid: Vec<_> = sheet.contours.iter().enumerate().filter(|(_, c)|
-        !features.skip_layers.contains(&c.layer) && openlaser_prep::crosses_itself(c))
-        .map(|(i, _)| i).collect();
-    for &i in &invalid { display.contours[i].problem = Some("crosses itself".into()); }
+    let invalid: Vec<_> = sheet
+        .contours
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| {
+            !features.skip_layers.contains(&c.layer) && openlaser_prep::crosses_itself(c)
+        })
+        .map(|(i, _)| i)
+        .collect();
+    for &i in &invalid {
+        display.contours[i].problem = Some("crosses itself".into());
+    }
     for i in openlaser_prep::tangled(&sheet.contours) {
-        if !features.skip_layers.contains(&sheet.contours[i].layer) && display.contours[i].problem.is_none() {
+        if !features.skip_layers.contains(&sheet.contours[i].layer)
+            && display.contours[i].problem.is_none()
+        {
             display.contours[i].problem = Some("touches another contour".into());
         }
     }
@@ -1433,14 +1488,20 @@ fn partial_preview(drawing: &Drawing, placed: &[Placed], features: &Features) ->
         let mut isolated = features.clone();
         let excluded = "__openlaser_invalid_preview__";
         isolated.skip_layers.push(excluded.into());
-        for &i in &invalid { valid_sheet.contours[i].layer = excluded.into(); }
+        for &i in &invalid {
+            valid_sheet.contours[i].layer = excluded.into();
+        }
         let result = placed_bridges(&valid_sheet, &isolated, placed)
             .and_then(|f| openlaser_prep::prepare(&valid_sheet, &f).map_err(crate::Error::from));
-        if let Err(error) = &result { display.warnings.push(format!("Partial preview: {error}")); }
+        if let Err(error) = &result {
+            display.warnings.push(format!("Partial preview: {error}"));
+        }
         if let Ok(toolpath) = result {
             let mut valid = preview(&toolpath, sheet.bounds());
-            valid.engraving_regions = area_boundaries(&sheet, features).into_iter()
-                .filter(|r| !invalid.contains(&r.sources[0])).collect();
+            valid.engraving_regions = area_boundaries(&sheet, features)
+                .into_iter()
+                .filter(|r| !invalid.contains(&r.sources[0]))
+                .collect();
             valid.contours.extend(invalid.iter().map(|&i| display.contours[i].clone()));
             return valid;
         }
@@ -1456,13 +1517,19 @@ fn partial_preview(drawing: &Drawing, placed: &[Placed], features: &Features) ->
                 isolated.skip_layers.push(contour.layer.clone());
             }
         }
-        let Ok(prepared) = prepare(drawing, placed, &isolated) else { continue; };
-        let original_length: f64 = sheet.contours.iter().filter(|c| c.layer == layer.name)
-            .map(Contour::length).sum();
+        let Ok(prepared) = prepare(drawing, placed, &isolated) else {
+            continue;
+        };
+        let original_length: f64 =
+            sheet.contours.iter().filter(|c| c.layer == layer.name).map(Contour::length).sum();
         display.length_mm += prepared.preview.length_mm - original_length;
         display.contours.retain(|c| c.layer != layer.name);
-        display.contours.extend(prepared.preview.contours.iter().filter(|c| c.layer == layer.name).cloned());
-        display.engraving_regions.extend(prepared.preview.engraving_regions.iter().filter(|c| c.layer == layer.name).cloned());
+        display
+            .contours
+            .extend(prepared.preview.contours.iter().filter(|c| c.layer == layer.name).cloned());
+        display.engraving_regions.extend(
+            prepared.preview.engraving_regions.iter().filter(|c| c.layer == layer.name).cloned(),
+        );
         display.warnings.extend(prepared.preview.warnings.iter().cloned());
     }
     display
@@ -1743,13 +1810,22 @@ pub fn compile(
     let mut view = summary(&job, &program, blocks, dry_run, plan);
     view.engraving_regions = prepared.preview.engraving_regions.clone();
     let filled = |layer: &str| view.engraving_regions.iter().any(|c| c.layer == layer);
-    view.engraving_paths = prepared.preview.contours.iter()
+    view.engraving_paths = prepared
+        .preview
+        .contours
+        .iter()
         .filter(|c| !c.closed && filled(&c.layer))
-        .flat_map(|c| c.paths.iter().filter(|p| p.kind == PathKind::Cut).cloned()).collect();
-    view.engraving_passes = job.passes.iter().enumerate()
-        .filter(|(_, pass)| prepared.preview.contours.get(pass.pass.source)
-            .is_some_and(|c| filled(&c.layer)))
-        .map(|(i, _)| i).collect();
+        .flat_map(|c| c.paths.iter().filter(|p| p.kind == PathKind::Cut).cloned())
+        .collect();
+    view.engraving_passes = job
+        .passes
+        .iter()
+        .enumerate()
+        .filter(|(_, pass)| {
+            prepared.preview.contours.get(pass.pass.source).is_some_and(|c| filled(&c.layer))
+        })
+        .map(|(i, _)| i)
+        .collect();
     Ok(CompiledJob {
         dry_run,
         scale,
@@ -1869,7 +1945,8 @@ mod tests {
         let fill: Fill = serde_json::from_value(serde_json::json!({
             "spacing": 1., "angle": 0., "run_up": 2., "outline": false,
             "passes": 2, "pass_angle": 90.
-        })).unwrap();
+        }))
+        .unwrap();
         let mut drawing = square();
         let mut hole = square_at([2., 2.]);
         for curve in &mut hole.curves {
@@ -1880,8 +1957,12 @@ mod tests {
         }
         drawing.contours.push(hole);
         let mut features = Features::default();
-        features.layers.push(Layer { name: "0".into(), mode: LayerMode::Mark, color: None,
-            machining: Some(Machining { fill: Some(fill), ..Machining::default() }) });
+        features.layers.push(Layer {
+            name: "0".into(),
+            mode: LayerMode::Mark,
+            color: None,
+            machining: Some(Machining { fill: Some(fill), ..Machining::default() }),
+        });
         // Settings survive saving/reopening, including multipass and outline=false.
         let saved = serde_json::to_vec(&features).unwrap();
         features = serde_json::from_slice(&saved).unwrap();
@@ -1889,15 +1970,23 @@ mod tests {
         assert_eq!(prepared.preview.engraving_regions.len(), 2);
         assert_eq!(prepared.preview.engraving_regions[1].sources, vec![1]);
         assert!(prepared.preview.contours.iter().all(|c| !c.closed));
-        let marks: Vec<_> = prepared.preview.contours.iter().flat_map(|c| &c.paths)
-            .filter(|p| p.kind == PathKind::Cut).collect();
+        let marks: Vec<_> = prepared
+            .preview
+            .contours
+            .iter()
+            .flat_map(|c| &c.paths)
+            .filter(|p| p.kind == PathKind::Cut)
+            .collect();
         assert!(marks.iter().any(|p| (p.points[0][0] - p.points.last().unwrap()[0]).abs() > 1.));
         assert!(marks.iter().any(|p| (p.points[0][1] - p.points.last().unwrap()[1]).abs() > 1.));
         for path in marks {
             for segment in path.points.windows(2) {
                 let x = (segment[0][0] + segment[1][0]) / 2.;
                 let y = (segment[0][1] + segment[1][1]) / 2.;
-                assert!(!(x > 2.0001 && x < 7.9999 && y > 2.0001 && y < 7.9999), "hole must stay clear");
+                assert!(
+                    !(x > 2.0001 && x < 7.9999 && y > 2.0001 && y < 7.9999),
+                    "hole must stay clear"
+                );
             }
         }
         // Changing back to contour engraving removes the fill, not the original shapes.
@@ -1959,14 +2048,18 @@ mod tests {
         let corners = [[0., 0.], [10., 10.], [0., 10.], [10., 0.]];
         drawing.contours.push(Contour {
             layer: "0".into(),
-            curves: (0..4).map(|i| Curve::Line {
-                start: Point::from(corners[i]), end: Point::from(corners[(i + 1) % 4]),
-            }).collect(),
+            curves: (0..4)
+                .map(|i| Curve::Line {
+                    start: Point::from(corners[i]),
+                    end: Point::from(corners[(i + 1) % 4]),
+                })
+                .collect(),
         });
         let mut draft = Draft::of(drawing.clone());
         draft.current.features.layer_edits = serde_json::from_value(serde_json::json!([
             { "contour": 0, "layer": "Engraving" }
-        ])).unwrap();
+        ]))
+        .unwrap();
         draft.prepare(&drawing);
         assert!(draft.error.as_ref().unwrap().contains("crosses itself"));
         assert!(draft.prepared.is_none());
@@ -1979,10 +2072,18 @@ mod tests {
         // An unrelated bad cutting contour must not hide a valid fill preview.
         use openlaser_core::features::{Fill, Layer, LayerMode, Machining};
         draft.current.features.layers.push(Layer {
-            name: "Engraving".into(), mode: LayerMode::Mark, color: None,
-            machining: Some(Machining { fill: Some(serde_json::from_value::<Fill>(serde_json::json!({
-                "spacing": 1., "angle": 0., "run_up": 2., "outline": false
-            })).unwrap()), ..Machining::default() }),
+            name: "Engraving".into(),
+            mode: LayerMode::Mark,
+            color: None,
+            machining: Some(Machining {
+                fill: Some(
+                    serde_json::from_value::<Fill>(serde_json::json!({
+                        "spacing": 1., "angle": 0., "run_up": 2., "outline": false
+                    }))
+                    .unwrap(),
+                ),
+                ..Machining::default()
+            }),
         });
         draft.prepare(&drawing);
         assert!(draft.error.as_ref().unwrap().contains("crosses itself"));
@@ -1990,7 +2091,8 @@ mod tests {
         let preview = draft.preview.as_ref().unwrap();
         assert_eq!(preview.engraving_regions.len(), 1);
         assert_eq!(preview.engraving_regions[0].sources, vec![0]);
-        assert!(preview.contours.iter().any(|c| c.layer == "Engraving" && !c.closed
+        assert!(preview.contours.iter().any(|c| c.layer == "Engraving"
+            && !c.closed
             && c.paths.iter().any(|p| p.kind == PathKind::Travel)));
         assert!(preview.contours.iter().any(|c| c.layer == "0" && c.sources == vec![1]));
 
@@ -2000,71 +2102,136 @@ mod tests {
         assert!(draft.error.is_some());
         assert!(draft.prepared.is_none());
         assert!(draft.preview.as_ref().unwrap().engraving_regions.is_empty());
-        drawing.contours.push(square_at([20.,20.]));
+        drawing.contours.push(square_at([20., 20.]));
         let mut cuts = Draft::of(drawing.clone());
-        cuts.current.features.leads = Some(serde_json::from_value(serde_json::json!({
-            "entry":{"shape":"line","length":2.,"radius":1.,"angle":45.},
-            "exit":{"shape":"line","length":3.,"radius":1.,"angle":45.},
-            "side":"auto","closed_only":true,"overrides":[]
-        })).unwrap());
+        cuts.current.features.leads = Some(
+            serde_json::from_value(serde_json::json!({
+                "entry":{"shape":"line","length":2.,"radius":1.,"angle":45.},
+                "exit":{"shape":"line","length":3.,"radius":1.,"angle":45.},
+                "side":"auto","closed_only":true,"overrides":[]
+            }))
+            .unwrap(),
+        );
         cuts.prepare(&drawing);
         assert!(cuts.prepared.is_none());
-        let paths:Vec<_> = cuts.preview.as_ref().unwrap().contours.iter().filter(|c|c.sources==vec![2]).flat_map(|c|&c.paths).collect();
-        assert!(paths.iter().any(|p|p.kind==PathKind::LeadIn));
-        assert!(paths.iter().any(|p|p.kind==PathKind::LeadOut));
+        let paths: Vec<_> = cuts
+            .preview
+            .as_ref()
+            .unwrap()
+            .contours
+            .iter()
+            .filter(|c| c.sources == vec![2])
+            .flat_map(|c| &c.paths)
+            .collect();
+        assert!(paths.iter().any(|p| p.kind == PathKind::LeadIn));
+        assert!(paths.iter().any(|p| p.kind == PathKind::LeadOut));
     }
 
     #[test]
     fn selection_output_is_exact_and_keeps_the_waste_side_of_an_inner_contour() {
         let mut drawing = square();
-        let mut hole = square_at([2.,2.]);
-        for curve in &mut hole.curves { if let Curve::Line {start,end} = curve {
-            *start=Point::new(2.+(start.x-2.)*0.6,2.+(start.y-2.)*0.6);
-            *end=Point::new(2.+(end.x-2.)*0.6,2.+(end.y-2.)*0.6);
-        }}
+        let mut hole = square_at([2., 2.]);
+        for curve in &mut hole.curves {
+            if let Curve::Line { start, end } = curve {
+                *start = Point::new(2. + (start.x - 2.) * 0.6, 2. + (start.y - 2.) * 0.6);
+                *end = Point::new(2. + (end.x - 2.) * 0.6, 2. + (end.y - 2.) * 0.6);
+            }
+        }
         drawing.contours.push(hole);
-        let mut f=Features::default(); f.only_contours=Some(vec![1]);
-        let selected=prepare(&drawing,&Placed::all(2),&f).unwrap();
-        assert_eq!(selected.preview.contours.len(),1);
-        assert_eq!(selected.preview.contours[0].sources,vec![1]);
-        assert_eq!(selected.preview.contours[0].depth,1);
-        assert_eq!(selected.preview.source_contours.as_ref().unwrap().len(),2, "excluded outlines stay editable without becoming machine paths");
-        assert_eq!(selected.preview.source_contours.as_ref().unwrap().len(),2, "excluded outlines stay editable without becoming machine paths");
-        f.only_contours=None;
-        assert_eq!(prepare(&drawing,&Placed::all(2),&f).unwrap().preview.contours.len(),2);
+        let mut f = Features::default();
+        f.only_contours = Some(vec![1]);
+        let selected = prepare(&drawing, &Placed::all(2), &f).unwrap();
+        assert_eq!(selected.preview.contours.len(), 1);
+        assert_eq!(selected.preview.contours[0].sources, vec![1]);
+        assert_eq!(selected.preview.contours[0].depth, 1);
+        assert_eq!(
+            selected.preview.source_contours.as_ref().unwrap().len(),
+            2,
+            "excluded outlines stay editable without becoming machine paths"
+        );
+        assert_eq!(
+            selected.preview.source_contours.as_ref().unwrap().len(),
+            2,
+            "excluded outlines stay editable without becoming machine paths"
+        );
+        f.only_contours = None;
+        assert_eq!(prepare(&drawing, &Placed::all(2), &f).unwrap().preview.contours.len(), 2);
     }
 
     #[test]
     fn explicit_face_subtracts_cut_hole_and_inner_face_can_be_filled_alone() {
-        use openlaser_core::features::{FillRegion, Fill, Layer, LayerMode, Machining};
+        use openlaser_core::features::{Fill, FillRegion, Layer, LayerMode, Machining};
         let mut drawing = square();
         let mut hole = square_at([2., 2.]);
-        for curve in &mut hole.curves { if let Curve::Line { start, end } = curve {
-            *start = Point::new(2. + (start.x-2.)*0.6, 2. + (start.y-2.)*0.6);
-            *end = Point::new(2. + (end.x-2.)*0.6, 2. + (end.y-2.)*0.6);
-        }}
+        for curve in &mut hole.curves {
+            if let Curve::Line { start, end } = curve {
+                *start = Point::new(2. + (start.x - 2.) * 0.6, 2. + (start.y - 2.) * 0.6);
+                *end = Point::new(2. + (end.x - 2.) * 0.6, 2. + (end.y - 2.) * 0.6);
+            }
+        }
         drawing.contours.push(hole);
         let mut f = Features::default();
-        f.layer_edits = serde_json::from_value(serde_json::json!([{ "contour":0,"layer":"Engraving" }])).unwrap();
-        f.layers.push(Layer { name:"Engraving".into(), mode:LayerMode::Mark, color:None,
-            machining:Some(Machining { fill:Some(serde_json::from_value::<Fill>(serde_json::json!({"spacing":1.,"angle":0.,"run_up":2.,"outline":false})).unwrap()), ..Machining::default() }) });
-        f.fill_regions.push(FillRegion { contour:0, holes:vec![1] });
-        let ring = prepare(&drawing,&Placed::all(2),&f).unwrap();
-        assert_eq!(ring.preview.engraving_regions.len(),1);
-        assert_eq!(ring.preview.engraving_regions[0].paths.len(),2);
-        assert!(ring.preview.contours.iter().any(|c|c.layer=="0" && c.sources==vec![1] && c.closed));
-        let marks:Vec<_> = ring.preview.contours.iter().filter(|c|c.layer=="Engraving").flat_map(|c|&c.paths).filter(|p|p.kind==PathKind::Cut).collect();
+        f.layer_edits =
+            serde_json::from_value(serde_json::json!([{ "contour":0,"layer":"Engraving" }]))
+                .unwrap();
+        f.layers.push(Layer {
+            name: "Engraving".into(),
+            mode: LayerMode::Mark,
+            color: None,
+            machining: Some(Machining {
+                fill: Some(
+                    serde_json::from_value::<Fill>(
+                        serde_json::json!({"spacing":1.,"angle":0.,"run_up":2.,"outline":false}),
+                    )
+                    .unwrap(),
+                ),
+                ..Machining::default()
+            }),
+        });
+        f.fill_regions.push(FillRegion { contour: 0, holes: vec![1] });
+        let ring = prepare(&drawing, &Placed::all(2), &f).unwrap();
+        assert_eq!(ring.preview.engraving_regions.len(), 1);
+        assert_eq!(ring.preview.engraving_regions[0].paths.len(), 2);
+        assert!(
+            ring.preview
+                .contours
+                .iter()
+                .any(|c| c.layer == "0" && c.sources == vec![1] && c.closed)
+        );
+        let marks: Vec<_> = ring
+            .preview
+            .contours
+            .iter()
+            .filter(|c| c.layer == "Engraving")
+            .flat_map(|c| &c.paths)
+            .filter(|p| p.kind == PathKind::Cut)
+            .collect();
         assert!(!marks.is_empty());
-        for path in marks { for span in path.points.windows(2) {
-            let x=(span[0][0]+span[1][0])/2.; let y=(span[0][1]+span[1][1])/2.;
-            assert!(!(x>2.0001 && x<7.9999 && y>2.0001 && y<7.9999));
-        }}
-        f.layer_edits[0].contour=1; f.fill_regions=vec![FillRegion {contour:1,holes:vec![]}];
-        let disk=prepare(&drawing,&Placed::all(2),&f).unwrap();
-        assert_eq!(disk.preview.engraving_regions[0].sources,vec![1]);
-        assert!(disk.preview.contours.iter().filter(|c|c.layer=="Engraving").flat_map(|c|&c.paths).filter(|p|p.kind==PathKind::Cut).all(|p|p.points.iter().all(|p|p[0]>=2. && p[0]<=8. && p[1]>=2. && p[1]<=8.)));
-        f.fill_regions[0].holes=vec![0];
-        assert!(prepare(&drawing,&Placed::all(2),&f).is_err());
+        for path in marks {
+            for span in path.points.windows(2) {
+                let x = (span[0][0] + span[1][0]) / 2.;
+                let y = (span[0][1] + span[1][1]) / 2.;
+                assert!(!(x > 2.0001 && x < 7.9999 && y > 2.0001 && y < 7.9999));
+            }
+        }
+        f.layer_edits[0].contour = 1;
+        f.fill_regions = vec![FillRegion { contour: 1, holes: vec![] }];
+        let disk = prepare(&drawing, &Placed::all(2), &f).unwrap();
+        assert_eq!(disk.preview.engraving_regions[0].sources, vec![1]);
+        assert!(
+            disk.preview
+                .contours
+                .iter()
+                .filter(|c| c.layer == "Engraving")
+                .flat_map(|c| &c.paths)
+                .filter(|p| p.kind == PathKind::Cut)
+                .all(|p| p
+                    .points
+                    .iter()
+                    .all(|p| p[0] >= 2. && p[0] <= 8. && p[1] >= 2. && p[1] <= 8.))
+        );
+        f.fill_regions[0].holes = vec![0];
+        assert!(prepare(&drawing, &Placed::all(2), &f).is_err());
     }
 
     #[test]
@@ -2393,22 +2560,45 @@ mod tests {
     }
     #[test]
     fn editing_a_part_keeps_other_parts_copies_and_undo() {
-        let a=Id::generate();let b=Id::generate();let replacement=Id::generate();
-        let mut drawing=square(); drawing.contours.push(square_at([20.,0.]));
-        let old=Arc::new(JobDrawing::new(vec![(a.clone(),Arc::new(drawing.clone())),(b.clone(),Arc::new(Drawing{contours:vec![square_at([50.,0.])]}))]));
-        let mut draft=Draft::new(old.clone());
-        draft.current.placed=vec![Placed::drawn(0),Placed::drawn(1),Placed::drawn(2),Placed{source:0,copy:1,transform:Transform::translation(Point::new(100.,0.))},Placed{source:1,copy:1,transform:Transform::translation(Point::new(100.,0.))}];
-        draft.current.features.only_contours=Some(vec![2]);
-        draft.current.features.order.strategy=OrderStrategy::Manual(vec![2,0,1,3,4]);
-        let original=draft.current.clone();
-        drawing.contours[1]=square_at([25.,0.]);drawing.contours.push(square_at([40.,0.]));
-        let new=Arc::new(JobDrawing::new(vec![(replacement.clone(),Arc::new(drawing)),(b.clone(),Arc::new(Drawing{contours:vec![square_at([50.,0.])]}))]));
-        draft.replace_part(new.clone(),0).unwrap();
-        assert_eq!(draft.current.parts,vec![replacement,b]); assert_eq!(draft.current.placed.len(),7);
-        assert_eq!(draft.current.placed[3].source,3);assert_eq!(draft.current.features.only_contours,Some(vec![3]));
-        assert_eq!(draft.current.placed[4].transform,original.placed[3].transform);
-        let edited=draft.current.clone();draft.undo().unwrap();draft.attach(old).unwrap();assert_eq!(draft.current,original);
-        draft.redo().unwrap();draft.attach(new).unwrap();assert_eq!(draft.current,edited);
+        let a = Id::generate();
+        let b = Id::generate();
+        let replacement = Id::generate();
+        let mut drawing = square();
+        drawing.contours.push(square_at([20., 0.]));
+        let old = Arc::new(JobDrawing::new(vec![
+            (a.clone(), Arc::new(drawing.clone())),
+            (b.clone(), Arc::new(Drawing { contours: vec![square_at([50., 0.])] })),
+        ]));
+        let mut draft = Draft::new(old.clone());
+        draft.current.placed = vec![
+            Placed::drawn(0),
+            Placed::drawn(1),
+            Placed::drawn(2),
+            Placed { source: 0, copy: 1, transform: Transform::translation(Point::new(100., 0.)) },
+            Placed { source: 1, copy: 1, transform: Transform::translation(Point::new(100., 0.)) },
+        ];
+        draft.current.features.only_contours = Some(vec![2]);
+        draft.current.features.order.strategy = OrderStrategy::Manual(vec![2, 0, 1, 3, 4]);
+        let original = draft.current.clone();
+        drawing.contours[1] = square_at([25., 0.]);
+        drawing.contours.push(square_at([40., 0.]));
+        let new = Arc::new(JobDrawing::new(vec![
+            (replacement.clone(), Arc::new(drawing)),
+            (b.clone(), Arc::new(Drawing { contours: vec![square_at([50., 0.])] })),
+        ]));
+        draft.replace_part(new.clone(), 0).unwrap();
+        assert_eq!(draft.current.parts, vec![replacement, b]);
+        assert_eq!(draft.current.placed.len(), 7);
+        assert_eq!(draft.current.placed[3].source, 3);
+        assert_eq!(draft.current.features.only_contours, Some(vec![3]));
+        assert_eq!(draft.current.placed[4].transform, original.placed[3].transform);
+        let edited = draft.current.clone();
+        draft.undo().unwrap();
+        draft.attach(old).unwrap();
+        assert_eq!(draft.current, original);
+        draft.redo().unwrap();
+        draft.attach(new).unwrap();
+        assert_eq!(draft.current, edited);
     }
 
     fn edit(contour: usize, layer: &str) -> openlaser_core::features::LayerEdit {
@@ -2425,9 +2615,13 @@ mod tests {
         let mut drawing = square();
         drawing.contours.push(square_at([20., 0.]));
         let other = Arc::new(Drawing { contours: vec![square_at([50., 0.])] });
-        let old = Arc::new(JobDrawing::new(vec![(a, Arc::new(drawing.clone())), (b.clone(), other.clone())]));
+        let old = Arc::new(JobDrawing::new(vec![
+            (a, Arc::new(drawing.clone())),
+            (b.clone(), other.clone()),
+        ]));
         let mut draft = Draft::new(old);
-        draft.current.features.layer_edits = vec![edit(0, "Kept"), edit(1, "Gone"), edit(2, "Etch")];
+        draft.current.features.layer_edits =
+            vec![edit(0, "Kept"), edit(1, "Gone"), edit(2, "Etch")];
         drawing.contours[1] = square_at([25., 0.]);
         drawing.contours.push(square_at([40., 0.]));
         let new = Arc::new(JobDrawing::new(vec![(replacement, Arc::new(drawing)), (b, other)]));
@@ -2441,7 +2635,8 @@ mod tests {
     #[test]
     fn a_nested_part_is_replaced_in_place() {
         use openlaser_core::nesting::{NestSettings, NestStock};
-        let (stock, part, other, edited) = (Id::generate(), Id::generate(), Id::generate(), Id::generate());
+        let (stock, part, other, edited) =
+            (Id::generate(), Id::generate(), Id::generate(), Id::generate());
         let one = |c: Contour| Arc::new(Drawing { contours: vec![c] });
         let sheet = one(square_at([-5., -5.]));
         let old = Arc::new(JobDrawing::new(vec![
@@ -2467,12 +2662,15 @@ mod tests {
             (other.clone(), one(square_at([50., 0.]))),
         ]));
         draft.replace_part(new.clone(), 1).unwrap();
-        let placed: Vec<_> = draft.current.placed.iter().map(|p| (p.source, p.copy, p.transform)).collect();
+        let placed: Vec<_> =
+            draft.current.placed.iter().map(|p| (p.source, p.copy, p.transform)).collect();
         assert_eq!(
             placed,
             vec![
-                (1, 0, nested(10.)), (2, 0, nested(10.)),
-                (1, 1, nested(30.)), (2, 1, nested(30.)),
+                (1, 0, nested(10.)),
+                (2, 0, nested(10.)),
+                (1, 1, nested(30.)),
+                (2, 1, nested(30.)),
                 (3, 2, nested(0.)),
             ],
             "both copies keep their nested place; the other part moves up a contour"
@@ -2495,7 +2693,8 @@ mod tests {
     #[test]
     fn layer_moves_follow_their_contours_when_a_part_is_dropped() {
         let one = |x: f64| Arc::new(Drawing { contours: vec![square_at([x, 0.])] });
-        let parts = vec![(Id::generate(), one(0.)), (Id::generate(), one(20.)), (Id::generate(), one(40.))];
+        let parts =
+            vec![(Id::generate(), one(0.)), (Id::generate(), one(20.)), (Id::generate(), one(40.))];
         let mut draft = Draft::new(Arc::new(JobDrawing::new(parts)));
         draft.current.placed.retain(|p| p.source != 1);
         draft.current.features.layer_edits = vec![edit(1, "Dropped"), edit(2, "Etch")];
@@ -2503,5 +2702,4 @@ mod tests {
         assert_eq!(draft.current.parts.len(), 2);
         assert_eq!(draft.current.features.layer_edits, vec![edit(1, "Etch")]);
     }
-
 }

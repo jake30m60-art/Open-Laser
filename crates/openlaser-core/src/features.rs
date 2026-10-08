@@ -297,11 +297,20 @@ impl Features {
     #[must_use]
     pub fn renumbered_locations(&self, renumber: impl Fn(usize) -> Option<usize>) -> Self {
         let mut features = self.clone();
-        features.only_contours = self.only_contours.as_ref().map(|ids| ids.iter().filter_map(|&i| renumber(i)).collect());
-        features.fill_regions = self.fill_regions.iter().filter_map(|r| {
-            Some(FillRegion { contour: renumber(r.contour)?,
-                holes: r.holes.iter().filter_map(|&i| renumber(i)).collect() })
-        }).collect();
+        features.only_contours = self
+            .only_contours
+            .as_ref()
+            .map(|ids| ids.iter().filter_map(|&i| renumber(i)).collect());
+        features.fill_regions = self
+            .fill_regions
+            .iter()
+            .filter_map(|r| {
+                Some(FillRegion {
+                    contour: renumber(r.contour)?,
+                    holes: r.holes.iter().filter_map(|&i| renumber(i)).collect(),
+                })
+            })
+            .collect();
         let keep = |spots: &mut Vec<Spot>| {
             spots.retain_mut(|spot| match renumber(spot.contour) {
                 Some(contour) => {
@@ -503,7 +512,13 @@ pub struct ImageFill {
 
 impl Default for ImageFill {
     fn default() -> Self {
-        Self { mode: ImageMode::Grayscale, min_power: 10., max_power: 100., invert: false, gamma: 1. }
+        Self {
+            mode: ImageMode::Grayscale,
+            min_power: 10.,
+            max_power: 100.,
+            invert: false,
+            gamma: 1.,
+        }
     }
 }
 
@@ -959,7 +974,7 @@ mod tests {
             },
             skip_layers: vec!["NOTES".into()],
             layer_edits: vec![LayerEdit { contour: 2, layer: "Etch".into() }],
-            fill_regions: vec![FillRegion { contour:2, holes:vec![3] }],
+            fill_regions: vec![FillRegion { contour: 2, holes: vec![3] }],
             contour_machining: vec![ContourMachining {
                 contours: vec![1],
                 own: vec![MachiningPart::Joints],
@@ -1008,8 +1023,11 @@ mod tests {
                     Bridge { first: pick(0), second: pick(2) },
                 ],
             }),
-            only_contours: Some(vec![0,1,2]),
-            fill_regions: vec![FillRegion { contour:0, holes:vec![1,2] }, FillRegion { contour:1, holes:vec![] }],
+            only_contours: Some(vec![0, 1, 2]),
+            fill_regions: vec![
+                FillRegion { contour: 0, holes: vec![1, 2] },
+                FillRegion { contour: 1, holes: vec![] },
+            ],
             start: Start { spots: vec![spot(2)], ..Start::default() },
             order: CutOrder {
                 strategy: OrderStrategy::Manual(vec![2, 1, 0]),
@@ -1029,9 +1047,9 @@ mod tests {
         assert_eq!(renumbered.bridges, features.bridges);
         assert_eq!(renumbered.start.spots, vec![Spot { contour: 1, fraction: 0.5 }]);
         assert_eq!(renumbered.order.strategy, OrderStrategy::Manual(vec![1, 0]));
-        assert_eq!(renumbered.fill_regions, vec![FillRegion { contour:0, holes:vec![1] }]);
+        assert_eq!(renumbered.fill_regions, vec![FillRegion { contour: 0, holes: vec![1] }]);
         assert!(features.reusable().fill_regions.is_empty());
-        assert_eq!(renumbered.only_contours, Some(vec![0,1]));
+        assert_eq!(renumbered.only_contours, Some(vec![0, 1]));
         assert!(features.reusable().only_contours.is_none());
     }
 }

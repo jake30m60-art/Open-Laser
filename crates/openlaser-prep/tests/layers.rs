@@ -245,47 +245,120 @@ fn chosen_areas_are_engraved_together_line_by_line() {
 
 #[test]
 fn scan_modes_keep_holes_and_limit_to_selected_output() {
-    use openlaser_core::features::{Fill,FillRegion};
-    let drawing=Drawing{contours:vec![circle("Logo",15.,30.,10.),circle("Logo",15.,30.,4.),circle("Logo",45.,30.,10.)]};
-    let fill=Fill{spacing:0.5,run_up:2.,outline:false,per_object:Some(true),image:None,..Fill::for_image()};
-    let mut f=Features{layers:vec![Layer{machining:Some(Machining{fill:Some(fill),..Machining::default()}),..layer("Logo",LayerMode::Mark)}],fill_regions:vec![FillRegion{contour:0,holes:vec![1]},FillRegion{contour:2,holes:vec![]}],..Features::default()};
-    let separate=openlaser_prep::prepare(&drawing,&f).unwrap();
-    assert_eq!(separate.contours.len(),2);
-    assert_eq!(separate.contours[0].sources,vec![0]);
-    assert_eq!(separate.contours[1].sources,vec![2]);
-    let lit: f64=separate.contours.iter().flat_map(|c|&c.segments).filter(|s|!s.process.joint).map(|s|s.curve.length()).sum();
-    assert!((lit*0.5-std::f64::consts::PI*184.).abs()<12.);
-    f.layers[0].machining.as_mut().unwrap().fill.as_mut().unwrap().per_object=Some(false);
-    assert_eq!(openlaser_prep::prepare(&drawing,&f).unwrap().contours.len(),1);
-    f.only_contours=Some(vec![2]);
-    let selected=openlaser_prep::prepare(&drawing,&f).unwrap();
-    assert_eq!(selected.contours.len(),1);assert_eq!(selected.contours[0].sources,vec![2]);
+    use openlaser_core::features::{Fill, FillRegion};
+    let drawing = Drawing {
+        contours: vec![
+            circle("Logo", 15., 30., 10.),
+            circle("Logo", 15., 30., 4.),
+            circle("Logo", 45., 30., 10.),
+        ],
+    };
+    let fill = Fill {
+        spacing: 0.5,
+        run_up: 2.,
+        outline: false,
+        per_object: Some(true),
+        image: None,
+        ..Fill::for_image()
+    };
+    let mut f = Features {
+        layers: vec![Layer {
+            machining: Some(Machining { fill: Some(fill), ..Machining::default() }),
+            ..layer("Logo", LayerMode::Mark)
+        }],
+        fill_regions: vec![
+            FillRegion { contour: 0, holes: vec![1] },
+            FillRegion { contour: 2, holes: vec![] },
+        ],
+        ..Features::default()
+    };
+    let separate = openlaser_prep::prepare(&drawing, &f).unwrap();
+    assert_eq!(separate.contours.len(), 2);
+    assert_eq!(separate.contours[0].sources, vec![0]);
+    assert_eq!(separate.contours[1].sources, vec![2]);
+    let lit: f64 = separate
+        .contours
+        .iter()
+        .flat_map(|c| &c.segments)
+        .filter(|s| !s.process.joint)
+        .map(|s| s.curve.length())
+        .sum();
+    assert!((lit * 0.5 - std::f64::consts::PI * 184.).abs() < 12.);
+    f.layers[0].machining.as_mut().unwrap().fill.as_mut().unwrap().per_object = Some(false);
+    assert_eq!(openlaser_prep::prepare(&drawing, &f).unwrap().contours.len(), 1);
+    f.only_contours = Some(vec![2]);
+    let selected = openlaser_prep::prepare(&drawing, &f).unwrap();
+    assert_eq!(selected.contours.len(), 1);
+    assert_eq!(selected.contours[0].sources, vec![2]);
 }
 #[test]
 fn explicit_white_picture_is_not_filled_as_a_solid_frame() {
-    use openlaser_core::features::{Fill,FillRegion};
-    use openlaser_core::raster::{Raster,PlacedRaster};
-    let drawing=Drawing{contours:vec![square("Logo",10.)]};
-    let f=Features{layers:vec![Layer{machining:Some(Machining{fill:Some(Fill::for_image()),..Machining::default()}),..layer("Logo",LayerMode::Mark)}],rasters:vec![PlacedRaster{contour:0,raster:Raster::upright(1,1,vec![255],[10.,10.]).unwrap()}],fill_regions:vec![FillRegion{contour:0,holes:vec![]}],only_contours:Some(vec![0]),..Features::default()};
-    assert!(openlaser_prep::prepare(&drawing,&f).unwrap().contours.is_empty());
+    use openlaser_core::features::{Fill, FillRegion};
+    use openlaser_core::raster::{PlacedRaster, Raster};
+    let drawing = Drawing { contours: vec![square("Logo", 10.)] };
+    let f = Features {
+        layers: vec![Layer {
+            machining: Some(Machining { fill: Some(Fill::for_image()), ..Machining::default() }),
+            ..layer("Logo", LayerMode::Mark)
+        }],
+        rasters: vec![PlacedRaster {
+            contour: 0,
+            raster: Raster::upright(1, 1, vec![255], [10., 10.]).unwrap(),
+        }],
+        fill_regions: vec![FillRegion { contour: 0, holes: vec![] }],
+        only_contours: Some(vec![0]),
+        ..Features::default()
+    };
+    assert!(openlaser_prep::prepare(&drawing, &f).unwrap().contours.is_empty());
 }
 #[test]
 fn oversized_white_picture_is_rejected_before_shading() {
     use openlaser_core::features::Fill;
-    use openlaser_core::raster::{Raster,PlacedRaster};
-    let drawing=Drawing{contours:vec![square("Logo",1000.)]};
-    let f=Features{layers:vec![Layer{machining:Some(Machining{fill:Some(Fill{spacing:0.01,..Fill::for_image()}),..Machining::default()}),..layer("Logo",LayerMode::Mark)}],rasters:vec![PlacedRaster{contour:0,raster:Raster::upright(1,1,vec![255],[1000.,1000.]).unwrap()}],..Features::default()};
-    assert!(openlaser_prep::prepare(&drawing,&f).unwrap_err().to_string().contains("cells"));
+    use openlaser_core::raster::{PlacedRaster, Raster};
+    let drawing = Drawing { contours: vec![square("Logo", 1000.)] };
+    let f = Features {
+        layers: vec![Layer {
+            machining: Some(Machining {
+                fill: Some(Fill { spacing: 0.01, ..Fill::for_image() }),
+                ..Machining::default()
+            }),
+            ..layer("Logo", LayerMode::Mark)
+        }],
+        rasters: vec![PlacedRaster {
+            contour: 0,
+            raster: Raster::upright(1, 1, vec![255], [1000., 1000.]).unwrap(),
+        }],
+        ..Features::default()
+    };
+    assert!(openlaser_prep::prepare(&drawing, &f).unwrap_err().to_string().contains("cells"));
 }
 #[test]
 fn bridged_engraving_uses_the_opened_boundary_not_the_old_hole() {
-    use openlaser_core::features::{Fill,FillRegion,Bridges,Bridge,Pick};
-    let drawing=Drawing{contours:vec![circle("Logo",0.,0.,10.),circle("Logo",0.,0.,4.)]};
-    let fill=Fill{spacing:0.2,run_up:2.,outline:false,image:None,..Fill::for_image()};
-    let f=Features{layers:vec![Layer{machining:Some(Machining{fill:Some(fill),..Machining::default()}),..layer("Logo",LayerMode::Mark)}],fill_regions:vec![FillRegion{contour:0,holes:vec![1]}],bridges:Some(Bridges{width:Millimeters(2.),connections:vec![Bridge{first:Pick{contour:0,point:Point::new(10.,0.)},second:Pick{contour:1,point:Point::new(4.,0.)}}]}),..Features::default()};
-    let path=openlaser_prep::prepare(&drawing,&f).unwrap();
-    assert!(path.contours.iter().all(|c|c.sources==[0,1]));
-    for segment in path.contours.iter().flat_map(|c|&c.segments).filter(|s|!s.process.joint) {
-       let a=segment.curve.start();let b=segment.curve.end();let mid=Point::new((a.x+b.x)/2.,(a.y+b.y)/2.);assert!(!(mid.x>4. && mid.x<10. && mid.y.abs()<0.9),"bridge must remain clear");
+    use openlaser_core::features::{Bridge, Bridges, Fill, FillRegion, Pick};
+    let drawing =
+        Drawing { contours: vec![circle("Logo", 0., 0., 10.), circle("Logo", 0., 0., 4.)] };
+    let fill = Fill { spacing: 0.2, run_up: 2., outline: false, image: None, ..Fill::for_image() };
+    let f = Features {
+        layers: vec![Layer {
+            machining: Some(Machining { fill: Some(fill), ..Machining::default() }),
+            ..layer("Logo", LayerMode::Mark)
+        }],
+        fill_regions: vec![FillRegion { contour: 0, holes: vec![1] }],
+        bridges: Some(Bridges {
+            width: Millimeters(2.),
+            connections: vec![Bridge {
+                first: Pick { contour: 0, point: Point::new(10., 0.) },
+                second: Pick { contour: 1, point: Point::new(4., 0.) },
+            }],
+        }),
+        ..Features::default()
+    };
+    let path = openlaser_prep::prepare(&drawing, &f).unwrap();
+    assert!(path.contours.iter().all(|c| c.sources == [0, 1]));
+    for segment in path.contours.iter().flat_map(|c| &c.segments).filter(|s| !s.process.joint) {
+        let a = segment.curve.start();
+        let b = segment.curve.end();
+        let mid = Point::new((a.x + b.x) / 2., (a.y + b.y) / 2.);
+        assert!(!(mid.x > 4. && mid.x < 10. && mid.y.abs() < 0.9), "bridge must remain clear");
     }
 }

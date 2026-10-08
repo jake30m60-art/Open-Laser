@@ -52,7 +52,11 @@ fn features(per_object: bool, chosen: bool, bridged: bool) -> Features {
             color: None,
             machining: Some(Machining { fill: Some(fill), ..Machining::default() }),
         }],
-        fill_regions: if chosen { vec![FillRegion { contour: 0, holes: vec![1] }] } else { Vec::new() },
+        fill_regions: if chosen {
+            vec![FillRegion { contour: 0, holes: vec![1] }]
+        } else {
+            Vec::new()
+        },
         bridges: bridged.then(|| Bridges {
             width: Millimeters(2.),
             connections: vec![Bridge {
@@ -68,7 +72,9 @@ fn square() -> Contour {
     let p = [[0., 0.], [20., 0.], [20., 10.], [0., 10.]];
     Contour {
         layer: "Logo".into(),
-        curves: (0..4).map(|i| Curve::Line { start: p[i].into(), end: p[(i + 1) % 4].into() }).collect(),
+        curves: (0..4)
+            .map(|i| Curve::Line { start: p[i].into(), end: p[(i + 1) % 4].into() })
+            .collect(),
     }
 }
 
@@ -79,7 +85,11 @@ fn a_shape_split_by_a_bridge_is_engraved_as_two_halves() {
     for per_object in [false, true] {
         for chosen in [false, true] {
             let mut f = features(per_object, chosen, true);
-            f.fill_regions = if chosen { vec![FillRegion { contour: 0, holes: Vec::new() }] } else { Vec::new() };
+            f.fill_regions = if chosen {
+                vec![FillRegion { contour: 0, holes: Vec::new() }]
+            } else {
+                Vec::new()
+            };
             f.bridges.as_mut().unwrap().connections = vec![Bridge {
                 first: Pick { contour: 0, point: Point::new(10., 0.) },
                 second: Pick { contour: 0, point: Point::new(10., 10.) },
@@ -95,7 +105,10 @@ fn a_shape_split_by_a_bridge_is_engraved_as_two_halves() {
                 .map(|s| s.curve.length())
                 .sum::<f64>()
                 * 0.05;
-            assert!((area - 180.).abs() < 6., "split square engraves {area} (per object {per_object}, chosen {chosen})");
+            assert!(
+                (area - 180.).abs() < 6.,
+                "split square engraves {area} (per object {per_object}, chosen {chosen})"
+            );
         }
     }
 }

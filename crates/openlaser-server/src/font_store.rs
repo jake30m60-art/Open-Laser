@@ -140,7 +140,11 @@ pub(crate) fn system_fonts() -> &'static [SystemFont] {
                     stack.push(path);
                     continue;
                 }
-                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
+                let ext = path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
                 if ["ttf", "otf", "ttc", "otc"].contains(&ext.as_str()) {
                     files.push(path);
                 }
@@ -152,7 +156,8 @@ pub(crate) fn system_fonts() -> &'static [SystemFont] {
             .filter_map(|path| {
                 let bytes = std::fs::read(&path).ok()?;
                 let fonts = Fonts::default().with_font("system", bytes).ok()?;
-                let mut families: Vec<String> = fonts.faces().iter().map(|f| f.family.clone()).collect();
+                let mut families: Vec<String> =
+                    fonts.faces().iter().map(|f| f.family.clone()).collect();
                 families.sort();
                 families.dedup();
                 Some(SystemFont { file: path.to_string_lossy().into_owned(), families })

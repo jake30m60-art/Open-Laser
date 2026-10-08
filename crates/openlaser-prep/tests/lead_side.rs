@@ -54,7 +54,10 @@ fn a_chosen_start_point_moves_the_pierce_with_and_without_leads() {
         let first_cut =
             path.contours[0].segments.iter().find(|s| s.process.lead.is_none()).unwrap();
         let at = first_cut.curve.start();
-        assert!((at.x - 5.).abs() < 1e-6 && (at.y - 10.).abs() < 1e-6, "cut starts at {at:?} (leads {leads})");
+        assert!(
+            (at.x - 5.).abs() < 1e-6 && (at.y - 10.).abs() < 1e-6,
+            "cut starts at {at:?} (leads {leads})"
+        );
     }
 }
 

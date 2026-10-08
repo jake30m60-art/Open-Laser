@@ -465,7 +465,8 @@ mod tests {
     /// elsewhere; a lone or referenced carriage return stays one.
     #[test]
     fn literal_line_breaks_read_alike_on_every_system() {
-        let windows = "<ParameterRoot><X Note=\"NOZZLE\r\nSINGLE\rEND\" Ref=\"a&#13;b\"/></ParameterRoot>";
+        let windows =
+            "<ParameterRoot><X Note=\"NOZZLE\r\nSINGLE\rEND\" Ref=\"a&#13;b\"/></ParameterRoot>";
         let doc = Document::parse(Kind::Backup, windows.as_bytes()).unwrap();
         let values = doc.attributes("/ParameterRoot/X").unwrap();
         assert_eq!(values["Note"], "NOZZLE\nSINGLE\rEND");

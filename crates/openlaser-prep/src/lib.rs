@@ -179,7 +179,8 @@ pub fn without_bridge(
         .filter(|&(at, _)| at != index)
         .map(|(_, (ends, _))| ends)
         .collect();
-    let (connections, dropped) = bridges_from_ends(sheet, features, transforms, bridges.width.0, &ends)?;
+    let (connections, dropped) =
+        bridges_from_ends(sheet, features, transforms, bridges.width.0, &ends)?;
     Ok((Bridges { width: bridges.width, connections }, dropped))
 }
 
@@ -226,7 +227,10 @@ pub fn bridges_from_ends(
 
 /// The sheet's contours after the bridges, each with the placed contours
 /// it was made from. Bridge picks must already be on the sheet.
-pub fn bridged_contours(sheet: &Drawing, features: &Features) -> Result<Vec<(Vec<usize>, Contour)>> {
+pub fn bridged_contours(
+    sheet: &Drawing,
+    features: &Features,
+) -> Result<Vec<(Vec<usize>, Contour)>> {
     Ok(bridge::apply(&kept(sheet, features), features.bridges.as_ref())?
         .into_iter()
         .map(|c| (c.sources, c.contour))
@@ -322,9 +326,14 @@ pub fn pick(
 }
 
 /// The closed boundaries after bridges, before machining and scan filling.
-pub fn bridge_boundaries(drawing: &Drawing, features: &Features) -> Result<Vec<(Vec<usize>, Contour)>> {
+pub fn bridge_boundaries(
+    drawing: &Drawing,
+    features: &Features,
+) -> Result<Vec<(Vec<usize>, Contour)>> {
     Ok(bridge::apply(&kept(drawing, features), features.bridges.as_ref())?
-        .into_iter().map(|c| (c.sources, c.contour)).collect())
+        .into_iter()
+        .map(|c| (c.sources, c.contour))
+        .collect())
 }
 
 /// Prepares `drawing` under `features`.
@@ -333,19 +342,28 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     check_images(drawing, features)?;
     let mut bridged = bridge::apply(&kept(drawing, features), features.bridges.as_ref())?;
     if let Some(only) = &features.only_contours {
-        if bridged.iter().any(|c| c.sources.iter().any(|s| only.contains(s)) && !c.sources.iter().all(|s| only.contains(s))) {
+        if bridged.iter().any(|c| {
+            c.sources.iter().any(|s| only.contains(s))
+                && !c.sources.iter().all(|s| only.contains(s))
+        }) {
             return Err(feature("selection", "select the entire bridged contour"));
         }
         // Unselected invalid outlines do not determine the waste side. Valid
         // enclosing outlines remain context, so a selected hole keeps its depth.
-        bridged.retain(|c| c.sources.iter().any(|s| only.contains(s)) || !crosses_itself(&c.contour));
+        bridged
+            .retain(|c| c.sources.iter().any(|s| only.contains(s)) || !crosses_itself(&c.contour));
     }
     let all_depths = prepared_depths(drawing, &bridged, features)?;
     let mut depths = Vec::new();
     let mut active = Vec::new();
     for (c, depth) in bridged.into_iter().zip(all_depths) {
-        if features.only_contours.as_ref().is_none_or(|ids| c.sources.iter().all(|s| ids.contains(s))) {
-            active.push(c); depths.push(depth);
+        if features
+            .only_contours
+            .as_ref()
+            .is_none_or(|ids| c.sources.iter().all(|s| ids.contains(s)))
+        {
+            active.push(c);
+            depths.push(depth);
         }
     }
     let bridged = active;
@@ -359,13 +377,16 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
     // A selection's own machining over each layer its contours are on.
     let mut selected = std::collections::BTreeMap::new();
     for (at, selection) in mapped.features.contour_machining.iter().enumerate() {
-        for sourced in bridged.iter().filter(|c| c.sources.iter().any(|s| selection.contours.contains(s))) {
+        for sourced in
+            bridged.iter().filter(|c| c.sources.iter().any(|s| selection.contours.contains(s)))
+        {
             let layer = &sourced.contour.layer;
             if selected.contains_key(&(at, layer.clone())) {
                 continue;
             }
             let base = layered.get(layer).unwrap_or(&mapped.features);
-            selected.insert((at, layer.clone()), base.machined(&selection.machining, &selection.own));
+            selected
+                .insert((at, layer.clone()), base.machined(&selection.machining, &selection.own));
         }
     }
     let mut preparation = Preparation {
@@ -434,7 +455,11 @@ pub fn prepare(drawing: &Drawing, features: &Features) -> Result<Toolpath> {
 /// Each marked layer with a fill of its own: its closed shapes become one
 /// scan zigzag where the first of them ran, followed by the shapes
 /// themselves when the fill keeps its outlines.
-fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing) -> Result<Vec<PreparedContour>> {
+fn fills(
+    contours: Vec<PreparedContour>,
+    features: &Features,
+    drawing: &Drawing,
+) -> Result<Vec<PreparedContour>> {
     let filled: Vec<(&str, &openlaser_core::features::Fill)> = features
         .layers
         .iter()
@@ -446,9 +471,14 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
     }
     let mut zigzags = Vec::with_capacity(filled.len());
     for (name, fill) in &filled {
-        let explicit: Vec<_> = features.fill_regions.iter().filter(|r|
-            drawing.contours.get(r.contour).is_some_and(|c| c.layer == *name)
-            && contours.iter().any(|c| c.sources.contains(&r.contour))).collect();
+        let explicit: Vec<_> = features
+            .fill_regions
+            .iter()
+            .filter(|r| {
+                drawing.contours.get(r.contour).is_some_and(|c| c.layer == *name)
+                    && contours.iter().any(|c| c.sources.contains(&r.contour))
+            })
+            .collect();
         let mut paths = Vec::new();
         // Every chosen area's boundary and holes, checked area by area.
         let mut boundaries_all: Vec<PreparedContour> = Vec::new();
@@ -456,20 +486,30 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
         let mut batches: Vec<(Vec<PreparedContour>, Vec<usize>)> = Vec::new();
         let mut handled = std::collections::HashSet::new();
         for region in &explicit {
-            if handled.contains(&region.contour) { continue; }
+            if handled.contains(&region.contour) {
+                continue;
+            }
             // A bridge joins the area with other contours or splits it into
             // pieces: then the bridged pieces are the area, their channels
             // left unengraved, rather than the drawing's own outline.
-            let pieces: Vec<&PreparedContour> = contours.iter()
-                .filter(|c| c.closed && c.layer == *name && c.sources.contains(&region.contour)).collect();
+            let pieces: Vec<&PreparedContour> = contours
+                .iter()
+                .filter(|c| c.closed && c.layer == *name && c.sources.contains(&region.contour))
+                .collect();
             if pieces.len() > 1 || pieces.iter().any(|c| c.sources.len() > 1) {
-                let mut ids: Vec<usize> = pieces.iter().flat_map(|c| c.sources.iter().copied()).collect();
+                let mut ids: Vec<usize> =
+                    pieces.iter().flat_map(|c| c.sources.iter().copied()).collect();
                 ids.sort_unstable();
                 ids.dedup();
                 let mut batch: Vec<PreparedContour> = pieces.iter().map(|c| (*c).clone()).collect();
-                let loose: Vec<usize> = region.holes.iter().copied().filter(|h| !ids.contains(h)).collect();
+                let loose: Vec<usize> =
+                    region.holes.iter().copied().filter(|h| !ids.contains(h)).collect();
                 for hole in loose {
-                    let Some(prepared) = contours.iter().find(|c| c.closed && c.sources.contains(&hole)) else { continue };
+                    let Some(prepared) =
+                        contours.iter().find(|c| c.closed && c.sources.contains(&hole))
+                    else {
+                        continue;
+                    };
                     batch.push(prepared.clone());
                     ids.push(hole);
                 }
@@ -480,9 +520,16 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
                 continue;
             }
             let from = boundaries_all.len();
-            let ids: Vec<_> = std::iter::once(region.contour).chain(region.holes.iter().copied()).collect();
-            let boundaries: Vec<_> = ids.iter().map(|&i| drawing.contours.get(i)
-                .ok_or_else(|| feature("engraving area", "a boundary is missing")))
+            let ids: Vec<_> =
+                std::iter::once(region.contour).chain(region.holes.iter().copied()).collect();
+            let boundaries: Vec<_> = ids
+                .iter()
+                .map(|&i| {
+                    drawing
+                        .contours
+                        .get(i)
+                        .ok_or_else(|| feature("engraving area", "a boundary is missing"))
+                })
                 .collect::<Result<_>>()?;
             if boundaries.iter().any(|c| !c.is_closed()) {
                 return Err(feature("engraving area", "every boundary must be closed"));
@@ -491,10 +538,25 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
             if depths.first() != Some(&0) || depths.iter().skip(1).any(|&d| d != 1) {
                 return Err(feature("engraving area", "holes must lie directly inside their area"));
             }
-            boundaries_all.extend(ids.iter().zip(&boundaries).map(|(&i, c)| PreparedContour {
-                sources: vec![i], lead_target: None, layer: (*name).to_owned(), closed: true, depth: 0,
-                segments: c.curves.iter().map(|&curve| openlaser_core::toolpath::PreparedSegment::new(
-                    curve, openlaser_core::toolpath::SegmentProcess::default())).collect(), film: Vec::new(),
+            boundaries_all.extend(ids.iter().zip(&boundaries).map(|(&i, c)| {
+                PreparedContour {
+                    sources: vec![i],
+                    lead_target: None,
+                    layer: (*name).to_owned(),
+                    closed: true,
+                    depth: 0,
+                    segments: c
+                        .curves
+                        .iter()
+                        .map(|&curve| {
+                            openlaser_core::toolpath::PreparedSegment::new(
+                                curve,
+                                openlaser_core::toolpath::SegmentProcess::default(),
+                            )
+                        })
+                        .collect(),
+                    film: Vec::new(),
+                }
             }));
             // Referenced holes do not become the selection/placement owner of a fill.
             owners.push(region.contour);
@@ -502,14 +564,27 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
             if let Some(raster) = image_of(features, &raw[0]) {
                 let refs: Vec<_> = raw.iter().collect();
                 let mut picture = flying::fill_framing(&refs, fill, Some(raster))?;
-                for path in &mut picture { path.sources = vec![region.contour]; }
+                for path in &mut picture {
+                    path.sources = vec![region.contour];
+                }
                 paths.extend(picture);
                 boundaries_all.truncate(from);
                 owners.pop();
-            } else { batches.push((raw, vec![region.contour])); }
+            } else {
+                batches.push((raw, vec![region.contour]));
+            }
         }
-        let shapes: Vec<&PreparedContour> = contours.iter().filter(|c| c.layer == *name && c.closed
-            && !c.sources.iter().any(|s| explicit.iter().any(|r| r.contour == *s || r.holes.contains(s)))).collect();
+        let shapes: Vec<&PreparedContour> = contours
+            .iter()
+            .filter(|c| {
+                c.layer == *name
+                    && c.closed
+                    && !c
+                        .sources
+                        .iter()
+                        .any(|s| explicit.iter().any(|r| r.contour == *s || r.holes.contains(s)))
+            })
+            .collect();
         // A shape that frames an image engraves that image, on its own.
         let (pictures, plain): (Vec<_>, Vec<_>) =
             shapes.into_iter().partition(|c| image_of(features, c).is_some());
@@ -529,21 +604,29 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
             for (boundaries, ids) in &batches {
                 let refs: Vec<_> = boundaries.iter().collect();
                 let mut object = flying::fill(&refs, fill)?;
-                for path in &mut object { path.sources.clone_from(ids); }
+                for path in &mut object {
+                    path.sources.clone_from(ids);
+                }
                 result.extend(object);
             }
             for outer in plain.iter().filter(|c| c.depth % 2 == 0) {
                 let mut refs = vec![*outer];
                 for hole in plain.iter().filter(|c| c.depth == outer.depth + 1) {
                     let pair = [contour_geometry(outer), contour_geometry(hole)];
-                    if topology::depths_with(&[&pair[0], &pair[1]], |_, _| false)? == [0, 1] { refs.push(*hole); }
+                    if topology::depths_with(&[&pair[0], &pair[1]], |_, _| false)? == [0, 1] {
+                        refs.push(*hole);
+                    }
                 }
                 result.extend(flying::fill(&refs, fill)?);
             }
             result
-        } else { flying::fill(&together, fill)? };
+        } else {
+            flying::fill(&together, fill)?
+        };
         for path in &mut combined {
-            if fill.per_object != Some(true) { path.sources.clone_from(&owners); }
+            if fill.per_object != Some(true) {
+                path.sources.clone_from(&owners);
+            }
         }
         paths.extend(combined);
         zigzags.push(paths);
@@ -567,8 +650,15 @@ fn fills(contours: Vec<PreparedContour>, features: &Features, drawing: &Drawing)
 }
 
 fn contour_geometry(prepared: &PreparedContour) -> Contour {
-    Contour { layer: prepared.layer.clone(), curves: prepared.segments.iter()
-        .filter(|s| s.process.lead.is_none()).map(|s| s.curve).collect() }
+    Contour {
+        layer: prepared.layer.clone(),
+        curves: prepared
+            .segments
+            .iter()
+            .filter(|s| s.process.lead.is_none())
+            .map(|s| s.curve)
+            .collect(),
+    }
 }
 
 /// The image a prepared contour frames, if it frames one.
@@ -622,7 +712,9 @@ fn validate_drawing(drawing: &Drawing, features: &Features) -> Result<()> {
         return Err(feature("selection", "select existing contours again"));
     }
     for (index, contour) in kept(drawing, features) {
-        if features.only_contours.as_ref().is_none_or(|ids| ids.contains(&index)) { validate(index, contour)?; }
+        if features.only_contours.as_ref().is_none_or(|ids| ids.contains(&index)) {
+            validate(index, contour)?;
+        }
     }
     for layer in features.layers.iter().filter(|l| l.machining.is_some()) {
         check(&features.for_layer(&layer.name))?;
@@ -748,7 +840,8 @@ impl Preparation<'_> {
             .contour_machining
             .iter()
             .position(|m| sources.iter().any(|s| m.contours.contains(s)));
-        if let Some(features) = selection.and_then(|at| self.selected.get(&(at, layer.to_owned()))) {
+        if let Some(features) = selection.and_then(|at| self.selected.get(&(at, layer.to_owned())))
+        {
             return features;
         }
         self.layered.get(layer).unwrap_or(&self.mapped.features)

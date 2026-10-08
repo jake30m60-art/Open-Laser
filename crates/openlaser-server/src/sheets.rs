@@ -133,7 +133,12 @@ impl SheetSet {
     /// Changes every page's layout, stopping at the first that refuses.
     pub(crate) fn try_for_each_layout(
         &mut self,
-        mut change: impl FnMut(&mut Vec<Placed>, &mut Features, &mut Grouping, &mut Option<Nesting>) -> Result<()>,
+        mut change: impl FnMut(
+            &mut Vec<Placed>,
+            &mut Features,
+            &mut Grouping,
+            &mut Option<Nesting>,
+        ) -> Result<()>,
     ) -> Result<()> {
         for page in &mut self.pages {
             change(&mut page.placed, &mut page.features, &mut page.grouping, &mut page.nesting)?;
@@ -166,7 +171,9 @@ mod tests {
         let p = [[x, 0.], [x + 10., 0.], [x + 10., 10.], [x, 10.]];
         Contour {
             layer: "0".into(),
-            curves: (0..4).map(|i| Curve::Line { start: p[i].into(), end: p[(i + 1) % 4].into() }).collect(),
+            curves: (0..4)
+                .map(|i| Curve::Line { start: p[i].into(), end: p[(i + 1) % 4].into() })
+                .collect(),
         }
     }
 
@@ -176,10 +183,17 @@ mod tests {
     fn a_replaced_part_reaches_every_sheet() {
         let (part, other, edited) = (Id::generate(), Id::generate(), Id::generate());
         let one = |c: Contour| Arc::new(Drawing { contours: vec![c] });
-        let old = Arc::new(JobDrawing::new(vec![(part, one(square_at(0.))), (other.clone(), one(square_at(50.)))]));
+        let old = Arc::new(JobDrawing::new(vec![
+            (part, one(square_at(0.))),
+            (other.clone(), one(square_at(50.))),
+        ]));
         let mut draft = Draft::new(old);
         let first = SheetLayout::capture(&draft);
-        draft.current.placed = vec![Placed { source: 1, copy: 0, transform: Transform::translation(Point::new(5., 0.)) }];
+        draft.current.placed = vec![Placed {
+            source: 1,
+            copy: 0,
+            transform: Transform::translation(Point::new(5., 0.)),
+        }];
         draft.current.features.layer_edits =
             vec![openlaser_core::features::LayerEdit { contour: 1, layer: "Etch".into() }];
         let second = SheetLayout::capture(&draft);
@@ -196,7 +210,11 @@ mod tests {
         let hidden = &draft.current.sheets.as_ref().unwrap().pages[1];
         assert_eq!(hidden.placed.iter().map(|p| p.source).collect::<Vec<_>>(), vec![2]);
         assert_eq!(hidden.features.layer_edits[0].contour, 2, "the layer move follows its shape");
-        assert_eq!(draft.current.placed.len(), 3, "the shown sheet has both of the part's contours and the other");
+        assert_eq!(
+            draft.current.placed.len(),
+            3,
+            "the shown sheet has both of the part's contours and the other"
+        );
     }
 }
 

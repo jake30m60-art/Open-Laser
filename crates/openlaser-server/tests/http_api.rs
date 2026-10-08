@@ -727,9 +727,8 @@ async fn an_image_engraves_in_shades_of_gray_and_runs_to_the_end() {
     let server = Server::start().await;
     openlaser_server::connect::connect(&server.shared).await.unwrap();
     // 64 by 16 pixels, black on the left fading to white on the right, 32 by 8 mm.
-    let pixels: Vec<u8> = (0..16)
-        .flat_map(|_| (0..64).map(|x| u8::try_from(x * 4).unwrap()))
-        .collect();
+    let pixels: Vec<u8> =
+        (0..16).flat_map(|_| (0..64).map(|x| u8::try_from(x * 4).unwrap())).collect();
     let (status, response) = server
         .request_bytes(
             "POST",
@@ -743,7 +742,10 @@ async fn an_image_engraves_in_shades_of_gray_and_runs_to_the_end() {
     {
         let c = server.shared.lock().await;
         let stored = c.library.part(&openlaser_library::Id::from(part.as_str())).unwrap();
-        assert!(c.document().library.parts.iter().any(|p| p.id == stored.id && p.has_image), "the library advertises its raster thumbnail");
+        assert!(
+            c.document().library.parts.iter().any(|p| p.id == stored.id && p.has_image),
+            "the library advertises its raster thumbnail"
+        );
         let image = stored.image.as_ref().expect("the part keeps its image");
         assert_eq!((image.raster.width, image.raster.height), (64, 16));
         assert!(image.raster.bitmap().starts_with(b"BM"), "the canvas gets a bitmap");
@@ -771,8 +773,7 @@ async fn an_image_engraves_in_shades_of_gray_and_runs_to_the_end() {
     assert_eq!(draft["layers"][0]["name"], "Image");
     assert_eq!(draft["layers"][0]["mode"], "mark", "an image layer starts as engraving");
     assert_eq!(
-        draft["features"]["layers"][0]["machining"]["fill"]["image"]["mode"],
-        "grayscale",
+        draft["features"]["layers"][0]["machining"]["fill"]["image"]["mode"], "grayscale",
         "the job itself holds the default, so every screen edits from it"
     );
     assert_eq!(draft["preview"]["rasters"][0]["part"], part.as_str());
@@ -846,14 +847,26 @@ async fn repairing_contours_saves_a_part_that_replaces_the_faulty_one() {
         curves: (0..corners.len())
             .map(|i| Curve::Line {
                 start: [corners[i][0] + dx, corners[i][1]].into(),
-                end: [corners[(i + 1) % corners.len()][0] + dx, corners[(i + 1) % corners.len()][1]]
-                    .into(),
+                end: [
+                    corners[(i + 1) % corners.len()][0] + dx,
+                    corners[(i + 1) % corners.len()][1],
+                ]
+                .into(),
             })
             .collect(),
     };
     let square = [[0., 0.], [10., 0.], [10., 10.], [0., 10.]];
     // A square whose bottom edge makes a tiny loop, as a careless trace does.
-    let curled = [[0., 0.], [4., 0.], [4.02, 0.02], [4.02, -0.02], [4., 0.], [10., 0.], [10., 10.], [0., 10.]];
+    let curled = [
+        [0., 0.],
+        [4., 0.],
+        [4.02, 0.02],
+        [4.02, -0.02],
+        [4., 0.],
+        [10., 0.],
+        [10., 10.],
+        [0., 10.],
+    ];
     let drawing = Drawing {
         contours: vec![polygon(0., &square), polygon(20., &curled), polygon(40., &curled)],
     };
@@ -1253,23 +1266,42 @@ async fn hold_times_are_shared_checked_and_published() {
 
 #[tokio::test]
 async fn sketches_and_replaced_job_parts_survive_the_http_boundary() {
-    use openlaser_core::geometry::{Contour,Curve,Drawing};
-    let server=Server::start().await;
-    let drawing=|x:f64|Drawing{contours:vec![Contour{layer:"0".into(),curves:vec![Curve::Line{start:[x,0.].into(),end:[x+10.,0.].into()}]}]};
-    let (a,b,new)={let mut c=server.shared.lock().await;
-        let a=c.library.add_part("a.dxf",b"a",drawing(0.)).unwrap().id;
-        let b=c.library.add_part("b.dxf",b"b",drawing(30.)).unwrap().id;
-        let new=c.library.add_part("edited.dxf",b"edit",drawing(2.)).unwrap().id;
-        c.open_parts(&[a.clone(),b.clone()]).unwrap();(a,b,new)};
-    let sketch=serde_json::json!({"points":[{"id":1,"x":2,"y":0},{"id":2,"x":12,"y":0}],"entities":[{"id":3,"kind":"line","a":1,"b":2}],"constraints":[{"id":4,"kind":"horizontal","line":3}],"next":5});
-    let (status,response)=server.request("POST",&format!("/api/parts/{new}/sketch"),Some(&sketch.to_string()),&[]).await;assert_eq!(status,200,"{response}");
-    let (status,response)=server.request("GET",&format!("/api/parts/{new}/drawing"),None,&[]).await;assert_eq!(status,200,"{response}");assert_eq!(response_json(&response)["sketch"],sketch);
-    let original=server.shared.lock().await.draft.as_ref().unwrap().current.parts.clone();
-    server.edit("replace-part",serde_json::json!({"old":a,"new":new})).await;
-    assert_eq!(server.shared.lock().await.draft.as_ref().unwrap().current.parts,vec![new.clone(),b]);
-    server.edit("undo",serde_json::json!({})).await;
-    assert_eq!(server.shared.lock().await.draft.as_ref().unwrap().current.parts,original);
-    let (status,_)=server.request("POST",&format!("/api/parts/{new}/sketch"),Some("{}"),&[]).await;assert_ne!(status,200);
-    assert_eq!(server.shared.lock().await.library.part(&new).unwrap().sketch,Some(sketch));
+    use openlaser_core::geometry::{Contour, Curve, Drawing};
+    let server = Server::start().await;
+    let drawing = |x: f64| Drawing {
+        contours: vec![Contour {
+            layer: "0".into(),
+            curves: vec![Curve::Line { start: [x, 0.].into(), end: [x + 10., 0.].into() }],
+        }],
+    };
+    let (a, b, new) = {
+        let mut c = server.shared.lock().await;
+        let a = c.library.add_part("a.dxf", b"a", drawing(0.)).unwrap().id;
+        let b = c.library.add_part("b.dxf", b"b", drawing(30.)).unwrap().id;
+        let new = c.library.add_part("edited.dxf", b"edit", drawing(2.)).unwrap().id;
+        c.open_parts(&[a.clone(), b.clone()]).unwrap();
+        (a, b, new)
+    };
+    let sketch = serde_json::json!({"points":[{"id":1,"x":2,"y":0},{"id":2,"x":12,"y":0}],"entities":[{"id":3,"kind":"line","a":1,"b":2}],"constraints":[{"id":4,"kind":"horizontal","line":3}],"next":5});
+    let (status, response) = server
+        .request("POST", &format!("/api/parts/{new}/sketch"), Some(&sketch.to_string()), &[])
+        .await;
+    assert_eq!(status, 200, "{response}");
+    let (status, response) =
+        server.request("GET", &format!("/api/parts/{new}/drawing"), None, &[]).await;
+    assert_eq!(status, 200, "{response}");
+    assert_eq!(response_json(&response)["sketch"], sketch);
+    let original = server.shared.lock().await.draft.as_ref().unwrap().current.parts.clone();
+    server.edit("replace-part", serde_json::json!({"old":a,"new":new})).await;
+    assert_eq!(
+        server.shared.lock().await.draft.as_ref().unwrap().current.parts,
+        vec![new.clone(), b]
+    );
+    server.edit("undo", serde_json::json!({})).await;
+    assert_eq!(server.shared.lock().await.draft.as_ref().unwrap().current.parts, original);
+    let (status, _) =
+        server.request("POST", &format!("/api/parts/{new}/sketch"), Some("{}"), &[]).await;
+    assert_ne!(status, 200);
+    assert_eq!(server.shared.lock().await.library.part(&new).unwrap().sketch, Some(sketch));
     server.close().await;
 }

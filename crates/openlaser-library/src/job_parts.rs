@@ -148,7 +148,9 @@ impl JobDrawing {
         kept.images = self
             .images
             .iter()
-            .filter_map(|(frame, raster)| Some((map.get(*frame).copied().flatten()?, raster.clone())))
+            .filter_map(|(frame, raster)| {
+                Some((map.get(*frame).copied().flatten()?, raster.clone()))
+            })
             .collect();
         (kept, map)
     }

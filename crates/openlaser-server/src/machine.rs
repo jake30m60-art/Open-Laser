@@ -1216,12 +1216,22 @@ pub async fn resume_reviewed(
             plan,
             recovery.return_position(),
         )?;
-        Arc::make_mut(&mut view).engraving_regions = recovery.execution.compiled.engraving_regions.clone();
-        Arc::make_mut(&mut view).engraving_paths = recovery.execution.compiled.engraving_paths.clone();
-        Arc::make_mut(&mut view).engraving_passes = view.plan.iter().enumerate().filter(|(_, pass)| {
-            recovery.execution.compiled.plan.iter().enumerate().any(|(i, original)|
-                original.ordinal == pass.ordinal && recovery.execution.compiled.engraving_passes.contains(&i))
-        }).map(|(i, _)| i).collect();
+        Arc::make_mut(&mut view).engraving_regions =
+            recovery.execution.compiled.engraving_regions.clone();
+        Arc::make_mut(&mut view).engraving_paths =
+            recovery.execution.compiled.engraving_paths.clone();
+        Arc::make_mut(&mut view).engraving_passes = view
+            .plan
+            .iter()
+            .enumerate()
+            .filter(|(_, pass)| {
+                recovery.execution.compiled.plan.iter().enumerate().any(|(i, original)| {
+                    original.ordinal == pass.ordinal
+                        && recovery.execution.compiled.engraving_passes.contains(&i)
+                })
+            })
+            .map(|(i, _)| i)
+            .collect();
         let held = Arc::new(Held {
             sheet: recovery.original.sheet.clone(),
             job: Arc::new(job),

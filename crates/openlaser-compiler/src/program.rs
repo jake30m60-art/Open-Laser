@@ -2604,16 +2604,41 @@ mod tests {
     }
     #[test]
     fn laser_off_scan_ramps_display_as_travel_without_changing_motion() {
-        let mut ramp=SegmentProcess::default(); ramp.joint=true; ramp.power=Some(0.); ramp.run_up=true;
-        let contours=[Contour{segments:tagged(vec![ramp.clone(),SegmentProcess::default(),ramp],vec![
-            Segment::Line{start:[0.,0.],end:[2.,0.]},Segment::Line{start:[2.,0.],end:[8.,0.]},Segment::Line{start:[8.,0.],end:[10.,0.]}]),overrides:Overrides::default()}];
-        let s=settings(); let program=Job::schedule_prepared(&s,&contours,None).unwrap().program(bound()).unwrap();
-        assert!(program.sections.iter().any(|section|section.kind==Kind::Cut));
-        assert!(!program.sections.iter().any(|section|section.kind==Kind::Joint));
-        assert!(program.sections.iter().any(|section|section.kind==Kind::Travel && section.points.len()>1));
-        let mut ordinary=contours.clone(); for segment in &mut ordinary[0].segments {segment.process.run_up=false;}
-        let previous=Job::schedule_prepared(&s,&ordinary,None).unwrap().program(bound()).unwrap();
-        assert_eq!(program.records,previous.records,"display classification must not change machine records");
+        let mut ramp = SegmentProcess::default();
+        ramp.joint = true;
+        ramp.power = Some(0.);
+        ramp.run_up = true;
+        let contours = [Contour {
+            segments: tagged(
+                vec![ramp.clone(), SegmentProcess::default(), ramp],
+                vec![
+                    Segment::Line { start: [0., 0.], end: [2., 0.] },
+                    Segment::Line { start: [2., 0.], end: [8., 0.] },
+                    Segment::Line { start: [8., 0.], end: [10., 0.] },
+                ],
+            ),
+            overrides: Overrides::default(),
+        }];
+        let s = settings();
+        let program =
+            Job::schedule_prepared(&s, &contours, None).unwrap().program(bound()).unwrap();
+        assert!(program.sections.iter().any(|section| section.kind == Kind::Cut));
+        assert!(!program.sections.iter().any(|section| section.kind == Kind::Joint));
+        assert!(
+            program
+                .sections
+                .iter()
+                .any(|section| section.kind == Kind::Travel && section.points.len() > 1)
+        );
+        let mut ordinary = contours.clone();
+        for segment in &mut ordinary[0].segments {
+            segment.process.run_up = false;
+        }
+        let previous =
+            Job::schedule_prepared(&s, &ordinary, None).unwrap().program(bound()).unwrap();
+        assert_eq!(
+            program.records, previous.records,
+            "display classification must not change machine records"
+        );
     }
-
 }

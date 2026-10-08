@@ -19,10 +19,14 @@ async fn vendor_recipes_compile_on_a_plate_with_holes() {
     let mut count = 0;
     for entry in std::fs::read_dir(source).unwrap() {
         let path = entry.unwrap().path();
-        if path.extension().is_none_or(|ext| ext != "json") { continue; }
+        if path.extension().is_none_or(|ext| ext != "json") {
+            continue;
+        }
         let bytes = std::fs::read(&path).unwrap();
         let recipe: openlaser_library::Recipe = serde_json::from_slice(&bytes).unwrap();
-        if !recipe.name.contains("(Gweike)") { continue; }
+        if !recipe.name.contains("(Gweike)") {
+            continue;
+        }
         std::fs::write(destination.join(path.file_name().unwrap()), bytes).unwrap();
         count += 1;
     }
@@ -30,7 +34,14 @@ async fn vendor_recipes_compile_on_a_plate_with_holes() {
     let shared = Coordinator::start(config).unwrap();
     common::seed(&shared, &simulator).await;
     let recipes = shared.lock().await.library.recipes().cloned().collect::<Vec<_>>();
-    let part = shared.lock().await.import_part("audit-plate.dxf", &std::fs::read(common::fixture("dxf/plate-with-holes.dxf")).unwrap()).unwrap();
+    let part = shared
+        .lock()
+        .await
+        .import_part(
+            "audit-plate.dxf",
+            &std::fs::read(common::fixture("dxf/plate-with-holes.dxf")).unwrap(),
+        )
+        .unwrap();
     let mut rows = Vec::new();
     for recipe in recipes {
         let result = async {
@@ -42,7 +53,8 @@ async fn vendor_recipes_compile_on_a_plate_with_holes() {
             machine::prepare(&shared).await?;
             machine::compile(&shared, false).await?;
             Ok::<_, openlaser_server::Error>(())
-        }.await;
+        }
+        .await;
         let d = shared.lock().await.document();
         let compiled = d.draft.as_ref().and_then(|d| d.compiled.as_ref());
         let gas = recipe.attributes.get("CutGasType");

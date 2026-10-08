@@ -40,7 +40,10 @@ pub(crate) fn apply(
 
 /// The placed contours each bridge joins or splits, through the bridges
 /// before it.
-pub(crate) fn involved(contours: &[(usize, &Contour)], bridges: &Bridges) -> Result<Vec<Vec<usize>>> {
+pub(crate) fn involved(
+    contours: &[(usize, &Contour)],
+    bridges: &Bridges,
+) -> Result<Vec<Vec<usize>>> {
     let mut list: Vec<Sourced> = contours
         .iter()
         .map(|(index, contour)| Sourced { sources: vec![*index], contour: (*contour).clone() })
@@ -49,7 +52,10 @@ pub(crate) fn involved(contours: &[(usize, &Contour)], bridges: &Bridges) -> Res
     for (number, bridge) in bridges.connections.iter().enumerate() {
         let (mut a, mut b) = (bridge.first.contour, bridge.second.contour);
         if a >= list.len() || b >= list.len() {
-            return Err(Error::Bridge { index: number + 1, reason: "refers to a contour that is not there".into() });
+            return Err(Error::Bridge {
+                index: number + 1,
+                reason: "refers to a contour that is not there".into(),
+            });
         }
         let mut sources = list[a].sources.clone();
         sources.extend(list[b].sources.iter().copied());
@@ -61,7 +67,8 @@ pub(crate) fn involved(contours: &[(usize, &Contour)], bridges: &Bridges) -> Res
             std::mem::swap(&mut a, &mut b);
             std::mem::swap(&mut pa, &mut pb);
         }
-        join(&mut list, a, b, [pa, pb], bridges.width.0).map_err(|reason| Error::Bridge { index: number + 1, reason })?;
+        join(&mut list, a, b, [pa, pb], bridges.width.0)
+            .map_err(|reason| Error::Bridge { index: number + 1, reason })?;
     }
     Ok(all)
 }
@@ -106,7 +113,13 @@ pub(crate) fn resolve(
 
 /// One bridge between list entries `a` <= `b` at sheet points `ends`: the
 /// result takes the place of `a`, and `b` leaves the list.
-fn join(list: &mut Vec<Sourced>, a: usize, b: usize, ends: [Point; 2], width: f64) -> std::result::Result<(), String> {
+fn join(
+    list: &mut Vec<Sourced>,
+    a: usize,
+    b: usize,
+    ends: [Point; 2],
+    width: f64,
+) -> std::result::Result<(), String> {
     if a != b && list[a].contour.layer != list[b].contour.layer {
         return Err("both ends must be on the same processing layer; a bridge cannot merge cutting and engraving".into());
     }
@@ -163,7 +176,10 @@ pub(crate) fn rebuild(
         };
         let bridge = Bridge { first: pick(a, first)?, second: pick(b, second)? };
         let (lo, hi, ends) = if a <= b { (a, b, [first, second]) } else { (b, a, [second, first]) };
-        let mut next: Vec<Sourced> = list.iter().map(|c| Sourced { sources: c.sources.clone(), contour: c.contour.clone() }).collect();
+        let mut next: Vec<Sourced> = list
+            .iter()
+            .map(|c| Sourced { sources: c.sources.clone(), contour: c.contour.clone() })
+            .collect();
         if join(&mut next, lo, hi, ends, width).is_err() {
             dropped += 1;
             continue;
@@ -639,23 +655,51 @@ mod tests {
     }
     #[test]
     fn nested_stencil_boundaries_keep_a_material_bridge() {
-        let outer=square(10.,Point::ORIGIN); let inner=square(4.,Point::new(3.,3.));
-        for hole in [inner.clone(),Contour {layer:inner.layer.clone(),curves:inner.curves.iter().rev().map(|c|c.reversed()).collect()}] {
-            let result=splice(&outer,Some(&hole),[Point::new(10.,5.),Point::new(7.,5.)],2.).unwrap();
-            assert_eq!(result.len(),1); assert!(result[0].is_closed());
-            assert!((result[0].signed_area().abs()-78.).abs()<1e-8,"area {}",result[0].signed_area());
+        let outer = square(10., Point::ORIGIN);
+        let inner = square(4., Point::new(3., 3.));
+        for hole in [
+            inner.clone(),
+            Contour {
+                layer: inner.layer.clone(),
+                curves: inner.curves.iter().rev().map(|c| c.reversed()).collect(),
+            },
+        ] {
+            let result =
+                splice(&outer, Some(&hole), [Point::new(10., 5.), Point::new(7., 5.)], 2.).unwrap();
+            assert_eq!(result.len(), 1);
+            assert!(result[0].is_closed());
+            assert!(
+                (result[0].signed_area().abs() - 78.).abs() < 1e-8,
+                "area {}",
+                result[0].signed_area()
+            );
         }
-        let outer=Contour{layer:"0".into(),curves:vec![Curve::circle(Point::ORIGIN,10.)]};
-        let inner=Contour{layer:"0".into(),curves:vec![Curve::circle(Point::ORIGIN,5.)]};
-        let result=splice(&outer,Some(&inner),[Point::new(10.,0.),Point::new(5.,0.)],1.).unwrap();
-        assert!(result[0].is_closed()); assert!(result[0].signed_area().abs()<75.*std::f64::consts::PI);
+        let outer = Contour { layer: "0".into(), curves: vec![Curve::circle(Point::ORIGIN, 10.)] };
+        let inner = Contour { layer: "0".into(), curves: vec![Curve::circle(Point::ORIGIN, 5.)] };
+        let result =
+            splice(&outer, Some(&inner), [Point::new(10., 0.), Point::new(5., 0.)], 1.).unwrap();
+        assert!(result[0].is_closed());
+        assert!(result[0].signed_area().abs() < 75. * std::f64::consts::PI);
     }
 
     #[test]
     fn a_bridge_never_merges_different_processing_layers() {
-        let a=square(10.,Point::ORIGIN);let mut b=square(10.,Point::new(14.,0.));b.layer="Engraving".into();
-        let f=Bridges{width:Millimeters(2.),connections:vec![Bridge{first:Pick{contour:0,point:Point::new(10.,5.)},second:Pick{contour:1,point:Point::new(14.,5.)}}]};
-        assert!(apply(&[(0,&a),(1,&b)],Some(&f)).err().unwrap().to_string().contains("same processing layer"));
+        let a = square(10., Point::ORIGIN);
+        let mut b = square(10., Point::new(14., 0.));
+        b.layer = "Engraving".into();
+        let f = Bridges {
+            width: Millimeters(2.),
+            connections: vec![Bridge {
+                first: Pick { contour: 0, point: Point::new(10., 5.) },
+                second: Pick { contour: 1, point: Point::new(14., 5.) },
+            }],
+        };
+        assert!(
+            apply(&[(0, &a), (1, &b)], Some(&f))
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("same processing layer")
+        );
     }
-
 }

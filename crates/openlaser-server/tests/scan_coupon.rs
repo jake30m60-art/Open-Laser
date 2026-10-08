@@ -24,7 +24,14 @@ async fn each_single_direction_engraves_four_lines() {
                 gas: None,
             })
             .unwrap();
-        c.update_recipe(&recipe.id, RecipeChange { attributes: [("OpenLaserProcess".into(), "engrave".into())].into(), ..Default::default() }).unwrap();
+        c.update_recipe(
+            &recipe.id,
+            RecipeChange {
+                attributes: [("OpenLaserProcess".into(), "engrave".into())].into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         c.scan_offset_coupon(ScanCoupon {
             recipe: recipe.id,
             angle: 0.,
@@ -80,7 +87,14 @@ async fn angled_coupons_keep_their_four_lines_and_all_travel_inside_the_bed() {
                     gas: None,
                 })
                 .unwrap();
-            c.update_recipe(&recipe.id, RecipeChange { attributes: [("OpenLaserProcess".into(), "engrave".into())].into(), ..Default::default() }).unwrap();
+            c.update_recipe(
+                &recipe.id,
+                RecipeChange {
+                    attributes: [("OpenLaserProcess".into(), "engrave".into())].into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
             c.scan_offset_coupon(ScanCoupon {
                 recipe: recipe.id,
                 angle,
@@ -141,7 +155,14 @@ async fn invalid_coupons_do_not_replace_the_draft_or_add_library_parts() {
                 gas: None,
             })
             .unwrap();
-        c.update_recipe(&recipe.id, RecipeChange { attributes: [("OpenLaserProcess".into(), "engrave".into())].into(), ..Default::default() }).unwrap();
+        c.update_recipe(
+            &recipe.id,
+            RecipeChange {
+                attributes: [("OpenLaserProcess".into(), "engrave".into())].into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let original = c.document();
         let valid = ScanCoupon {
             recipe: recipe.id,
@@ -222,7 +243,14 @@ async fn each_speed_has_twelve_lines_in_zero_fortyfive_ninety_order() {
                 gas: None,
             })
             .unwrap();
-        c.update_recipe(&recipe.id, RecipeChange { attributes: [("OpenLaserProcess".into(), "engrave".into())].into(), ..Default::default() }).unwrap();
+        c.update_recipe(
+            &recipe.id,
+            RecipeChange {
+                attributes: [("OpenLaserProcess".into(), "engrave".into())].into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         c.scan_offset_coupon(ScanCoupon {
             recipe: recipe.id,
             angle: 0.,
@@ -267,15 +295,30 @@ async fn each_speed_has_twelve_lines_in_zero_fortyfive_ninety_order() {
     openlaser_server::shutdown(&shared).await.unwrap();
 }
 
-
 #[tokio::test]
 async fn calibration_rejects_cutting_recipes_before_changing_the_draft() {
     let (_sim, shared) = start("scan-cutting-rejection").await;
     {
         let mut c = shared.lock().await;
-        let recipe = c.add_recipe(&NewRecipe { name: "Cut".into(), laser: LaserMode::Fiber, thickness_mm: 1., values: Values::Bank(1), gas: None }).unwrap();
+        let recipe = c
+            .add_recipe(&NewRecipe {
+                name: "Cut".into(),
+                laser: LaserMode::Fiber,
+                thickness_mm: 1.,
+                values: Values::Bank(1),
+                gas: None,
+            })
+            .unwrap();
         let before = c.document();
-        let result = c.scan_offset_coupon(ScanCoupon { recipe: recipe.id, angle: 0., angles: vec![0.,45.,90.], speeds: vec![200.], origin: [100.,100.], length: 10., spacing: 1. });
+        let result = c.scan_offset_coupon(ScanCoupon {
+            recipe: recipe.id,
+            angle: 0.,
+            angles: vec![0., 45., 90.],
+            speeds: vec![200.],
+            origin: [100., 100.],
+            length: 10.,
+            spacing: 1.,
+        });
         assert!(result.unwrap_err().to_string().contains("engraving recipe"));
         let after = c.document();
         assert_eq!(after.library.parts.len(), before.library.parts.len());

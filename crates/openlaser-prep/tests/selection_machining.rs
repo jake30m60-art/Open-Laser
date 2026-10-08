@@ -4,8 +4,8 @@
 #![allow(clippy::unwrap_used, reason = "known geometry fixtures")]
 
 use openlaser_core::features::{
-    ContourMachining, Features, JointBehaviour, JointPlacement, Joints, Kerf, Lead, LeadShape, Leads, Machining,
-    MachiningPart, Side,
+    ContourMachining, Features, JointBehaviour, JointPlacement, Joints, Kerf, Lead, LeadShape,
+    Leads, Machining, MachiningPart, Side,
 };
 use openlaser_core::geometry::{Contour, Curve, Drawing, Point};
 use openlaser_core::toolpath::{LeadRole, PreparedContour};
@@ -69,7 +69,11 @@ fn joint_count(contour: &PreparedContour) -> usize {
     contour.segments.iter().filter(|s| s.process.joint).count()
 }
 
-fn selection(contours: Vec<usize>, own: Vec<MachiningPart>, machining: Machining) -> ContourMachining {
+fn selection(
+    contours: Vec<usize>,
+    own: Vec<MachiningPart>,
+    machining: Machining,
+) -> ContourMachining {
     ContourMachining { contours, own, machining }
 }
 
@@ -104,7 +108,11 @@ fn leads_off_for_the_job_but_on_for_a_selection_and_the_reverse() {
 
     let off_here = Features {
         leads: Some(leads(Side::Auto)),
-        contour_machining: vec![selection(vec![0], vec![MachiningPart::Leads], Machining::default())],
+        contour_machining: vec![selection(
+            vec![0],
+            vec![MachiningPart::Leads],
+            Machining::default(),
+        )],
         ..Features::default()
     };
     let contours = prepared(&off_here);

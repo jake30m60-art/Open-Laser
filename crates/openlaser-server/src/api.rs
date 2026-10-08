@@ -340,18 +340,15 @@ async fn import_image(
 
 /// A part's image as a gray bitmap, for the canvas.
 async fn part_image(State(shared): State<Shared>, Path(id): Path<String>) -> Response {
-    let result = shared
-        .lock()
-        .await
-        .library
-        .part(&Id::from(id.as_str()))
-        .map_err(Error::from)
-        .and_then(|part| {
-            part.image
-                .as_ref()
-                .map(|image| image.raster.bitmap())
-                .ok_or_else(|| Error::Missing("the part has no image".into()))
-        });
+    let result =
+        shared.lock().await.library.part(&Id::from(id.as_str())).map_err(Error::from).and_then(
+            |part| {
+                part.image
+                    .as_ref()
+                    .map(|image| image.raster.bitmap())
+                    .ok_or_else(|| Error::Missing("the part has no image".into()))
+            },
+        );
     match result {
         Ok(bytes) => ([(header::CONTENT_TYPE, "image/bmp")], bytes).into_response(),
         Err(error) => Failure(error).into_response(),
@@ -396,18 +393,25 @@ struct SystemFontChoice {
 }
 
 /// Imports an installed font as if its file were uploaded.
-async fn import_system_font(State(shared): State<Shared>, Json(choice): Json<SystemFontChoice>) -> Reply {
+async fn import_system_font(
+    State(shared): State<Shared>,
+    Json(choice): Json<SystemFontChoice>,
+) -> Reply {
     let file = choice.file;
     let bytes = tokio::task::spawn_blocking(move || {
         if !crate::font_store::system_fonts().iter().any(|f| f.file == file) {
             return Err(Error::Request("that font is not installed on this computer".into()));
         }
-        std::fs::read(&file).map(|b| (file, b)).map_err(|e| Error::Refused(format!("read font: {e}")))
+        std::fs::read(&file)
+            .map(|b| (file, b))
+            .map_err(|e| Error::Refused(format!("read font: {e}")))
     })
     .await
     .map_err(|e| Error::Refused(format!("font task: {e}")))??;
     let (name, body) = bytes;
-    let name = std::path::Path::new(&name).file_name().map_or_else(|| "font.ttf".into(), |n| n.to_string_lossy().into_owned());
+    let name = std::path::Path::new(&name)
+        .file_name()
+        .map_or_else(|| "font.ttf".into(), |n| n.to_string_lossy().into_owned());
     import_font(State(shared), Query(Named { name }), axum::body::Bytes::from(body)).await
 }
 
@@ -572,18 +576,38 @@ async fn bridged_part_drawing(State(shared): State<Shared>, Path(id): Path<Strin
 }
 
 /// Retain editable sketch geometry, constraints and dimensions with the part.
-async fn save_part_sketch(State(shared): State<Shared>, Path(id): Path<Id>, Json(sketch): Json<Value>) -> Reply {
-    if !["points","entities","constraints"].iter().all(|key|sketch.get(key).is_some_and(Value::is_array)) || sketch.get("next").and_then(Value::as_u64).is_none() {
+async fn save_part_sketch(
+    State(shared): State<Shared>,
+    Path(id): Path<Id>,
+    Json(sketch): Json<Value>,
+) -> Reply {
+    if !["points", "entities", "constraints"]
+        .iter()
+        .all(|key| sketch.get(key).is_some_and(Value::is_array))
+        || sketch.get("next").and_then(Value::as_u64).is_none()
+    {
         return Err(Error::Request("invalid sketch document".into()).into());
     }
-    let mut c=shared.lock().await;
-    c.library.update_part(&id,|part|part.sketch=Some(sketch)).map_err(Error::from)?;
-    c.library_changed(); Ok(ok())
+    let mut c = shared.lock().await;
+    c.library.update_part(&id, |part| part.sketch = Some(sketch)).map_err(Error::from)?;
+    c.library_changed();
+    Ok(ok())
 }
 #[derive(Deserialize)]
-struct ReplacePart { old: Id, new: Id }
-async fn replace_draft_part(State(shared): State<Shared>, Query(v): Query<Revision>, Json(request): Json<ReplacePart>) -> Reply {
-    edit(&shared,Some(v.revision),|c|{c.replace_draft_part(&request.old,&request.new)?;Ok(json!({"ok":true}))}).await
+struct ReplacePart {
+    old: Id,
+    new: Id,
+}
+async fn replace_draft_part(
+    State(shared): State<Shared>,
+    Query(v): Query<Revision>,
+    Json(request): Json<ReplacePart>,
+) -> Reply {
+    edit(&shared, Some(v.revision), |c| {
+        c.replace_draft_part(&request.old, &request.new)?;
+        Ok(json!({"ok":true}))
+    })
+    .await
 }
 
 #[derive(Deserialize)]
@@ -867,7 +891,8 @@ async fn remove_bridge(
     Query(v): Query<Revision>,
     Json(which): Json<BridgeIndex>,
 ) -> Reply {
-    edit(&shared, Some(v.revision), |c| Ok(json!({ "dropped": c.remove_bridge(which.index)? }))).await
+    edit(&shared, Some(v.revision), |c| Ok(json!({ "dropped": c.remove_bridge(which.index)? })))
+        .await
 }
 
 async fn change_layers(
@@ -1050,10 +1075,19 @@ async fn preview_features(
         (d.drawing()?.clone(), d.clone())
     };
     draft.current.features = features;
-    let draft = tokio::task::spawn_blocking(move || { draft.prepare(&drawing); draft })
-        .await.map_err(|e| Error::Refused(e.to_string()))?;
-    let error = draft.preview.as_ref().and_then(|p| p.warnings.iter()
-        .find_map(|w| w.strip_prefix("Partial preview: ").map(str::to_owned))).or(draft.error);
+    let draft = tokio::task::spawn_blocking(move || {
+        draft.prepare(&drawing);
+        draft
+    })
+    .await
+    .map_err(|e| Error::Refused(e.to_string()))?;
+    let error = draft
+        .preview
+        .as_ref()
+        .and_then(|p| {
+            p.warnings.iter().find_map(|w| w.strip_prefix("Partial preview: ").map(str::to_owned))
+        })
+        .or(draft.error);
     Ok(Json(json!({ "preview": draft.preview, "error": error, "revision": v.revision })))
 }
 
@@ -1361,10 +1395,11 @@ async fn download_backup(State(shared): State<Shared>) -> std::result::Result<Re
         let c = shared.lock().await;
         (c.data_dir().to_path_buf(), c.backup_sources())
     };
-    let bytes = tokio::task::spawn_blocking(move || crate::backup::archive(&data_dir, &machine_files))
-        .await
-        .map_err(|e| Error::Refused(format!("backup task: {e}")))?
-        .map_err(|e| Error::Refused(format!("backup: {e}")))?;
+    let bytes =
+        tokio::task::spawn_blocking(move || crate::backup::archive(&data_dir, &machine_files))
+            .await
+            .map_err(|e| Error::Refused(format!("backup task: {e}")))?
+            .map_err(|e| Error::Refused(format!("backup: {e}")))?;
     let name = crate::backup::file_name(std::time::SystemTime::now());
     Ok((
         [
@@ -1524,8 +1559,15 @@ async fn scan_offsets_save(
     Ok(ok())
 }
 
-async fn manual_cut(State(shared): State<Shared>, Json(cut): Json<crate::manual_cut::ManualCut>) -> Reply {
-    edit(&shared, None, |c| { c.manual_cut(cut)?; Ok(Value::Null) }).await
+async fn manual_cut(
+    State(shared): State<Shared>,
+    Json(cut): Json<crate::manual_cut::ManualCut>,
+) -> Reply {
+    edit(&shared, None, |c| {
+        c.manual_cut(cut)?;
+        Ok(Value::Null)
+    })
+    .await
 }
 
 async fn scan_offsets_coupon(
