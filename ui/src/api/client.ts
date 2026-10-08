@@ -204,6 +204,8 @@ export const api = {
   replaceDraftPart: (old:string,next:string,revision:number)=>draftPost('/api/draft/replace-part',{old,new:next},revision),
   /** The part with the open job's bridges cut into it; null when none lies on it alone. */
   bridgedPart: (id: string) => request<{ drawing: import('../sketch/from-drawing').SourceDrawing | null }>('GET', `/api/draft/part/${encodeURIComponent(id)}/bridged`),
+  /** The part's curves as its DXF draws them, ellipses and splines kept; null when the part is not that file as imported. */
+  partSketchSource: (id: string) => request<{ curves: import('../sketch/from-source').SourceCurve[] | null }>('GET', `/api/parts/${encodeURIComponent(id)}/sketch-source`),
   partDrawing: (id: string) => request<{ name: string; drawing: import('../sketch/from-drawing').SourceDrawing; sketch?: import('../sketch/model').Sketch }>('GET', `/api/parts/${encodeURIComponent(id)}/drawing`),
   duplicatePart: (id: string) => post<{ ok: true; id: string }>(`/api/parts/${id}/duplicate`),
   /** What simplifying a part's drawing within `tolerance` mm does; `save` keeps it as a new part. */

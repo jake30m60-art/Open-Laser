@@ -70,6 +70,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/parts/review", post(review_part))
         .route("/api/parts/{id}", post(update_part).delete(remove_part))
         .route("/api/parts/{id}/drawing", get(part_drawing))
+        .route("/api/parts/{id}/sketch-source", get(part_sketch_source))
         .route("/api/sketches", get(list_sketches))
         .route("/api/sketches/removed", get(removed_sketches))
         .route("/api/sketches/{id}", get(get_sketch).post(save_sketch).delete(remove_sketch))
@@ -532,6 +533,62 @@ async fn part_drawing(State(shared): State<Shared>, Path(id): Path<String>) -> R
     let c = shared.lock().await;
     let part = c.library.part(&Id::from(id.as_str())).map_err(Error::from)?;
     Ok(Json(json!({ "name": part.name, "drawing": part.drawing, "sketch": part.sketch })))
+}
+
+/// A part's curves as its DXF file draws them, ellipses and splines kept,
+/// for the sketch editor. None when the part is not a DXF as imported:
+/// a repaired, simplified or otherwise changed part edits as its drawing.
+async fn part_sketch_source(State(shared): State<Shared>, Path(id): Path<String>) -> Reply {
+    let (bytes, drawing) = {
+        let c = shared.lock().await;
+        let part = c.library.part(&Id::from(id.as_str())).map_err(Error::from)?;
+        let dxf = std::path::Path::new(&part.file_name)
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("dxf"));
+        if !dxf || part.sketch.is_some() {
+            return Ok(Json(json!({ "curves": null })));
+        }
+        let Ok(bytes) = c.library.original(&part.sha256) else {
+            return Ok(Json(json!({ "curves": null })));
+        };
+        (bytes, part.drawing.clone())
+    };
+    let curves = tokio::task::spawn_blocking(move || {
+        let options = openlaser_dxf::Options::default();
+        let same =
+            openlaser_dxf::import_with(&bytes, &options).is_ok_and(|i| i.drawing == *drawing);
+        if !same {
+            return None;
+        }
+        openlaser_dxf::sketch_with(&bytes, &options).ok().map(|s| s.curves)
+    })
+    .await
+    .map_err(|e| Error::Refused(format!("sketch source task: {e}")))?;
+    let p = |p: openlaser_core::geometry::Point| [p.x, p.y];
+    let curves = curves.map(|curves| {
+        curves
+            .into_iter()
+            .map(|(layer, primitive)| match primitive {
+                openlaser_dxf::Primitive::Line { start, end }
+                | openlaser_dxf::Primitive::Arc(openlaser_core::geometry::Curve::Line { start, end }) => {
+                    json!({ "layer": layer, "kind": "line", "start": p(start), "end": p(end) })
+                }
+                openlaser_dxf::Primitive::Arc(openlaser_core::geometry::Curve::Arc {
+                    center,
+                    radius,
+                    start_angle,
+                    sweep,
+                }) => json!({ "layer": layer, "kind": "arc", "center": p(center), "radius": radius, "start_angle": start_angle, "sweep": sweep }),
+                openlaser_dxf::Primitive::Ellipse { center, major, minor_radius, start, end } => {
+                    json!({ "layer": layer, "kind": "ellipse", "center": p(center), "major": p(major), "minor_radius": minor_radius, "start": start, "end": end })
+                }
+                openlaser_dxf::Primitive::Spline { degree, knots, poles, weights } => {
+                    json!({ "layer": layer, "kind": "spline", "degree": degree, "knots": knots, "poles": poles.into_iter().map(p).collect::<Vec<_>>(), "weights": weights })
+                }
+            })
+            .collect::<Vec<_>>()
+    });
+    Ok(Json(json!({ "curves": curves })))
 }
 
 async fn list_sketches(State(shared): State<Shared>) -> Reply {

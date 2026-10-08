@@ -1308,3 +1308,32 @@ async fn sketches_and_replaced_job_parts_survive_the_http_boundary() {
     assert_eq!(server.shared.lock().await.library.part(&new).unwrap().sketch, Some(sketch));
     server.close().await;
 }
+
+#[tokio::test]
+async fn a_dxf_part_opens_in_the_sketch_with_its_ellipses() {
+    let server = Server::start().await;
+    let bytes = std::fs::read(common::fixture("import/fusion360-ellipses.dxf")).unwrap();
+    let (status, response) =
+        server.request_bytes("POST", "/api/parts?name=ellipses.dxf", Some(&bytes), &[]).await;
+    assert_eq!(status, 200, "{response}");
+    let part = response_json(&response)["id"].as_str().unwrap().to_owned();
+    let (status, response) =
+        server.request("GET", &format!("/api/parts/{part}/sketch-source"), None, &[]).await;
+    assert_eq!(status, 200, "{response}");
+    let curves = response_json(&response)["curves"].as_array().cloned().expect("exact curves");
+    assert!(curves.iter().any(|c| c["kind"] == "ellipse"), "{curves:?}");
+    // A changed part edits as its drawing: the file no longer says what it is.
+    server
+        .shared
+        .lock()
+        .await
+        .library
+        .update_part(&openlaser_library::Id::from(part.as_str()), |p| {
+            let first = p.drawing.contours[..1].to_vec();
+            p.drawing = std::sync::Arc::new(openlaser_core::geometry::Drawing { contours: first });
+        })
+        .unwrap();
+    let (_, response) =
+        server.request("GET", &format!("/api/parts/{part}/sketch-source"), None, &[]).await;
+    assert!(response_json(&response)["curves"].is_null(), "{response}");
+}

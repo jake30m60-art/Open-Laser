@@ -34,7 +34,10 @@ mod blocks;
 mod colors;
 mod entities;
 mod pairs;
+mod sketch;
 mod source;
+
+pub use sketch::{Primitive, SketchImport, sketch_with};
 
 use entities::curves::Parametric;
 use entities::{Note, Piece, Read};

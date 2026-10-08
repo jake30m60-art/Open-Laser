@@ -1,6 +1,7 @@
 <script lang="ts">
   import CreateText from '../components/CreateText.svelte';
-  import { appendDrawing } from '../sketch/append-drawing';
+  import { appendDrawing, appendSketch } from '../sketch/append-drawing';
+  import { fromSource } from '../sketch/from-source';
   import { beginProject } from '../lib/sketch-workflow';
   import { t } from '../i18n/index';
 
@@ -61,7 +62,7 @@
   }
   const textPath = (text: SketchText): string => placedText(text).map((line) => line.map(([x, y], i) => { const q = toScreen({ x, y }); return `${i ? 'L' : 'M'}${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }).join('')).join('');
   let importInput:HTMLInputElement;
-  async function insertPart(id:string){const {drawing}=await api.partDrawing(id);let ids:number[]=[];const error=store.change(s=>{ids=appendDrawing(s,drawing);});if(error)throw new Error(error);store.select(ids);fit();}
+  async function insertPart(id:string){const {drawing}=await api.partDrawing(id);const exact=(await api.partSketchSource(id).catch(()=>null))?.curves ?? null;let ids:number[]=[];const error=store.change(s=>{ids=exact?appendSketch(s,fromSource(exact)):appendDrawing(s,drawing);});if(error)throw new Error(error);store.select(ids);fit();}
   async function importDrawing(event:Event){const input=event.currentTarget as HTMLInputElement,file=input.files?.[0];if(!file)return;importing=true;try{const {id,warnings}=await api.importPart(file.name,await file.arrayBuffer());await insertPart(id);if(warnings?.length)ui.say(warnings.join(' · '));}catch(e){ui.say(explain(e),true);}finally{importing=false;input.value='';}}
 
   type Button<T> = { id: T; label: string; key?: string; icon?: string; glyph?: string };
