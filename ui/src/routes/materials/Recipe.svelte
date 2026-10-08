@@ -153,7 +153,7 @@
     <button class="btn btn-ghost" onclick={note}>{tr("Edit setup")}</button>
   </div>
   {#if airRecipeUsesNitrogen(recipe, values)}
-    <p class="gas-source-warning" role="alert">{tr('The source says air, but this recipe selects the N₂ valve. Check the connected gas line before cutting.')}</p>
+    <p class="gas-source-warning" role="alert">{tr("Air recipe on the N₂ valve, as on the machine's own fiber layers: it cuts with whatever is connected to the N₂ inlet. Check the supply before cutting.")}</p>
   {/if}
   <div class="recipe-summary"><MaterialSummary source={summary} /></div>
   <div class="recipe-tabs">

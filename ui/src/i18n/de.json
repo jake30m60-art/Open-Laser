@@ -3231,7 +3231,7 @@
   "Search sketches": "Skizzen suchen",
   "No sketches yet": "Noch keine Skizzen",
   "Could not load sketches.": "Skizzen konnten nicht geladen werden.",
-  "The source says air, but this recipe selects the N₂ valve. Check the connected gas line before cutting.": "Die Quelle nennt Luft, dieses Rezept wählt aber das N₂-Ventil. Vor dem Schnitt die angeschlossene Gasleitung prüfen.",
+  "Air recipe on the N₂ valve, as on the machine's own fiber layers: it cuts with whatever is connected to the N₂ inlet. Check the supply before cutting.": "Luft-Rezept über das N₂-Ventil, wie bei den Faser-Schichten der Maschine selbst: Es schneidet mit dem, was am N₂-Eingang angeschlossen ist. Vor dem Schnitt die Versorgung prüfen.",
   "Left": "Links",
   "Right": "Rechts"
 }
