@@ -3,6 +3,7 @@ import { t } from '../i18n/index';
 import type { LaserMode, RecipeView } from '../api';
 import { distance, quantity, unitLabel } from './units.svelte';
 import { plain } from './plain';
+import { materialLabel } from './materials';
 
 export const fmt = (n: number, digits = 2): string => n.toFixed(digits);
 
@@ -22,7 +23,7 @@ export const plural = (count: number, singular: string, many = `${singular}s`): 
 export const laserLabel = (laser: LaserMode | null | undefined): string => (laser === 'co2' ? 'CO₂' : laser === 'fiber' ? t('Fiber') : '—');
 
 export const recipeLabel = (recipe: Pick<RecipeView, 'name' | 'thickness_mm' | 'gas'> | null | undefined): string =>
-  recipe ? `${recipe.name} · ${quantity(recipe.thickness_mm, 'mm')} · ${recipe.gas}` : 'No material';
+  recipe ? `${materialLabel(recipe.name)} · ${quantity(recipe.thickness_mm, 'mm')} · ${t(recipe.gas)}` : t('No material');
 
 export const seconds = (s: number): string => {
   const whole = Math.max(0, Math.round(s));

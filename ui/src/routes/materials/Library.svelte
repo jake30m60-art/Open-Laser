@@ -8,7 +8,7 @@
   import MaterialSummary from '../../components/MaterialSummary.svelte';
   import { ui } from '../../stores/ui.svelte';
   import { explain, laserLabel, plural } from '../../lib/format';
-  import { pictureOf, materialsOf, materialKey, type Material } from '../../lib/materials';
+  import { materialLabel, pictureOf, materialsOf, materialKey, type Material } from '../../lib/materials';
   import { isEngraving } from '../../lib/engraving';
   import { droppedFiles, picked, type Picked } from '../../lib/recipe-import';
   import ImportRecipes from './ImportRecipes.svelte';
@@ -38,7 +38,7 @@
   /** Engraving recipes are listed apart, under keys of their own. */
   const keyOf = (r: RecipeView) => (isEngraving(r) ? `engrave:${materialKey(r)}` : materialKey(r));
   const opened = $derived(open ?? (selected ? keyOf(selected) : null));
-  const found = (m: Material) => m.name.toLowerCase().includes(search.trim().toLowerCase());
+  const found = (m: Material) => [m.name, materialLabel(m.name)].some((n) => n.toLowerCase().includes(search.trim().toLowerCase()));
   const materials = $derived(materialsOf(recipes.filter((r) => !isEngraving(r))).filter(found));
   const engravings = $derived(materialsOf(recipes.filter(isEngraving)).map((m) => ({ ...m, key: `engrave:${m.key}` })).filter(found));
   const lasers = $derived((['fiber', 'co2'] as const).filter((laser) => materials.some((m) => m.laser === laser)));
@@ -84,7 +84,7 @@
     {@const art = pictureOf(m.name, m.photo)}
     <button class="mat" class:open={opened === m.key} aria-expanded={opened === m.key} onclick={() => tap(m)}>
       {#if art}<img class="art" src={art} alt="" loading="lazy">{:else}<span class="art blank"><i class="ic ic-layers"></i></span>{/if}
-      <span class="mat-info"><span class="name">{m.name}</span><span class="mat-meta">{plural(m.recipes.length, 'recipe')}</span><span class="mat-meta">{engraving ? laserLabel(m.laser) : thicknessRange(m)}</span></span><i class="ic ic-chev-right mat-chevron"></i>
+      <span class="mat-info"><span class="name">{materialLabel(m.name)}</span><span class="mat-meta">{plural(m.recipes.length, 'recipe')}</span><span class="mat-meta">{engraving ? laserLabel(m.laser) : thicknessRange(m)}</span></span><i class="ic ic-chev-right mat-chevron"></i>
     </button>
     {#if opened === m.key}
       {#each gasesOf(m) as gas (gas)}
@@ -103,7 +103,7 @@
   ondragleave={(e) => { if (e.currentTarget === e.target) dragging = false; }}
   ondrop={drop}>
   <div class="library-head"><h2>{tr("Materials")}</h2><button class="btn btn-primary icon-only" onclick={onadd} aria-label={tr("New recipe")}><i class="ic ic-plus"></i></button></div>
-  <div class="process-tabs" role="group" aria-label={tr("Rezeptart")}>
+  <div class="process-tabs" role="group" aria-label={tr("Recipe kind")}>
     <button class="btn" class:btn-primary={process === 'cut'} aria-pressed={process === 'cut'} onclick={() => switchProcess('cut')}>{tr("Cutting")}</button>
     <button class="btn" class:btn-primary={process === 'engrave'} aria-pressed={process === 'engrave'} onclick={() => switchProcess('engrave')}>{tr("Engraving")}</button>
   </div>
@@ -120,7 +120,7 @@
     {#if engravings.length}
       <h3>{tr("Engraving")}</h3>
       {#each engravings as m (m.key)}{@render material(m, true)}{/each}
-    {:else}<p class="muted">{search ? tr("No material matches.") : "Noch keine Gravurrezepte. Mit + ein Gravurrezept anlegen."}</p>{/if}
+    {:else}<p class="muted">{search ? tr("No material matches.") : tr("No engraving recipes yet. Add one with +.")}</p>{/if}
     {/if}
   </div>
   <div class="library-foot">

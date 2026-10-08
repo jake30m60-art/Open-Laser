@@ -110,10 +110,10 @@
   </button>
   {#if recipe}<MaterialSummary source={recipe} variant="compact" />{/if}
   {#if draft.layers.length}
-    <label class="layer-choice">{tl("Bearbeitungsbereich")}
+    <label class="layer-choice">{tl("Machining scope")}
       <select bind:value={selectedLayer}>{#each draft.layers as layer (layer.name)}<option value={layer.name}>{layer.name} · {layerHow(layer)}</option>{/each}</select>
     </label>
-    <button class="btn btn-ghost" onclick={() => ui.layerSheet = selectedLayer}>{tl("Bearbeitungseinstellungen öffnen")}</button>
+    <button class="btn btn-ghost" onclick={() => ui.layerSheet = selectedLayer}>{tl("Open machining settings")}</button>
   {/if}
 </div>
 

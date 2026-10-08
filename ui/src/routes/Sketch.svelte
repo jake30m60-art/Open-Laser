@@ -657,7 +657,7 @@
       else await api.openPart(id);
       store.bindPart(id);
       ui.tab = 'setup';
-      ui.say(store.target === 'replace' ? 'Teil im Auftrag gespeichert. Einstellungen geänderter Konturen bitte prüfen.' : warnings?.length ? t("Sketch added as a part · {0}", warnings.join(' · ')) : t("Sketch added as a part. Choose a material to prepare it for cutting."));
+      ui.say(store.target === 'replace' ? t('Part saved in the job. Check the settings of changed contours.') : warnings?.length ? t("Sketch added as a part · {0}", warnings.join(' · ')) : t("Sketch added as a part. Choose a material to prepare it for cutting."));
     } catch (reason) {
       ui.say(explain(reason), true);
     } finally {
@@ -863,9 +863,9 @@
   <label for="sketch-archive">{t("Saved sketches")}</label>
   <div class="sketch-archive-row">
     <select id="sketch-archive" value={store.activeDocument} onchange={async e=>{if (await store.openDocument(e.currentTarget.value)) fit(); else ui.say(t('Could not load sketches.'), true);}}>{#each store.documents as document}<option value={document.id}>{document.name}</option>{/each}</select>
-    <button class="sk-tool" title={'Gewählte Skizze entfernen: '+store.name} aria-label={'Gewählte Skizze entfernen: '+store.name} onclick={()=>{store.removeDocument();fit();}}><i class="ic ic-trash" aria-hidden="true"></i></button>
+    <button class="sk-tool" title={t('Remove chosen sketch: {0}', store.name)} aria-label={t('Remove chosen sketch: {0}', store.name)} onclick={()=>{store.removeDocument();fit();}}><i class="ic ic-trash" aria-hidden="true"></i></button>
   </div>
-  {#if store.removedDocuments.length}<button class="btn btn-soft" onclick={()=>{store.restoreDocument();fit();}}>Entfernen rückgängig: {store.removedDocuments.at(-1)?.name}</button>{/if}
+  {#if store.removedDocuments.length}<button class="btn btn-soft" onclick={()=>{store.restoreDocument();fit();}}>{t('Undo remove: {0}', store.removedDocuments.at(-1)?.name)}</button>{/if}
   <button class="btn btn-ghost" onclick={()=>beginProject('new')}>{t("New sketch")}</button>
   <div class="sk-name"><span>{t("Name")}</span><button class="sk-name-field" onclick={() => osk.text(t("Sketch name"), store.name, (v) => store.rename(v))}>{store.name}</button></div>
 
@@ -910,8 +910,8 @@
       </div>
     {:else}<p class="muted">{t("Now")} {displayNumber(minor, 'mm')} {unitLabel('mm')}{t(", following the zoom.")}</p>{/if}
     <label class="sk-check"><input type="checkbox" bind:checked={store.gridSnap} /> {t("Snap to grid (G)")}</label>
-    <label class="sk-check"><input type="checkbox" bind:checked={store.automaticConstraints} onchange={()=>store.use(store.tool?.id ?? null)} /> Zusätzliche Abhängigkeiten automatisch</label>
-    <p class="muted">Standard: nur verbundene Endpunkte und Grundform. Tangenten und weitere Beziehungen bei Bedarf ausdrücklich setzen.</p>
+    <label class="sk-check"><input type="checkbox" bind:checked={store.automaticConstraints} onchange={()=>store.use(store.tool?.id ?? null)} /> {t("Add further relations automatically")}</label>
+    <p class="muted">{t("By default only joined end points and the basic shape. Set tangents and other relations yourself when needed.")}</p>
     <label class="sk-check"><input type="checkbox" bind:checked={store.showConstraints} /> {t("Show constraints")}</label>
     <label class="sk-check"><input type="checkbox" bind:checked={store.showDimensions} /> {t("Show dimensions")}</label>
   </div>

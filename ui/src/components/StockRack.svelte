@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../i18n/index';
+  import { materialLabel } from '../lib/materials';
 
   // Sheets on hand, by material and thickness: full sheets on the rack with
   // their counts, and the remnants of the same material beside them.
@@ -46,7 +47,7 @@
   </div>
   {#each groups as g (g.key)}
     <section class="rack-group">
-      <h3>{g.material} · {quantity(g.thickness, 'mm')} <span class="tag {g.laser}">{laserLabel(g.laser)}</span></h3>
+      <h3>{materialLabel(g.material)} · {quantity(g.thickness, 'mm')} <span class="tag {g.laser}">{laserLabel(g.laser)}</span></h3>
       {#each g.items as item (item.id)}
         <div class="rack-row" class:empty={item.quantity === 0}>
           <button class="row-main" onclick={() => editing = item.id}>

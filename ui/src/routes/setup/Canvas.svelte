@@ -298,7 +298,7 @@
       const { contours, draft: saved } = await api.add(batch.contours, batch.lead_overrides, batch.grouping);
       copied.offset = batch.offset;
       if (saved?.revision === server.doc?.draft?.revision) pending = contours;
-      ui.say(`Pasted ${plural(count, 'copy', 'copies')}.`);
+      ui.say(t('Pasted {0}.', plural(count, 'copy', 'copies')));
     });
   }
 
@@ -422,7 +422,7 @@
   function gridSize(): void {
     osk.number('Grid spacing', ui.grid, 'mm', v => {
       if (v > 0 && v <= 1000) ui.setGrid(v);
-      else ui.say(`Grid spacing must be above 0 and at most ${quantity(1000, 'mm')}.`, true);
+      else ui.say(t('Grid spacing must be above 0 and at most {0}.', quantity(1000, 'mm')), true);
     });
   }
 
@@ -930,7 +930,7 @@
         <PickBar picking={ui.picking} picked={pickedCount} total={candidates.length} busy={updating || pickBusy} onfinish={finishPicks} />
       {/if}
       {#if picks.length && selectionShown}<div class="hint top">{t("Selected contours: {0}. Click again to deselect.", picks.length)}</div>
-      {:else if wholePart && selectionShown}<div class="hint top">Whole part · tap a shape to take it alone</div>{/if}
+      {:else if wholePart && selectionShown}<div class="hint top">{t("Whole part · tap a shape to take it alone")}</div>{/if}
       {#if preview?.warnings.length}<div class="hint">{preview.warnings[0]}</div>{:else if thinnest > 1}<div class="hint">{t("Engraving: every {0}th line shown; zoom in to see them all", thinnest)}</div>{/if}
       {#if selection && selectionShown && !picks.length}
         <SelectionHud {selection} {zero} disabled={updating} onplace={typed} onturn={turnBy} onresize={resize} />

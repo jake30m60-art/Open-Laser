@@ -63,7 +63,7 @@
       {/each}
     </div>
     {#if !gate.ok}<p class="gate-reason">{plain(gate.reason).text}</p>{/if}
-    <HoldButton class="btn btn-move xl" disabled={!gate.ok || !server.link} onhold={go}>Go to X {distance(shown[0])} · Y {distance(shown[1])}</HoldButton>
+    <HoldButton class="btn btn-move xl" disabled={!gate.ok || !server.link} onhold={go}>{t('Go to X {0} · Y {1}', distance(shown[0]), distance(shown[1]))}</HoldButton>
   </div>
 </Modal>
 

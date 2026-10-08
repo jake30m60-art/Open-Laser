@@ -25,14 +25,14 @@ export function resizedFillets(previous: Sketch, next: Sketch): { sketch: Sketch
     const d1=sub(point(previous,first!.far),p),d2=sub(point(previous,second!.far),q);
     const cross=(a:{x:number;y:number},b:{x:number;y:number})=>a.x*b.y-a.y*b.x;
     const den=cross(d1,d2);
-    if(Math.abs(den)<1e-10) return {...result,error:'Die Verrundung hat keine gültige Ecke mehr.'};
+    if(Math.abs(den)<1e-10) return {...result,error:'The fillet no longer has a valid corner.'};
     const vertex=add(p,scale(d1,cross(sub(q,p),d2)/den));
     const f1=point(previous,first!.far),f2=point(previous,second!.far);
     const u1=scale(sub(f1,vertex),1/dist(f1,vertex)),u2=scale(sub(f2,vertex),1/dist(f2,vertex));
     const half=Math.acos(Math.max(-1,Math.min(1,dot(u1,u2))))/2;
     const back=dimension.value/Math.tan(half);
     if(!Number.isFinite(back) || back<=0 || back>=dist(f1,vertex)-1e-6 || back>=dist(f2,vertex)-1e-6)
-      return {...result,error:'Der Radius ist zu groß für die angrenzenden Linien. Die Kontur bleibt unverändert.'};
+      return {...result,error:'The radius is too large for the adjoining lines. The contour stays as it was.'};
     const bis=scale(add(u1,u2),1/len(add(u1,u2)));
     const positions=[[first!.end,add(vertex,scale(u1,back))],[second!.end,add(vertex,scale(u2,back))],[arc.c,add(vertex,scale(bis,dimension.value/Math.sin(half)))]] as const;
     for(const [id,at] of positions){Object.assign(point(sketch,id),at);moving.add(id);}

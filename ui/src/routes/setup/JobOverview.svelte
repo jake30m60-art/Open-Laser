@@ -16,7 +16,7 @@
 </script>
 <details class="job-overview" bind:open={ui.jobOverviewOpen}>
  <summary>{t('Job overview')} · {draft.name}</summary>
- <button class="btn btn-soft" onclick={()=>ui.jobOverviewOpen=false}>Parameter anzeigen</button>
+ <button class="btn btn-soft" onclick={()=>ui.jobOverviewOpen=false}>{t("Show parameters")}</button>
  <div class="counts"><span>{t('{0} cut contours',cutting)}</span><span>{t('{0} engraving contours',engraving)}</span><span>{t('{0} excluded contours',excluded)}</span></div>
  {#if draft.error}<p class="warning" role="status">{t('Output blocked')}: {draft.error}</p>{:else if draft.layers.some(l=>l.output&&!l.chosen)}<p class="warning">{t('Recipe missing on an active layer')}</p>{:else}<p class="muted">{t('Geometry prepared')}</p>{/if}
  {#if draft.features.only_contours}<p class="warning">{t('Only selected contours are processed')}</p>{/if}

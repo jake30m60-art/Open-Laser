@@ -97,7 +97,7 @@
           <rect x="2" y="2" width="8" height="8"/><rect x="14" y="14" width="8" height="8"/>
           <path d="M14 4h6v6M20 4l-7 7M4 14v6h6M4 20l7-7"/>
         </svg>
-      {:else if tool.text}<strong>{tool.text()}</strong>
+      {:else if tool.text}<strong>{t(tool.text())}</strong>
       {:else}<i class="ic {tool.icon}"></i>{/if}
       <small>{t(tool.label)}</small>
     {/if}

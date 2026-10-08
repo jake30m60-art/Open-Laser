@@ -23,7 +23,7 @@
   function gap(): void {
     osk.number('Gap between copies', settings.gap, 'mm', value => {
       if (value >= 0) settings.gap = value;
-      else ui.say(`Use a gap of ${quantity(0, 'mm')} or more.`, true);
+      else ui.say(t('Use a gap of {0} or more.', quantity(0, 'mm')), true);
     });
   }
 </script>

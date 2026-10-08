@@ -1,4 +1,11 @@
 import type { LaserMode, RecipeView } from '../api';
+import { t } from '../i18n/index';
+
+/** A material or recipe name in the screen's language; a note in brackets, such as (Gweike), stays. */
+export function materialLabel(name: string): string {
+  const [, base = name, note = ''] = /^(.*?)(s*([^()]*))?$/.exec(name) ?? [];
+  return t(base) + note;
+}
 
 // The material cards: the illustrations under ui/static/materials, one
 // per material, with the names the picker offers. Generated from the

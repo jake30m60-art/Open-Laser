@@ -598,11 +598,11 @@ function solveEditDirect(previous: Sketch, next: Sketch): Solved {
     // A point constrained to an edge can slide; keeping the line's old length
     // is secondary to keeping its reference contour unchanged.
     anchored = solve(next, referencePulls, new Map(), loose);
-    if (!anchored.ok || referenceMoved(anchored)) return {ok:false,sketch:next,conflicting:anchored.conflicting,redundant:[],dof:-1,reason:'Dieser Winkel lässt sich mit den vorhandenen Verbindungen und Abhängigkeiten nicht ändern, ohne die Referenzkontur zu verformen.'};
+    if (!anchored.ok || referenceMoved(anchored)) return {ok:false,sketch:next,conflicting:anchored.conflicting,redundant:[],dof:-1,reason:'This angle cannot change with the existing joints and relations without distorting the reference contour.'};
   }
   if (fillets.curves.size) {
     if (!anchored.ok || previous.points.some(p => anchors.has(p.id) && dist(p,point(anchored.sketch,p.id))>1e-5))
-      return {ok:false,sketch:next,conflicting:anchored.conflicting,redundant:[],dof:-1,reason:'Die Radiusänderung widerspricht der vorhandenen Kontur oder ihren Abhängigkeiten. Die Skizze bleibt unverändert.'};
+      return {ok:false,sketch:next,conflicting:anchored.conflicting,redundant:[],dof:-1,reason:'The radius change contradicts the existing contour or its relations. The sketch stays as it was.'};
   }
   return anchored.ok ? anchored : solve(next, [], new Map(), looseAfter(previous, next));
 }

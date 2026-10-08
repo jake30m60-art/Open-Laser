@@ -15,7 +15,7 @@
   import { explain, plural } from '../../lib/format';
   import { gasName } from '../../lib/recipe';
   import { summaryLine } from '../../lib/summary';
-  import { CARDS, cardUrl, type MaterialCard } from '../../lib/materials';
+  import { CARDS, materialLabel, cardUrl, type MaterialCard } from '../../lib/materials';
   import type { LaserMode, Values } from '../../api';
 
   let { onclose, onadded }: { onclose: () => void; onadded: (id: string) => void } = $props();
@@ -37,7 +37,7 @@
   const categories = $derived([...new Set(cards.map((c) => c.category))]);
   const matching = $derived(cards.filter((c) =>
     (!category || c.category === category)
-    && (!search.trim() || c.name.toLowerCase().includes(search.trim().toLowerCase()))));
+    && (!search.trim() || [c.name, materialLabel(c.name)].some((n) => n.toLowerCase().includes(search.trim().toLowerCase())))));
   const custom = $derived(!!draft.name && !CARDS.some((c) => c.name === draft.name));
   const gases = $derived([...new Set([...doc.files.gases, ...(draft.gas === null ? [] : [draft.gas])])].sort((a, b) => a - b));
 
@@ -72,7 +72,7 @@
       .sort((a, b) => a.thickness_mm - b.thickness_mm);
     const list: Source[] = own.map((r) => ({
       values: { recipe: r.id },
-      label: `${r.name} · ${mm(r.thickness_mm)} · ${t(r.gas)}`,
+      label: `${materialLabel(r.name)} · ${mm(r.thickness_mm)} · ${t(r.gas)}`,
       meta: summaryLine(r),
       gas: r.attributes['CutGasType'] ?? null,
     }));
@@ -155,7 +155,7 @@
       <div class="chips cats">
         <button class="chip" class:on={!category} onclick={() => (category = '')}>{t("All")}</button>
         {#each categories as c (c)}
-          <button class="chip" class:on={category === c} onclick={() => toggleCategory(c)}>{c}</button>
+          <button class="chip" class:on={category === c} onclick={() => toggleCategory(c)}>{t(c)}</button>
         {/each}
       </div>
     {/if}
@@ -171,7 +171,7 @@
       {:else}
         <button class="pick" class:on={draft.name === c.name} onclick={() => (draft.name = c.name)}>
           <img class="art" src={cardUrl(c.id)} alt="" loading="lazy">
-          <span>{c.name}</span>
+          <span>{materialLabel(c.name)}</span>
         </button>
       {/if}
     {/each}

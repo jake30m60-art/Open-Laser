@@ -32,8 +32,8 @@
   }
   function coordinate(which: 'start' | 'end', axis: 0 | 1): void {
     const p = which === 'start' ? start : end;
-    osk.number(`${which === 'start' ? 'Start' : 'Ende'} ${axis === 0 ? 'X' : 'Y'}`, p[axis], 'mm', v => {
-      if (!Number.isFinite(v)) { error = 'Bitte einen gültigen Koordinatenwert eingeben.'; return; }
+    osk.number(t(which === 'start' ? 'Start {0}' : 'End {0}', axis === 0 ? 'X' : 'Y'), p[axis], 'mm', v => {
+      if (!Number.isFinite(v)) { error = t('Enter a valid coordinate.'); return; }
       const next: [number, number] = [...p]; next[axis] = v;
       if (which === 'start') start = next; else end = next;
     });
@@ -56,18 +56,18 @@
     try {
       await api.manualCut({ recipe: recipe.id, start: $state.snapshot(start), end: $state.snapshot(end) });
       ui.setupPanel = null; ui.tab = 'setup';
-      ui.say('Trennschnitt in Vorbereitung geladen. Schnittpfad prüfen und anschließend über Ausführen starten.');
+      ui.say(t('Separating cut loaded into Setup. Check the cut path, then start it from Machine.'));
       onclose();
     } catch (e) { error = explain(e); } finally { busy = false; }
   }
 </script>
 
-<Modal title={t("Manueller Trennschnitt")} wide onclose={onclose} dismissable={!busy}>
-  <p>{t("Start und Ende auf dem Maschinentisch festlegen. Der Schnitt wird als eigener Auftrag vorbereitet; Vorschau, Trockenlauf und die üblichen Startkontrollen bleiben verfügbar.")}</p>
+<Modal title={t("Manual separating cut")} wide onclose={onclose} dismissable={!busy}>
+  <p>{t("Set start and end on the machine bed. The cut is prepared as a job of its own; preview, dry run and the usual start checks stay available.")}</p>
   {#if bed}
     <div class="cut-grid">
       <div>
-        <svg class="cut-bed" viewBox="{bed.minX - 20} {bed.minY - 20} {bed.maxX - bed.minX + 40} {bed.maxY - bed.minY + 40}" onclick={place} role="button" tabindex="0" aria-label={t("Trennschnitt platzieren; alternativ Koordinatenfelder verwenden")} onkeydown={e => { if (e.key === 'Escape') onclose(); }}>
+        <svg class="cut-bed" viewBox="{bed.minX - 20} {bed.minY - 20} {bed.maxX - bed.minX + 40} {bed.maxY - bed.minY + 40}" onclick={place} role="button" tabindex="0" aria-label={t("Place the separating cut, or use the coordinate fields")} onkeydown={e => { if (e.key === 'Escape') onclose(); }}>
           <rect x={bed.minX} y={bed.minY} width={bed.maxX-bed.minX} height={bed.maxY-bed.minY} />
           <g transform="translate(0 {bed.minY+bed.maxY}) scale(1 -1)">
             <line x1={start[0]} y1={start[1]} x2={end[0]} y2={end[1]} />
@@ -75,24 +75,24 @@
             <circle class="end" cx={end[0]} cy={end[1]} r={(bed.maxX-bed.minX)/90} />
           </g>
         </svg>
-        <p>Grün: Start · Orange: Ende · Länge {fmt(length)} mm</p>
-        <div class="buttons"><button class="btn btn-ghost" onclick={() => preset(0)}>{t("Horizontal")}</button><button class="btn btn-ghost" onclick={() => preset(1)}>{t("Vertikal")}</button><button class="btn btn-ghost" onclick={() => { const p=start; start=end; end=p; }}>{t("Richtung umkehren")}</button></div>
+        <p>{t("Green: start · Orange: end · Length {0} mm", fmt(length))}</p>
+        <div class="buttons"><button class="btn btn-ghost" onclick={() => preset(0)}>{t("Horizontal")}</button><button class="btn btn-ghost" onclick={() => preset(1)}>{t("Vertical")}</button><button class="btn btn-ghost" onclick={() => { const p=start; start=end; end=p; }}>{t("Reverse direction")}</button></div>
       </div>
       <div class="cut-settings">
-        <div class="seg"><button class:on={picking==='start'} onclick={() => picking='start'}>{t("Start auf Tisch wählen")}</button><button class:on={picking==='end'} onclick={() => picking='end'}>{t("Ende auf Tisch wählen")}</button></div>
+        <div class="seg"><button class:on={picking==='start'} onclick={() => picking='start'}>{t("Pick start on the bed")}</button><button class:on={picking==='end'} onclick={() => picking='end'}>{t("Pick end on the bed")}</button></div>
         {#each ['start','end'] as which}
-          <h3>{which === 'start' ? 'Start' : 'Ende'} · Maschinenkoordinaten</h3>
+          <h3>{t(which === 'start' ? 'Start · machine coordinates' : 'End · machine coordinates')}</h3>
           <div class="buttons">{#each [0,1] as axis}<button class="btn btn-soft" onclick={() => coordinate(which as 'start' | 'end', axis as 0 | 1)}>{axis === 0 ? 'X' : 'Y'} {fmt((which === 'start' ? start : end)[axis]!)} mm</button>{/each}</div>
         {/each}
-        {#if frameOf(doc).head}<button class="btn btn-ghost" onclick={atHead}>{t("Aktuelle Kopfposition als Start")}</button>{/if}
-        <label>{t("Schneidrezept")}<select bind:value={recipeId}><option value="">{t("Rezept auswählen…")}</option>{#each recipes as r (r.id)}<option value={r.id}>{r.name} · {r.thickness_mm} mm · {r.gas}</option>{/each}</select></label>
-        {#if recipe}<p>{recipe.summary.speed ?? '—'} mm/s · Leistung {recipe.summary.duty ?? '—'} % · Gas {recipe.gas}</p>{/if}
-        {#if !fits}<p class="warn-text">{t("Beide Punkte müssen innerhalb des Verfahrbereichs liegen und mindestens 0,01 mm voneinander entfernt sein.")}</p>{/if}
+        {#if frameOf(doc).head}<button class="btn btn-ghost" onclick={atHead}>{t("Current head position as start")}</button>{/if}
+        <label>{t("Cutting recipe")}<select bind:value={recipeId}><option value="">{t("Choose a recipe…")}</option>{#each recipes as r (r.id)}<option value={r.id}>{r.name} · {r.thickness_mm} mm · {r.gas}</option>{/each}</select></label>
+        {#if recipe}<p>{recipe.summary.speed ?? '—'} mm/s · {t('Power')} {recipe.summary.duty ?? '—'} % · {t('Gas')} {recipe.gas}</p>{/if}
+        {#if !fits}<p class="warn-text">{t("Both points must lie within the travel and at least 0.01 mm apart.")}</p>{/if}
         {#if error}<p class="warn-text" role="alert">{error}</p>{/if}
-        <button class="btn btn-primary lg" disabled={!recipe || !fits || busy} onclick={load}>{busy ? 'Wird vorbereitet…' : 'Trennschnitt in Vorbereitung laden'}</button>
+        <button class="btn btn-primary lg" disabled={!recipe || !fits || busy} onclick={load}>{busy ? t('Preparing…') : t('Load separating cut into Setup')}</button>
       </div>
     </div>
-  {:else}<p class="warn-text">{t("Maschinensicherung laden, damit der Verfahrbereich bekannt ist.")}</p>{/if}
+  {:else}<p class="warn-text">{t("Load the machine backup so the travel is known.")}</p>{/if}
 </Modal>
 
 <style>

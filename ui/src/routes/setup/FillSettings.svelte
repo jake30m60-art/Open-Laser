@@ -67,11 +67,11 @@
     <Toggle label={tr("Invert: engrave the light parts")} value={shading.invert} apply={(v) => shade({ invert: v })} />
     <p class="fill-hint">{tr("The line spacing is also the size of one dot along the line.")}</p>
   {/if}
-  <div class="presets" role="group" aria-label="Scanmodus">
-    <button class="chip" class:on={!fill.per_object} onclick={() => apply({per_object:false})}>Ebene gemeinsam scannen</button>
-    <button class="chip" class:on={!!fill.per_object} onclick={() => apply({per_object:true})}>Objekte einzeln scannen</button>
+  <div class="presets" role="group" aria-label={tr("Scan mode")}>
+    <button class="chip" class:on={!fill.per_object} onclick={() => apply({per_object:false})}>{tr("Scan the layer together")}</button>
+    <button class="chip" class:on={!!fill.per_object} onclick={() => apply({per_object:true})}>{tr("Scan objects separately")}</button>
   </div>
-  <p class="fill-hint">Gemeinsam: ein Scan über die ausgewählten Flächen dieser Ebene, mit Laser aus in den Zwischenräumen. Einzeln: jedes Objekt mit seinen Innenlöchern nacheinander.</p>
+  <p class="fill-hint">{tr("Together: one scan across the chosen areas of this layer, laser off in the gaps. Separately: each object with its holes, one after another.")}</p>
   <FillSample {fill} />
   <Stepper label={tr("Line spacing")} value={fill.spacing} unit="mm" step={0.01} apply={(v) => apply({ spacing: Math.min(20, Math.max(0.01, v)) })} />
   <Stepper label={tr("Angle")} value={fill.angle} unit="°" step={15} apply={(v) => apply({ angle: ((v % 180) + 180) % 180 })} />

@@ -18,7 +18,7 @@
     busy = true;
     try {
       await api.changeLayers({ kind: 'assign', contours, layer });
-      ui.say(`${plural(contours.length, 'shape')} on ${layer} · Undo moves them back`);
+      ui.say(t('{0} on {1} · Undo moves them back', plural(contours.length, 'shape'), layer));
       onclose();
       if (fresh) ui.layerSheet = layer;
     } catch (error) { ui.say(explain(error), true); } finally { busy = false; }

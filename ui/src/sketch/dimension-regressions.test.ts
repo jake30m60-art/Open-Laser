@@ -86,7 +86,7 @@ it('refuses a diagonal angle fixed by both rectangle corners rather than stretch
  const s=emptySketch(),t=createTool('rect2');t.click(s,{x:0,y:0,kind:'free'},{});t.click(s,{x:100,y:60,kind:'free'},{});
  const diagonal=addEntity(s,{kind:'line',a:s.points[0]!.id,b:s.points[2]!.id});const next=clone(s);
  addConstraint(next,{kind:'angle',a:s.entities[0]!.id,b:diagonal,value:60,at:[0,0]});
- const out=solveEdit(s,next);expect(out.ok).toBe(false);expect(out.reason).toContain('Referenzkontur');
+ const out=solveEdit(s,next);expect(out.ok).toBe(false);expect(out.reason).toContain('reference contour');
 });
 
 it('dimensions an offset rectangle without skewing it or altering its source',()=>{

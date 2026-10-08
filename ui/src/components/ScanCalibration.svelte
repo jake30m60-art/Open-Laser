@@ -275,7 +275,7 @@
           {#if origin}{tr("Test corner X {0} · Y {1} mm · {2} × {3} mm", fmt(origin[0], 0), fmt(origin[1], 0), fmt(testSize[0], 0), fmt(testSize[1], 0))}{#if !fits} · <span class="warn-text">{tr("does not fit there")}</span>{/if}{/if}
           {tr("· {0} of {1} measurements saved", measured, tests.length)}
         </p>
-        <p class="progress">{tl("Die Blöcke liegen dicht beieinander. Laserfreie Hochlauffahrten dürfen sich überlappen; Hochlaufreserve und Tischgrenzen bleiben berücksichtigt.")}</p>
+        <p class="progress">{tl("The blocks sit close together. Laser-off run-ups may overlap; run-up reserve and bed limits are still respected.")}</p>
         <div class="corner-buttons">
           <button class="btn btn-ghost" onclick={() => (zoomTest = !zoomTest)}>{zoomTest ? tr("Show full bed") : tr("Enlarge test preview")}</button>
           <button class="btn btn-ghost" disabled={busy} onclick={() => moveOrigin(0)}>{tr("Corner X")}</button>
@@ -303,10 +303,10 @@
           <label class="recipe">
             <span>{tr("Recipe for power and frequency")}</span>
             <select bind:value={recipeId} disabled={busy || !recipes.length}>
-              {#if !recipes.length}<option value={null}>{tl("Kein Gravurrezept vorhanden")}</option>{/if}
+              {#if !recipes.length}<option value={null}>{tl("No engraving recipe yet")}</option>{/if}
               {#each recipes as r (r.id)}<option value={r.id}>{r.name} · {tr(r.gas)}</option>{/each}
             </select>
-            {#if !recipe}<small>{tl("Für diesen Laser zuerst ein Gravurrezept in der Materialbibliothek anlegen.")}</small><button class="btn btn-ghost" onclick={() => ui.tab = 'materials'}>{tl("Zur Materialbibliothek")}</button>{/if}
+            {#if !recipe}<small>{tl("Create an engraving recipe for this laser in the material library first.")}</small><button class="btn btn-ghost" onclick={() => ui.tab = 'materials'}>{tl("To the material library")}</button>{/if}
           </label>
           <button class="btn btn-ghost" disabled={busy} onclick={() => { if (bed) origin = [bed.min.x + before[0] + 10, bed.min.y + before[1] + 10]; }}>{tr("Place with safe edge clearance")}</button>
           <button class="btn btn-primary lg" disabled={busy || !fits || !recipe} onclick={loadTest}>{tr("Load test in Setup")}</button>
