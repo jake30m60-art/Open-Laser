@@ -98,6 +98,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/machine/settings/read", post(read_machine_settings))
         .route("/api/machine/settings/write", post(write_machine_settings))
         .route("/api/machine/soft", get(download_soft).post(import_soft))
+        .route("/api/backup", get(download_backup))
         .route("/api/machine/route", post(set_route))
         .route("/api/jobs/{id}", post(update_job).delete(remove_job))
         .route("/api/draft/part/{id}", post(open_part))
@@ -1340,6 +1341,27 @@ async fn download_soft(State(shared): State<Shared>) -> std::result::Result<Resp
         [
             (header::CONTENT_TYPE, "application/octet-stream"),
             (header::CONTENT_DISPOSITION, "attachment; filename=ipAdd.ini"),
+        ],
+        bytes,
+    )
+        .into_response())
+}
+
+/// Everything the operator made, as one ZIP to keep somewhere else.
+async fn download_backup(State(shared): State<Shared>) -> std::result::Result<Response, Failure> {
+    let (data_dir, machine_files) = {
+        let c = shared.lock().await;
+        (c.data_dir().to_path_buf(), c.backup_sources())
+    };
+    let bytes = tokio::task::spawn_blocking(move || crate::backup::archive(&data_dir, &machine_files))
+        .await
+        .map_err(|e| Error::Refused(format!("backup task: {e}")))?
+        .map_err(|e| Error::Refused(format!("backup: {e}")))?;
+    let name = crate::backup::file_name(std::time::SystemTime::now());
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/zip".to_owned()),
+            (header::CONTENT_DISPOSITION, format!("attachment; filename={name}")),
         ],
         bytes,
     )

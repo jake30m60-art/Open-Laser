@@ -221,6 +221,18 @@ pub struct CompileStamp {
 }
 
 impl Coordinator {
+    /// The files outside the data folder that a backup carries along.
+    #[must_use]
+    pub fn backup_sources(&self) -> Vec<std::path::PathBuf> {
+        self.config.files.backup.iter().cloned().collect()
+    }
+
+    /// The data folder.
+    #[must_use]
+    pub fn data_dir(&self) -> &std::path::Path {
+        &self.config.data_dir
+    }
+
     /// Opens the library, reads the machine files and spawns the controller
     /// task. Machine files that fail to read are reported, not fatal.
     #[allow(
@@ -317,6 +329,16 @@ impl Coordinator {
         }
         let restored = coordinator.preparation().map_err(|error| error.to_string())?;
         coordinator.library_changed();
+        // A copy of the operator's work once a day, written beside the start.
+        let (data_dir, machine_files) =
+            (coordinator.config.data_dir.clone(), coordinator.backup_sources());
+        tokio::task::spawn_blocking(move || {
+            match crate::backup::daily(&data_dir, &machine_files) {
+                Ok(Some(path)) => tracing::info!(path = %path.display(), "daily backup written"),
+                Ok(None) => {}
+                Err(error) => tracing::warn!(%error, "daily backup failed"),
+            }
+        });
         let shared = Arc::new(SharedState {
             font_import: Mutex::new(()),
             machine: machine.clone(),

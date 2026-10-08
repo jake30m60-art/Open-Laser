@@ -3233,5 +3233,9 @@
   "Could not load sketches.": "Skizzen konnten nicht geladen werden.",
   "Air recipe on the N₂ valve, as on the machine's own fiber layers: it cuts with whatever is connected to the N₂ inlet. Check the supply before cutting.": "Luft-Rezept über das N₂-Ventil, wie bei den Faser-Schichten der Maschine selbst: Es schneidet mit dem, was am N₂-Eingang angeschlossen ist. Vor dem Schnitt die Versorgung prüfen.",
   "Left": "Links",
-  "Right": "Rechts"
+  "Right": "Rechts",
+  "Backup": "Datensicherung",
+  "Everything you made, in one ZIP": "Alles, was du angelegt hast, in einer ZIP-Datei",
+  "Parts, jobs, recipes, sketches, sheets, settings and the machine backup. A copy is also kept daily in the data folder under backups (the last 14). To restore, unpack it over the data folder while OpenLaser is closed.": "Teile, Aufträge, Rezepte, Skizzen, Bleche, Einstellungen und die Maschinensicherung. Zusätzlich wird täglich eine Kopie im Datenordner unter backups abgelegt (die letzten 14). Zum Wiederherstellen bei geschlossenem OpenLaser über den Datenordner entpacken.",
+  "Download backup": "Sicherung herunterladen"
 }

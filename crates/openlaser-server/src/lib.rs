@@ -15,6 +15,7 @@
 )]
 
 mod access;
+pub mod backup;
 pub mod alarm_history;
 pub mod api;
 pub mod bindings;

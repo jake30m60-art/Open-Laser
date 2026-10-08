@@ -254,6 +254,13 @@
         <button class="btn btn-ghost" onclick={() => (ui.tab = 'materials')}>{t("Open library")}</button>
       </div>
     </div>
+  {:else if name === 'backup'}
+    <div class="setting-group"><h3>{t("Backup")}</h3>
+      <div class="setting">
+        <div class="lbl">{t("Everything you made, in one ZIP")}<small>{t("Parts, jobs, recipes, sketches, sheets, settings and the machine backup. A copy is also kept daily in the data folder under backups (the last 14). To restore, unpack it over the data folder while OpenLaser is closed.")}</small></div>
+        <a class="btn btn-ghost" href="/api/backup" download>{t("Download backup")}</a>
+      </div>
+    </div>
   {:else if name === 'process'}
     <MachineFiles kind="soft" disabled={!!machine.operation} />
   {:else if name === 'gas'}
