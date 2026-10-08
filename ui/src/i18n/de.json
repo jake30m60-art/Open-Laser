@@ -3218,5 +3218,7 @@
   "Recent File": "Zuletzt verwendete Datei",
   "units/mm": "Inkremente/mm",
   "units/in": "Inkremente/in",
-  "just now": "gerade eben"
+  "just now": "gerade eben",
+  "Sketches": "Skizzen",
+  "Edit as sketch": "Als Skizze bearbeiten"
 }

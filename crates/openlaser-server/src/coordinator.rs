@@ -93,6 +93,7 @@ pub struct Coordinator {
     pub(crate) correction: crate::correction::Store,
     pub(crate) scan_offsets: crate::scan_offsets::Store,
     pub(crate) fonts: crate::font_store::Store,
+    pub(crate) sketches: crate::sketch_store::Store,
     pub(crate) nesting_task: Option<crate::nesting::Task>,
     /// Original execution and its recovery choices, retained in this session.
     pub recovery: Option<crate::resume::Recovery>,
@@ -238,6 +239,8 @@ impl Coordinator {
         let scan_offsets =
             crate::scan_offsets::Store::open(&config.data_dir).map_err(|e| e.to_string())?;
         let fonts = crate::font_store::Store::open(&config.data_dir).map_err(|e| e.to_string())?;
+        let sketches =
+            crate::sketch_store::Store::open(&config.data_dir).map_err(|e| e.to_string())?;
         let preflight = crate::preflight::PreflightPreferences::open(&config.data_dir)
             .map_err(|e| e.to_string())?;
         let soft = crate::soft_settings::SoftSettings::open(&config.data_dir)
@@ -258,6 +261,7 @@ impl Coordinator {
             correction,
             scan_offsets,
             fonts,
+            sketches,
             nesting_task: None,
             recovery: None,
             recovery_view: None,

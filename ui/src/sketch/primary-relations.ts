@@ -1,11 +1,11 @@
-import { addConstraint, addEntity, addPoint, clone, point, type Id, type Sketch } from './model';
+import { addConstraint, addEntity, addPoint, clone, point, type Constraint, type Id, type Sketch } from './model';
 /** Essential axes of straight edges, without links to neighbouring objects,
  *  and the circle a regular polygon's corners lie on. */
 export function primaryRelations(source: Sketch): Sketch {
  const sketch=clone(source);
  circumscribePolygons(sketch);
  // Sides of a polygon on a circle: one axis fixes its turn; more repeat it.
- const circleOf=(p:Id)=>sketch.constraints.find(c=>c.kind==='on'&&c.point===p&&sketch.entities.some(e=>e.id===c.curve&&e.kind==='circle'&&e.construction))?.curve;
+ const circleOf=(p:Id)=>sketch.constraints.find((c):c is Extract<Constraint,{kind:'on'}>=>c.kind==='on'&&c.point===p&&sketch.entities.some(e=>e.id===c.curve&&e.kind==='circle'&&!!e.construction))?.curve;
  const polygonOf=(edge:Extract<Sketch['entities'][number],{kind:'line'}>)=>{const a=circleOf(edge.a);return a!==undefined&&a===circleOf(edge.b)?a:undefined;};
  const axisOn=new Set<Id>();
  for(const c of sketch.constraints) if(c.kind==='horizontal'||c.kind==='vertical'){const e=sketch.entities.find(x=>x.id===c.line);const p=e?.kind==='line'?polygonOf(e):undefined;if(p!==undefined)axisOn.add(p);}

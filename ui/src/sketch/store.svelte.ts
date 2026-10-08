@@ -8,6 +8,7 @@ import { freedom, solveEdit, solve, solverReady } from './solver';
 
 import { primaryRelations } from './primary-relations';
 import { readDocuments, type SketchDocument, type SketchTarget } from './documents';
+import { getRemote, listRemote, removeRemote, restoreRemote, saveRemote, type RemoteSummary } from './remote';
 const ARCHIVE='ol-sketch-documents';
 const REMOVED='ol-sketch-removed-documents';
 const KEY = 'ol-sketch';
@@ -64,12 +65,53 @@ export class SketchStore {
     const current=this.documents.at(-1);
     this.activeDocument=current?.id ?? 'sketch-'+Date.now().toString(36);
     if(current){this.sketch=primaryRelations(current.sketch);this.name=current.name;this.target=current.target;this.sourcePart=current.sourcePart;this.jobKey=current.jobKey;}
+    void this.sync();
+  }
+
+  /** Whether the server's list has been read: until then a removal or a
+   *  restore only acts on this browser's copy. */
+  synced = $state(false);
+  private pending: ReturnType<typeof setTimeout> | null = null;
+
+  /** Takes in the server's sketches. Sketches only this browser has go up
+   *  once; ones another screen saved later replace this browser's copy,
+   *  and the open one is reloaded when it has no unsaved steps here. */
+  async sync(): Promise<void> {
+    const remote = await listRemote();
+    if (!remote) return;
+    const byId = new Map(remote.map((r) => [r.id, r]));
+    const local = new Map(this.documents.map((d) => [d.id, d]));
+    for (const d of this.documents) if (!byId.has(d.id) && !d.remote) void saveRemote(d);
+    const merged: SketchDocument[] = this.documents.map((d) => {
+      const r = byId.get(d.id);
+      return r && r.updated > (d.updated ?? 0) ? { ...summaryDocument(r), sketch: d.sketch } : d;
+    });
+    for (const r of [...remote].reverse()) if (!local.has(r.id)) merged.unshift(summaryDocument(r));
+    this.documents = merged;
+    this.synced = true;
+    const active = merged.find((d) => d.id === this.activeDocument);
+    if (active?.remote && !this.past.length) await this.load(active.id);
+  }
+
+  /** Fetches a sketch only the server has in full. */
+  private async load(id: string): Promise<SketchDocument | null> {
+    const full = await getRemote(id);
+    if (!full) return null;
+    this.documents = this.documents.map((d) => (d.id === id ? full : d));
+    if (id === this.activeDocument && !this.past.length) {
+      this.name = full.name; this.target = full.target; this.sourcePart = full.sourcePart; this.jobKey = full.jobKey;
+      this.sketch = primaryRelations(full.sketch); this.refreshFreedom();
+    }
+    return full;
   }
 
   private save(): void {
-    const document:SketchDocument={id:this.activeDocument,name:this.name,sketch:clone(this.sketch),target:this.target,sourcePart:this.sourcePart,jobKey:this.jobKey};
+    const document:SketchDocument={id:this.activeDocument,name:this.name,sketch:clone(this.sketch),target:this.target,sourcePart:this.sourcePart,jobKey:this.jobKey,updated:Math.floor(Date.now()/1000)};
     this.documents=[...this.documents.filter(d=>d.id!==this.activeDocument),document];
-    try { localStorage.setItem(ARCHIVE,JSON.stringify(this.documents)); localStorage.setItem(KEY, JSON.stringify({ name: this.name, sketch: this.sketch, target: this.target })); } catch { /* storage full or private */ }
+    try { localStorage.setItem(ARCHIVE,JSON.stringify(this.documents.filter(d=>!d.remote))); localStorage.setItem(KEY, JSON.stringify({ name: this.name, sketch: this.sketch, target: this.target })); } catch { /* storage full or private */ }
+    // A burst of edits goes to the server once, shortly after the last.
+    if (this.pending) clearTimeout(this.pending);
+    this.pending = setTimeout(() => { this.pending = null; void saveRemote(document); }, 600);
   }
 
   private history(): void {
@@ -235,6 +277,8 @@ export class SketchStore {
     if (!removed) return;
     this.removedDocuments = [...this.removedDocuments, structuredClone($state.snapshot(removed))];
     this.documents = this.documents.filter(d=>d.id!==removed.id);
+    if (this.pending) { clearTimeout(this.pending); this.pending = null; }
+    void saveRemote(removed).then(() => removeRemote(removed.id));
     const next = this.documents.at(-1);
     this.activeDocument = next?.id ?? 'sketch-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
     this.name=next?.name ?? 'Neue Skizze'; this.target=next?.target ?? 'new'; this.sourcePart=next?.sourcePart; this.jobKey=next?.jobKey;
@@ -247,10 +291,14 @@ export class SketchStore {
     const removed=this.removedDocuments.at(-1);if(!removed)return;
     this.removedDocuments=this.removedDocuments.slice(0,-1);
     this.documents=[...this.documents.filter(d=>d.id!==removed.id),removed];
+    void restoreRemote(removed.id);
     this.openDocument(removed.id);
     try { localStorage.setItem(REMOVED,JSON.stringify(this.removedDocuments)); } catch {}
   }
   openDocument(id:string): void {
+    const wanted=this.documents.find(d=>d.id===id);
+    // Another screen's sketch comes from the server first.
+    if(wanted?.remote){ void this.load(id).then(full=>{ if(full)this.openDocument(id); }); return; }
     this.save(); const doc=this.documents.find(d=>d.id===id); if(!doc)return;
     this.activeDocument=doc.id;this.name=doc.name;this.target=doc.target;this.sourcePart=doc.sourcePart;this.jobKey=doc.jobKey;
     this.use(null);this.sketch=primaryRelations(doc.sketch);this.past=[];this.future=[];this.history();this.selection=new Set();this.view=null;this.save();this.refreshFreedom();
@@ -274,6 +322,11 @@ export class SketchStore {
     this.commit(emptySketch());
     this.selection = new Set();
   }
+}
+
+/** A server sketch in the list until it is opened. */
+function summaryDocument(r: RemoteSummary): SketchDocument {
+  return { id: r.id, name: r.name, sketch: emptySketch(), target: r.target === 'add' || r.target === 'replace' ? r.target : 'new', sourcePart: r.source_part, updated: r.updated, remote: true };
 }
 
 export const sketchStore = new SketchStore();

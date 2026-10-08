@@ -154,6 +154,9 @@ async fn guard(State(access): State<Access>, request: Request, next: Next) -> Re
     if !path.starts_with("/api/")
         || path == "/api/access"
         || path.starts_with("/api/access/")
+        // Sketches are drawings, never machine work: any screen keeps its own.
+        || path == "/api/sketches"
+        || path.starts_with("/api/sketches/")
         || request.method() == Method::GET
         || stopping
     {

@@ -68,6 +68,10 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/parts/review", post(review_part))
         .route("/api/parts/{id}", post(update_part).delete(remove_part))
         .route("/api/parts/{id}/drawing", get(part_drawing))
+        .route("/api/sketches", get(list_sketches))
+        .route("/api/sketches/removed", get(removed_sketches))
+        .route("/api/sketches/{id}", get(get_sketch).post(save_sketch).delete(remove_sketch))
+        .route("/api/sketches/{id}/restore", post(restore_sketch))
         .route("/api/draft/part/{id}/bridged", get(bridged_part_drawing))
         .route("/api/parts/{id}/sketch", post(save_part_sketch))
         .route("/api/draft/replace-part", post(replace_draft_part))
@@ -492,6 +496,39 @@ async fn part_drawing(State(shared): State<Shared>, Path(id): Path<String>) -> R
     let c = shared.lock().await;
     let part = c.library.part(&Id::from(id.as_str())).map_err(Error::from)?;
     Ok(Json(json!({ "name": part.name, "drawing": part.drawing, "sketch": part.sketch })))
+}
+
+async fn list_sketches(State(shared): State<Shared>) -> Reply {
+    Ok(Json(json!({ "sketches": shared.lock().await.sketches.list() })))
+}
+
+async fn removed_sketches(State(shared): State<Shared>) -> Reply {
+    Ok(Json(json!({ "sketches": shared.lock().await.sketches.removed() })))
+}
+
+async fn get_sketch(State(shared): State<Shared>, Path(id): Path<String>) -> Reply {
+    Ok(Json(json!({ "sketch": shared.lock().await.sketches.get(&id)? })))
+}
+
+/// Saves a sketch. Sketches are drawings, not machine actions, so any
+/// screen may keep its own; the id ties a save to the sketch it edits.
+async fn save_sketch(
+    State(shared): State<Shared>,
+    Path(id): Path<String>,
+    Json(mut document): Json<crate::sketch_store::SketchDocument>,
+) -> Reply {
+    document.id = id;
+    let saved = shared.lock().await.sketches.save(document)?;
+    Ok(Json(json!({ "ok": true, "updated": saved.updated })))
+}
+
+async fn remove_sketch(State(shared): State<Shared>, Path(id): Path<String>) -> Reply {
+    shared.lock().await.sketches.remove(&id)?;
+    Ok(ok())
+}
+
+async fn restore_sketch(State(shared): State<Shared>, Path(id): Path<String>) -> Reply {
+    Ok(Json(json!({ "sketch": shared.lock().await.sketches.restore(&id)? })))
 }
 
 /// The part with the open job's bridges cut into it, for the sketch; null

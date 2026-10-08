@@ -1,7 +1,9 @@
 <script lang="ts">
   import { t } from '../i18n/index';
 
-  import { beginProject } from '../lib/sketch-workflow';
+  import { beginProject, editPart } from '../lib/sketch-workflow';
+  import { sketchStore } from '../sketch/store.svelte';
+  import { listRemote, outline as sketchOutline, type RemoteSummary } from '../sketch/remote';
   import SkippedFiles from '../components/SkippedFiles.svelte';
   import SheetLibrary from '../components/SheetLibrary.svelte';
   import StockEditor from '../components/StockEditor.svelte';
@@ -27,11 +29,31 @@
 
   /** A card: a part, a saved job, or sheets kept in a folder. */
   type Card = {
-    id: string; kind: 'part' | 'job' | 'stock' | 'remnant'; name: string; search: string; folder: string | null; laser: 'fiber' | 'co2' | null;
+    id: string; kind: 'part' | 'job' | 'stock' | 'remnant' | 'sketch'; name: string; search: string; folder: string | null; laser: 'fiber' | 'co2' | null;
     material: string; size: string; contours: number; favourite: boolean; updated: number; outline: number[][][]; parts: number;
   };
 
-  let kindFilter = $state<'all' | 'part' | 'job' | 'sheet'>('all');
+  let kindFilter = $state<'all' | 'part' | 'job' | 'sheet' | 'sketch'>('all');
+  /** The server's sketches, read each time the Sketches tab opens. */
+  let remoteSketches = $state<RemoteSummary[] | null>(null);
+  $effect(() => { if (kindFilter === 'sketch') void listRemote().then((r) => { remoteSketches = r; }); });
+  const sketchCards = $derived.by((): Card[] => {
+    const from = remoteSketches ?? sketchStore.documents.filter((d) => !d.remote).map((d) => ({ id: d.id, name: d.name, outline: sketchOutline(d.sketch), updated: d.updated ?? 0 }));
+    return from.map((s) => {
+      const box = boxOf(s.outline);
+      return {
+        id: s.id, kind: 'sketch', name: s.name, search: '', folder: null, laser: null, material: '',
+        size: box ? `${quantityOf(box.maxX - box.minX, 'mm')} × ${quantityOf(box.maxY - box.minY, 'mm')}` : t('Empty sketch'),
+        contours: 0, favourite: false, updated: s.updated, outline: s.outline, parts: 0,
+      };
+    });
+  });
+  /** Opens a sketch to edit; one only the server has is fetched first. */
+  async function openSketch(id: string): Promise<void> {
+    if (!sketchStore.documents.some((d) => d.id === id)) await sketchStore.sync();
+    sketchStore.openDocument(id);
+    ui.tab = 'sketch';
+  }
   let laserFilter = $state<'all' | 'fiber' | 'co2'>('all');
   let favourites = $state(false);
   let filterOpen = $state(false);
@@ -82,7 +104,7 @@
       size: boundsLabel(r.bounds), contours: 0, favourite: false,
       updated: r.at, outline: [r.outline, ...r.cutouts], parts: 0,
     }));
-    return [...parts, ...jobs, ...stock, ...remnants];
+    return kindFilter === 'sketch' ? sketchCards : [...parts, ...jobs, ...stock, ...remnants];
   });
   let editingStock = $state<string | null>(null);
 
@@ -105,10 +127,11 @@
         .sort((a, b) => b[0] - a[0])
         .map((x) => x[1]);
     }
-    return favourites ? items : items.filter((c) => (c.folder ?? null) === ui.folder);
+    // Sketches have no folders: they all show together.
+    return favourites || kindFilter === 'sketch' ? items : items.filter((c) => (c.folder ?? null) === ui.folder);
   });
   const folders = $derived(
-    q ? []
+    q || kindFilter === 'sketch' ? []
     : favourites ? library.folders.filter((f) => f.favourite)
     : library.folders.filter((f) => (f.parent ?? null) === ui.folder).sort((a, b) => Number(b.favourite) - Number(a.favourite)),
   );
@@ -154,6 +177,7 @@
   const shownParts = $derived(visible.filter((c) => c.kind === 'part').map((c) => c.id));
   function choose(card: Card): void {
     if (card.kind === 'stock' || card.kind === 'remnant') { editingStock = card.id; return; }
+    if (card.kind === 'sketch') { void openSketch(card.id); return; }
     if (!picking) { ui.selected = card.id; return; }
     if (card.kind === 'job') {
       ui.say(t("A saved job cuts its own parts. Pick parts to set up a new job."));
@@ -206,7 +230,7 @@
   /** The kind tag on a card: a job says how many parts it cuts. */
   const kindTag = (c: Card): string =>
     c.kind === 'job' ? (c.parts > 1 ? `Job · ${plural(c.parts, 'part')}` : t("Job"))
-    : c.kind === 'stock' ? t("Sheets") : c.kind === 'remnant' ? t("Remnant") : t('Part');
+    : c.kind === 'stock' ? t("Sheets") : c.kind === 'remnant' ? t("Remnant") : c.kind === 'sketch' ? t('Sketch') : t('Part');
 
   const emptyTitle = $derived(q || filtered ? t('Nothing matches') : t("Empty folder"));
   const emptyHint = $derived(
@@ -230,7 +254,7 @@
   </div>
   <div class="toolbar parts-filters">
     <div class="seg" role="group" aria-label={t("Library type")}>
-      {#each [['all', 'All'], ['part', 'Parts'], ['job', 'Jobs'], ['sheet', 'Sheets']] as [k, label]}
+      {#each [['all', 'All'], ['part', 'Parts'], ['job', 'Jobs'], ['sketch', 'Sketches'], ['sheet', 'Sheets']] as [k, label]}
         <button class:on={kindFilter === k} aria-pressed={kindFilter === k} onclick={() => (kindFilter = k as typeof kindFilter)}>{t(label)}</button>
       {/each}
     </div>
@@ -324,6 +348,12 @@
               <i class="ic {c.favourite ? 'ic-star-fill' : 'ic-star'}"></i>
             </button>
           {/if}
+          {#if c.kind === 'part' && !picking}
+            <button class="fav edit-sketch" title={t('Edit as sketch')} aria-label={t('Edit as sketch')}
+              onclick={(e) => { e.stopPropagation(); void editPart(c.id); }}>
+              <svg class="ic-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16zM14 7l3 3" /></svg>
+            </button>
+          {/if}
           <div class="thumb">
             <svg viewBox={thumb(c.outline)}>
               {#each c.outline as line}
@@ -369,6 +399,8 @@
 
 <style>
   .sheet-library-page { grid-column:1 / -1; }
+  :global(.card) .edit-sketch { right:56px; }
+  .edit-sketch svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .toolbar.parts-head { flex-shrink:0; justify-content:space-between; gap:12px; min-height:calc(var(--touch) + 25px); }
   .parts-actions { display:flex; align-items:center; gap:8px; min-width:0; }
   .parts-filters { flex-shrink:0; padding:12px 16px 0; gap:8px; }
