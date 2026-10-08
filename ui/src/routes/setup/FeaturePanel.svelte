@@ -70,8 +70,23 @@
       : layer
         ? (f: Features) => { const view = structuredClone(scoped(f, layer)); change(view); setOwn(f, layer, view, order); }
         : change;
-    featureEdits.change(edit).catch((error) => ui.say(explain(error), true));
+    // Places picked but not yet applied are kept: changing a setting while
+    // picking takes the picks along instead of dropping them.
+    const kept = pendingPicks();
+    featureEdits.change((f) => { kept?.(f); edit(f); }).catch((error) => ui.say(explain(error), true));
   };
+  /** Copies the open picking session's places into a change, and ends it. */
+  function pendingPicks(): ((f: Features) => void) | null {
+    const picking = ui.picking;
+    if (!picking || !picking.marks.length || picking.revision !== draft.revision) return null;
+    const picked = structuredClone($state.snapshot(picking.features)) as Features;
+    const copy = picking.feature === 'start' ? (f: Features) => { f.start.spots = picked.start.spots; }
+      : picking.feature === 'joints' ? (f: Features) => { if (f.joints && picked.joints) f.joints.placement = picked.joints.placement; }
+      : picking.feature === 'cooling' ? (f: Features) => { if (f.cooling && picked.cooling) f.cooling.placement = picked.cooling.placement; }
+      : null;
+    if (copy) ui.picking = null;
+    return copy;
+  }
   /** The layer goes back to the job's machining. */
   const useJob = () => { const layer = scope; if (layer) featureEdits.change((f) => setOwn(f, layer, null, order)).catch((error) => ui.say(explain(error), true)); };
   /** The selected contours follow their layer or the job again for this feature. */
