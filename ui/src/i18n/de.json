@@ -3404,5 +3404,9 @@
   "Job · {0}": "Auftrag · {0}",
   "New · {0}": "Neu · {0}",
   "Paste {0}": "{0} einfügen",
-  "Under the machine's short-transfer distance.": "Unter der Kurzstrecken-Distanz der Maschine."
+  "Under the machine's short-transfer distance.": "Unter der Kurzstrecken-Distanz der Maschine.",
+  "Recipe source": "Herkunft der Rezepte",
+  "Own": "Eigene",
+  "Samples": "Beispiele",
+  "Gweike": "Gweike"
 }

@@ -13,6 +13,7 @@
   import { droppedFiles, picked, type Picked } from '../../lib/recipe-import';
   import ImportRecipes from './ImportRecipes.svelte';
   import type { RecipeView } from '../../api';
+  import { recipeOrigin, type RecipeOrigin } from '../../lib/recipe-source';
 
   let { recipes, selected, onselect, onadd, selectOnExpand = true }: {
     recipes: RecipeView[];
@@ -34,13 +35,20 @@
     open = null;
   }
   let search = $state('');
+  // Which recipes show by where they came from; remembered on this screen.
+  const ORIGIN_KEY = 'ol-recipe-origin';
+  let origin = $state<RecipeOrigin | 'all'>((() => { try { return (localStorage.getItem(ORIGIN_KEY) as RecipeOrigin | null) ?? 'all'; } catch { return 'all'; } })());
+  function chooseOrigin(next: RecipeOrigin | 'all'): void { origin = next; try { localStorage.setItem(ORIGIN_KEY, next); } catch { /* not kept */ } }
+  const origins = $derived(((['gweike', 'own', 'sample'] as const)).filter((o) => recipes.some((r) => recipeOrigin(r) === o)));
+  const shown = $derived(origin === 'all' || !origins.includes(origin) ? recipes : recipes.filter((r) => recipeOrigin(r) === origin));
+  const ORIGIN_NAMES = { gweike: 'Gweike', own: 'Own', sample: 'Samples' } as const;
   let open = $state<string | null>(null);
   /** Engraving recipes are listed apart, under keys of their own. */
   const keyOf = (r: RecipeView) => (isEngraving(r) ? `engrave:${materialKey(r)}` : materialKey(r));
   const opened = $derived(open ?? (selected ? keyOf(selected) : null));
   const found = (m: Material) => [m.name, materialLabel(m.name)].some((n) => n.toLowerCase().includes(search.trim().toLowerCase()));
-  const materials = $derived(materialsOf(recipes.filter((r) => !isEngraving(r))).filter(found));
-  const engravings = $derived(materialsOf(recipes.filter(isEngraving)).map((m) => ({ ...m, key: `engrave:${m.key}` })).filter(found));
+  const materials = $derived(materialsOf(shown.filter((r) => !isEngraving(r))).filter(found));
+  const engravings = $derived(materialsOf(shown.filter(isEngraving)).map((m) => ({ ...m, key: `engrave:${m.key}` })).filter(found));
   const lasers = $derived((['fiber', 'co2'] as const).filter((laser) => materials.some((m) => m.laser === laser)));
   const thicknessRange = (m: Material) => {
     const sizes = m.recipes.map(r => r.thickness_mm).filter(t => t > 0);
@@ -108,6 +116,12 @@
     <button class="btn" class:btn-primary={process === 'engrave'} aria-pressed={process === 'engrave'} onclick={() => switchProcess('engrave')}>{tr("Engraving")}</button>
   </div>
   <div class="search"><i class="ic ic-search"></i><input placeholder={tr("Find a material…")} bind:value={search}></div>
+  {#if origins.length > 1}
+    <div class="origin-chips" role="group" aria-label={tr("Recipe source")}>
+      <button class="chip" class:on={origin === 'all' || !origins.includes(origin)} onclick={() => chooseOrigin('all')}>{tr("All")}</button>
+      {#each origins as o (o)}<button class="chip" class:on={origin === o} onclick={() => chooseOrigin(o)}>{tr(ORIGIN_NAMES[o])}</button>{/each}
+    </div>
+  {/if}
   <div class="tree" bind:this={tree}>
     {#if process === 'cut'}
     {#each lasers as laser (laser)}
@@ -142,5 +156,6 @@
   .library .import-buttons { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
   .library .import-buttons .btn { white-space:normal; overflow-wrap:anywhere; text-align:center; padding:8px; height:auto; }
   .process-tabs { display:flex; gap:8px; padding:0 12px 10px; }
+  .origin-chips { display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px 4px; }
   .process-tabs button { flex:1; min-width:0; }
 </style>
