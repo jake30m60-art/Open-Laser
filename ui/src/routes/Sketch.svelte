@@ -340,7 +340,9 @@
     const m = toModel(at.x, at.y);
     if (tool) { tool.move(m); store.toolRevision++; }
     cursor = m;
-    if (action && !drag) hover = hitAt(m);
+    // What a click would take lights up, with a tool for dimensions or
+    // constraints and when selecting alike; drawing tools snap instead.
+    if (!tool && !drag) hover = hitAt(m);
     if (drag?.kind !== 'press') return;
     const threshold = touch ? 12 : 4;
     if (!drag.moved && Math.hypot(at.x - drag.x, at.y - drag.y) < threshold) return;
@@ -772,14 +774,17 @@
       <path class="axis-y" d={`M${origin.x} 0V${h}`} />
       {#each drawn as e (e.id)}
         <path d={e.d} class="curve" class:defined={e.defined} class:construction={e.construction} class:selected={store.selection.has(e.id)}
-          class:hovered={!!action && hover?.entity === e.id} class:picked={picked.curves.includes(e.id)} />
+          class:hovered={!tool && hover?.entity === e.id && hover?.point === null} class:picked={picked.curves.includes(e.id)} />
       {/each}
       {#each store.sketch.texts ?? [] as tx (tx.id)}
         <path d={textPath(tx)} class="text-shape" class:selected={store.selection.has(tx.id)} fill-rule="evenodd" />
       {/each}
       {#each handles as p (p.id)}
-        {#if p.center}<path class="handle center" class:defined={p.defined} d={`M${p.x - 3} ${p.y}h6M${p.x} ${p.y - 3}v6`} />
-        {:else}<rect class="handle" class:defined={p.defined} class:fixed={p.fixed} class:hovered={!!action && hover?.point === p.id} class:picked={picked.points.includes(p.id)} x={p.x - 2.5} y={p.y - 2.5} width="5" height="5" />{/if}
+        {#if p.center}
+          <!-- A centre answers the cursor like an end point, so it can be dimensioned. -->
+          {#if !tool && (hover?.point === p.id || picked.points.includes(p.id) || store.selection.has(p.id))}<circle class="center-ring" class:picked={picked.points.includes(p.id)} cx={p.x} cy={p.y} r="7" />{/if}
+          <path class="handle center" class:defined={p.defined} class:hovered={!tool && hover?.point === p.id} class:picked={picked.points.includes(p.id)} d={`M${p.x - 4} ${p.y}h8M${p.x} ${p.y - 4}v8`} />
+        {:else}<rect class="handle" class:defined={p.defined} class:fixed={p.fixed} class:hovered={!tool && hover?.point === p.id} class:picked={picked.points.includes(p.id)} x={p.x - 2.5} y={p.y - 2.5} width="5" height="5" />{/if}
       {/each}
 
       {#each dims as d (d.id)}
@@ -958,7 +963,7 @@
   .curve { fill: none; stroke: var(--sketch); stroke-width: 1.8; stroke-linecap: round; }
   .curve.defined { stroke: var(--ink); }
   .curve.construction { stroke: var(--sketch-construction); stroke-dasharray: 6 4; stroke-width: 1.3; }
-  .curve.hovered { stroke-width: 3.2; }
+  .curve.hovered { stroke: var(--accent); stroke-width: 3.2; opacity: .85; }
   .curve.selected { stroke: var(--accent); stroke-width: 3; }
   .text-shape { fill: color-mix(in srgb, var(--sketch) 12%, transparent); stroke: var(--sketch); stroke-width: 1.4; stroke-linejoin: round; }
   .text-shape.selected { stroke: var(--accent); stroke-width: 2.4; fill: color-mix(in srgb, var(--accent) 16%, transparent); }
@@ -968,7 +973,11 @@
   .handle.defined { stroke: var(--ink); }
   .handle.fixed { fill: var(--ink); }
   .handle.hovered { stroke: var(--accent); stroke-width: 2.4; }
-  .handle.center { fill: none; }
+  .handle.center { fill: none; stroke-width: 1.6; }
+  .handle.center.hovered { stroke: var(--accent); stroke-width: 2.6; }
+  .handle.center.picked { stroke: var(--ok); }
+  .center-ring { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); stroke-width: 1.4; pointer-events: none; }
+  .center-ring.picked { stroke: var(--ok); fill: color-mix(in srgb, var(--ok) 16%, transparent); }
   .dim-line { fill: none; stroke: var(--ink-2); stroke-width: 1; }
   .dim-arrow { fill: var(--ink-2); }
   .dim-label { cursor: pointer; }
