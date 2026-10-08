@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../lib/materials';
   import { t } from '../i18n/index';
   import { boundsLabel } from '../lib/sheet-sizes';
   import { quantity } from '../lib/units.svelte';
@@ -125,7 +126,7 @@
       {#each jobs as job}
         <button disabled={busy} onclick={() => report(job.id)}>
           <strong>{job.name}</strong>
-          <span>{job.recipe.name} · {quantity(job.recipe.thickness_mm, 'mm')} · {laserLabel(job.recipe.laser)}</span>
+          <span>{materialLabel(job.recipe.name)} · {quantity(job.recipe.thickness_mm, 'mm')} · {laserLabel(job.recipe.laser)}</span>
         </button>
       {/each}
     </div>

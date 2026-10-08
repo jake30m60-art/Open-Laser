@@ -87,7 +87,7 @@
         <CheckEditor bind:steps={custom} />
       {:else if choice === 'inherit'}
         <p class="muted">{t('{0} defaults', laserLabel(mode))} · {preferences[mode].enabled ? plural(preferences[mode].steps.length, 'check') : t('checklist off')}</p>
-        {#if preferences[mode].enabled}<ul class="inherited">{#each preferences[mode].steps as step}<li>{step.text}</li>{/each}</ul>{/if}
+        {#if preferences[mode].enabled}<ul class="inherited">{#each preferences[mode].steps as step}<li>{t(step.text)}</li>{/each}</ul>{/if}
       {:else}
         <p class="muted">{t("This job's checklist is off.")}</p>
       {/if}

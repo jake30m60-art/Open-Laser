@@ -1,4 +1,5 @@
 <script lang="ts" module>
+  import { materialLabel } from '../lib/materials';
   let session: { speeds: number[]; angle: number; threeAngles: boolean; length: number; spacing: number; origin: [number, number] | null; recipeId: string | null } | null = null;
 </script>
 <script lang="ts">
@@ -304,7 +305,7 @@
             <span>{tr("Recipe for power and frequency")}</span>
             <select bind:value={recipeId} disabled={busy || !recipes.length}>
               {#if !recipes.length}<option value={null}>{tl("No engraving recipe yet")}</option>{/if}
-              {#each recipes as r (r.id)}<option value={r.id}>{r.name} · {tr(r.gas)}</option>{/each}
+              {#each recipes as r (r.id)}<option value={r.id}>{materialLabel(r.name)} · {tr(r.gas)}</option>{/each}
             </select>
             {#if !recipe}<small>{tl("Create an engraving recipe for this laser in the material library first.")}</small><button class="btn btn-ghost" onclick={() => ui.tab = 'materials'}>{tl("To the material library")}</button>{/if}
           </label>

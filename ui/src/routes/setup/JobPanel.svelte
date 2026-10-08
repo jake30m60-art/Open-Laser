@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../../lib/materials';
   import { t as tl } from '../../i18n/index';
   import { t } from '../../i18n/index';
 
@@ -99,7 +100,7 @@
       {@const art = pictureOf(recipe.name, recipe.photo)}
       {#if art}<img class="swatch" src={art} alt="">{:else}<span class="swatch" style="background:var(--panel-2)"></span>{/if}
       <span class="mat-text">
-        <strong>{recipe.name}</strong>
+        <strong>{materialLabel(recipe.name)}</strong>
         <small>{quantity(recipe.thickness_mm, 'mm')} · {tl(recipe.gas)} · {laserLabel(recipe.laser)}</small>
       </span>
     {:else}

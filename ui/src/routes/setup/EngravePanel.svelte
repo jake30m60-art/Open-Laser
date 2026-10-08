@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../../lib/materials';
   // Engraving, in one place on the Setup page: shapes picked on the drawing
   // go to an engraving layer; each engraving layer has its recipe and its
   // scan fill, shows or hides on the drawing, and shows its run-ups and
@@ -217,11 +218,11 @@
         <summary>{tr("Recipe")}: {(layer.recipe ?? draft.recipe)?.name ?? tr("Choose one")}</summary>
       <div class="recipes" role="group" aria-label={tr("Engraving recipes")}>
         {#each recipes as r (r.id)}
-          <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {tr(r.gas)}</button>
+          <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{materialLabel(r.name)} · {tr(r.gas)}</button>
         {:else}
           <p class="muted">{tr("No engraving recipe yet: in Materials, open a recipe and choose Make it an engraving recipe.")}</p>
           {#each others as r (r.id)}
-            <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{r.name} · {r.thickness_mm} mm · {tr(r.gas)}</button>
+            <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{materialLabel(r.name)} · {r.thickness_mm} mm · {tr(r.gas)}</button>
           {/each}
         {/each}
         <button class="link" onclick={() => (ui.layerSheet = layer.name)}>{tr("All layer settings")}</button>

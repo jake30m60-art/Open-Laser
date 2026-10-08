@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../lib/materials';
   import { t } from '../i18n/index';
 
   // Adds full sheets to the rack: a material from the recipes, a size and
@@ -34,7 +35,7 @@
   const bed = frameOf(server.doc!).bed;
   let width = $state(bed ? bed.maxX - bed.minX : 2500), height = $state(bed ? bed.maxY - bed.minY : 1250);
   let count = $state(1), busy = $state(false), error = $state('');
-  const label = (m: Material) => `${m.name} · ${quantity(m.thickness_mm, 'mm')} · ${laserLabel(m.laser)}`;
+  const label = (m: Material) => `${materialLabel(m.name)} · ${quantity(m.thickness_mm, 'mm')} · ${laserLabel(m.laser)}`;
   async function save(): Promise<void> {
     if (!picked) return;
     busy = true; error = '';

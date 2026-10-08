@@ -17,7 +17,7 @@
   const actionKind = (step: Check): string | undefined =>
     step.action?.kind === 'gas_test' ? 'job_gas_test' : step.action?.kind;
   const actionTitle = (step: Check): string | undefined =>
-    step.action ? ACTIONS.find(([kind]) => kind === actionKind(step))?.[1] : t('Optional action');
+    step.action ? t(ACTIONS.find(([kind]) => kind === actionKind(step))?.[1]) : t('Optional action');
   function addStep(): void {
     steps = [...steps, { text: '', action: null, auto_check: false }];
   }
@@ -54,7 +54,7 @@
             <legend>{t("Action")}</legend>
             <div class="choice-grid">
               {#each actions as [kind, title]}
-                <button class="choice" aria-pressed={(actionKind(step) ?? 'none') === kind} onclick={() => setAction(step, kind)}>{title}</button>
+                <button class="choice" aria-pressed={(actionKind(step) ?? 'none') === kind} onclick={() => setAction(step, kind)}>{t(title)}</button>
               {/each}
             </div>
           </fieldset>
@@ -64,7 +64,7 @@
               <legend>{t("Bed point")}</legend>
               <div class="choice-grid bed-points">
                 {#each BED_GRID as [point, title]}
-                  <button class="choice" aria-pressed={action.point === point} onclick={() => (action.point = point)}>{title}</button>
+                  <button class="choice" aria-pressed={action.point === point} onclick={() => (action.point = point)}>{t(title)}</button>
                 {/each}
               </div>
             </fieldset>

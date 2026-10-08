@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../lib/materials';
   import { t } from '../i18n/index';
   import Modal from './Modal.svelte';
   import { api } from '../api/client';
@@ -85,7 +86,7 @@
           <div class="buttons">{#each [0,1] as axis}<button class="btn btn-soft" onclick={() => coordinate(which as 'start' | 'end', axis as 0 | 1)}>{axis === 0 ? 'X' : 'Y'} {fmt((which === 'start' ? start : end)[axis]!)} mm</button>{/each}</div>
         {/each}
         {#if frameOf(doc).head}<button class="btn btn-ghost" onclick={atHead}>{t("Current head position as start")}</button>{/if}
-        <label>{t("Cutting recipe")}<select bind:value={recipeId}><option value="">{t("Choose a recipe…")}</option>{#each recipes as r (r.id)}<option value={r.id}>{r.name} · {r.thickness_mm} mm · {r.gas}</option>{/each}</select></label>
+        <label>{t("Cutting recipe")}<select bind:value={recipeId}><option value="">{t("Choose a recipe…")}</option>{#each recipes as r (r.id)}<option value={r.id}>{materialLabel(r.name)} · {r.thickness_mm} mm · {r.gas}</option>{/each}</select></label>
         {#if recipe}<p>{recipe.summary.speed ?? '—'} mm/s · {t('Power')} {recipe.summary.duty ?? '—'} % · {t('Gas')} {recipe.gas}</p>{/if}
         {#if !fits}<p class="warn-text">{t("Both points must lie within the travel and at least 0.01 mm apart.")}</p>{/if}
         {#if error}<p class="warn-text" role="alert">{error}</p>{/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../../lib/materials';
   import { t as tr } from '../../i18n/index';
 
   import { inputValue, quantity, sourceInput, unitLabel, units } from '../../lib/units.svelte';
@@ -127,7 +128,7 @@
       {#if art}<img class="art" src={art} alt={recipe.photo ? tr('Sample cut') : ''}>{:else}<div class="art blank"><i class="ic ic-layers"></i></div>{/if}
       <div class="recipe-details">
         <div class="recipe-eyebrow"><h3>{tr("Material library")}</h3><span class="tag {recipe.laser}">{laserLabel(recipe.laser)}</span>{#if engraving}<span class="tag">{tr("Engraving")}</span>{/if}</div>
-        <h1>{recipe.name}</h1>
+        <h1>{materialLabel(recipe.name)}</h1>
         <div class="recipe-spec"><strong>{recipe.thickness_mm > 0 ? quantity(recipe.thickness_mm, 'mm') : tr("No thickness set")}</strong><span>{tr("sheet thickness")}</span></div>
         <div class="recipe-source"><span title={recipe.file_name ?? tr('Bank {0}', recipe.layer)}>{recipe.file_name ?? tr('Bank {0}', recipe.layer)}</span>{#if recipe.updated}<span>{tr("Edited {0}", ago(recipe.updated))}</span>{/if}</div>
       </div>

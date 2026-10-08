@@ -134,7 +134,7 @@
       <div class="preflight-check" class:checked={allChecked.includes(i)} class:motion={movesMachine(step.action)}>
         <label><input
             type="checkbox" checked={allChecked.includes(i)} disabled={submitting || busy || loading || satisfied.includes(i)}
-            onchange={(event) => toggle(i, event.currentTarget.checked)}><span>{step.text}{#if movesMachine(step.action)}<small
+            onchange={(event) => toggle(i, event.currentTarget.checked)}><span>{t(step.text)}{#if movesMachine(step.action)}<small
             class="motion-label">{t("Moves machine")}</small>{/if}{#if satisfied.includes(i)}<small>{t("Auto-checked")}</small>{/if}</span></label>
         {#if step.action}<HoldButton
             class="btn {movesMachine(step.action) ? 'btn-move' : 'btn-ghost'}" kind={holdKind(step.action)}

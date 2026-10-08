@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../../lib/materials';
   import { t as tl } from '../../i18n/index';
   import { t } from '../../i18n/index';
 
@@ -159,7 +160,7 @@
       <div class="field"><span class="lbl">{tl("Film process")}</span>
         <div class="pick-list">
           <button class="from" class:on={!film} onclick={() => onfilm(null)}><span>{tl("None")}</span></button>
-          {#each candidates as r (r.id)}<button class="from" class:on={film?.id === r.id} onclick={() => onfilm(r.id)}><span>{r.name}</span><small>{quantity(r.thickness_mm, 'mm')} · {t(r.gas)}</small></button>{/each}
+          {#each candidates as r (r.id)}<button class="from" class:on={film?.id === r.id} onclick={() => onfilm(r.id)}><span>{materialLabel(r.name)}</span><small>{quantity(r.thickness_mm, 'mm')} · {t(r.gas)}</small></button>{/each}
         </div>
       </div>
       <p class="muted">{tl("Film removal uses its selected recipe.")}</p>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../../lib/materials';
   import { t as tr } from '../../i18n/index';
 
   // One layer, as LightBurn's cut settings have it: its colour and name,
@@ -163,7 +164,7 @@
             <span class="group-head">{heading === 'Engraving' ? tr("Engraving recipes") : tr("Cutting recipes")}</span>
             {#each materials as m (m.key)}
               <div class="material">
-                <span class="mat-name">{m.name}</span>
+                <span class="mat-name">{materialLabel(m.name)}</span>
                 <div class="chips">
                   {#each m.recipes as r (r.id)}
                     <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => use(r.id)}>

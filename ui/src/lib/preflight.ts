@@ -16,7 +16,7 @@ export const movesMachine = (action: CheckAction | null): boolean => !!action &&
 export const holdKind = (action: CheckAction): 'move' | 'zero' => action.kind === 'set_origin' || action.kind === 'set_origin_at' ? 'zero' : 'move';
 export const canAutoCheck = (action: CheckAction | null): boolean => !!action && !['gas_test', 'job_gas_test', 'set_origin', 'set_origin_at'].includes(action.kind);
 export function actionName(action: CheckAction): string {
-  const point = 'point' in action ? BED_POINTS.find(([p]) => p === action.point)?.[1].replace(/ \(.+\)/, '').toLowerCase() : '';
+  const point = 'point' in action ? t(BED_POINTS.find(([p]) => p === action.point)?.[1] ?? '') : '';
   if (action.kind === 'gas_test' || action.kind === 'job_gas_test') return t('Test gas');
   if (action.kind === 'move_xy') return t('Move to {0}, {1} {2}', distance(action.x), distance(action.y), unitLabel('mm'));
   if (action.kind === 'move_to') return t('Move to {0}', point);

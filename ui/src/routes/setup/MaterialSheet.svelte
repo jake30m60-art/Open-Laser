@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../../lib/materials';
   import { t as tl } from '../../i18n/index';
   import { t } from '../../i18n/index';
 
@@ -52,7 +53,7 @@
         {@const picture = pictureOf(m.name, m.recipes.find((r) => r.photo)?.photo)}
         <div class="mat-row" class:on={pick && materialKey(pick) === m.key} role="button" tabindex="0" onclick={() => choose(m.recipes[0]!)} onkeydown={(e) => { if (e.key === 'Enter') choose(m.recipes[0]!); }}>
           {#if picture}<img class="swatch" src={picture} alt="">{:else}<div class="swatch" style="background:var(--panel-2)"></div>{/if}
-          <div><div class="name">{m.recipes.some((r) => r.favourite) ? '★ ' : ''}{m.name}</div><div
+          <div><div class="name">{m.recipes.some((r) => r.favourite) ? '★ ' : ''}{materialLabel(m.name)}</div><div
             class="meta">{laserLabel(m.recipes[0]!.laser)} · {thicknessList(m.recipes)} {unitLabel('mm')} · {gasList(m.recipes)}</div></div>
           <span class="tag">{m.recipes.length}</span>
         </div>

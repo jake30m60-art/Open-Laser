@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { materialLabel } from '../lib/materials';
   import { t } from '../i18n/index';
 
   import { onMount } from 'svelte';
@@ -289,7 +290,7 @@
     {@const conflicts = recipe ? recipeEdits.conflicts(recipe) : []}
     <section class="pending-item">
       <div class="row">
-        <div><h3>{recipe?.name ?? t('Deleted material')}</h3><small>{t('{0} staged material values', recipeEdits.count(id))}</small></div>
+        <div><h3>{recipe ? materialLabel(recipe.name) : t('Deleted material')}</h3><small>{t('{0} staged material values', recipeEdits.count(id))}</small></div>
         <div class="actions">
           <button class="btn btn-ghost" disabled={busy} onclick={() => openRecipe(id)}>{t("Open")}</button>
           <button class="btn btn-ghost" disabled={busy} onclick={() => discardRecipe(id, recipe)}>{t("Discard")}</button>
@@ -350,7 +351,7 @@
             {#each ['fiber', 'co2'] as mode}
               {@const list = (defaults as PreflightPreferences['postflight'])[mode as 'fiber' | 'co2']}
               <div class="checklist-review"><strong>{phase} · {laserLabel(mode as 'fiber' | 'co2')} · {list.enabled ? t("On") : t("Off")}</strong>
-                {#if list.enabled}<ul>{#each list.steps as step}<li>{step.text}{#if step.action}<small>{actionName(step.action)}</small>{/if}</li>{/each}</ul>{/if}
+                {#if list.enabled}<ul>{#each list.steps as step}<li>{t(step.text)}{#if step.action}<small>{actionName(step.action)}</small>{/if}</li>{/each}</ul>{/if}
               </div>
             {/each}
           {/each}
