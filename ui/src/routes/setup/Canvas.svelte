@@ -172,6 +172,8 @@
   const pickSet = $derived(new Set(picks));
   /** Contours whose selection sets some machining itself; drawn with a dashed outline. */
   const ownMachining = $derived(new Set((draft?.features.contour_machining ?? []).flatMap((m) => m.contours)));
+  /** The outline shows only while a panel that sets machining per selection is open. */
+  const ownShown = $derived(['leads', 'joints', 'cooling', 'kerf', 'start'].includes(ui.setupPanel ?? ''));
   $effect(() => { selectedContours = updating ? [] : picks.length ? picks : contoursOf(selected); });
   $effect(() => {
     const next = fillAreas([...shapes.values()].flat(), selectedContours);
@@ -785,7 +787,7 @@
         {@const picked = contour.sources.every(s=>pickSet.has(s))}
         <g class="contour" class:picked class:output-excluded={ui.setupPanel === 'simulation' && contour.sources.some(s=>excluded.has(s))}>
         {#if picked}<path class="halo strong" d={contourPath(contour)} vector-effect="non-scaling-stroke"/>{/if}
-        {#if contour.sources.some((s) => ownMachining.has(s))}<path class="own-machining" d={contourPath(contour)} vector-effect="non-scaling-stroke"/>{/if}
+        {#if ownShown && contour.sources.some((s) => ownMachining.has(s))}<path class="own-machining" d={contourPath(contour)} vector-effect="non-scaling-stroke"/>{/if}
         {#if filled.has(contour.layer) && preview?.engraving_regions?.some(r => r.sources[0] === contour.sources[0] && r.layer === contour.layer)}
           <path class="engrave-boundary" d={contourPath(contour)} style:stroke={colors.get(contour.layer)} vector-effect="non-scaling-stroke" />
         {/if}
@@ -959,7 +961,7 @@
 .error-chips .btn { min-width:44px; padding:0 10px; border:1px solid #ef4444; color:#ef4444; font-weight:700; }
 .error-outline { fill:none; stroke:#ef4444; stroke-width:3; pointer-events:none; }
 .raster { opacity:.85; pointer-events:none; }
-.own-machining { fill:none; stroke:#a78bfa; stroke-width:8; stroke-opacity:.8; stroke-dasharray:7 5; stroke-linejoin:round; pointer-events:none; }
+.own-machining { fill:none; stroke:#a78bfa; stroke-width:5; stroke-opacity:.55; stroke-dasharray:6 6; stroke-linejoin:round; pointer-events:none; }
 .error-halo { fill:none; stroke:#ef4444; stroke-width:12; stroke-opacity:.28; stroke-linejoin:round; pointer-events:none; }
 .error-location { fill:none; stroke:#ef4444; stroke-width:2; pointer-events:none; }
 </style>
