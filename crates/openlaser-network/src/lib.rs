@@ -185,7 +185,7 @@ pub fn plan(adapters: &[Adapter], target: &Target, remembered: Option<&Remembere
 
 fn existing_network(adapters: &[Adapter], target: &Target) -> Option<Plan> {
     let controller = *target.controller.ip();
-    let on_subnet: Vec<(&Adapter, &Address)> = adapters
+    let mut on_subnet: Vec<(&Adapter, &Address)> = adapters
         .iter()
         .filter_map(|a| {
             a.addresses
@@ -194,6 +194,13 @@ fn existing_network(adapters: &[Adapter], target: &Target) -> Option<Plan> {
                 .map(|x| (a, x))
         })
         .collect();
+    // An adapter without a link carries nothing: Windows keeps the address
+    // of a disconnected Bluetooth or VPN adapter, but no traffic uses it.
+    // When one with a link is on the network, the others are left out; a
+    // lone cable with its link down is still reported as such.
+    if on_subnet.iter().any(|(a, _)| a.up) {
+        on_subnet.retain(|(a, _)| a.up);
+    }
     match on_subnet.as_slice() {
         // Loopback is the one network where both ends share an address;
         // anywhere else the computer has taken the controller's own.
@@ -274,6 +281,20 @@ mod tests {
                 .collect(),
             default_route: gateway,
         }
+    }
+
+    /// Adapters without a link that keep an address on the controller's
+    /// network, as Bluetooth and VPN adapters do, leave the cable ready.
+    #[test]
+    fn idle_adapters_on_the_subnet_do_not_block_the_cable() {
+        let target = Target::factory();
+        let ready = adapter("Ethernet", "aa:09", true, true, &[("10.1.1.10", 24)], false);
+        let vpn = adapter("OpenVPN", "aa:0a", false, false, &[("10.1.1.13", 24)], false);
+        let bluetooth = adapter("Bluetooth", "aa:0b", false, false, &[("10.1.1.11", 24)], false);
+        assert_eq!(
+            plan(&[vpn, ready.clone(), bluetooth], &target, None),
+            Plan::Ready { adapter: ready, host: "10.1.1.10".parse().unwrap() }
+        );
     }
 
     /// A fresh computer with Wi-Fi and one cable configures the cable; a
