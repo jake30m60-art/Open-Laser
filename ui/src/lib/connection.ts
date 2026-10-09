@@ -10,7 +10,7 @@ const STEPS: Record<LinkPhase, string> = {
 
 /** One connection status label for every interface. */
 export function connectionLabel(doc: Document | null): string {
-  if (doc?.machine.connection.state === 'connected') return t("Connected");
+  if (doc?.machine.connection.state === 'connected') return t("Disconnect");
   if (doc && doc.link.phase !== 'idle' && doc.link.phase !== 'failed') return STEPS[doc.link.phase];
   return doc?.machine.connection.state === 'faulted' ? t("Reconnect") : t("Connect");
 }
