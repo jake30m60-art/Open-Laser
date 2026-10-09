@@ -123,10 +123,21 @@ enum Held {
     Table(TableRequest),
 }
 
+/// How the arrows move, as Mlaser's Fast/Step key cycles them. Mlaser
+/// starts held and slow (its `IsStepMove` 0, `JogSlowSpeed`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Mode {
+    /// While held, at the slow jog speed.
+    Slow,
+    /// While held, at the fast jog speed.
+    Fast,
+    /// One step per press.
+    Step,
+}
+
 /// The pendant's own state between reports.
 struct Pendant {
-    /// Fast: X and Y move while held. Step: each press moves one step.
-    fast: bool,
+    mode: Mode,
     /// The move or output a held key keeps going, its lease and start.
     held: Option<(Lease, Instant)>,
     /// The key down and when its report last came.
@@ -142,7 +153,7 @@ pub fn spawn(shared: Shared) {
     std::thread::Builder::new().name("pendant".into()).spawn(move || read(&events)).ok();
     tokio::spawn(async move {
         let mut pendant =
-            Pendant { fast: false, held: None, down: None, sequence: 0, following: false };
+            Pendant { mode: Mode::Slow, held: None, down: None, sequence: 0, following: false };
         let mut renew = tokio::time::interval(RENEW);
         loop {
             tokio::select! {
@@ -171,6 +182,7 @@ impl Pendant {
                     *seen = Instant::now();
                     return;
                 }
+                tracing::info!(?key, with_fn, "pendant key");
                 self.down = Some((event, Instant::now()));
                 self.release(shared).await;
                 if let Err(error) = self.press(shared, key, with_fn).await {
@@ -182,11 +194,12 @@ impl Pendant {
 
     async fn press(&mut self, shared: &Shared, key: Key, with_fn: bool) -> crate::Result<()> {
         self.allowed(shared, key, with_fn).await?;
-        let jog = |axis: usize, positive: bool, fast: bool| JogRequest {
+        let mode = self.mode;
+        let jog = |axis: usize, positive: bool| JogRequest {
             axis,
             positive,
-            step_mm: (!fast).then_some(STEP_MM),
-            fast,
+            step_mm: (mode == Mode::Step).then_some(STEP_MM),
+            fast: mode == Mode::Fast,
             diagonal: None,
         };
         match (key, with_fn) {
@@ -197,15 +210,16 @@ impl Pendant {
                     Key::Up => (1, true),
                     _ => (1, false),
                 };
-                let request = jog(axis, positive, self.fast);
-                if self.fast {
-                    self.hold(shared, Held::Jog(request)).await?;
-                } else {
+                let request = jog(axis, positive);
+                if mode == Mode::Step {
                     machine::jog(shared, request, None).await?;
+                } else {
+                    self.hold(shared, Held::Jog(request)).await?;
                 }
             }
             (Key::ZUp | Key::ZDown, false) => {
-                let output = OutputRequest::HeadJog { up: key == Key::ZUp, fast: self.fast };
+                let output =
+                    OutputRequest::HeadJog { up: key == Key::ZUp, fast: mode == Mode::Fast };
                 self.hold(shared, Held::Output(output)).await?;
             }
             (Key::ZUp | Key::ZDown, true) => {
@@ -240,13 +254,17 @@ impl Pendant {
             (Key::Pause, _) => machine::hold(shared).await?,
             (Key::Stop, _) => machine::stop(shared).await?,
             (Key::FastStep, _) => {
-                self.fast = !self.fast;
-                let mode = if self.fast {
-                    "Fast: X and Y move while held"
-                } else {
-                    "Step: X and Y move 1 mm per press"
+                self.mode = match self.mode {
+                    Mode::Slow => Mode::Fast,
+                    Mode::Fast => Mode::Step,
+                    Mode::Step => Mode::Slow,
                 };
-                shared.lock().await.note(format!("Pendant {mode}"), false);
+                let text = match self.mode {
+                    Mode::Slow => "Pendant Slow: X, Y and Z move while held",
+                    Mode::Fast => "Pendant Fast: X, Y and Z move fast while held",
+                    Mode::Step => "Pendant Step: X and Y move 1 mm per press",
+                };
+                shared.lock().await.note(text, false);
             }
             (Key::Fn, _) => {}
         }
