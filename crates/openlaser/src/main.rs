@@ -198,6 +198,10 @@ async fn run_server(
     let listen = config.listen;
     let shared = openlaser_server::Coordinator::start(config)?;
     shared.lock().await.seed_defaults();
+    if simulator.is_none() || std::env::var_os("OPENLASER_PENDANT").is_some() {
+        // The Mlaser pendant, when its receiver is plugged in.
+        openlaser_server::pendant::spawn(shared.clone());
+    }
     if let Some(simulator) = &simulator {
         // The plant answers the machine files' inputs and parameters.
         let coordinator = shared.lock().await;

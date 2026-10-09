@@ -41,3 +41,6 @@ tracing.workspace = true
 axum.workspace = true
 tokio-stream.workspace = true
 mdns-sd.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+hidapi = { version = "2.6", default-features = false, features = ["windows-native"] }

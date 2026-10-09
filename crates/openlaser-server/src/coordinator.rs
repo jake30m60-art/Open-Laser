@@ -227,6 +227,25 @@ impl Coordinator {
         self.config.files.backup.iter().cloned().collect()
     }
 
+    /// The job recipe's cutting gas and pressure in bar, for the pendant's Blow key.
+    pub fn recipe_gas(&self) -> Result<(u8, f64)> {
+        let recipe =
+            self.draft.as_ref().and_then(|d| d.current.recipe.as_ref()).ok_or_else(|| {
+                Error::Refused("choose a material first: Blow uses its gas".into())
+            })?;
+        let number =
+            |key: &str| recipe.attributes.get(key).and_then(|v| v.trim().parse::<f64>().ok());
+        let selector = number("CutGasType")
+            .filter(|g| (0. ..=5.).contains(g))
+            .ok_or_else(|| Error::Refused("the material has no gas to blow".into()))?;
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "0 to 5, checked"
+        )]
+        Ok((selector as u8, number("CutAirPressure").unwrap_or(0.)))
+    }
+
     /// The data folder.
     #[must_use]
     pub fn data_dir(&self) -> &std::path::Path {

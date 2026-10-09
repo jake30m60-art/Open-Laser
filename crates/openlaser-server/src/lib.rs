@@ -40,6 +40,7 @@ mod machine_files;
 pub mod manual_cut;
 pub mod nesting;
 pub mod parameter_settings;
+pub mod pendant;
 pub mod placement;
 pub mod postflight;
 pub mod preflight;
