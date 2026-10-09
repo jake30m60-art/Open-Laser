@@ -1884,13 +1884,11 @@ impl Coordinator {
             })
     }
 
-    /// What Follow sends: the job recipe's cut height, or without a usable
-    /// recipe, the machine's manual follow height, so Follow always works
-    /// for lining up the beam, as in Mlaser.
+    /// Manual Follow uses machine settings independently of the job recipe.
     pub(crate) fn follow_action(
         &self,
     ) -> Result<openlaser_controller::operations::head::HeadAction> {
-        self.recipe_follow().or_else(|_| self.manual_follow())
+        self.manual_follow()
     }
 
     /// Following at the machine's edge-seek follow height (`EdgeSeekFollowHeight`)
@@ -1918,50 +1916,6 @@ impl Coordinator {
         Ok(openlaser_controller::operations::head::HeadAction::Follow {
             speed_tenths: (speed * 10.).round().max(1.) as u32,
             height: (height * f64::from(scale)).round() as u32,
-        })
-    }
-
-    fn recipe_follow(&self) -> Result<openlaser_controller::operations::head::HeadAction> {
-        let draft = self.draft.as_ref().ok_or_else(|| Error::Refused("open a job first".into()))?;
-        let recipe = draft.current.recipe.as_ref().ok_or_else(|| {
-            Error::Refused("choose a material first: its recipe gives the cut height".into())
-        })?;
-        if self.mode.is_some_and(|mode| mode != recipe.laser) {
-            return Err(Error::Refused(
-                "the recipe is for the other laser; switch mode first".into(),
-            ));
-        }
-        let bundle =
-            self.bundle.as_ref().ok_or_else(|| Error::Refused("no machine files".into()))?;
-        let scale = self.scale()?;
-        let manual_focus = recipe.laser == LaserMode::Co2 && self.config.co2_manual_focus;
-        let binder = draft::Binder {
-            dry_run: false,
-            manual_focus,
-            film: false,
-            scale,
-            timeouts: self.soft.timeouts,
-        };
-        let settings = draft::settings(bundle, recipe, binder)?;
-        if settings.fixed_height {
-            return Err(Error::Refused(
-                "this recipe cuts at a fixed height, without following".into(),
-            ));
-        }
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "checked below")]
-        let target = (settings.cut_height.max(0.5) * f64::from(scale)).round() as i64;
-        let target = u32::try_from(target).ok().filter(|t| *t <= 0xffff).ok_or_else(|| {
-            Error::Refused("the cut height does not fit the follow command".into())
-        })?;
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "a follow speed"
-        )]
-        let speed_tenths = (settings.z_follow_speed * 10.).round().max(1.) as u32;
-        Ok(openlaser_controller::operations::head::HeadAction::Follow {
-            speed_tenths,
-            height: target | settings.vibration_word,
         })
     }
 

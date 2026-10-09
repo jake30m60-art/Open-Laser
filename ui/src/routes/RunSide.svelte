@@ -159,7 +159,7 @@
         label={t("Follow")}
         onhold={() => call(() => api.machine('follow'))}
         disabled={!readiness.calibrate.ok}
-        title={readiness.calibrate.ok ? t("Hold: the head goes down to the cut height and follows the sheet") : plain(readiness.calibrate.reason).text}
+        title={readiness.calibrate.ok ? t("Hold: the head follows the sheet at the machine follow height") : plain(readiness.calibrate.reason).text}
       ><i class="ic ic-arrow-down"></i>{t("Follow")}</HoldButton>
     {/if}
   </div>

@@ -1307,7 +1307,7 @@
   "Follow": "Folgen",
   "Head up": "Kopf hoch",
   "The head follows the sheet; tap to raise it": "Der Kopf folgt dem Blech; antippen zum Hochfahren",
-  "Hold: the head goes down to the cut height and follows the sheet": "Halten: Der Kopf fährt auf Schnitthöhe und folgt dem Blech",
+  "Hold: the head follows the sheet at the machine follow height": "Halten: Der Kopf folgt dem Blech mit dem in der Maschine eingestellten Abstand",
   "Choose a material first: the hatching is worked out, and shown, once the job has a recipe.": "Zuerst ein Material wählen: Die Schraffur wird erst berechnet und angezeigt, wenn der Auftrag ein Rezept hat.",
   "The hatching cannot be shown: {0}": "Die Schraffur kann nicht angezeigt werden: {0}",
   "No closed shape on this layer: a fill engraves inside closed outlines only. Close the outlines in the sketch, or the lines are traced as they are.": "Keine geschlossene Form auf dieser Ebene: Eine Füllung graviert nur innerhalb geschlossener Umrisse. Umrisse in der Skizze schließen, sonst werden die Linien nur nachgefahren.",
