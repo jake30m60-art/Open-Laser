@@ -143,8 +143,6 @@ struct Pendant {
     /// The key down and when its report last came.
     down: Option<(Event, Instant)>,
     sequence: u64,
-    /// Whether the head was last sent to follow from here.
-    following: bool,
 }
 
 /// Starts reading the pendant: a thread for the USB device, a task for its keys.
@@ -152,8 +150,7 @@ pub fn spawn(shared: Shared) {
     let (events, mut keys) = mpsc::channel(32);
     std::thread::Builder::new().name("pendant".into()).spawn(move || read(&events)).ok();
     tokio::spawn(async move {
-        let mut pendant =
-            Pendant { mode: Mode::Slow, held: None, down: None, sequence: 0, following: false };
+        let mut pendant = Pendant { mode: Mode::Slow, held: None, down: None, sequence: 0 };
         let mut renew = tokio::time::interval(RENEW);
         loop {
             tokio::select! {
@@ -233,12 +230,18 @@ impl Pendant {
                 self.hold(shared, Held::Output(OutputRequest::Gas { selector, pressure })).await?;
             }
             (Key::Follow, _) => {
-                if self.following {
+                // As the screen's Follow button: the head's own command says
+                // whether it follows now (104 or 117), so a second press raises it.
+                let following = shared
+                    .machine
+                    .state()
+                    .feedback
+                    .is_some_and(|f| matches!(f.head.command, 104 | 117));
+                if following {
                     machine::raise_head(shared).await?;
                 } else {
                     machine::follow(shared).await?;
                 }
-                self.following = !self.following;
             }
             (Key::Laser, _) => machine::pulse(shared, PULSE.0, PULSE.1).await?,
             (Key::Frame, _) => machine::frame(shared).await?,
@@ -346,17 +349,27 @@ fn read(events: &mpsc::Sender<Event>) {
             .device_list()
             .filter(|d| d.vendor_id() == 0x10CE && (0xEB61..=0xEBAA).contains(&d.product_id()))
             .filter(|d| keys(d))
-            .find_map(|d| d.open_device(&api).ok());
-        let Some(device) = device else {
+            .find_map(|d| {
+                d.open_device(&api).ok().map(|dev| (dev, d.path().to_string_lossy().into_owned()))
+            });
+        let Some((device, path)) = device else {
             std::thread::sleep(Duration::from_secs(2));
             continue;
         };
-        tracing::info!("pendant receiver found");
+        tracing::info!(%path, "pendant receiver found");
         let mut report = [0u8; 16];
+        let mut first = true;
         loop {
             match device.read_timeout(&mut report, 500) {
                 Ok(0) => {}
                 Ok(n) => {
+                    if first {
+                        first = false;
+                        tracing::info!(report = ?&report[..n], "pendant reports arriving");
+                    }
+                    if decode(&report[..n]).is_none() {
+                        tracing::debug!(report = ?&report[..n], "pendant report not understood");
+                    }
                     if let Some(event) = decode(&report[..n])
                         && events.blocking_send(event).is_err()
                     {

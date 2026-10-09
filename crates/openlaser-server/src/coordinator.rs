@@ -1884,11 +1884,44 @@ impl Coordinator {
             })
     }
 
-    /// What the Follow button sends: the job recipe's cut height and follow
-    /// speed, bound as a cut binds them.
+    /// What Follow sends: the job recipe's cut height, or without a usable
+    /// recipe, the machine's manual follow height, so Follow always works
+    /// for lining up the beam, as in Mlaser.
     pub(crate) fn follow_action(
         &self,
     ) -> Result<openlaser_controller::operations::head::HeadAction> {
+        self.recipe_follow().or_else(|_| self.manual_follow())
+    }
+
+    /// Following at the machine's edge-seek follow height (`EdgeSeekFollowHeight`)
+    /// and its follow speed (`ZFFollowSpeed`), with no recipe.
+    fn manual_follow(&self) -> Result<openlaser_controller::operations::head::HeadAction> {
+        let bundle =
+            self.bundle.as_ref().ok_or_else(|| Error::Refused("no machine files".into()))?;
+        let scale = self.scale()?;
+        let read = |group: &str, tag: &str, key: &str| {
+            bundle
+                .group(group, tag)
+                .ok()
+                .and_then(|g| g.get(key))
+                .and_then(|v| v.trim().parse::<f64>().ok())
+                .filter(|v| v.is_finite() && *v > 0.)
+        };
+        let height =
+            read("GraphParam", "GRP", "EdgeSeekFollowHeight").unwrap_or(1.).clamp(0.5, 10.);
+        let speed = read("ZFParam", "ZF", "ZFFollowSpeed").unwrap_or(50.).min(1000.);
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "0.5 to 10 mm and a follow speed, both small and positive"
+        )]
+        Ok(openlaser_controller::operations::head::HeadAction::Follow {
+            speed_tenths: (speed * 10.).round().max(1.) as u32,
+            height: (height * f64::from(scale)).round() as u32,
+        })
+    }
+
+    fn recipe_follow(&self) -> Result<openlaser_controller::operations::head::HeadAction> {
         let draft = self.draft.as_ref().ok_or_else(|| Error::Refused("open a job first".into()))?;
         let recipe = draft.current.recipe.as_ref().ok_or_else(|| {
             Error::Refused("choose a material first: its recipe gives the cut height".into())
