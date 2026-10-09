@@ -2,14 +2,14 @@
 
 //! The wireless Mlaser pendant (XHC, USB vendor 10CE): twenty keys, read
 //! as HID input reports `04 seed key1 key2 00 check`. Fn is key 0x0B; with
-//! another key held it sends that key second. A key pressed sends one
-//! report and its release one with key 0; nothing repeats while it is held.
+//! another key held it sends that key second. A held key repeats its
+//! report a few times a second; its release sends key 0.
 //!
 //! Each key calls the same machine actions as the screen's buttons, with
-//! their checks. Held moves renew their lease while the key is down and stop
-//! when it is released, when the receiver disappears, or after
-//! [`MAX_HELD`]: a pendant that lost its radio link mid-press never sends
-//! the release, so a move may not run on without one.
+//! their checks, once per press: a repeat of the key held does nothing new.
+//! Held moves renew their lease while the repeats come and stop when the key
+//! is released, when the receiver disappears, or when no repeat came for
+//! [`DEADMAN`]: a pendant out of radio range sends neither.
 
 use crate::coordinator::Shared;
 use crate::machine::{self, JogRequest, OutputRequest, TableRequest};
@@ -17,8 +17,8 @@ use openlaser_controller::lease::Lease;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-/// The longest a held move runs on one press.
-pub const MAX_HELD: Duration = Duration::from_secs(10);
+/// How long a held move runs on without the key's repeat.
+pub const DEADMAN: Duration = Duration::from_millis(600);
 /// How often a held move's lease is renewed, as the screen's hold does.
 const RENEW: Duration = Duration::from_millis(75);
 /// One press in Step mode moves X or Y this far.
@@ -129,6 +129,8 @@ struct Pendant {
     fast: bool,
     /// The move or output a held key keeps going, its lease and start.
     held: Option<(Lease, Instant)>,
+    /// The key down and when its report last came.
+    down: Option<(Event, Instant)>,
     sequence: u64,
     /// Whether the head was last sent to follow from here.
     following: bool,
@@ -139,7 +141,8 @@ pub fn spawn(shared: Shared) {
     let (events, mut keys) = mpsc::channel(32);
     std::thread::Builder::new().name("pendant".into()).spawn(move || read(&events)).ok();
     tokio::spawn(async move {
-        let mut pendant = Pendant { fast: false, held: None, sequence: 0, following: false };
+        let mut pendant =
+            Pendant { fast: false, held: None, down: None, sequence: 0, following: false };
         let mut renew = tokio::time::interval(RENEW);
         loop {
             tokio::select! {
@@ -156,8 +159,19 @@ pub fn spawn(shared: Shared) {
 impl Pendant {
     async fn event(&mut self, shared: &Shared, event: Event) {
         match event {
-            Event::Released | Event::Lost => self.release(shared).await,
+            Event::Released | Event::Lost => {
+                self.down = None;
+                self.release(shared).await;
+            }
             Event::Press { key, with_fn } => {
+                // The held key repeating: it keeps its move alive, nothing more.
+                if let Some((down, seen)) = &mut self.down
+                    && *down == event
+                {
+                    *seen = Instant::now();
+                    return;
+                }
+                self.down = Some((event, Instant::now()));
                 self.release(shared).await;
                 if let Err(error) = self.press(shared, key, with_fn).await {
                     shared.lock().await.note(format!("Pendant: {error}"), true);
@@ -167,6 +181,7 @@ impl Pendant {
     }
 
     async fn press(&mut self, shared: &Shared, key: Key, with_fn: bool) -> crate::Result<()> {
+        self.allowed(shared, key, with_fn).await?;
         let jog = |axis: usize, positive: bool, fast: bool| JogRequest {
             axis,
             positive,
@@ -238,6 +253,38 @@ impl Pendant {
         Ok(())
     }
 
+    /// Whether the screen's button for this key would be enabled now: the
+    /// pendant keeps to the same gates, so it never drives the head into a
+    /// limit switch the screen would not.
+    async fn allowed(&self, shared: &Shared, key: Key, with_fn: bool) -> crate::Result<()> {
+        let c = shared.lock().await;
+        let r = c.document().readiness;
+        let held = c.held.is_some();
+        drop(c);
+        let gate = match (key, with_fn) {
+            (Key::Left, _) => Some(r.xy_jog[0][0].clone()),
+            (Key::Right, _) => Some(r.xy_jog[0][1].clone()),
+            (Key::Down, _) => Some(r.xy_jog[1][0].clone()),
+            (Key::Up, _) => Some(r.xy_jog[1][1].clone()),
+            (Key::ZUp, false) => Some(r.head_up),
+            (Key::ZDown, false) => Some(r.head_down),
+            (Key::ZUp | Key::ZDown, true) => Some(r.jog),
+            (Key::RedLight | Key::Shutter | Key::Blow | Key::Laser, _) => Some(r.outputs),
+            (Key::Frame, _) => Some(r.frame),
+            (Key::GoOrigin, _) => Some(r.position),
+            (Key::ZCalibrate | Key::Follow, _) => Some(r.calibrate),
+            (Key::Start, _) => Some(if held { r.resume } else { r.run }),
+            (Key::Pause, _) => Some(r.hold),
+            (Key::Stop | Key::Fn | Key::FastStep, _) => None,
+        };
+        match gate {
+            Some(g) if !g.ok => {
+                Err(crate::Error::Refused(g.reason.unwrap_or_else(|| "not possible now".into())))
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Starts a held move or output under a new lease.
     async fn hold(&mut self, shared: &Shared, what: Held) -> crate::Result<()> {
         self.sequence += 1;
@@ -251,15 +298,13 @@ impl Pendant {
         Ok(())
     }
 
-    /// Keeps a held move going, or ends it after [`MAX_HELD`].
+    /// Keeps a held move going while its key repeats, or ends it.
     async fn renew(&mut self, shared: &Shared) {
-        let Some((lease, since)) = &self.held else { return };
-        if since.elapsed() >= MAX_HELD {
+        let Some((lease, _)) = &self.held else { return };
+        if self.down.is_none_or(|(_, seen)| seen.elapsed() >= DEADMAN) {
+            self.down = None;
             self.release(shared).await;
-            shared.lock().await.note(
-                "Pendant key held over 10 s: the move stopped. Press it again to go on.",
-                true,
-            );
+            shared.lock().await.note("Pendant out of reach: the move stopped.", true);
         } else if machine::heartbeat(shared, lease.clone()).is_err() {
             self.held = None;
         }
