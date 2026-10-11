@@ -23,7 +23,10 @@
   let { selectedContours, regions, pickMode = $bindable('area'), onclear, onfocus, onremove }: { selectedContours: number[]; regions: FillRegion[]; pickMode?: 'area' | 'contour'; onclear: () => void; onfocus: (source:number) => void; onremove: (source:number) => void } = $props();
   const draft = $derived(server.doc!.draft!);
   /** The layers engraving a picture: they show its shading settings. */
-  const pictures = $derived(imageLayers(draft.preview));
+  // While the preview is worked out again it is missing: the picture
+  // layers stay as they were, so their settings do not vanish meanwhile.
+  let lastPictures = new Set<string>();
+  const pictures = $derived.by(() => (draft.preview ? (lastPictures = imageLayers(draft.preview)) : lastPictures));
   const NAME = $derived(ui.engravingLayer ?? 'Engraving');
   const order = $derived(draft.layers.map((l) => l.name));
   const marked = $derived(draft.layers.filter((l) => l.mode === 'mark'));

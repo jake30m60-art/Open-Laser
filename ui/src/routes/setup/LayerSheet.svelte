@@ -32,6 +32,9 @@
   const layer = $derived(draft.layers.find((l) => l.name === name) ?? null);
   // Gone, as Undo can make it; a rename in flight has it briefly missing.
   $effect(() => { if (!layer && !busy) onclose(); });
+  // Kept while the preview is worked out again, so the picture settings stay.
+  let lastPictures = new Set<string>();
+  const pictures = $derived.by(() => (draft.preview ? (lastPictures = imageLayers(draft.preview)) : lastPictures));
   const own = $derived(hasOwn(featureEdits.value(draft), name));
   // The job's laser's recipes, by material; the job's material first. A
   // marked layer is offered engraving recipes only, a cut layer cutting ones.
@@ -144,7 +147,7 @@
             onclick={() => writeFill(fill ? null : defaultFill())}></button>
         </div>
         {#if fill}
-          <FillSettings {fill} apply={fillWith} speed={speed} offset={offset} image={imageLayers(draft.preview).has(name)} />
+          <FillSettings {fill} apply={fillWith} speed={speed} offset={offset} image={pictures.has(name)} />
         {/if}
       {/if}
 

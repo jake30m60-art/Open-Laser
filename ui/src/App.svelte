@@ -20,6 +20,10 @@
   import { partsOf, sourceLabel } from './lib/job-parts';
   import { pending } from './lib/pending.svelte';
   import { setupAlarms } from './lib/setup-alarms';
+  import { holdScrollPositions } from './lib/scroll-hold';
+
+  // A panel whose content shrinks for a moment keeps its place.
+  $effect(() => holdScrollPositions());
 
   const doc = $derived(server.doc);
   const connected = $derived(doc?.machine.connection.state === 'connected');
