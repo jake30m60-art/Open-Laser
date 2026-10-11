@@ -129,7 +129,7 @@
       <div class="recipe-details">
         <div class="recipe-eyebrow"><h3>{tr("Material library")}</h3><span class="tag {recipe.laser}">{laserLabel(recipe.laser)}</span>{#if engraving}<span class="tag">{tr("Engraving")}</span>{/if}</div>
         <h1>{materialLabel(recipe.name)}</h1>
-        <div class="recipe-spec"><strong>{recipe.thickness_mm > 0 ? quantity(recipe.thickness_mm, 'mm') : tr("No thickness set")}</strong><span>{tr("sheet thickness")}</span></div>
+        {#if !engraving}<div class="recipe-spec"><strong>{recipe.thickness_mm > 0 ? quantity(recipe.thickness_mm, 'mm') : tr("No thickness set")}</strong><span>{tr("sheet thickness")}</span></div>{/if}
         <div class="recipe-source"><span title={recipe.file_name ?? tr('Bank {0}', recipe.layer)}>{recipe.file_name ?? tr('Bank {0}', recipe.layer)}</span>{#if recipe.updated}<span>{tr("Edited {0}", ago(recipe.updated))}</span>{/if}</div>
       </div>
     </div>
@@ -142,9 +142,9 @@
     </div>
     <div class="recipe-actions" role="group" aria-label={tr("Recipe actions")}>
       <button class="btn btn-ghost" onclick={rename}>{tr("Rename")}</button>
-      <button class="btn btn-ghost" data-numpad onclick={thickness}>{tr("Thickness")}</button>
+      {#if !engraving}<button class="btn btn-ghost" data-numpad onclick={thickness}>{tr("Thickness")}</button>{/if}
       <button class="btn btn-ghost" onclick={() => (sheet = 'inspector')}>{tr("Imported values")}</button>
-      <button class="btn btn-ghost" onclick={oncopy}><i class="ic ic-copy"></i>{tr("Copy to thickness")}</button>
+      {#if !engraving}<button class="btn btn-ghost" onclick={oncopy}><i class="ic ic-copy"></i>{tr("Copy to thickness")}</button>{/if}
       <button class="btn btn-ghost" onclick={toggleProcess}>{engraving ? tr("Make it a cutting recipe") : tr("Make it an engraving recipe")}</button>
       <button class="btn btn-ghost recipe-delete" onclick={remove}><i class="ic ic-trash"></i>{tr("Delete recipe")}</button>
     </div>

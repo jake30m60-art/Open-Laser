@@ -209,3 +209,54 @@ pub const METALS: &[(&str, &[u8])] = &[
 /// Existing CO2 starter recipe.
 pub const CO2: (&str, &[u8]) =
     ("Basswood-3MM_CO2 CUTTING.xml", include_bytes!("../defaults/Basswood-3MM_CO2 CUTTING.xml"));
+
+/// Starting engraving recipes for a gantry machine, by material: the
+/// material, the file name and its bytes. No thickness: an engraving
+/// works the surface.
+pub const ENGRAVINGS: &[(&str, &str, &[u8])] = &[
+    (
+        "Stainless Steel",
+        "Stainless Steel - Engraving.xml",
+        include_bytes!("../defaults/engraving/Stainless Steel - Engraving.xml"),
+    ),
+    (
+        "Carbon Steel",
+        "Carbon Steel - Engraving.xml",
+        include_bytes!("../defaults/engraving/Carbon Steel - Engraving.xml"),
+    ),
+    (
+        "Galvanized Steel",
+        "Galvanized Steel - Engraving.xml",
+        include_bytes!("../defaults/engraving/Galvanized Steel - Engraving.xml"),
+    ),
+    (
+        "Aluminum",
+        "Aluminum - Engraving.xml",
+        include_bytes!("../defaults/engraving/Aluminum - Engraving.xml"),
+    ),
+    (
+        "Brass",
+        "Brass - Engraving.xml",
+        include_bytes!("../defaults/engraving/Brass - Engraving.xml"),
+    ),
+    (
+        "Plywood",
+        "Plywood - Engraving.xml",
+        include_bytes!("../defaults/engraving/Plywood - Engraving.xml"),
+    ),
+    (
+        "Basswood",
+        "Basswood - Engraving.xml",
+        include_bytes!("../defaults/engraving/Basswood - Engraving.xml"),
+    ),
+    (
+        "Density Board",
+        "Density Board - Engraving.xml",
+        include_bytes!("../defaults/engraving/Density Board - Engraving.xml"),
+    ),
+    (
+        "Acrylic",
+        "Acrylic - Engraving.xml",
+        include_bytes!("../defaults/engraving/Acrylic - Engraving.xml"),
+    ),
+];

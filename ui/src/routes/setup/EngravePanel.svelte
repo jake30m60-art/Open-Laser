@@ -12,7 +12,7 @@
   import { scanOffsets } from '../../stores/scan-offsets.svelte';
   import { explain } from '../../lib/format';
   import { defaultFill, setFill, swatchColor } from '../../lib/drawing-layers';
-  import { fillOf, isEngraving, offsetAt } from '../../lib/engraving';
+  import { fillOf, isEngraving, offsetAt, sameMaterial } from '../../lib/engraving';
   import FillSettings from './FillSettings.svelte';
   import { editPart } from '../../lib/sketch-workflow';
   import { engravingFeatures } from '../../lib/engraving-preview';
@@ -29,15 +29,15 @@
   const marked = $derived(draft.layers.filter((l) => l.mode === 'mark'));
   const cutting = $derived(draft.layers.filter((l) => l.mode !== 'mark'));
   const laser = $derived(draft.recipe?.laser ?? server.doc?.mode ?? 'fiber');
-  const recipes = $derived((server.doc?.library.recipes ?? []).filter((r) => r.laser === laser && isEngraving(r)));
-  /** The engraving recipe last chosen for this laser on this screen, else the first. */
+  // The laser's engraving recipes, the job's material first.
+  const recipes = $derived((server.doc?.library.recipes ?? []).filter((r) => r.laser === laser && isEngraving(r))
+    .sort((a, b) => Number(sameMaterial(b.name, draft.recipe?.name)) - Number(sameMaterial(a.name, draft.recipe?.name))));
+  /** The engraving recipe last chosen for this laser and material on this screen, else the first. */
   const LAST = (l: string) => `ol-last-engraving-${l}`;
   let lastChosen = $state<string | null>(null);
   $effect(() => { try { lastChosen = localStorage.getItem(LAST(laser)); } catch { lastChosen = null; } });
-  const preferred = $derived(recipes.find((r) => r.id === lastChosen) ?? recipes[0] ?? null);
+  const preferred = $derived(recipes.find((r) => r.id === lastChosen && (!draft.recipe || sameMaterial(r.name, draft.recipe.name))) ?? recipes[0] ?? null);
   function remember(recipe: RecipeView): void { lastChosen = recipe.id; try { localStorage.setItem(LAST(recipe.laser), recipe.id); } catch { /* not kept */ } }
-  /** Every other recipe for the laser, offered when there is no engraving recipe. */
-  const others = $derived((server.doc?.library.recipes ?? []).filter((r) => r.laser === laser && !isEngraving(r)));
   const fills = $derived(featureEdits.value(draft).layers ?? []);
   const fillOfLayer = (name: string): Fill | null => fills.find((l) => l.name === name)?.machining?.fill ?? null;
   let busy = $state(false);
@@ -221,9 +221,6 @@
           <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{materialLabel(r.name)} · {tr(r.gas)}</button>
         {:else}
           <p class="muted">{tr("No engraving recipe yet: in Materials, open a recipe and choose Make it an engraving recipe.")}</p>
-          {#each others as r (r.id)}
-            <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{materialLabel(r.name)} · {r.thickness_mm} mm · {tr(r.gas)}</button>
-          {/each}
         {/each}
         <button class="link" onclick={() => (ui.layerSheet = layer.name)}>{tr("All layer settings")}</button>
       </div>

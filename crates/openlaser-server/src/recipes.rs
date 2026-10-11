@@ -123,6 +123,8 @@ fn recipe(
     file_name: Option<&str>,
     tags: Vec<String>,
 ) -> Recipe {
+    let mut attributes = attributes;
+    pressures_in_bar(&mut attributes);
     Recipe {
         id: Id::from(""),
         name,
@@ -140,6 +142,28 @@ fn recipe(
         favourite: false,
         created: 0,
         updated: 0,
+    }
+}
+
+/// Gweike writes air and nitrogen pressures in MPa: a cut at 0.85 is
+/// 8.5 bar. Below 2 such a pressure can only be MPa, so it is turned into
+/// bar; oxygen (gas type 1), which does cut below 1 bar, is left alone.
+fn pressures_in_bar(attributes: &mut Attributes) {
+    let stages = (0..5).map(|i| (format!("DrillGasPressure{i}"), format!("DrillGasType{i}")));
+    for (pressure, gas) in
+        std::iter::once(("CutAirPressure".to_owned(), "CutGasType".to_owned())).chain(stages)
+    {
+        if matches!(attributes.get(&gas).map(|g| g.trim()), None | Some("0" | "1")) {
+            continue;
+        }
+        let Some(value) = attributes.get(&pressure).and_then(|v| v.trim().parse::<f64>().ok())
+        else {
+            continue;
+        };
+        if value > 0. && value < 2. {
+            let bar = (value * 10_000.).round() / 1000.;
+            attributes.insert(pressure, bar.to_string());
+        }
     }
 }
 
@@ -217,6 +241,31 @@ mod tests {
         let imported = from_file("Basswood-3MM_CO2 CUTTING.xml", source).unwrap();
         assert_eq!(imported.gas, "High Air");
         assert_eq!(imported.attributes["CutGasType"], "5");
+    }
+
+    #[test]
+    fn bundled_engravings_read_as_engraving_recipes() {
+        for (material, name, bytes) in crate::defaults::ENGRAVINGS {
+            let recipe = from_file(name, bytes).unwrap();
+            assert_eq!(recipe.attributes["OpenLaserProcess"], "engrave", "{material}");
+            assert!(recipe.thickness_mm.abs() < f64::EPSILON, "{material}");
+            assert_eq!(recipe.attributes["OpenLaserFillOverscan"], "5", "{material}");
+        }
+    }
+
+    #[test]
+    fn gweike_mpa_pressures_import_in_bar_and_oxygen_stays() {
+        let nitrogen = br#"<ParameterRoot><PLayerParam1><GP CutGasType="5" CutAirPressure="0.84999999999999998" DrillGasType0="5" DrillGasPressure0="0.8" DrillGasType1="5" DrillGasPressure1="5" DrillGasType2="0" DrillGasPressure2="0.5" /></PLayerParam1></ParameterRoot>"#;
+        let n = from_file("SS1.0mm 1.5S F-2 N2.xml", nitrogen).unwrap().attributes;
+        assert_eq!(n["CutAirPressure"], "8.5");
+        assert_eq!(n["DrillGasPressure0"], "8");
+        assert_eq!(n["DrillGasPressure1"], "5");
+        assert_eq!(n["DrillGasPressure2"], "0.5");
+        let oxygen = br#"<ParameterRoot><PLayerParam1><GP CutGasType="1" CutAirPressure="0.4" /></PLayerParam1></ParameterRoot>"#;
+        assert_eq!(
+            from_file("Carbon 3.0mm 1.2D O2.xml", oxygen).unwrap().attributes["CutAirPressure"],
+            "0.4"
+        );
     }
 
     #[test]

@@ -21,9 +21,14 @@ async fn follow_lowers_the_head_and_raise_takes_it_up() {
     let control = simulator.control();
     control.clear_writes();
     machine::follow(&shared).await.unwrap();
-    let without_recipe = control.writes().into_iter().find(|w| w.words.first() == Some(&104)).unwrap();
+    let without_recipe =
+        control.writes().into_iter().find(|w| w.words.first() == Some(&104)).unwrap();
     machine::raise_head(&shared).await.unwrap();
-    until(&shared, 10, |d| d.machine.operation.is_none() && d.machine.feedback.as_ref().is_some_and(|f| f.head.command != 104)).await;
+    until(&shared, 10, |d| {
+        d.machine.operation.is_none()
+            && d.machine.feedback.as_ref().is_some_and(|f| f.head.command != 104)
+    })
+    .await;
     {
         let mut c = shared.lock().await;
         let part = c

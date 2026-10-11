@@ -100,7 +100,7 @@
         {#each m.recipes.filter((r) => r.gas === gas) as r (r.id)}
           <button
             class="rec" class:on={r.id === selected?.id} aria-pressed={r.id === selected?.id} onclick={() => onselect(r)}
-          ><strong>{r.thickness_mm > 0 ? quantity(r.thickness_mm, 'mm') : tr("No thickness")}</strong><MaterialSummary source={r} variant="line" /></button>
+          >{#if !engraving}<strong>{r.thickness_mm > 0 ? quantity(r.thickness_mm, 'mm') : tr("No thickness")}</strong>{/if}<MaterialSummary source={r} variant="line" /></button>
         {/each}
       {/each}
     {/if}

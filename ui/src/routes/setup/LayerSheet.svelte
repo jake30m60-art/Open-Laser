@@ -15,7 +15,7 @@
   import { explain, plural, recipeLabel } from '../../lib/format';
   import { quantity } from '../../lib/units.svelte';
   import { materialsOf } from '../../lib/materials';
-  import { fillOf, isEngraving, offsetAt } from '../../lib/engraving';
+  import { fillOf, isEngraving, offsetAt, sameMaterial } from '../../lib/engraving';
   import { defaultFill, hasOwn, PALETTE, setFill, swatchColor } from '../../lib/drawing-layers';
   import Stepper from '../../components/params/Stepper.svelte';
   import Toggle from '../../components/params/Toggle.svelte';
@@ -33,17 +33,17 @@
   // Gone, as Undo can make it; a rename in flight has it briefly missing.
   $effect(() => { if (!layer && !busy) onclose(); });
   const own = $derived(hasOwn(featureEdits.value(draft), name));
-  // The job's laser's recipes, by material; the job's material first.
-  // Engraving recipes come first for a marked layer, cutting ones first otherwise.
+  // The job's laser's recipes, by material; the job's material first. A
+  // marked layer is offered engraving recipes only, a cut layer cutting ones.
   const library = $derived.by(() => {
     const job = draft.recipe;
     const all = (server.doc?.library.recipes ?? []).filter((r) => !job || r.laser === job.laser);
-    const sorted = (list: typeof all) => materialsOf(list).sort((a, b) => Number(b.name === job?.name) - Number(a.name === job?.name) || a.name.localeCompare(b.name));
+    const sorted = (list: typeof all) => materialsOf(list).sort((a, b) => Number(sameMaterial(b.name, job?.name)) - Number(sameMaterial(a.name, job?.name)) || a.name.localeCompare(b.name));
     return { engraving: sorted(all.filter(isEngraving)), cutting: sorted(all.filter((r) => !isEngraving(r))) };
   });
   const groups = $derived(layer?.mode === 'mark'
-    ? [[tr("Engraving"), library.engraving], [tr("Cutting"), library.cutting]] as const
-    : [[tr("Cutting"), library.cutting], [tr("Engraving"), library.engraving]] as const);
+    ? [[tr("Engraving"), library.engraving]] as const
+    : [[tr("Cutting"), library.cutting]] as const);
   let coloring = $state(false);
   let busy = $state(false);
 

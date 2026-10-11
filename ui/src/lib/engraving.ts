@@ -10,6 +10,13 @@ export const PROCESS = 'OpenLaserProcess';
 
 type Attributes = Readonly<Record<string, string | undefined>>;
 
+/** Whether two recipe names are the same material, whatever the source
+ *  appends in brackets: "Stainless Steel (Gweike)" is stainless steel. */
+export function sameMaterial(a: string, b: string | undefined): boolean {
+  const base = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+  return b !== undefined && base(a) === base(b);
+}
+
 export const isEngraving = (recipe: { attributes: Attributes }): boolean => recipe.attributes[PROCESS] === 'engrave';
 
 /** The fill an engraving recipe brings, over the default fill. */

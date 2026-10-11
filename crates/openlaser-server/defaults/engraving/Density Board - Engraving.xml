@@ -1,0 +1,5 @@
+<ParameterRoot>
+<PCO2LayerParam7>
+<GP AdvFixHeightCutPos="0" CutAirPressure="5" CutDuty="25" CutFreq="5000" CutGasType="3" CutSpeed="200" FreqAdjustWithSpeed="0" FreqCurveNodes="0,100,100,100" FreqCurveSmoothType="0" LaserOffAfterDelay="0" LaserOnDelay="0" LayerFileName="Density Board engraving" NoCloseGasInManu="0" Note="Startwert für Portalmaschine (kein Galvo), ungetestet: an einem Probestück prüfen und anpassen. Überlauf 5 mm, damit die Achsen außerhalb der Gravur bremsen." OpenLaserFillAngle="0" OpenLaserFillBidirectional="1" OpenLaserFillOutline="1" OpenLaserFillOverscan="5" OpenLaserFillPassAngle="0" OpenLaserFillPassShift="0" OpenLaserFillPasses="1" OpenLaserFillSpacing="0.1" OpenLaserProcess="engrave" PWMCurveNodes="0,75,27,89,57,97,100,100" PowerAdjustWithSpeed="1" PowerCurveSmoothType="2" RecentFile="" ShortDistGasKeepOn="0" SlowStart="0" SlowStartLength="1" SlowStartSpeed="10"/>
+</PCO2LayerParam7>
+</ParameterRoot>

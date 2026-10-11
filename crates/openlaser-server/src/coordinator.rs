@@ -1285,6 +1285,7 @@ impl Coordinator {
                 tracing::warn!(%error, "the defaults marker was not written");
             }
         }
+        self.seed_engravings();
         let metals = self.config.data_dir.join("metal-library-2026-07-21-seeded");
         if metals.exists() {
             return;
@@ -1298,6 +1299,30 @@ impl Coordinator {
         }
         if complete && let Err(error) = std::fs::write(&metals, b"") {
             tracing::warn!(%error, "the metal library marker was not written");
+        }
+    }
+
+    /// Adds the bundled engraving recipes once, without a thickness.
+    fn seed_engravings(&mut self) {
+        let marker = self.config.data_dir.join("engraving-library-2026-10-11-seeded");
+        if marker.exists() {
+            return;
+        }
+        let mut complete = true;
+        for (material, name, bytes) in crate::defaults::ENGRAVINGS {
+            let import = RecipeImport {
+                name: (*name).to_owned(),
+                material: Some((*material).to_owned()),
+                thickness_mm: Some(0.),
+                ..RecipeImport::default()
+            };
+            if let Err(error) = self.import_recipe_as(&import, bytes) {
+                complete = false;
+                tracing::warn!(%name, %error, "a bundled engraving recipe was not imported");
+            }
+        }
+        if complete && let Err(error) = std::fs::write(&marker, b"") {
+            tracing::warn!(%error, "the engraving library marker was not written");
         }
     }
 
