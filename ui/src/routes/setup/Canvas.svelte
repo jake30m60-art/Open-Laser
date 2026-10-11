@@ -26,6 +26,8 @@
   import { t } from '../../i18n/index';
   import { arrowAlong } from '../../lib/direction';
   import { hatchStride, thinFill } from '../../lib/engraving';
+  import { cellGrid, shadedPicture } from '../../lib/image-shading';
+  import { defaultImage } from '../../lib/images';
   import { copiedMachining, pasteBatch, pasteable, type CopiedShapes, type PasteSettings } from '../../lib/copy-paste';
   import { server } from '../../stores/server.svelte';
   import { ui } from '../../stores/ui.svelte';
@@ -41,7 +43,7 @@
   import {
     drawingPath, contourPath, editableContours, fillAreas, pickArea, groupPath, boundsOfShapes, nearestShape, marqueeContours, marqueeGroups, pickLine, unionBounds, axisAlignedBounds, transformedBounds, BoundsIndex, inverseBounds,
   } from '../../lib/viewer-geometry';
-  import type { Features, PreviewContour, Spot, Transform } from '../../api';
+  import type { Features, Fill, PreviewContour, RasterView, Spot, Transform } from '../../api';
 
   let { simulationProgress = 0, simulationMode = 'all', engraveMode = 'area', engravingAreas = $bindable([]), selectedContours = $bindable([]), clipboard = $bindable(null), pasting = $bindable(false), pasteSettings }: {
     simulationProgress?: number; simulationMode?: 'all' | 'cut' | 'mark'; engraveMode?: 'area' | 'contour'; engravingAreas?: Array<{ contour: number; holes: number[] }>; selectedContours?: number[]; clipboard?: CopiedShapes | null; pasting?: boolean; pasteSettings: PasteSettings;
@@ -59,6 +61,24 @@
   /** Each layer's colour; none draws in the screen's cut colour. */
   const colors = $derived(new Map(layers.map((l) => [l.name, layerColor(layers, l.name)])));
   /** Marked layers with a scan fill, by name: their line spacing. */
+  /** Each marked layer's fill: a picture on it is shown as it engraves. */
+  const fills = $derived(new Map((displayFeatures?.layers ?? []).flatMap((l) => (l.mode === 'mark' && l.machining?.fill ? [[l.name, l.machining.fill] as const] : []))));
+  /** Shows a picture as its fill engraves it: each cell as dark as its
+   *  power. Without a fill on its layer, the picture as it is. */
+  function engraved(node: SVGImageElement, args: { raster: RasterView; fill: Fill | undefined }) {
+    let current = 0;
+    const show = ({ raster, fill }: { raster: RasterView; fill: Fill | undefined }) => {
+      const url = api.partImageUrl(raster.part);
+      const token = ++current;
+      if (!fill) { node.setAttribute('href', url); return; }
+      const grid = cellGrid(Math.hypot(...raster.across), Math.hypot(...raster.down), fill.spacing);
+      shadedPicture(url, fill.image ?? defaultImage(), grid)
+        .then((data) => { if (token === current) node.setAttribute('href', data); })
+        .catch(() => { if (token === current) node.setAttribute('href', url); });
+    };
+    show(args);
+    return { update: show, destroy: () => { current++; } };
+  }
   const filled = $derived(new Map((displayFeatures?.layers ?? []).flatMap((l) => (l.mode === 'mark' && l.machining?.fill ? [[l.name, l.machining.fill.spacing] as const] : []))));
   /** How many fill lines to step over so drawn lines stay apart on screen, by layer. */
   const strides = $derived(new Map([...filled].map(([name, spacing]) => [name, hatchStride(spacing, view.shownMmPerPixel)])));
@@ -877,7 +897,7 @@
       {#each preview.rasters ?? [] as raster (raster.contour)}
         {@const layer = [...preview.contours,...(preview.source_contours ?? [])].find((c) => c.sources.includes(raster.contour))?.layer}
         {#if !layer || !hidden(layer)}
-          <image class="raster" href={api.partImageUrl(raster.part)} x="0" y="0" width="1" height="1" preserveAspectRatio="none"
+          <image class="raster" href={api.partImageUrl(raster.part)} use:engraved={{ raster, fill: layer ? fills.get(layer) : undefined }} x="0" y="0" width="1" height="1" preserveAspectRatio="none"
             transform="matrix({raster.across[0]} {raster.across[1]} {raster.down[0]} {raster.down[1]} {raster.origin[0]} {raster.origin[1]})" />
         {/if}
       {/each}

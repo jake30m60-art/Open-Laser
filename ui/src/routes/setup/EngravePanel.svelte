@@ -166,7 +166,7 @@
   <button class="btn btn-primary block" disabled={busy || previewBusy || refusedPreview || !ui.engravingPreview || (!selectedContours.length && !draft.layers.some(l => l.name === NAME && l.mode === 'mark'))} onclick={engraveSelection}>
     {tr("Done")} · {NAME}
   </button>
-  {#if pickMode === 'area'}<FillSettings fill={areaFill} apply={c => (pendingFill = { ...areaFill, ...c })} speed={speedOf(draft.layers.find(l => l.name === NAME) ?? draft.layers[0]!)} />{/if}
+  {#if pickMode === 'area' && !pictures.has(NAME)}<FillSettings fill={areaFill} apply={c => (pendingFill = { ...areaFill, ...c })} speed={speedOf(draft.layers.find(l => l.name === NAME) ?? draft.layers[0]!)} />{/if}
   <h3>{tr("Layer visibility")}</h3>
   <div class="stack">
     {#each [...new Set([...draft.layers.map(l => l.name), ...(selectedContours.length ? [NAME] : [])])] as name}
@@ -198,7 +198,7 @@
   {#if !draft.recipe}
     <p class="warn-box">{tr("No job recipe selected. Layers with their own recipe can still engrave; choose a recipe for the other layers before running.")}</p>
   {/if}
-  {#each marked.filter(l=>l.name===NAME) as layer (layer.name)}
+  {#each marked.filter(l => l.name === NAME || pictures.has(l.name)) as layer (layer.name)}
     {@const fill = fillOfLayer(layer.name)}
     {@const closed = closedOn(layer.name)}
     {@const hidden = ui.drawingLayerHidden(layer.name)}
@@ -228,7 +228,7 @@
       {#if fill && draft.recipe && !draft.error && closed === 0}
         <p class="warn-box">{tr("No closed shape on this layer: a fill engraves inside closed outlines only. Close the outlines in the sketch, or the lines are traced as they are.")}</p>
       {/if}
-      {#if fill && layer.name !== NAME}
+      {#if fill && (layer.name !== NAME || pictures.has(layer.name))}
         <FillSettings {fill} apply={(c) => writeFill(layer.name, { ...fill, ...c })} speed={speedOf(layer)} offset={offsetOf(layer, fill)} image={pictures.has(layer.name)} />
 
       {/if}
