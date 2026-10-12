@@ -55,6 +55,10 @@ pub struct Program {
     pub co2_pwm_type: u8,
     /// The expected duration, for the watchdog.
     pub expected_seconds: f64,
+    /// Whether the program never fires the laser, as a frame: then it runs
+    /// as a manual operation, and running-only inputs such as the door
+    /// stay unarmed, as Mlaser frames with the door open.
+    pub laser_off: bool,
 }
 
 impl Program {
@@ -433,6 +437,9 @@ impl Operation for Run {
     }
 
     fn operation_state(&self) -> u32 {
+        if self.program.laser_off {
+            return 4;
+        }
         match self.phase {
             Phase::Done(Ending::Held) => 3,
             _ => 2,
@@ -465,6 +472,7 @@ mod tests {
             mode: LaserMode::Fiber,
             co2_pwm_type: 0,
             expected_seconds: 1.,
+            laser_off: false,
         }
     }
 

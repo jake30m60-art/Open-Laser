@@ -6,7 +6,9 @@ mod common;
 
 use common::{config, fixture, scratch, seed, until};
 use openlaser_controller::Simulator;
+use openlaser_core::LaserMode;
 use openlaser_server::bindings::Files;
+use openlaser_server::coordinator::{NewRecipe, Values};
 use openlaser_server::{Coordinator, connect, machine};
 
 #[tokio::test]
@@ -29,6 +31,31 @@ async fn an_open_door_stops_only_the_laser() {
     machine::follow(&shared).await.unwrap();
     machine::raise_head(&shared).await.unwrap();
     until(&shared, 10, |d| d.machine.operation.is_none()).await;
+
+    // A frame of a prepared job runs with the door open; it never fires.
+    {
+        let bytes = std::fs::read(fixture("dxf/plate-with-holes.dxf")).unwrap();
+        let mut c = shared.lock().await;
+        let part = c.import_part("plate.dxf", &bytes).unwrap();
+        let recipe = c
+            .add_recipe(&NewRecipe {
+                name: "Steel".into(),
+                laser: LaserMode::Fiber,
+                thickness_mm: 2.,
+                values: Values::Bank(1),
+                gas: None,
+            })
+            .unwrap();
+        c.open_part(&part.id).unwrap();
+        c.set_recipe(&recipe.id).unwrap();
+    }
+    machine::prepare(&shared).await.unwrap();
+    shared.lock().await.set_origin([100., 100.]).unwrap();
+    common::calibrate(&shared).await;
+    machine::compile(&shared, false).await.unwrap();
+    machine::frame(&shared).await.unwrap();
+    until(&shared, 20, |d| d.message.as_ref().is_some_and(|m| m.text == "Frame finished")).await;
+    assert!(shared.lock().await.document().machine.alarms.is_empty());
 
     let error = machine::pulse(&shared, 100, 10).await.unwrap_err().to_string();
     assert!(error.contains("door"), "{error}");

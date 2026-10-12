@@ -1416,6 +1416,7 @@ impl Execution {
             mode: self.configuration.mode,
             co2_pwm_type: self.co2_pwm_type,
             expected_seconds: program.seconds,
+            laser_off: false,
         })
     }
 }
@@ -1609,7 +1610,9 @@ pub async fn frame(shared: &Shared) -> Result<()> {
             .map_err(|_| Error::Refused("invalid height-controller scale".into()))?;
         let bounds = crate::envelope::process_bounds(&compiled.job, scale)?;
         let program = openlaser_compiler::frame::program(bounds, binding.current(), &settings)?;
-        let upload = binding.program(&program, settings.counts_per_mm)?;
+        // A frame never fires the laser: it runs with the door open, as in Mlaser.
+        let upload =
+            Program { laser_off: true, ..binding.program(&program, settings.counts_per_mm)? };
         let execution = Arc::new(crate::document::ExecutionView {
             id: owner,
             frame: true,

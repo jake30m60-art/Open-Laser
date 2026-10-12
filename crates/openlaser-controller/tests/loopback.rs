@@ -198,6 +198,7 @@ fn program(machine: &Machine, steps: usize, expected_seconds: f64) -> Program {
         mode: LaserMode::Fiber,
         co2_pwm_type: 0,
         expected_seconds,
+        laser_off: false,
     }
 }
 
