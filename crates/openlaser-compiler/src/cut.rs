@@ -721,6 +721,7 @@ pub(crate) mod tests {
             z_up_speed: 50.,
             z_follow_speed: 50.,
             fixed_height: false,
+            hold_height: false,
             absolute_cut_height: None,
             no_follow: false,
             pierce: Vec::new(),

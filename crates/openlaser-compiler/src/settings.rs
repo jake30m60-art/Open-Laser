@@ -295,6 +295,10 @@ pub struct Settings {
     pub z_follow_speed: f64,
     /// Whether the head cuts at a fixed height.
     pub fixed_height: bool,
+    /// Whether the head measures once, at the first contour, and then stays
+    /// at its fixed height over every later contour of such settings, with
+    /// no lift between them: how an engraving runs.
+    pub hold_height: bool,
     /// An absolute cutting height, for the vendor's fixed-position mode.
     pub absolute_cut_height: Option<f64>,
     /// Whether the head does not follow at all.

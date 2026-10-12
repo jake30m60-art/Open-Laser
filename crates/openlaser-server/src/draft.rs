@@ -1766,6 +1766,12 @@ pub fn settings(bundle: &Bundle, recipe: &Recipe, binder: Binder) -> Result<Sett
     (settings.acceleration, settings.acceleration_time) =
         engraving_motion(recipe, settings.acceleration, settings.acceleration_time);
     if is_engraving(recipe) {
+        // An engraving measures the height once, at its first contour, and
+        // flies every field and line at that fixed height, never lifting.
+        settings.fixed_height = true;
+        settings.hold_height = true;
+        settings.no_follow = false;
+        settings.absolute_cut_height = None;
         // Between the fields and objects of an engraving the head travels
         // often and short: gently, as the lines themselves.
         settings.travel_acceleration =

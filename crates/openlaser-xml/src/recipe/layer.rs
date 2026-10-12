@@ -77,6 +77,7 @@ pub(super) fn read(
         z_up_speed: layer.head_speed(head_off, "ZFUpSpeed")?,
         z_follow_speed: layer.head_speed(head_off, "ZFFollowSpeed")?,
         fixed_height: kind == 1,
+        hold_height: false,
         absolute_cut_height: if uses_z && kind == 5 {
             Some(a.range("AdvFixHeightCutPos", 0., 1000.)?)
         } else {

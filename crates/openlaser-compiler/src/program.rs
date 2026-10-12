@@ -641,6 +641,8 @@ struct Outputs {
     gas_on: bool,
     last_peak: Option<f64>,
     following: bool,
+    /// The head was measured and stands at the fixed height it holds.
+    height_held: bool,
 }
 
 impl Outputs {
@@ -773,10 +775,16 @@ impl Build<'_> {
                 && p.pass.batch == c.pass.batch
                 && p.settings.pre_pierce.is_some_and(|pre| pre.keep_down)
         });
-        let transition = if self.z {
-            head_transition(previous, c, self.state.following, self.current, self.z_scale)?
-        } else {
+        let holds = self.state.height_held
+            && s.hold_height
+            && previous.is_some_and(|p| p.settings.hold_height);
+        let transition = if !self.z {
             Transition::Retract
+        } else if holds {
+            // Measured once: the head stays where it stands.
+            Transition::KeepHeight
+        } else {
+            head_transition(previous, c, self.state.following, self.current, self.z_scale)?
         };
         let protection =
             self.hardware.and_then(|h| h.crash_height.map(|height| (h.crash_resume_value, height)));
@@ -798,6 +806,7 @@ impl Build<'_> {
             Transition::Jump { command, extra_travel_seconds, .. } => {
                 self.program.commands(Kind::FrogJump, Some(index), vec![command])?;
                 self.state.following = false;
+                self.state.height_held = false;
                 extra_travel_seconds
             }
             Transition::KeepHeight => {
@@ -806,6 +815,7 @@ impl Build<'_> {
             }
             Transition::Retract => {
                 self.state.following = false;
+                self.state.height_held = false;
                 0.
             }
         })
@@ -1342,6 +1352,7 @@ impl CutStart<'_> {
             cmds.push(Record::CrashProtect { value: 0, height });
         }
         self.follow(&mut cmds, outputs)?;
+        outputs.height_held = s.hold_height && self.z;
         outputs.following =
             self.z && (s.absolute_cut_height.is_some() || (!s.no_follow && !s.fixed_height));
         for port in [h.gate, h.laser].into_iter().flatten() {
@@ -1358,7 +1369,7 @@ impl CutStart<'_> {
     /// the head is already following; a fixed height follows then lifts.
     fn follow(&self, cmds: &mut Vec<Record>, outputs: &Outputs) -> Result<()> {
         let s = self.settings;
-        if !self.z {
+        if !self.z || (s.hold_height && outputs.height_held) {
             return Ok(());
         }
         if let Some(height) = s.absolute_cut_height {
@@ -2071,6 +2082,41 @@ mod tests {
         assert_eq!(layered.passes[1], plain.passes[1]);
         assert_eq!(layered.settings, s);
         assert!(Job::schedule_layered(&s, &contours, None, &[&s]).is_err());
+    }
+
+    /// An engraving measures once: the first contour follows and lifts to
+    /// its fixed height, every later one runs there with no follow and no
+    /// lift in between; only the program's end retracts.
+    #[test]
+    fn a_held_height_measures_once_and_never_lifts_between_contours() {
+        let mut s = piercing();
+        s.pierce.clear();
+        s.fixed_height = true;
+        s.hold_height = true;
+        let contours = [
+            line([10., 10.], [20., 10.]),
+            line([30., 10.], [40., 10.]),
+            line([60., 10.], [70., 10.]),
+        ];
+        let program =
+            Job::schedule_prepared(&s, &contours, None).unwrap().program(bound()).unwrap();
+        let follows = program.records.iter().filter(|r| matches!(r, Record::Follow { .. })).count();
+        assert_eq!(follows, 1, "one measurement for the whole engraving");
+        let lifts: Vec<usize> = program
+            .records
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| matches!(r, Record::Lift { .. } | Record::FrogJump { .. }))
+            .map(|(i, _)| i)
+            .collect();
+        // The fixed-height lift after the measurement, and the final retract.
+        assert_eq!(lifts.len(), 2, "{lifts:?}");
+        let mut plain = s.clone();
+        plain.hold_height = false;
+        let program =
+            Job::schedule_prepared(&plain, &contours, None).unwrap().program(bound()).unwrap();
+        let follows = program.records.iter().filter(|r| matches!(r, Record::Follow { .. })).count();
+        assert_eq!(follows, 3, "a fixed height without holding measures every contour");
     }
 
     /// Padding samples and PWM records have distinct counts. The complete
