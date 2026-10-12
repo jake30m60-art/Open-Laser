@@ -312,12 +312,7 @@ impl Pendant {
                     Mode::Fast => Mode::Step,
                     Mode::Step => Mode::Slow,
                 };
-                let text = match self.mode {
-                    Mode::Slow => "Pendant Slow: X, Y and Z move while held",
-                    Mode::Fast => "Pendant Fast: X, Y and Z move fast while held",
-                    Mode::Step => "Pendant Step: X and Y move 1 mm per press",
-                };
-                shared.lock().await.note(text, false);
+                // The top bar and the jog speed button show the new mode.
             }
             (Key::Fn, _) => {}
         }

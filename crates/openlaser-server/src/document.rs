@@ -146,6 +146,7 @@ impl Serialize for Patch<'_> {
         map.serialize_entry("hold", &d.hold)?;
         map.serialize_entry("sheet_sizes", &d.sheet_sizes)?;
         map.serialize_entry("gas", &d.gas)?;
+        map.serialize_entry("pendant", &d.pendant)?;
         map.serialize_entry("machine", &d.machine)?;
         map.serialize_entry("calibration", &d.calibration)?;
         map.serialize_entry("mode", &d.mode)?;

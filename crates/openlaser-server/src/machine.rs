@@ -352,9 +352,17 @@ fn spawn<T: Send + 'static>(
     let shared = Arc::clone(shared);
     tokio::spawn(async move {
         let outcome = operation.await;
+        // Jogs and held outputs end every time a key is let go: saying so
+        // would cover the screen with notes. Only their failures are shown.
+        if outcome.is_ok() && QUIET.contains(&label) {
+            return;
+        }
         shared.lock().await.outcome(label, outcome);
     });
 }
+
+/// Operations whose success is no news: the move or output simply stops.
+const QUIET: [&str; 3] = ["Jog", "Table jog", "Output"];
 
 use std::sync::Arc;
 
