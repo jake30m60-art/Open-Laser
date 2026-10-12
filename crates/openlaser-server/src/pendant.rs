@@ -98,6 +98,8 @@ pub enum Event {
     Released,
     /// The receiver is gone or stopped answering.
     Lost,
+    /// The receiver was found.
+    Found,
 }
 
 /// Reads one report. Reports of another kind, or naming no key, say nothing.
@@ -137,6 +139,21 @@ enum Mode {
     Step,
 }
 
+/// What the screen shows of the pendant: whether its receiver is in, how
+/// the arrows move, and the key held down.
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct PendantView {
+    /// Whether the receiver is plugged in and answering.
+    pub connected: bool,
+    /// How the arrows move: `slow`, `fast` or `step`.
+    pub mode: String,
+    /// The key held down, by its label, while it is down.
+    pub key: Option<String>,
+    /// Whether Fn+ is held with it.
+    pub with_fn: bool,
+}
+
 /// The pendant's own state between reports.
 struct Pendant {
     mode: Mode,
@@ -167,8 +184,39 @@ pub fn spawn(shared: Shared) {
 }
 
 impl Pendant {
+    /// Shows the pendant's state on every screen.
+    async fn show(&self, shared: &Shared, connected: bool) {
+        let key = match self.down {
+            Some((Event::Press { key, with_fn }, _)) => Some((format!("{key:?}"), with_fn)),
+            _ => None,
+        };
+        let view = PendantView {
+            connected,
+            mode: match self.mode {
+                Mode::Slow => "slow",
+                Mode::Fast => "fast",
+                Mode::Step => "step",
+            }
+            .into(),
+            with_fn: key.as_ref().is_some_and(|(_, f)| *f),
+            key: key.map(|(k, _)| k),
+        };
+        let mut c = shared.lock().await;
+        if c.pendant.as_ref() != Some(&view) {
+            c.pendant = Some(view);
+            c.publish();
+        }
+    }
+
     async fn event(&mut self, shared: &Shared, event: Event) {
+        let connected = !matches!(event, Event::Lost);
+        self.event_inner(shared, event).await;
+        self.show(shared, connected).await;
+    }
+
+    async fn event_inner(&mut self, shared: &Shared, event: Event) {
         match event {
+            Event::Found => {}
             Event::Released | Event::Lost => {
                 self.down = None;
                 self.release(shared).await;
@@ -328,6 +376,7 @@ impl Pendant {
             self.down = None;
             self.release(shared).await;
             shared.lock().await.note("Pendant out of reach: the move stopped.", true);
+            self.show(shared, true).await;
         } else if machine::heartbeat(shared, lease.clone()).is_err() {
             self.held = None;
         }
@@ -359,6 +408,9 @@ fn read(events: &mpsc::Sender<Event>) {
             continue;
         };
         tracing::info!(%path, "pendant receiver found");
+        if events.blocking_send(Event::Found).is_err() {
+            return;
+        }
         let mut report = [0u8; 16];
         let mut first = true;
         let mut unknown = 0u32;

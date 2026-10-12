@@ -36,6 +36,8 @@ pub struct Document {
     pub gas: Arc<crate::gas::GasView>,
     /// Changes with every publication.
     pub revision: u64,
+    /// The pendant, once its receiver has been seen.
+    pub pendant: Option<crate::pendant::PendantView>,
     /// The controller task's state.
     pub machine: openlaser_controller::State,
     /// Whether head calibration applies to the current material.

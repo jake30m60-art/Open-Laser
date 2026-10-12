@@ -21,6 +21,7 @@
   import { pending } from './lib/pending.svelte';
   import { setupAlarms } from './lib/setup-alarms';
   import { holdScrollPositions } from './lib/scroll-hold';
+  import PendantChip from './components/PendantChip.svelte';
 
   // A panel whose content shrinks for a moment keeps its place.
   $effect(() => holdScrollPositions());
@@ -78,6 +79,7 @@
       <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === 'materials'} onclick={() => togglePage('materials')} title={t("Material library")}><i class="ic ic-layers"></i><span>{t("Materials")}</span></button>
       <button class="btn btn-ghost icon-btn page-btn" class:active={ui.tab === SETTINGS.id} onclick={() => togglePage(SETTINGS.id)} title={t(SETTINGS.label)}><i class="ic ic-gear"></i><span>{t(SETTINGS.label)}</span></button>
       <button class="btn btn-ghost icon-btn alarm" onclick={() => (ui.modal = 'alarms')} title={t("Alarms")}><i class="ic ic-bell"></i><span>{t("Alarms")}</span>{#if alarms > 0}<span class="badge">{alarms}</span>{/if}</button>
+      {#if doc?.pendant}<PendantChip pendant={doc.pendant} />{/if}
       <button class="btn btn-primary connect" class:connected class:busy onclick={connect} disabled={!server.link} title={link?.detail ?? ''}><span class="dot"></span><span>{t(label)}</span>{#if busy}<span class="cancel">{t("Cancel")}</span>{/if}</button>
     </div>
   </header>

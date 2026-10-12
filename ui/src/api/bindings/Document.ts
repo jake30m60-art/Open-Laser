@@ -11,6 +11,7 @@ import type { LaserMode } from "./LaserMode";
 import type { LibraryView } from "./LibraryView";
 import type { LinkView } from "./LinkView";
 import type { Message } from "./Message";
+import type { PendantView } from "./PendantView";
 import type { PostflightNotice } from "./PostflightNotice";
 import type { ProgressView } from "./ProgressView";
 import type { Readiness } from "./Readiness";
@@ -67,6 +68,10 @@ gas: GasView,
  * Changes with every publication.
  */
 revision: number,
+/**
+ * The pendant, once its receiver has been seen.
+ */
+pendant: PendantView | null,
 /**
  * The controller task's state.
  */

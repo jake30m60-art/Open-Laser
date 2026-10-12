@@ -137,6 +137,7 @@ export type { PassView } from './bindings/PassView';
 export type { Path } from './bindings/Path';
 export type { PathKind } from './bindings/PathKind';
 export type { PauseDefaults } from './bindings/PauseDefaults';
+export type { PendantView } from './bindings/PendantView';
 export type { PendingDraft } from './bindings/PendingDraft';
 export type { Percent } from './bindings/Percent';
 export type { Pick } from './bindings/Pick';

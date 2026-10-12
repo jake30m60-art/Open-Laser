@@ -107,6 +107,8 @@ pub struct Coordinator {
     pub(crate) postflight: Option<crate::postflight::Pending>,
     /// Preserved host process overrides.
     pub soft: crate::soft_settings::SoftSettings,
+    /// The pendant's state for the screen, once its receiver was seen.
+    pub pendant: Option<crate::pendant::PendantView>,
     /// How long every screen's held controls must be held.
     pub hold: crate::touch::HoldTimes,
     /// Sheet sizes saved for the stock chooser, the same on every screen.
@@ -302,6 +304,7 @@ impl Coordinator {
             preflight,
             postflight: None,
             soft,
+            pendant: None,
             hold: crate::touch::HoldTimes::open(&config.data_dir),
             sheet_sizes: crate::sheet_sizes::open(&config.data_dir),
             inventory: crate::inventory::open(&config.data_dir),
@@ -477,6 +480,7 @@ impl Coordinator {
             preflight_revision: self.preflight.revision,
             alarm_history: self.history.status(),
             soft: self.soft.view(),
+            pendant: self.pendant.clone(),
             hold: self.hold,
             sheet_sizes: self.sheet_sizes.clone(),
             gas: self.gas.view(self.revisions.draft, self.draft_view.as_deref()),
