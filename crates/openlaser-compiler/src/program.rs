@@ -2130,7 +2130,7 @@ mod tests {
         let cut_from =
             program.sections.iter().find(|sec| sec.kind == Kind::CutStart).unwrap().records.end;
         assert!(
-            !program.records[cut_from..last].iter().any(|r| *r == Record::Barrier),
+            !program.records[cut_from..last].contains(&Record::Barrier),
             "a barrier inside the engraving line"
         );
         assert_eq!(program.records[last + 1], Record::Barrier, "the contour still ends with one");
