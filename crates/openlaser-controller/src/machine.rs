@@ -932,6 +932,12 @@ impl Task {
             Travel::Table(limits) => {
                 Motion::table(request, &verified, bindings.head_enabled, limits, requested)
             }
+            // Paused, the head waits at its safe height: a jog takes it up
+            // to its upper reference first, so the head can be moved.
+            Travel::Jog if self.program.as_ref().is_some_and(|p| p.state == ProgramState::Held) => {
+                Motion::new(request, &verified, bindings.head_enabled, requested)
+                    .map(|motion| motion.retracting_first(bindings))
+            }
             Travel::Jog => Motion::new(request, &verified, bindings.head_enabled, requested),
             Travel::Position => Motion::positioning(request, &verified, bindings, requested),
         }

@@ -153,6 +153,15 @@ impl Motion {
         Ok(motion)
     }
 
+    /// The same move, first sending a lowered head up to its upper
+    /// reference: a jog while a job is paused, its head at the pause's
+    /// safe height.
+    #[must_use]
+    pub fn retracting_first(mut self, bindings: &Bindings) -> Self {
+        self.retraction = bindings.head_enabled.then(|| Home::new(bindings, true));
+        self
+    }
+
     /// The configured lifting table uses axis record 4, independently of Z.
     pub fn table(
         request: Request,

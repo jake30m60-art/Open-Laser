@@ -80,6 +80,51 @@ async fn recovery_selection_works_and_a_stop_ends_the_job() {
 }
 
 #[tokio::test]
+async fn a_paused_job_lets_the_head_be_jogged_and_resumes() {
+    let (simulator, shared) = start("pause-jog").await;
+    let control = simulator.control();
+    control.time_scale(2.);
+    set_up(&shared).await;
+    connect::connect(&shared).await.unwrap();
+    machine::home(&shared).await.unwrap();
+    until(&shared, 10, |d| d.machine.session.homed).await;
+    machine::compile(&shared, false).await.unwrap();
+    common::run(&shared).await.unwrap();
+    until(&shared, 20, |d| d.machine.feedback.as_ref().is_some_and(|f| f.fifo.activity == 1)).await;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+    machine::hold(&shared).await.unwrap();
+    until(&shared, 10, |d| d.can_resume && d.machine.operation.is_none()).await;
+    let before = control.view().position_mm;
+    machine::jog(
+        &shared,
+        machine::JogRequest {
+            axis: 0,
+            positive: true,
+            step_mm: Some(5.),
+            fast: false,
+            diagonal: None,
+        },
+        None,
+    )
+    .await
+    .unwrap();
+    until(&shared, 20, |d| {
+        d.machine.operation.is_none() && d.machine.feedback.as_ref().is_some_and(|f| f.stationary)
+    })
+    .await;
+    let after = control.view().position_mm;
+    assert!((after[0] - before[0] - 5.).abs() < 0.05, "{before:?} -> {after:?}");
+    control.time_scale(20.);
+    common::resume(&shared).await.unwrap();
+    until(&shared, 60, |d| {
+        d.machine.program.as_ref().is_some_and(|p| p.state == ProgramState::Completed)
+            && d.machine.operation.is_none()
+    })
+    .await;
+    openlaser_server::shutdown(&shared).await.unwrap();
+}
+
+#[tokio::test]
 async fn manual_pulses_gas_and_table_are_bounded_and_leave_outputs_off() {
     let (simulator, shared) = start("manual-controls").await;
     let control = simulator.control();
