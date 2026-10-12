@@ -82,6 +82,8 @@
 
   const canJog = $derived(readiness.xy_jog.some(axis => axis.some(direction => direction.ok)));
   /** The head controller is following the sheet: the Follow button, or a cut. */
+  /** The pendant key held down now, so its button on screen lights up. */
+  const lit = (key: string, withFn = false) => doc.pendant?.key === key && (doc.pendant.with_fn === withFn || key === 'Follow' || key === 'Frame');
   const following = $derived(feedback ? [104, 117].includes(feedback.head.command) : false);
   const jogTitle = $derived(canJog ? '' : plain(readiness.jog.reason).text);
   const jogSpeed = $derived(doc.bindings?.jog_speed[ui.jogFast ? 1 : 0]);
@@ -96,8 +98,8 @@
   }
 </script>
 
-{#snippet key(axis: Axis, positive: boolean, icon: string, label: string, enabled: boolean)}
-  <button onpointerdown={(event) => press(event, axis, positive)} disabled={!enabled}><i class="ic {icon}"></i><small>{t(label)}</small></button>
+{#snippet key(axis: Axis, positive: boolean, icon: string, label: string, enabled: boolean, pendant: boolean)}
+  <button class:lit={pendant} onpointerdown={(event) => press(event, axis, positive)} disabled={!enabled}><i class="ic {icon}"></i><small>{t(label)}</small></button>
 {/snippet}
 {#snippet corner(xPositive: boolean, yPositive: boolean)}
   {@const label = `${xPositive ? 'X+' : 'X−'} ${yPositive ? 'Y+' : 'Y−'}`}
@@ -138,24 +140,24 @@
       title={plain(readiness.home.reason).text}
     ><i class="ic ic-home"></i>{t("Home")}</HoldButton>
     <HoldButton
-      class="btn btn-move"
+      class="btn btn-move {lit('GoOrigin', true) ? 'lit' : ''}"
       onhold={() => call(() => api.machine('go-origin', { fast: ui.jogFast }))}
       disabled={!originGate.ok}
       title={plain(originGate.reason).text}
     >{t("Go origin")}</HoldButton>
     <HoldButton
-      class="btn btn-move"
+      class="btn btn-move {lit('ZCalibrate', true) ? 'lit' : ''}"
       label={t("Calibrate Z")}
       onhold={() => call(() => api.machine('calibrate'))}
       disabled={!readiness.calibrate.ok}
       title={plain(readiness.calibrate.reason).text}
     >{t("Calibrate Z")}</HoldButton>
     {#if following}
-      <button class="btn btn-move follow on" onclick={() => call(() => api.machine('raise-head'))}
+      <button class="btn btn-move follow on" class:lit={lit('Follow')} onclick={() => call(() => api.machine('raise-head'))}
         title={t("The head follows the sheet; tap to raise it")}><i class="ic ic-arrow-up"></i>{t("Head up")}</button>
     {:else}
       <HoldButton
-        class="btn btn-move follow"
+        class="btn btn-move follow {lit('Follow') ? 'lit' : ''}"
         label={t("Follow")}
         onhold={() => call(() => api.machine('follow'))}
         disabled={!readiness.calibrate.ok}
@@ -165,7 +167,7 @@
   </div>
   <div class="frame-row">
     <HoldButton
-      class="btn btn-move frame-action"
+      class="btn btn-move frame-action {lit('Frame') ? 'lit' : ''}"
       onhold={() => call(() => api.machine('frame'))}
       disabled={!readiness.frame.ok}
       title={plain(readiness.frame.reason).text}
@@ -177,17 +179,17 @@
 
   <div class="jogblock">
     <div class="jog" class:disabled={!canJog} title={jogTitle}>
-      {@render corner(false, true)}{@render key(1, true, 'ic-arrow-up', 'Y+', readiness.xy_jog[1]![1]!.ok)}{@render corner(true, true)}
-      {@render key(0, false, 'ic-arrow-left', 'X−', readiness.xy_jog[0]![0]!.ok)}
-      <button class="hub" onclick={() => (ui.jogFast = !ui.jogFast)} title={t("Tap to switch speed")}>
+      {@render corner(false, true)}{@render key(1, true, 'ic-arrow-up', 'Y+', readiness.xy_jog[1]![1]!.ok, lit('Up'))}{@render corner(true, true)}
+      {@render key(0, false, 'ic-arrow-left', 'X−', readiness.xy_jog[0]![0]!.ok, lit('Left'))}
+      <button class="hub" class:lit={lit('FastStep')} onclick={() => (ui.jogFast = !ui.jogFast)} title={t("Tap to switch speed")}>
         <strong>{ui.jogFast ? t('Fast') : t('Slow')}</strong>
         <small>{jogSpeedText}</small>
       </button>
-      {@render key(0, true, 'ic-arrow-right', 'X+', readiness.xy_jog[0]![1]!.ok)}
-      {@render corner(false, false)}{@render key(1, false, 'ic-arrow-down', 'Y−', readiness.xy_jog[1]![0]!.ok)}{@render corner(true, false)}
+      {@render key(0, true, 'ic-arrow-right', 'X+', readiness.xy_jog[0]![1]!.ok, lit('Right'))}
+      {@render corner(false, false)}{@render key(1, false, 'ic-arrow-down', 'Y−', readiness.xy_jog[1]![0]!.ok, lit('Down'))}{@render corner(true, false)}
     </div>
     <div class="zcol">
-      {@render key(auxiliary, true, 'ic-arrow-up', auxiliary === 'z' ? 'Z up' : 'W+', auxiliaryUp)}
+      {@render key(auxiliary, true, 'ic-arrow-up', auxiliary === 'z' ? 'Z up' : 'W+', auxiliaryUp, lit('ZUp', auxiliary === 'w'))}
       <button
         class="hub"
         onclick={() => selectAuxiliary(auxiliary === 'z' ? 'w' : 'z')}
@@ -198,7 +200,7 @@
         <small>{auxiliary === 'z' ? t('Head') : t("Table")}</small>
         <small>{t('Tap for {0}', auxiliary === 'z' ? 'W' : 'Z')}</small>
       </button>
-      {@render key(auxiliary, false, 'ic-arrow-down', auxiliary === 'z' ? 'Z down' : 'W−', auxiliaryDown)}
+      {@render key(auxiliary, false, 'ic-arrow-down', auxiliary === 'z' ? 'Z down' : 'W−', auxiliaryDown, lit('ZDown', auxiliary === 'w'))}
     </div>
   </div>
   {#if readiness.xy_recovery}
@@ -225,6 +227,8 @@
 
 <style>
   .run-side { padding:12px; }
+  /* The button whose key is held on the pendant. */
+  .run-side :global(.lit) { outline:3px solid var(--accent); outline-offset:-3px; background:var(--accent-soft); color:var(--accent-2); }
   .pause-position { display:flex; flex-direction:column; gap:5px; padding:10px; border:1px solid var(--hold); border-radius:9px; font-size:var(--t-sm); }
   .pause-position span { color:var(--ink-3); line-height:1.4; }
   .run-side-scroll { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:2px; }
