@@ -557,6 +557,27 @@ impl Coordinator {
     }
 
     /// Which commands the server would accept now, and why not otherwise.
+    /// Whether a door input reports the door open: a configured alarm
+    /// input named Door, tripped as its rule reads it.
+    pub(crate) fn door_open(&self, machine: &openlaser_controller::State) -> bool {
+        let (Ok(bound), Some(feedback)) = (self.bound(), machine.feedback.as_ref()) else {
+            return false;
+        };
+        bound.rules.iter().filter(|r| r.label.to_ascii_lowercase().starts_with("door")).any(|r| {
+            let level = (1..=24).contains(&r.input) && feedback.inputs & (1 << (r.input - 1)) != 0;
+            level != r.active_low
+        })
+    }
+
+    /// Open unless the door is: what the laser waits for.
+    pub(crate) fn door_gate(&self, machine: &openlaser_controller::State) -> Gate {
+        if self.door_open(machine) {
+            Gate::closed("close the door: the laser only fires with it shut")
+        } else {
+            Gate::open()
+        }
+    }
+
     fn readiness(&self, machine: &openlaser_controller::State, can_resume: bool) -> Readiness {
         use openlaser_controller::state::ProgramState;
         let connected = matches!(machine.connection, Connection::Connected { .. });
@@ -572,6 +593,9 @@ impl Coordinator {
         let frame = self.run_gate(motion(true, &machine.blocked), &compile);
         // Framing is laser off above the sheet; cutting also needs Z calibrated.
         let run = if frame.ok { self.calibration_gate(machine) } else { frame.clone() };
+        // An open door stops the laser only: cutting, engraving and a
+        // resumed job wait for it, everything else works with it open.
+        let run = if run.ok { self.door_gate(machine) } else { run };
         Readiness {
             connect: self.connect_gate(connected),
             home: base(&machine.motion_blocked),
@@ -596,7 +620,8 @@ impl Coordinator {
             compile,
             run,
             resume: if can_resume {
-                motion(true, &machine.blocked)
+                let resume = motion(true, &machine.blocked);
+                if resume.ok { self.door_gate(machine) } else { resume }
             } else {
                 Gate::closed("nothing is held")
             },

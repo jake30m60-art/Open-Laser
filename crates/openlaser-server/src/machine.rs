@@ -593,6 +593,13 @@ fn table_travel(
     Ok((travel, [minimum, maximum]))
 }
 
+/// The laser fires only with the door shut; moving, following, homing and
+/// the outputs work with it open.
+fn refuse_open_door(c: &crate::Coordinator) -> Result<()> {
+    let gate = c.door_gate(&c.machine.state());
+    if gate.ok { Ok(()) } else { Err(Error::Refused(gate.reason.unwrap_or_default())) }
+}
+
 /// The complete stationary pulse, including the output-off tail, fits one frame.
 pub async fn pulse(shared: &Shared, duration_ms: u32, power: u8) -> Result<()> {
     let epoch = shared.ensure_running()?;
@@ -600,6 +607,7 @@ pub async fn pulse(shared: &Shared, duration_ms: u32, power: u8) -> Result<()> {
     let (owner, binding, pulse) = {
         let mut c = shared.lock().await;
         c.idle()?;
+        refuse_open_door(&c)?;
         if c.machine
             .state()
             .program
@@ -1125,6 +1133,7 @@ pub async fn run_reviewed(
     {
         let coordinator = shared.lock().await;
         coordinator.not_held()?;
+        refuse_open_door(&coordinator)?;
         let calibration = coordinator.calibration_gate(&coordinator.machine.state());
         if !calibration.ok {
             return Err(Error::Refused(calibration.reason.unwrap_or_default()));
@@ -1196,6 +1205,7 @@ pub async fn resume_reviewed(
     let requested = Instant::now();
     let (owner, recovery, binding, pierce) = {
         let mut c = shared.lock().await;
+        refuse_open_door(&c)?;
         c.check_preflight(PreflightIntent::Resume, epoch, confirmation)?;
         let recovery =
             c.recovery.clone().ok_or_else(|| Error::Refused("no retained job".into()))?;

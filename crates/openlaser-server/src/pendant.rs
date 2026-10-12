@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! The wireless Mlaser pendant (XHC, USB vendor 10CE): twenty keys, read
-//! as HID input reports `04 seed key1 key2 00 check`. Fn is key 0x0B; with
+//! as HID input reports `04 seed key1 key2 00 check`. The last byte was
+//! `seed - key1` on one day and 0x10 more on another, so it is not relied
+//! on: the receiver checks the radio, the USB link is sound. Fn is key 0x0B; with
 //! another key held it sends that key second. A held key repeats its
 //! report a few times a second; its release sends key 0.
 //!
@@ -98,11 +100,11 @@ pub enum Event {
     Lost,
 }
 
-/// Reads one report. Reports with a wrong check, or of another kind, say nothing.
+/// Reads one report. Reports of another kind, or naming no key, say nothing.
 #[must_use]
 pub fn decode(report: &[u8]) -> Option<Event> {
-    let [kind, seed, first, second, _, check, ..] = *report else { return None };
-    if kind != 0x04 || seed.wrapping_sub(first) != check {
+    let [kind, _, first, second, ..] = *report else { return None };
+    if kind != 0x04 || report.len() < 6 {
         return None;
     }
     match (Key::from_code(first), first, second) {
@@ -359,6 +361,7 @@ fn read(events: &mpsc::Sender<Event>) {
         tracing::info!(%path, "pendant receiver found");
         let mut report = [0u8; 16];
         let mut first = true;
+        let mut unknown = 0u32;
         loop {
             match device.read_timeout(&mut report, 500) {
                 Ok(0) => {}
@@ -367,8 +370,9 @@ fn read(events: &mpsc::Sender<Event>) {
                         first = false;
                         tracing::info!(report = ?&report[..n], "pendant reports arriving");
                     }
-                    if decode(&report[..n]).is_none() {
-                        tracing::debug!(report = ?&report[..n], "pendant report not understood");
+                    if decode(&report[..n]).is_none() && unknown < 20 {
+                        unknown += 1;
+                        tracing::info!(report = ?&report[..n], "pendant report not understood");
                     }
                     if let Some(event) = decode(&report[..n])
                         && events.blocking_send(event).is_err()
@@ -411,7 +415,11 @@ mod tests {
         assert_eq!(decode(&[0x04, 0x10, 0x0B, 0x07, 0, 0x05]), press(Key::GoOrigin, true));
         assert_eq!(decode(&[0x04, 0x10, 0x0B, 0x0C, 0, 0x05]), press(Key::ZCalibrate, true));
         assert_eq!(decode(&[0x04, 0x10, 0x0B, 0, 0, 0x05]), press(Key::Fn, false));
-        assert_eq!(decode(&[0x04, 0x10, 0x01, 0, 0, 0x0E]), None, "a wrong check is noise");
+        // As the receiver sent them on 12 October, the last byte 0x10 higher.
+        assert_eq!(decode(&[0x04, 0x10, 0x0B, 0, 0, 0x15]), press(Key::Fn, false));
+        assert_eq!(decode(&[0x04, 0x10, 0x01, 0, 0, 0x1F]), press(Key::Follow, false));
+        assert_eq!(decode(&[0x04, 0x10, 0x14, 0, 0, 0x0C]), None, "no such key");
+        assert_eq!(decode(&[0x04, 0x10, 0x01, 0]), None, "too short");
         assert_eq!(decode(&[0x05, 0x10, 0x01, 0, 0, 0x0F]), None);
     }
 }

@@ -257,8 +257,11 @@ impl Monitor {
                 self.pause_requested |= update.pause;
                 update.row_present
             } else {
-                let armed =
-                    custom_is_armed(rule.run_only, self.previous_main_class, self.operation);
+                // A running-only input arms while a program runs or is held.
+                // Unlike the vendor, not during manual operations after an
+                // earlier alarm: an open door must not stop homing or jogging.
+                let armed = custom_is_armed(rule.run_only, 0, self.operation)
+                    || (rule.run_only && self.operation == 2);
                 if (1000..=1015).contains(&rule.id) {
                     CustomInput {
                         tripped,
@@ -527,6 +530,15 @@ mod tests {
         let mut monitor = Monitor::new(vec![door(false, true)], false);
         monitor.observe(&snapshot_with(&[(4, 0)], &[], &[]), &details);
         assert!(monitor.blocked().is_none());
+        // A manual operation, homing or jogging, even after an earlier alarm.
+        monitor.operation = 4;
+        monitor.previous_main_class = 5;
+        monitor.observe(&snapshot_with(&[(4, 0)], &[], &[]), &details);
+        assert!(monitor.blocked().is_none(), "manual operations leave a running-only door alone");
+        monitor.operation = 2;
+        monitor.observe(&snapshot_with(&[(4, 0)], &[], &[]), &details);
+        assert_eq!(monitor.blocked().as_deref(), Some("Door alarm"));
+        let mut monitor = Monitor::new(vec![door(false, true)], false);
         monitor.operation = 3;
         monitor.observe(&snapshot_with(&[(4, 0)], &[], &[]), &details);
         assert_eq!(monitor.blocked().as_deref(), Some("Door alarm"));

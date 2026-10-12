@@ -145,8 +145,8 @@ fn recipe(
     }
 }
 
-/// Gweike writes air and nitrogen pressures in MPa: a cut at 0.85 is
-/// 8.5 bar. Below 2 such a pressure can only be MPa, so it is turned into
+/// Gweike writes air and nitrogen pressures in megapascal: a cut at 0.85 is
+/// 8.5 bar. Below 2 such a pressure can only be megapascal, so it is turned into
 /// bar; oxygen (gas type 1), which does cut below 1 bar, is left alone.
 fn pressures_in_bar(attributes: &mut Attributes) {
     let stages = (0..5).map(|i| (format!("DrillGasPressure{i}"), format!("DrillGasType{i}")));

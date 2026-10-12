@@ -608,11 +608,22 @@ async fn the_defaults_seed_once_and_a_thickness_copies() {
     let mut coordinator = shared.lock().await;
     coordinator.seed_defaults();
     let recipes = coordinator.document().library.recipes.clone();
-    assert_eq!(recipes.len(), 51);
+    // The CO2 sample, 50 metals and nine engraving starting recipes.
+    assert_eq!(recipes.len(), 60);
     let names: std::collections::BTreeSet<&str> = recipes.iter().map(|r| r.name.as_str()).collect();
     assert_eq!(
         names.into_iter().collect::<Vec<_>>(),
-        ["Aluminum", "Basswood", "Brass", "Carbon Steel", "Galvanized Steel", "Stainless Steel"]
+        [
+            "Acrylic",
+            "Aluminum",
+            "Basswood",
+            "Brass",
+            "Carbon Steel",
+            "Density Board",
+            "Galvanized Steel",
+            "Plywood",
+            "Stainless Steel"
+        ]
     );
     let steel = recipes
         .iter()

@@ -18,10 +18,19 @@ async fn bundled_metals_preserve_source_values_and_setup_edits_survive_restart()
         let mut c = shared.lock().await;
         c.seed_defaults();
         let doc = c.document();
-        let metals: Vec<_> =
-            doc.library.recipes.iter().filter(|r| r.laser == LaserMode::Fiber).collect();
+        let engraving = |r: &&openlaser_server::document::RecipeView| {
+            r.attributes.get("OpenLaserProcess").is_some_and(|p| p == "engrave")
+        };
+        let metals: Vec<_> = doc
+            .library
+            .recipes
+            .iter()
+            .filter(|r| r.laser == LaserMode::Fiber && !engraving(r))
+            .collect();
         assert_eq!(metals.len(), 50);
-        assert_eq!(doc.library.recipes.len(), 51);
+        // The CO2 sample, the metals and nine engraving starting recipes.
+        assert_eq!(doc.library.recipes.len(), 60);
+        assert_eq!(doc.library.recipes.iter().filter(engraving).count(), 9);
         for recipe in &metals {
             assert!(recipe.photo.is_none(), "bundled recipes use the default material artwork");
             assert!(recipe.attributes.contains_key("OpenLaserNozzleDiameter"));
@@ -34,7 +43,15 @@ async fn bundled_metals_preserve_source_values_and_setup_edits_survive_restart()
             .unwrap();
             let source = openlaser_xml::layer_file::parse(&original).unwrap();
             for (key, value) in &source.attributes {
-                assert_eq!(recipe.attributes.get(key), Some(value), "{}: {key}", recipe.name);
+                let kept = recipe.attributes.get(key);
+                // Air and nitrogen pressures written in MPa arrive in bar.
+                let in_bar = key.contains("Pressure")
+                    && value.parse::<f64>().is_ok_and(|v| v > 0. && v < 2.)
+                    && kept
+                        .and_then(|k| k.parse::<f64>().ok())
+                        .zip(value.parse::<f64>().ok())
+                        .is_some_and(|(k, v)| (k - v * 10.).abs() < 1e-9);
+                assert!(kept == Some(value) || in_bar, "{}: {key}", recipe.name);
             }
         }
         let variants: Vec<_> = metals
@@ -67,7 +84,8 @@ async fn bundled_metals_preserve_source_values_and_setup_edits_survive_restart()
         .unwrap();
         c.remove_recipe(&removed).unwrap();
         c.seed_defaults();
-        assert_eq!(c.document().library.recipes.len(), 50);
+        // One metal removed stays removed; the engraving recipes stay too.
+        assert_eq!(c.document().library.recipes.len(), 59);
         (c.config.clone(), id, removed)
     };
     openlaser_server::shutdown(&shared).await.unwrap();
