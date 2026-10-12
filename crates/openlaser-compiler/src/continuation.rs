@@ -96,6 +96,10 @@ fn replay(compiled: &Compiled, consumed: f64) -> Compiled {
     if let Some(piece) = rest.pieces.first_mut() {
         let points = piece.plan.points[first_step..].to_vec();
         piece.plan.points = points.into();
+        let base = piece.plan.distances[first_step];
+        let distances: Vec<f64> =
+            piece.plan.distances[first_step..].iter().map(|d| d - base).collect();
+        piece.plan.distances = distances.into();
         piece.samples = piece.samples[first_step..].to_vec().into();
     }
     // The beam stays off up to the stop.
