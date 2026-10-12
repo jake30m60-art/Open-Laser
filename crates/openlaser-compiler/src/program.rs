@@ -2137,6 +2137,73 @@ mod tests {
         assert!(first < cut_from);
     }
 
+    /// A paused engraving resumes at the turn that began the line it stopped
+    /// in, along the original path at speed, the beam off up to the stop and
+    /// on again after it; it never starts a mark from rest.
+    #[test]
+    fn a_flying_pass_resumes_from_its_last_turn_at_speed() {
+        let mut s = piercing();
+        s.pierce.clear();
+        let off = SegmentProcess {
+            joint: true,
+            power: Some(0.),
+            run_up: true,
+            ..SegmentProcess::default()
+        };
+        let cut = SegmentProcess::default();
+        let seg = |a: [f64; 2], b: [f64; 2]| Segment::Line { start: a, end: b };
+        // Two lines of a fill: right along y = 0, back along y = 1.
+        let pts =
+            [[0., 0.], [20., 0.], [40., 0.], [60., 0.], [60., 1.], [40., 1.], [20., 1.], [0., 1.]];
+        let procs = vec![off.clone(), cut.clone(), off.clone(), off.clone(), off.clone(), cut, off];
+        let contour = Contour {
+            segments: tagged(procs, (0..7).map(|i| seg(pts[i], pts[i + 1])).collect()),
+            overrides: Overrides::default(),
+        };
+        let job = Job::schedule_prepared(&s, &[contour], None).unwrap();
+        let total: f64 = job.passes[0]
+            .pieces
+            .iter()
+            .flat_map(|p| {
+                p.plan.points.windows(2).map(|w| (w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]))
+            })
+            .sum();
+        // Stopped halfway through the second line's mark, at x = 30.
+        let fraction = (60. + 1. + 30.) / total;
+        let rest = job.continuation(0, fraction, false).unwrap();
+        let pass = &rest.passes[0];
+        let start = pass.pieces[0].plan.points[0];
+        assert!(
+            (start[0] - 60.).abs() < 0.5 && (start[1] - 1.).abs() < 0.5,
+            "starts at the turn: {start:?}"
+        );
+        let mut lit_before = false;
+        let mut lit_after = false;
+        let mut fastest: f64 = 0.;
+        for piece in &pass.pieces {
+            for (w, sample) in piece.plan.points.windows(2).zip(piece.samples.iter()) {
+                fastest = fastest.max((w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]));
+                if w[1][1] > 0.5 && w[1][0] > 30.5 && sample.power > 0 {
+                    lit_before = true;
+                }
+                if w[1][1] > 0.5 && w[1][0] < 29.5 && w[1][0] > 20.5 && sample.power > 0 {
+                    lit_after = true;
+                }
+            }
+        }
+        assert!(!lit_before, "the beam stays off over what was engraved");
+        assert!(lit_after, "the beam marks again after the stop");
+        // At the stop the head runs at full speed, not from rest.
+        let at_stop = pass
+            .pieces
+            .iter()
+            .flat_map(|p| p.plan.points.windows(2))
+            .find(|w| w[0][1] > 0.5 && w[0][0] <= 30. && w[0][0] > 29.)
+            .map(|w| (w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]))
+            .unwrap();
+        assert!(at_stop > fastest * 0.9, "{at_stop} of {fastest}");
+    }
+
     /// An engraving measures once: the first contour follows and lifts to
     /// its fixed height, every later one runs there with no follow and no
     /// lift in between; only the program's end retracts.

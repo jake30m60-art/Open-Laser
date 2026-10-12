@@ -53,6 +53,70 @@ pub(crate) fn remaining(
     Ok(Job { settings: job.settings.clone(), passes })
 }
 
+/// Whether the pass flies: its marks are joined by laser-off stretches at
+/// speed, as an engraving's lines or a flying cut.
+fn flying(compiled: &Compiled) -> bool {
+    compiled.pieces.iter().any(|p| p.process.joint && p.process.run_up)
+}
+
+/// A flying pass resumes as it ran: from the last place before the stop
+/// where the planned path stood still, the turn at the start of the line
+/// it stopped in, along the original path at speed through every mark,
+/// the beam off up to where it stopped. Retimed from the stop itself, the
+/// head would start the line's remainder from rest and mark while it
+/// speeds up.
+fn replay(compiled: &Compiled, consumed: f64) -> Compiled {
+    // Every step of the pass: its piece, its index and its length.
+    let steps: Vec<(usize, usize, f64)> = compiled
+        .pieces
+        .iter()
+        .enumerate()
+        .flat_map(|(p, piece)| {
+            piece.plan.points.windows(2).enumerate().map(move |(i, w)| (p, i, distance(w[0], w[1])))
+        })
+        .collect();
+    let fastest = steps.iter().map(|s| s.2).fold(0., f64::max);
+    let mut travelled = 0.;
+    let mut stop = steps.len();
+    for (n, step) in steps.iter().enumerate() {
+        travelled += step.2;
+        if travelled > consumed {
+            stop = n;
+            break;
+        }
+    }
+    // Back from the stop to a step where the plan stands still: a turn.
+    let still = |n: usize| steps[n].2 <= fastest * 0.02;
+    let from = (0..stop.min(steps.len())).rev().find(|&n| still(n)).unwrap_or(0);
+    let (first_piece, first_step) = steps.get(from).map_or((0, 0), |s| (s.0, s.1));
+    let mut rest = compiled.clone();
+    rest.pieces = compiled.pieces[first_piece..].to_vec();
+    rest.events = compiled.events[first_piece..].to_vec();
+    rest.events[0] = None;
+    if let Some(piece) = rest.pieces.first_mut() {
+        let points = piece.plan.points[first_step..].to_vec();
+        piece.plan.points = points.into();
+        piece.samples = piece.samples[first_step..].to_vec().into();
+    }
+    // The beam stays off up to the stop.
+    let mut left = stop.saturating_sub(from);
+    for piece in &mut rest.pieces {
+        if left == 0 {
+            break;
+        }
+        let mut samples: Vec<_> = piece.samples.to_vec();
+        for sample in samples.iter_mut().take(left) {
+            sample.power = 0;
+            sample.analog = 0;
+        }
+        left = left.saturating_sub(samples.len());
+        piece.samples = samples.into();
+    }
+    rest.start = rest.pieces.first().map_or(compiled.start, |p| p.plan.points[0]);
+    rest.initial_pierce = false;
+    rest
+}
+
 fn length(piece: &Piece) -> f64 {
     piece.plan.points.windows(2).map(|p| distance(p[0], p[1])).sum()
 }
@@ -75,6 +139,9 @@ fn trim(
     }
     let total: f64 = compiled.pieces.iter().map(length).sum();
     let consumed = total * fraction;
+    if flying(compiled) {
+        return Ok(replay(compiled, consumed));
+    }
     let mut left = consumed;
     let mut first = 0;
     while let Some(piece) = compiled.pieces.get(first) {
