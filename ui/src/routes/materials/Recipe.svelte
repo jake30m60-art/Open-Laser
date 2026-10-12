@@ -16,7 +16,7 @@
   import { PROCESS, engravingAttributes } from '../../lib/engraving';
   import Sheets from './Sheets.svelte';
   import MaterialSummary from '../../components/MaterialSummary.svelte';
-  import { summaryOf } from '../../lib/summary';
+  import { summaryOf, type SummaryKey } from '../../lib/summary';
   import { api } from '../../api/client';
   import { server } from '../../stores/server.svelte';
   import { ui } from '../../stores/ui.svelte';
@@ -92,6 +92,18 @@
     };
     ask(numeric(current) ? inputValue(Number(current), f.unit ?? '', system) : '');
   }
+  /** A summary tile opens its value: the field on its page, or the setup. */
+  function editSummary(key: SummaryKey): void {
+    const fields: Partial<Record<SummaryKey, string>> = {
+      speed: 'CutSpeed', power: 'CutPeakCurrent', duty: recipe.laser === 'co2' ? 'CutDuty' : 'CutPower',
+      frequency: 'CutFreq', height: 'CutHeight',
+    };
+    if (key === 'pierce') { page = 'piercing'; return; }
+    if (key === 'nozzle' || key === 'focus' || key === 'lens') { note(); return; }
+    page = 'cutting';
+    const field = fields[key];
+    if (field) tap(field);
+  }
   const ed = $derived<Editor>({ values, edits, editing, laser: recipe.laser, a, set: onset, setMany: (many) => { for (const [key, value] of Object.entries(many)) onset(key, value); }, tap });
 
   // The rare actions: the material's name and star cover every recipe of it.
@@ -156,7 +168,7 @@
   {#if airRecipeUsesNitrogen(recipe, values)}
     <p class="gas-source-warning" role="alert">{tr("Air recipe on the N₂ valve, as on the machine's own fiber layers: it cuts with whatever is connected to the N₂ inlet. Check the supply before cutting.")}</p>
   {/if}
-  <div class="recipe-summary"><MaterialSummary source={summary} /></div>
+  <div class="recipe-summary"><MaterialSummary source={summary} ontap={editSummary} /></div>
   <div class="recipe-tabs">
     <div class="seg">
       <button class:on={page === 'cutting'} onclick={() => (page = 'cutting')}>{tr("Cutting")}</button>

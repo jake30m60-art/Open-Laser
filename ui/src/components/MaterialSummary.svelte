@@ -7,10 +7,11 @@
   // lays every value out as a tile, `—` where the recipe does not say;
   // `line` runs the values that are set together as one wrapping line for
   // lists and narrow headers; `compact` is the grid as small name and value
-  // pairs, three to a row, for a side panel. Nothing here is a control.
-  import { summaryItems, type SummarySource } from '../lib/summary';
+  // pairs, three to a row, for a side panel. With `ontap` the grid's tiles
+  // are buttons that open the value for editing.
+  import { summaryItems, type SummaryKey, type SummarySource } from '../lib/summary';
 
-  let { source, variant = 'grid' }: { source: SummarySource; variant?: 'grid' | 'line' | 'compact' } = $props();
+  let { source, variant = 'grid', ontap }: { source: SummarySource; variant?: 'grid' | 'line' | 'compact'; ontap?: (key: SummaryKey) => void } = $props();
   const items = $derived(summaryItems(source));
 </script>
 
@@ -25,12 +26,19 @@
 {:else}
   <dl class="summary-grid">
     {#each items as item (item.key)}
-      <div class:unset={!item.set}><dt>{t(item.label)}</dt><dd>{t(item.value)}</dd></div>
+      {#if ontap}
+        <div class="tap" class:unset={!item.set}><button type="button" onclick={() => ontap(item.key)} aria-label={t("Edit {0}", t(item.label))}><dt>{t(item.label)}</dt><dd>{t(item.value)}</dd></button></div>
+      {:else}
+        <div class:unset={!item.set}><dt>{t(item.label)}</dt><dd>{t(item.value)}</dd></div>
+      {/if}
     {/each}
   </dl>
 {/if}
 
 <style>
+  .summary-grid div.tap { padding: 0; }
+  .summary-grid div.tap button { display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .summary-grid div.tap:hover { border-color: var(--accent); }
   .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px; margin: 0; }
   .summary-grid div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
   .summary-grid dt { font-size: var(--t-sm); color: var(--ink-3); }

@@ -123,6 +123,56 @@ pub struct Run {
     head_started: bool,
     /// The head raise of a pause, and the gas it holds back.
     raise: Option<Raise>,
+    /// How full the FIFO stayed while blocks were still to come.
+    watch: FifoWatch,
+}
+
+/// How full the FIFO stayed while the upload ran: an empty FIFO with
+/// blocks still to upload stops the axes and starts them again, which
+/// shakes the machine. Logged so a run that shook can be told apart.
+#[derive(Debug, Default)]
+struct FifoWatch {
+    polls: u32,
+    /// The fewest bytes queued at any poll.
+    least: Option<u32>,
+    /// Polls that found the FIFO all but empty.
+    starved: u32,
+    last_poll: Option<Instant>,
+    /// The longest gap between two polls.
+    longest_gap: Duration,
+    reported: bool,
+}
+
+impl FifoWatch {
+    /// Below this many bytes queued the axes are about to run dry: about
+    /// 20 ms of 0.25 ms steps.
+    const LOW: u32 = 1000;
+
+    fn observe(&mut self, queued: u32, now: Instant) {
+        self.polls += 1;
+        self.least = Some(self.least.map_or(queued, |least| least.min(queued)));
+        if let Some(last) = self.last_poll {
+            self.longest_gap = self.longest_gap.max(now.duration_since(last));
+        }
+        self.last_poll = Some(now);
+        if queued < Self::LOW {
+            self.starved += 1;
+            if self.starved <= 5 {
+                tracing::warn!(queued, "program FIFO nearly empty while uploading");
+            }
+        }
+    }
+
+    fn report(&self, capacity: u32) {
+        tracing::info!(
+            polls = self.polls,
+            starved = self.starved,
+            least_queued = self.least.unwrap_or(0),
+            capacity,
+            longest_poll_gap_ms = self.longest_gap.as_millis(),
+            "program FIFO during upload"
+        );
+    }
 }
 
 impl Run {
@@ -150,6 +200,7 @@ impl Run {
             executing: None,
             shutdown: bindings.shutdown.clone(),
             raise: None,
+            watch: FifoWatch::default(),
         })
     }
 
@@ -412,7 +463,17 @@ impl Operation for Run {
         match self.phase {
             Phase::Start => self.start(snapshot, blocked, now),
             Phase::Priming => self.prime(snapshot),
-            Phase::Uploading => Ok(self.upload(snapshot)),
+            Phase::Uploading => {
+                // Only while blocks remain: at the end the FIFO drains anyway.
+                if self.uploaded < self.program.blocks.len() {
+                    let queued = self.capacity.saturating_sub(snapshot.status.fifo_free());
+                    self.watch.observe(queued, now);
+                } else if !self.watch.reported {
+                    self.watch.reported = true;
+                    self.watch.report(self.capacity);
+                }
+                Ok(self.upload(snapshot))
+            }
             Phase::Finishing => self.finish(snapshot),
             Phase::Settling { ending, stopped } => self.settle(snapshot, now, ending, stopped),
             Phase::Done(_) => Ok(Step::Finish(Vec::new())),
