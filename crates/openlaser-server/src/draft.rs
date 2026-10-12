@@ -1763,7 +1763,52 @@ pub fn settings(bundle: &Bundle, recipe: &Recipe, binder: Binder) -> Result<Sett
     };
     let mut settings = openlaser_xml::recipe::bind_overlay(bundle, request, &recipe.attributes)?;
     settings.bind_speed_cap(binder.scale)?;
+    (settings.acceleration, settings.acceleration_time) =
+        engraving_motion(recipe, settings.acceleration, settings.acceleration_time);
+    if is_engraving(recipe) {
+        // Between the fields and objects of an engraving the head travels
+        // often and short: gently, as the lines themselves.
+        settings.travel_acceleration =
+            settings.travel_acceleration.min(ENGRAVING_TRAVEL_ACCELERATION);
+        settings.travel_acceleration_time =
+            settings.travel_acceleration_time.max(ENGRAVING_ACCELERATION_TIME);
+    }
     Ok(settings)
+}
+
+/// How hard an engraving's travel moves accelerate at most, in mm/s².
+pub const ENGRAVING_TRAVEL_ACCELERATION: f64 = 3000.;
+
+fn is_engraving(recipe: &Recipe) -> bool {
+    recipe.attributes.get("OpenLaserProcess").is_some_and(|p| p == "engrave")
+}
+
+/// The gentlest a gantry engraves with by default: every scan line stops and
+/// turns, and the machine's cutting acceleration shakes it at each turn.
+pub const ENGRAVING_ACCELERATION: f64 = 1500.;
+/// The shortest ramp an engraving turn takes by default, in seconds.
+pub const ENGRAVING_ACCELERATION_TIME: f64 = 0.3;
+
+/// The acceleration and ramp time an engraving recipe moves with: its own
+/// `OpenLaserFillAcceleration` (mm/s²) and `OpenLaserFillAccelerationTime`
+/// (ms), else the gentle defaults, never harder than the machine's own.
+/// A cutting recipe keeps the machine's.
+#[must_use]
+pub fn engraving_motion(recipe: &Recipe, acceleration: f64, time: f64) -> (f64, f64) {
+    if !is_engraving(recipe) {
+        return (acceleration, time);
+    }
+    let read = |key: &str| {
+        recipe
+            .attributes
+            .get(key)
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .filter(|v| v.is_finite() && *v > 0.)
+    };
+    let own = read("OpenLaserFillAcceleration").unwrap_or(ENGRAVING_ACCELERATION);
+    let own_time =
+        read("OpenLaserFillAccelerationTime").map_or(ENGRAVING_ACCELERATION_TIME, |ms| ms * 0.001);
+    (own.clamp(1., acceleration), own_time.max(time))
 }
 
 /// Compiles the prepared contours under `settings`, shifted as the recipe
@@ -1916,6 +1961,44 @@ impl Draft {
 mod tests {
     use super::*;
     use openlaser_core::features::{Bridge, Bridges, Pick, Spot};
+
+    fn recipe_with(attributes: &[(&str, &str)]) -> Recipe {
+        Recipe {
+            id: Id::from("r"),
+            name: "Steel".into(),
+            laser: openlaser_core::LaserMode::Fiber,
+            thickness_mm: 0.,
+            gas: "N2".into(),
+            layer: 7,
+            attributes: attributes.iter().map(|(k, v)| ((*k).into(), (*v).into())).collect(),
+            film: None,
+            source_sha256: None,
+            note: String::new(),
+            tags: Vec::new(),
+            file_name: None,
+            photo: None,
+            favourite: false,
+            created: 0,
+            updated: 0,
+        }
+    }
+
+    #[test]
+    fn engraving_moves_gently_and_cutting_keeps_the_machine() {
+        let cut = recipe_with(&[]);
+        assert_eq!(engraving_motion(&cut, 6000., 0.25), (6000., 0.25));
+        let engrave = recipe_with(&[("OpenLaserProcess", "engrave")]);
+        assert_eq!(engraving_motion(&engrave, 6000., 0.25), (1500., 0.3));
+        let own = recipe_with(&[
+            ("OpenLaserProcess", "engrave"),
+            ("OpenLaserFillAcceleration", "800"),
+            ("OpenLaserFillAccelerationTime", "500"),
+        ]);
+        assert_eq!(engraving_motion(&own, 6000., 0.25), (800., 0.5));
+        let harder =
+            recipe_with(&[("OpenLaserProcess", "engrave"), ("OpenLaserFillAcceleration", "9000")]);
+        assert_eq!(engraving_motion(&harder, 6000., 0.25), (6000., 0.3), "never above the machine");
+    }
     use openlaser_core::geometry::Contour;
     use openlaser_core::units::Millimeters;
 

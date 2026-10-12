@@ -30,7 +30,7 @@
     ['threshold', tr('Black and white'), tr('Full power where darker than middle gray, nothing elsewhere: for logos and line art.')],
   ];
 
-  const needed = $derived(speed ? Math.ceil(scanRunUp(speed)) : null);
+  const needed = $derived(speed ? Math.ceil(scanRunUp(speed, 1500, 0.3)) : null);
   const short = $derived(needed !== null && fill.run_up + 1e-9 < needed);
   const fmt = (n: number, d = 2) => Number(n.toFixed(d)).toString();
   type Passes = { passes: number; pass_angle: number; pass_shift: number };

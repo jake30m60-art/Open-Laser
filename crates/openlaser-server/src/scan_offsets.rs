@@ -382,6 +382,8 @@ impl Coordinator {
                     .filter_map(|k| recipe.attributes.get(*k)?.parse::<f64>().ok())
                     .filter(|v| v.is_finite() && *v >= 0.)
                     .fold(0., f64::max);
+                let (acceleration, time) =
+                    crate::draft::engraving_motion(recipe, acceleration, time);
                 ramps.insert(layer.name.clone(), run_up(speed, acceleration, time).max(slow + 5.));
             }
         }
@@ -392,7 +394,10 @@ impl Coordinator {
     pub fn scan_offsets_view(&self, mode: LaserMode) -> Result<ScanOffsetsView> {
         let mut entries = self.scan_offsets.entries(mode).clone();
         entries.sort_by(|a, b| a.angle.total_cmp(&b.angle).then(a.speed.total_cmp(&b.speed)));
+        // The coupon preview plans with how an engraving moves by default.
         let (acceleration, acceleration_time) = self.scan_motion()?;
+        let acceleration = acceleration.min(crate::draft::ENGRAVING_ACCELERATION);
+        let acceleration_time = acceleration_time.max(crate::draft::ENGRAVING_ACCELERATION_TIME);
         Ok(ScanOffsetsView {
             revision: self.scan_offsets.revision,
             mode,
@@ -492,6 +497,7 @@ impl Coordinator {
         }
         let bed = crate::correction::bed(self)?;
         let (acceleration, time) = self.scan_motion()?;
+        let (acceleration, time) = crate::draft::engraving_motion(&recipe, acceleration, time);
         if coupon.speeds.iter().any(|&s| run_up(s, acceleration, time) > 1000.) {
             return Err(Error::Request(
                 "the required scan run-up exceeds 1000 mm; lower the test speed".into(),

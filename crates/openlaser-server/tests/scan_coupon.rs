@@ -43,7 +43,7 @@ async fn each_single_direction_engraves_four_lines() {
             angle: 0.,
             angles: Vec::new(),
             speeds: vec![100., 400.],
-            origin: [100., 100.],
+            origin: [300., 300.],
             length: 10.,
             spacing: 1.,
         })
@@ -106,7 +106,7 @@ async fn angled_coupons_keep_their_four_lines_and_all_travel_inside_the_bed() {
                 angle,
                 angles: Vec::new(),
                 speeds: vec![100., 400.],
-                origin: [100., 100.],
+                origin: [300., 300.],
                 length: 10.,
                 spacing: 1.,
             })
@@ -175,7 +175,7 @@ async fn invalid_coupons_do_not_replace_the_draft_or_add_library_parts() {
             angle: 0.,
             angles: Vec::new(),
             speeds: vec![400.],
-            origin: [100., 100.],
+            origin: [300., 300.],
             length: 10.,
             spacing: 1.,
         };
@@ -262,7 +262,7 @@ async fn each_speed_has_twelve_lines_in_zero_fortyfive_ninety_order() {
             angle: 0.,
             angles: vec![0., 45., 90.],
             speeds: vec![200., 250.],
-            origin: [100., 100.],
+            origin: [300., 300.],
             length: 10.,
             spacing: 1.,
         })
@@ -321,7 +321,7 @@ async fn calibration_rejects_cutting_recipes_before_changing_the_draft() {
             angle: 0.,
             angles: vec![0., 45., 90.],
             speeds: vec![200.],
-            origin: [100., 100.],
+            origin: [300., 300.],
             length: 10.,
             spacing: 1.,
         });
