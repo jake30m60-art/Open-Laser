@@ -511,6 +511,21 @@ impl Coordinator {
         self.publisher.borrow().clone()
     }
 
+    /// A stopped job is over: Start runs it again from the beginning, with
+    /// the sheet position taken anew, as a new run. A paused job keeps all
+    /// this to resume.
+    pub(crate) fn reset_after_stop(&mut self) {
+        self.recovery = None;
+        self.recovery_view = None;
+        self.revisions.recovery += 1;
+        self.held = None;
+        if let Some(draft) = &mut self.draft {
+            crate::placement::forget_capture(draft);
+            self.draft_changed();
+        }
+        self.publish();
+    }
+
     /// Records a note for the operator and publishes.
     pub fn note(&mut self, text: impl Into<String>, error: bool) {
         let text = text.into();

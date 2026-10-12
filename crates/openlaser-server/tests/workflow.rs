@@ -21,7 +21,7 @@ use openlaser_server::{connect, machine};
 use std::time::Duration;
 
 #[tokio::test]
-async fn original_recovery_selection_survives_stop_and_reconnect() {
+async fn recovery_selection_works_and_a_stop_ends_the_job() {
     use openlaser_server::resume::RecoveryChange;
     let (simulator, shared) = start("original-recovery").await;
     let control = simulator.control();
@@ -62,48 +62,20 @@ async fn original_recovery_selection_survives_stop_and_reconnect() {
         c.change_recovery(view.revision, RecoveryChange::LastGood).unwrap();
         view.id
     };
+    // A stop ends the job: the recovery goes, the head returns to its upper
+    // reference and the same job starts again from the beginning.
+    let _ = original_id;
     machine::stop(&shared).await.unwrap();
-    until(&shared, 10, |d| d.recovery.as_ref().is_some_and(|r| r.state == ProgramState::Stopped))
-        .await;
-    {
-        let mut c = shared.lock().await;
-        let revision = c.document().recovery.unwrap().revision;
-        assert!(c.prepare_recovery(revision, false).is_err());
-        assert!(!c.document().can_resume);
-    }
-    machine::disconnect(&shared).await.unwrap();
-    connect::connect(&shared).await.unwrap();
-    machine::home(&shared).await.unwrap();
-    until(&shared, 10, |d| d.machine.session.homed).await;
-    let revision = {
-        let mut c = shared.lock().await;
-        let recovery = c.document().recovery.unwrap();
-        assert_eq!(recovery.id, original_id);
-        c.change_recovery(recovery.revision, RecoveryChange::LastGood).unwrap();
-        let revision = c.document().recovery.unwrap().revision;
-        c.prepare_recovery(revision, true).unwrap();
-        assert!(c.document().can_resume, "prepared recovery: {:?}", c.document().recovery);
-        c.document().recovery.unwrap().revision
-    };
-    machine::move_restart(&shared, revision).await.unwrap();
-    until(&shared, 10, |d| {
-        d.machine.operation.is_none() && d.machine.feedback.as_ref().is_some_and(|f| f.stationary)
-    })
-    .await;
-    let position = control.view().position_mm;
-    let marker = shared.lock().await.document().recovery.unwrap().position.unwrap();
-    assert!((position[0] - marker[0]).abs() < 0.01 && (position[1] - marker[1]).abs() < 0.01);
-    assert!(control.view().pwm.iter().all(|p| p[1] == 0));
+    until(&shared, 20, |d| d.recovery.is_none() && d.machine.operation.is_none()).await;
+    assert!(!shared.lock().await.document().can_resume);
+    machine::compile(&shared, false).await.unwrap();
     control.time_scale(20.);
-    common::resume(&shared).await.unwrap();
+    common::run(&shared).await.unwrap();
     until(&shared, 60, |d| {
         d.machine.program.as_ref().is_some_and(|p| p.state == ProgramState::Completed)
             && d.machine.operation.is_none()
     })
     .await;
-    let recovery = shared.lock().await.document().recovery.unwrap();
-    assert_eq!(recovery.id, original_id);
-    assert!(recovery.steps.iter().all(|s| s.status == "completed" || s.status == "partial"));
     openlaser_server::shutdown(&shared).await.unwrap();
 }
 

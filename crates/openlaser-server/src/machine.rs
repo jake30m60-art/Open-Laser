@@ -1115,8 +1115,55 @@ pub fn relieve(shared: &Shared, id: Option<u32>) -> Result<()> {
 pub async fn stop(shared: &Shared) -> Result<()> {
     shared.stop_epoch.fetch_add(1, Ordering::AcqRel);
     let machine = shared.machine.clone();
+    let program = machine.state().program.as_ref().map(|p| p.state);
     machine.stop().await?;
+    // Stopping a job ends it: once the machine has settled, the job starts
+    // again from the beginning and the head returns to its upper reference,
+    // so jogging and Start work at once.
+    if program.is_some_and(|state| {
+        matches!(
+            state,
+            openlaser_controller::state::ProgramState::Running
+                | openlaser_controller::state::ProgramState::Finishing
+                | openlaser_controller::state::ProgramState::Held
+        )
+    }) {
+        let shared = Arc::clone(shared);
+        tokio::spawn(async move { reset_after_stop(&shared).await });
+    }
     Ok(())
+}
+
+/// Clears a stopped job and raises the head to its upper reference.
+async fn reset_after_stop(shared: &Shared) {
+    let settled = |s: &openlaser_controller::State| {
+        s.operation.is_none()
+            && s.program.as_ref().is_none_or(|p| {
+                !matches!(
+                    p.state,
+                    openlaser_controller::state::ProgramState::Running
+                        | openlaser_controller::state::ProgramState::Finishing
+                )
+            })
+    };
+    for _ in 0..300 {
+        if settled(&shared.machine.state()) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    {
+        let mut c = shared.lock().await;
+        if c.operation.is_some() {
+            return;
+        }
+        c.reset_after_stop();
+    }
+    // The head's own reference search: straight up to its upper reference.
+    let head = shared.lock().await.bound().is_ok_and(|b| b.head_enabled);
+    if head && let Err(error) = shared.machine.home(true).await {
+        shared.lock().await.note(format!("Stop: the head did not return up: {error}"), true);
+    }
 }
 
 /// Pauses the running program.
