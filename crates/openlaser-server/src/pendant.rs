@@ -27,6 +27,8 @@ const RENEW: Duration = Duration::from_millis(75);
 const STEP_MM: f64 = 1.;
 /// The W table's speed when Fn turns Z into W.
 const TABLE_MM_S: f64 = 20.;
+/// How long Start must be held, as the screen's held buttons.
+const START_HOLD: Duration = Duration::from_secs(1);
 /// A test pulse from the Laser key, as the screen's test defaults.
 const PULSE: (u32, u8) = (100, 10);
 
@@ -167,6 +169,8 @@ struct Pendant {
     sequence: u64,
     /// Start presses so far, for the screen.
     start: u32,
+    /// Since when Start is held, until it counts as a press.
+    start_held: Option<Instant>,
 }
 
 /// Starts reading the pendant: a thread for the USB device, a task for its keys.
@@ -174,8 +178,14 @@ pub fn spawn(shared: Shared) {
     let (events, mut keys) = mpsc::channel(32);
     std::thread::Builder::new().name("pendant".into()).spawn(move || read(&events)).ok();
     tokio::spawn(async move {
-        let mut pendant =
-            Pendant { mode: Mode::Slow, held: None, down: None, sequence: 0, start: 0 };
+        let mut pendant = Pendant {
+            mode: Mode::Slow,
+            held: None,
+            down: None,
+            sequence: 0,
+            start: 0,
+            start_held: None,
+        };
         let mut renew = tokio::time::interval(RENEW);
         loop {
             tokio::select! {
@@ -315,7 +325,8 @@ impl Pendant {
             }
             // The screen starts it as its own Start button: checklist,
             // countdown, then the run or the resume.
-            (Key::Start, _) => self.start = self.start.wrapping_add(1),
+            // Held for a second, it counts, as the screen's Start button.
+            (Key::Start, _) => self.start_held = Some(Instant::now()),
             (Key::Pause, _) => machine::hold(shared).await?,
             (Key::Stop, _) => machine::stop(shared).await?,
             (Key::FastStep, _) => {
@@ -376,8 +387,17 @@ impl Pendant {
         Ok(())
     }
 
-    /// Keeps a held move going while its key repeats, or ends it.
+    /// Keeps a held move going while its key repeats, or ends it; counts
+    /// Start once it has been held long enough.
     async fn renew(&mut self, shared: &Shared) {
+        let start_down = matches!(self.down, Some((Event::Press { key: Key::Start, .. }, seen)) if seen.elapsed() < DEADMAN);
+        if !start_down {
+            self.start_held = None;
+        } else if self.start_held.is_some_and(|since| since.elapsed() >= START_HOLD) {
+            self.start_held = None;
+            self.start = self.start.wrapping_add(1);
+            self.show(shared, true).await;
+        }
         let Some((lease, _)) = &self.held else { return };
         if self.down.is_none_or(|(_, seen)| seen.elapsed() >= DEADMAN) {
             self.down = None;

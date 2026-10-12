@@ -813,7 +813,7 @@ async fn an_image_engraves_in_shades_of_gray_and_runs_to_the_end() {
             openlaser_server::machine::JogRequest {
                 axis,
                 positive: true,
-                step_mm: Some(20.),
+                step_mm: Some(60.),
                 fast: false,
                 diagonal: None,
             },

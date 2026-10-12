@@ -5,7 +5,9 @@ export const foldedScanAngle = (angle: number): number => {
   return 180 - a < 0.05 ? 0 : a;
 };
 /** Jerk-limited ramp plus 50% and 5 mm reserve, matching the server. */
-export const scanRunUp = (speed: number, acceleration = 6000, time = 0.25): number => 0.75 * speed * (speed <= acceleration * time * 0.5 ? time : speed / acceleration + time * 0.5) + 5;
+/** Seconds at full speed, laser off, before a line marks, as the server. */
+export const SCAN_SETTLE_SECONDS = 0.25;
+export const scanRunUp = (speed: number, acceleration = 6000, time = 0.25): number => 0.75 * speed * (speed <= acceleration * time * 0.5 ? time : speed / acceleration + time * 0.5) + speed * SCAN_SETTLE_SECONDS + 5;
 export function scanPadding(angle: number, speed: number, acceleration = 6000, time = 0.25): [number, number] {
   const a = foldedScanAngle(angle) * Math.PI / 180, distance = scanRunUp(speed, acceleration, time);
   return [distance * Math.abs(Math.cos(a)), distance * Math.abs(Math.sin(a))];
