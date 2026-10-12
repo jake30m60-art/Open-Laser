@@ -86,6 +86,21 @@
   const lit = (key: string, withFn = false) => doc.pendant?.key === key && (doc.pendant.with_fn === withFn || key === 'Follow' || key === 'Frame');
   const following = $derived(feedback ? [104, 117].includes(feedback.head.command) : false);
   const jogTitle = $derived(canJog ? '' : plain(readiness.jog.reason).text);
+  // The pendant's Fast/Step key sets the speed shown here too: Slow and
+  // Fast as the screen's own, Step as the pendant's 1 mm steps.
+  let pendantMode: string | undefined;
+  let pendantStep = $state(false);
+  $effect(() => {
+    const mode = doc.pendant?.mode;
+    if (mode === pendantMode) return;
+    pendantMode = mode;
+    if (mode === 'step') pendantStep = true;
+    else if (mode === 'slow' || mode === 'fast') { pendantStep = false; ui.jogFast = mode === 'fast'; }
+  });
+  function switchSpeed(): void {
+    if (pendantStep) pendantStep = false;
+    else ui.jogFast = !ui.jogFast;
+  }
   const jogSpeed = $derived(doc.bindings?.jog_speed[ui.jogFast ? 1 : 0]);
   const jogSpeedText = $derived(jogSpeed != null
     ? quantity(readiness.xy_recovery ? Math.min(1, jogSpeed) : jogSpeed, 'mm/s')
@@ -181,9 +196,14 @@
     <div class="jog" class:disabled={!canJog} title={jogTitle}>
       {@render corner(false, true)}{@render key(1, true, 'ic-arrow-up', 'Y+', readiness.xy_jog[1]![1]!.ok, lit('Up'))}{@render corner(true, true)}
       {@render key(0, false, 'ic-arrow-left', 'X−', readiness.xy_jog[0]![0]!.ok, lit('Left'))}
-      <button class="hub" class:lit={lit('FastStep')} onclick={() => (ui.jogFast = !ui.jogFast)} title={t("Tap to switch speed")}>
-        <strong>{ui.jogFast ? t('Fast') : t('Slow')}</strong>
-        <small>{jogSpeedText}</small>
+      <button class="hub" class:lit={lit('FastStep')} onclick={switchSpeed} title={t("Tap to switch speed")}>
+        {#if pendantStep}
+          <strong>{t('Step')}</strong>
+          <small>{t('1 mm per pendant press')}</small>
+        {:else}
+          <strong>{ui.jogFast ? t('Fast') : t('Slow')}</strong>
+          <small>{jogSpeedText}</small>
+        {/if}
       </button>
       {@render key(0, true, 'ic-arrow-right', 'X+', readiness.xy_jog[0]![1]!.ok, lit('Right'))}
       {@render corner(false, false)}{@render key(1, false, 'ic-arrow-down', 'Y−', readiness.xy_jog[1]![0]!.ok, lit('Down'))}{@render corner(true, false)}
