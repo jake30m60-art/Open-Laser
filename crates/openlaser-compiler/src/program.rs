@@ -2208,6 +2208,36 @@ mod tests {
     /// its fixed height, every later one runs there with no follow and no
     /// lift in between; only the program's end retracts.
     #[test]
+    fn a_held_follow_comes_down_once_and_follows_through_every_contour() {
+        let mut s = piercing();
+        s.pierce.clear();
+        s.hold_height = true;
+        let contours = [
+            line([10., 10.], [20., 10.]),
+            line([30., 10.], [40., 10.]),
+            line([60., 10.], [70., 10.]),
+        ];
+        let program =
+            Job::schedule_prepared(&s, &contours, None).unwrap().program(bound()).unwrap();
+        let count = |f: fn(&Record) -> bool| program.records.iter().filter(|r| f(r)).count();
+        assert_eq!(
+            count(|r| matches!(r, Record::Follow { .. })),
+            1,
+            "one descent, then it follows"
+        );
+        // Only the program's end retracts.
+        assert_eq!(count(|r| matches!(r, Record::Lift { .. } | Record::FrogJump { .. })), 1);
+        let mut plain = s.clone();
+        plain.hold_height = false;
+        let program =
+            Job::schedule_prepared(&plain, &contours, None).unwrap().program(bound()).unwrap();
+        assert!(
+            program.records.iter().filter(|r| matches!(r, Record::Lift { .. })).count() > 1,
+            "without holding the head lifts between contours"
+        );
+    }
+
+    #[test]
     fn a_held_height_measures_once_and_never_lifts_between_contours() {
         let mut s = piercing();
         s.pierce.clear();

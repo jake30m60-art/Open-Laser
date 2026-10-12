@@ -105,8 +105,10 @@ async fn a_paused_engraving_resumes_in_flight_from_its_line_start() {
         (mark[1] - last_mark[1]).abs() > 0.05,
         "the resume marked the paused line again: {mark:?} after {last_mark:?}"
     );
+    // The watch samples every few milliseconds, up to 15 on Windows: at
+    // the line's speed the first sample after the edge can lie 2 mm in.
     assert!(
-        (mark[0] - left).abs() < 1.5 || (mark[0] - right).abs() < 1.5,
+        (mark[0] - left).abs() < 3. || (mark[0] - right).abs() < 3.,
         "the next line starts at the picture's edge, not at {mark:?}"
     );
     let run_in = after[..first_lit]
