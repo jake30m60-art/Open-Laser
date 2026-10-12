@@ -962,8 +962,17 @@ impl Build<'_> {
                 )?;
             }
             self.program.allow(piece.samples.len(), piece.samples.len() + 1)?;
-            let movement =
+            let mut movement =
                 motion::frame(&piece.plan, &piece.samples, s.scales(), self.residuals, output)?;
+            // The vendor puts a barrier after a contour and before process
+            // commands, never inside one motion: the controller drains its
+            // interpolation there, and the axes stop and start again. Where
+            // the next piece only changes the laser, as at every mark of an
+            // engraving or a flying cut, the motion runs on through.
+            let continues = piece_index + 1 < c.pieces.len() && c.events[piece_index + 1].is_none();
+            if continues && movement.records.last() == Some(&Record::Barrier) {
+                movement.records.pop();
+            }
             self.residuals = movement.residuals;
             let kind =
                 if c.pass.kind == PassKind::Film { Kind::Film } else { Kind::of_piece(piece) };
@@ -2082,6 +2091,50 @@ mod tests {
         assert_eq!(layered.passes[1], plain.passes[1]);
         assert_eq!(layered.settings, s);
         assert!(Job::schedule_layered(&s, &contours, None, &[&s]).is_err());
+    }
+
+    /// The marks of an engraving line are one motion: no barrier where the
+    /// laser switches on or off, so the controller never stops the axes
+    /// at a mark; the contour still ends with one.
+    #[test]
+    fn marks_switch_the_laser_without_stopping_the_motion() {
+        let mut s = piercing();
+        s.pierce.clear();
+        let off = SegmentProcess {
+            joint: true,
+            power: Some(0.),
+            run_up: true,
+            ..SegmentProcess::default()
+        };
+        let gap = SegmentProcess { joint: true, power: Some(0.), ..SegmentProcess::default() };
+        let cut = SegmentProcess::default();
+        let at = |a: f64, b: f64| Segment::Line { start: [a, 10.], end: [b, 10.] };
+        let contour = Contour {
+            segments: tagged(
+                vec![off.clone(), cut.clone(), gap, cut, off],
+                vec![at(0., 20.), at(20., 25.), at(25., 27.), at(27., 32.), at(32., 52.)],
+            ),
+            overrides: Overrides::default(),
+        };
+        let program =
+            Job::schedule_prepared(&s, &[contour], None).unwrap().program(bound()).unwrap();
+        let moves: Vec<usize> = program
+            .records
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| matches!(r, Record::Move { .. }))
+            .map(|(i, _)| i)
+            .collect();
+        let (first, last) = (moves[0], moves[moves.len() - 1]);
+        // The approach travel is its own motion; from the cut start on, one.
+        let cut_from =
+            program.sections.iter().find(|sec| sec.kind == Kind::CutStart).unwrap().records.end;
+        assert!(
+            !program.records[cut_from..last].iter().any(|r| *r == Record::Barrier),
+            "a barrier inside the engraving line"
+        );
+        assert_eq!(program.records[last + 1], Record::Barrier, "the contour still ends with one");
+        assert!(first < cut_from);
     }
 
     /// An engraving measures once: the first contour follows and lifts to
