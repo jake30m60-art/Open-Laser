@@ -23,6 +23,18 @@
   import { holdScrollPositions } from './lib/scroll-hold';
   import PendantChip from './components/PendantChip.svelte';
 
+  // Start on the pendant: the Run page answers it as its own Start button.
+  let pendantStarts: number | undefined;
+  $effect(() => {
+    const count = doc?.pendant?.start;
+    if (count === undefined) return;
+    if (pendantStarts !== undefined && count !== pendantStarts) {
+      ui.tab = 'run';
+      ui.pendantStart = true;
+    }
+    pendantStarts = count;
+  });
+
   // A panel whose content shrinks for a moment keeps its place.
   $effect(() => holdScrollPositions());
 

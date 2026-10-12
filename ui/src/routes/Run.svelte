@@ -202,6 +202,12 @@
     } catch (error) { ui.say(explain(error), true); }
     finally { reviewing = false; }
   }
+  // A Start pressed on the pendant: the same checklist and countdown.
+  $effect(() => {
+    if (!ui.pendantStart) return;
+    ui.pendantStart = false;
+    void act(doc.can_resume || doc.machine.program?.state === 'held' || doc.recovery?.state === 'held' ? 'resume' : 'run');
+  });
   const mark = $derived(Math.min(view.shown.w, view.shown.h) / 120);
   let pickingRestart = false;
   async function pickRestart(point: [number, number]): Promise<void> {

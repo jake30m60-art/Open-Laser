@@ -20,4 +20,9 @@ key: string | null,
 /**
  * Whether Fn+ is held with it.
  */
-with_fn: boolean, };
+with_fn: boolean,
+/**
+ * Counts the Start presses: the screen answers each as its own Start
+ * button, with the checklist and its countdown.
+ */
+start: number, };

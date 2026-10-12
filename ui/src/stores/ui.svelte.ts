@@ -120,6 +120,8 @@ class Ui {
   drawBar = $state<string[]>(withAll(remembered('ol-draw-bar', DRAW_BAR), DRAW_BAR));
   editDrawBar = $state(false);
   jogFast = $state(false);
+  /** A Start pressed on the pendant, waiting for the Run page to answer it. */
+  pendantStart = $state(false);
   snap = $state(remembered('ol-snap', true));
   grid = $state(remembered('ol-grid', 1));
   /** Canvas layers the operator switched off. */

@@ -152,6 +152,9 @@ pub struct PendantView {
     pub key: Option<String>,
     /// Whether Fn+ is held with it.
     pub with_fn: bool,
+    /// Counts the Start presses: the screen answers each as its own Start
+    /// button, with the checklist and its countdown.
+    pub start: u32,
 }
 
 /// The pendant's own state between reports.
@@ -162,6 +165,8 @@ struct Pendant {
     /// The key down and when its report last came.
     down: Option<(Event, Instant)>,
     sequence: u64,
+    /// Start presses so far, for the screen.
+    start: u32,
 }
 
 /// Starts reading the pendant: a thread for the USB device, a task for its keys.
@@ -169,7 +174,8 @@ pub fn spawn(shared: Shared) {
     let (events, mut keys) = mpsc::channel(32);
     std::thread::Builder::new().name("pendant".into()).spawn(move || read(&events)).ok();
     tokio::spawn(async move {
-        let mut pendant = Pendant { mode: Mode::Slow, held: None, down: None, sequence: 0 };
+        let mut pendant =
+            Pendant { mode: Mode::Slow, held: None, down: None, sequence: 0, start: 0 };
         let mut renew = tokio::time::interval(RENEW);
         loop {
             tokio::select! {
@@ -200,6 +206,7 @@ impl Pendant {
             .into(),
             with_fn: key.as_ref().is_some_and(|(_, f)| *f),
             key: key.map(|(k, _)| k),
+            start: self.start,
         };
         let mut c = shared.lock().await;
         if c.pendant.as_ref() != Some(&view) {
@@ -233,7 +240,13 @@ impl Pendant {
                 self.down = Some((event, Instant::now()));
                 self.release(shared).await;
                 if let Err(error) = self.press(shared, key, with_fn).await {
-                    shared.lock().await.note(format!("Pendant: {error}"), true);
+                    // A step pressed while the last one still moves is dropped
+                    // quietly, as a quick double press would be.
+                    let busy =
+                        self.mode == Mode::Step && error.to_string().contains("a move is active");
+                    if !busy {
+                        shared.lock().await.note(format!("Pendant: {error}"), true);
+                    }
                 }
             }
         }
@@ -300,10 +313,9 @@ impl Pendant {
             (Key::GoOrigin | Key::ZCalibrate, false) => {
                 return Err(crate::Error::Refused("hold Fn+ with this key".into()));
             }
-            (Key::Start, _) => {
-                let held = shared.lock().await.held.is_some();
-                if held { machine::resume(shared).await? } else { machine::run(shared).await? }
-            }
+            // The screen starts it as its own Start button: checklist,
+            // countdown, then the run or the resume.
+            (Key::Start, _) => self.start = self.start.wrapping_add(1),
             (Key::Pause, _) => machine::hold(shared).await?,
             (Key::Stop, _) => machine::stop(shared).await?,
             (Key::FastStep, _) => {
