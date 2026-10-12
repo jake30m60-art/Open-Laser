@@ -76,10 +76,19 @@ async fn a_paused_engraving_resumes_in_flight_from_its_line_start() {
     machine::hold(&shared).await.unwrap();
     until(&shared, 20, |d| d.can_resume && d.machine.operation.is_none()).await;
     let paused = seen.lock().unwrap().len();
-    let held_at = {
-        let all = seen.lock().unwrap();
-        all.iter().rev().find(|s| s.lit).map(|s| s.at).unwrap()
-    };
+    // The pause waited for the line's end: the head stands in the
+    // laser-off run-out beside the picture, not inside it.
+    let stood = control.view().position_mm;
+    let marks: Vec<[f64; 2]> =
+        seen.lock().unwrap().iter().filter(|s| s.lit).map(|s| s.at).collect();
+    let (left, right) = marks
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, r), m| (l.min(m[0]), r.max(m[0])));
+    assert!(
+        stood[0] < left - 0.5 || stood[0] > right + 0.5,
+        "paused inside the picture at {stood:?}, marks {left}..{right}"
+    );
+    let last_mark = *marks.last().unwrap();
     common::resume(&shared).await.unwrap();
     until(&shared, 120, |d| {
         d.machine.program.as_ref().is_some_and(|p| p.state == ProgramState::Completed)
@@ -91,11 +100,15 @@ async fn a_paused_engraving_resumes_in_flight_from_its_line_start() {
     let after = &all[paused..];
     let first_lit = after.iter().position(|s| s.lit).expect("the resume marks again");
     let mark = after[first_lit].at;
-    // The first mark after the resume is where the pause left off.
-    let gap = (mark[0] - held_at[0]).hypot(mark[1] - held_at[1]);
-    assert!(gap < 1.5, "resumed marking at {mark:?}, paused at {held_at:?}");
-    // It got there at speed: the head moved well before the beam came on,
-    // along the same line, not from rest at that spot.
+    // The resume marks the next line from its edge, at speed.
+    assert!(
+        (mark[1] - last_mark[1]).abs() > 0.05,
+        "the resume marked the paused line again: {mark:?} after {last_mark:?}"
+    );
+    assert!(
+        (mark[0] - left).abs() < 1.5 || (mark[0] - right).abs() < 1.5,
+        "the next line starts at the picture's edge, not at {mark:?}"
+    );
     let run_in = after[..first_lit]
         .iter()
         .rev()
@@ -103,8 +116,8 @@ async fn a_paused_engraving_resumes_in_flight_from_its_line_start() {
         .map(|s| (s.at[0] - mark[0]).hypot(s.at[1] - mark[1]))
         .fold(0., f64::max);
     eprintln!(
-        "paused at {held_at:?}, marked again at {mark:?} ({gap:.3} mm), moving {run_in:.2} mm before"
+        "stood at {stood:?}; marks {left:.2}..{right:.2}; marked again at {mark:?}, moving {run_in:.2} mm before"
     );
-    assert!(run_in > 0.5, "the head stood at the stop before marking: {run_in}");
+    assert!(run_in > 0.5, "the head stood still before marking: {run_in}");
     openlaser_server::shutdown(&shared).await.unwrap();
 }

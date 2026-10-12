@@ -1168,9 +1168,84 @@ async fn reset_after_stop(shared: &Shared) {
 
 /// Pauses the running program.
 pub async fn hold(shared: &Shared) -> Result<()> {
+    if flying_now(shared).await {
+        // An engraving line is finished first: the pause lands in its
+        // laser-off run-out, so resuming leaves no seam in the marks.
+        let shared = Arc::clone(shared);
+        let epoch = shared.stop_epoch.load(Ordering::Acquire);
+        shared.lock().await.note("Pausing after this line", false);
+        tokio::spawn(async move { hold_after_line(&shared, epoch).await });
+        return Ok(());
+    }
     let machine = shared.machine.clone();
     machine.hold().await?;
     Ok(())
+}
+
+/// Whether the running pass flies: an engraving or a flying cut.
+async fn flying_now(shared: &Shared) -> bool {
+    let state = shared.machine.state();
+    let running = state.program.as_ref().is_some_and(|p| {
+        matches!(
+            p.state,
+            openlaser_controller::state::ProgramState::Running
+                | openlaser_controller::state::ProgramState::Finishing
+        )
+    });
+    let Some(item) = state.feedback.map(|f| f.fifo.item) else { return false };
+    let Ok(pass) = usize::try_from(item & 0x7fff_ffff) else { return false };
+    let c = shared.lock().await;
+    running
+        && c.held.as_ref().and_then(|h| h.job.passes.get(pass)).is_some_and(|p| {
+            p.pieces.iter().any(|piece| piece.process.joint && piece.process.run_up)
+        })
+}
+
+/// Holds once the head slows into the turn at the end of its line, where
+/// the beam is off; at the latest after a few seconds.
+async fn hold_after_line(shared: &Shared, epoch: u64) {
+    let interval = std::time::Duration::from_millis(10);
+    let deadline = Instant::now() + std::time::Duration::from_secs(8);
+    let mut last: Option<([f64; 3], Instant)> = None;
+    let mut peak: f64 = 0.;
+    while Instant::now() < deadline {
+        if shared.stop_epoch.load(Ordering::Acquire) != epoch {
+            return;
+        }
+        let state = shared.machine.state();
+        if state.program.as_ref().is_none_or(|p| {
+            !matches!(
+                p.state,
+                openlaser_controller::state::ProgramState::Running
+                    | openlaser_controller::state::ProgramState::Finishing
+            )
+        }) {
+            return;
+        }
+        if let Some(feedback) = state.feedback {
+            let now = Instant::now();
+            let position = feedback.position_mm;
+            // A new feedback sample: the head has moved since the last one.
+            if let Some((before, at)) = last
+                && (position[0] - before[0]).hypot(position[1] - before[1]) > 1e-6
+            {
+                let seconds = now.duration_since(at).as_secs_f64();
+                let speed = (position[0] - before[0]).hypot(position[1] - before[1]) / seconds;
+                peak = peak.max(speed);
+                // Slowing for the turn, in the run-out past the last mark.
+                if peak > 5. && speed < peak * 0.3 {
+                    break;
+                }
+                last = Some((position, now));
+            } else if last.is_none() {
+                last = Some((position, now));
+            }
+        }
+        tokio::time::sleep(interval).await;
+    }
+    if let Err(error) = shared.machine.hold().await {
+        shared.lock().await.note(format!("Pause: {error}"), true);
+    }
 }
 
 /// Runs the exact artifact accepted by the latest compile.
