@@ -151,14 +151,16 @@ fn table_at_speed(entries: &[ScanOffset], speed: f64) -> Vec<[f64; 2]> {
         .collect()
 }
 
-/// Linear through the points, sorted by x; the nearest value beyond them.
+/// Linear through the points, sorted by speed. Beyond them the offset
+/// keeps in proportion to the speed of the nearest measurement: it is the
+/// laser's fixed delay times the speed, so half the speed, half the offset.
 fn interpolate(points: &[(f64, f64)], x: f64) -> f64 {
     let (Some(first), Some(last)) = (points.first(), points.last()) else { return 0. };
     if x <= first.0 {
-        return first.1;
+        return if first.0 > 0. { first.1 * x.max(0.) / first.0 } else { first.1 };
     }
     if x >= last.0 {
-        return last.1;
+        return if last.0 > 0. { last.1 * x / last.0 } else { last.1 };
     }
     for pair in points.windows(2) {
         let ((x0, y0), (x1, y1)) = (pair[0], pair[1]);
@@ -709,9 +711,9 @@ mod tests {
         assert_eq!(table.len(), 2);
         assert!((table[0][0] - 0.).abs() < 1e-12 && (table[0][1] - 0.04).abs() < 1e-12);
         assert!((table[1][0] - 90.).abs() < 1e-12 && (table[1][1] - 0.07).abs() < 1e-12);
-        // Beyond what was measured, the nearest measurement holds.
-        assert!((table_at_speed(&entries, 50.)[0][1] - 0.02).abs() < 1e-12);
-        assert!((table_at_speed(&entries, 900.)[1][1] - 0.09).abs() < 1e-12);
+        // Beyond what was measured, in proportion to the speed: a fixed delay.
+        assert!((table_at_speed(&entries, 50.)[0][1] - 0.01).abs() < 1e-12);
+        assert!((table_at_speed(&entries, 900.)[1][1] - 0.27).abs() < 1e-12);
     }
 
     #[test]
