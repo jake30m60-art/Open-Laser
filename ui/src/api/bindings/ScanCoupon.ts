@@ -33,4 +33,9 @@ length: number,
 /**
  * Distance between the lines of a block, in millimetres.
  */
-spacing: number, };
+spacing: number,
+/**
+ * Engrave with the stored offsets, to check them: the lines of a block
+ * meet when the offsets are right. Otherwise uncompensated, to measure.
+ */
+compensated: boolean, };

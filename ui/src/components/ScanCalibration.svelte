@@ -41,6 +41,8 @@
   const testAngles = $derived(threeAngles ? [0, 45, 90] : [foldedScanAngle(angle)]);
   let length = $state(session?.length ?? 10);
   let spacing = $state(session?.spacing ?? 1);
+  /** Engrave with the stored offsets, to check that the lines meet. */
+  let check = $state(false);
   let origin = $state<[number, number] | null>(session?.origin ?? null);
   let recipeId = $state<string | null>(session?.recipeId ?? null);
   /** The speed being measured. */
@@ -170,7 +172,7 @@
     return run(async () => {
       if (!recipe) throw new Error(tr("Add a recipe for this laser first."));
       if (!origin || !fits) throw new Error(tr("The test does not fit on the bed there."));
-      await api.scanCoupon({ recipe: recipe.id, angle, angles: $state.snapshot(testAngles), speeds: $state.snapshot(speeds), origin: $state.snapshot(origin), length, spacing });
+      await api.scanCoupon({ recipe: recipe.id, angle, angles: $state.snapshot(testAngles), speeds: $state.snapshot(speeds), origin: $state.snapshot(origin), length, spacing, compensated: check });
       session = { speeds: $state.snapshot(speeds), angle, threeAngles, length, spacing, origin: $state.snapshot(origin), recipeId: recipe.id };
       current = 0;
       ui.say(tr("Test loaded: {0} speeds, angles {1}. Engrave it, then enter each measurement here.", speeds.length, testAngles.map(a => `${a}°`).join(' / ')));
@@ -295,6 +297,7 @@
             <button class="chip" disabled={busy || speeds.length >= 24} onclick={addSpeed}>{tr("+ Speed")}</button>
           </div>
           <div class="settings">
+            <button disabled={busy} onclick={() => (check = !check)}><span>{tr("Test kind")}</span><strong>{check ? tr("Check the stored offsets") : tr("Measure, without offsets")}</strong><small>{check ? tr("The lines of each block meet when the offsets are right") : tr("Measure the shift between → and ← lines")}</small></button>
             <button disabled={busy} onclick={() => { threeAngles = !threeAngles; current = 0; }}><span>{tr("Test directions")}</span><strong>{threeAngles ? '0° / 45° / 90°' : tr("Custom angle")}</strong><small>{tr("Click to switch between three directions and one angle")}</small></button>
             {#if !threeAngles}<button disabled={busy} onclick={() => number(tr('Scan angle'), angle, '°', v => { angle = v; current = 0; }, v => v >= 0 && v < 360, tr('Enter 0 to 359°.'))}><span>{tr("Scan angle")}</span><strong>{fmt(angle, 1)}°</strong><small>{tr("0° along X · 90° along Y")}</small></button>{/if}
             <button disabled={busy} onclick={() => number(tr('Line length'), length, 'mm', (v) => (length = v), (v) => v >= 3 && v <= 50, tr('Enter 3 to 50 mm.'))}><span>{tr("Line length")}</span><strong>{fmt(length, 1)} mm</strong></button>

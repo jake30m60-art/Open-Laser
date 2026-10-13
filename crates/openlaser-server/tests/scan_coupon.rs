@@ -46,6 +46,7 @@ async fn each_single_direction_engraves_four_lines() {
             origin: [300., 300.],
             length: 10.,
             spacing: 1.,
+            compensated: false,
         })
         .unwrap();
     }
@@ -109,6 +110,7 @@ async fn angled_coupons_keep_their_four_lines_and_all_travel_inside_the_bed() {
                 origin: [300., 300.],
                 length: 10.,
                 spacing: 1.,
+                compensated: false,
             })
             .unwrap();
         }
@@ -178,6 +180,7 @@ async fn invalid_coupons_do_not_replace_the_draft_or_add_library_parts() {
             origin: [300., 300.],
             length: 10.,
             spacing: 1.,
+            compensated: false,
         };
         let invalid = [
             ScanCoupon { origin: [10., 20.], ..valid.clone() }, // marks fit, run-up leaves bed
@@ -201,6 +204,73 @@ async fn invalid_coupons_do_not_replace_the_draft_or_add_library_parts() {
         assert_ne!(layers[0].name, layers[1].name);
     }
     openlaser_server::shutdown(&shared).await.unwrap();
+}
+
+/// A check coupon engraves with the stored offsets: each line's marks move
+/// back against its travel, so its lines meet when the offsets are right.
+#[tokio::test]
+async fn a_check_coupon_engraves_with_the_stored_offsets() {
+    let marks = |compensated: bool| async move {
+        let (_sim, shared) = start(if compensated { "scan-check" } else { "scan-measure" }).await;
+        {
+            let mut c = shared.lock().await;
+            let recipe = c
+                .add_recipe(&NewRecipe {
+                    name: "Mark".into(),
+                    laser: LaserMode::Fiber,
+                    thickness_mm: 1.,
+                    values: Values::Bank(1),
+                    gas: None,
+                })
+                .unwrap();
+            c.update_recipe(
+                &recipe.id,
+                RecipeChange {
+                    attributes: [("OpenLaserProcess".into(), "engrave".into())].into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let revision = c.scan_offsets_view(LaserMode::Fiber).unwrap().revision;
+            c.save_scan_offsets(ScanOffsetsChange {
+                revision,
+                mode: LaserMode::Fiber,
+                angle: 0.,
+                measured: vec![(100., Some(1.))],
+            })
+            .unwrap();
+            c.scan_offset_coupon(ScanCoupon {
+                recipe: recipe.id,
+                angle: 0.,
+                angles: Vec::new(),
+                speeds: vec![100.],
+                origin: [300., 300.],
+                length: 10.,
+                spacing: 1.,
+                compensated,
+            })
+            .unwrap();
+        }
+        machine::prepare(&shared).await.unwrap();
+        let draft = shared.lock().await.document().draft.unwrap();
+        let preview = draft.preview.as_ref().unwrap();
+        let mut starts: Vec<i64> = preview
+            .contours
+            .iter()
+            .flat_map(|c| &c.paths)
+            .filter(|p| p.kind == PathKind::Cut)
+            .map(|p| (p.points[0][0].min(p.points[p.points.len() - 1][0]) * 1000.).round() as i64)
+            .collect();
+        starts.sort_unstable();
+        openlaser_server::shutdown(&shared).await.unwrap();
+        starts
+    };
+    let plain = marks(false).await;
+    let checked = marks(true).await;
+    assert_eq!(plain.len(), checked.len());
+    assert_ne!(plain, checked, "the check coupon moves its marks by the stored offset");
+    let moved = plain.iter().zip(&checked).map(|(a, b)| (a - b).abs()).max().unwrap();
+    assert!((900..=1100).contains(&moved), "moved by {moved} µm, the stored 1 mm");
 }
 
 #[tokio::test]
@@ -265,6 +335,7 @@ async fn each_speed_has_twelve_lines_in_zero_fortyfive_ninety_order() {
             origin: [300., 300.],
             length: 10.,
             spacing: 1.,
+            compensated: false,
         })
         .unwrap();
     }
@@ -324,6 +395,7 @@ async fn calibration_rejects_cutting_recipes_before_changing_the_draft() {
             origin: [300., 300.],
             length: 10.,
             spacing: 1.,
+            compensated: false,
         });
         assert!(result.unwrap_err().to_string().contains("engraving recipe"));
         let after = c.document();

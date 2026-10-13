@@ -223,6 +223,10 @@ pub struct ScanCoupon {
     pub length: f64,
     /// Distance between the lines of a block, in millimetres.
     pub spacing: f64,
+    /// Engrave with the stored offsets, to check them: the lines of a block
+    /// meet when the offsets are right. Otherwise uncompensated, to measure.
+    #[serde(default)]
+    pub compensated: bool,
 }
 
 /// One speed's blocks in their own frame, scanned along X: rectangles
@@ -595,6 +599,7 @@ impl Coordinator {
         let sources = self.library.job_drawing(std::slice::from_ref(&part.id))?;
         let mut draft = Draft::new(std::sync::Arc::new(sources));
         draft.calibration = true;
+        draft.scan_check = coupon.compensated;
         let fill = |speed: f64, angle: f64| Fill {
             spacing: coupon.spacing,
             angle,
@@ -647,10 +652,11 @@ impl Coordinator {
     }
 
     /// Per marked layer with a fill, the offsets measured at its recipe's
-    /// speed, by angle. Calibration coupons engrave uncompensated.
+    /// speed, by angle. Calibration coupons engrave uncompensated, unless
+    /// they check the stored offsets.
     pub(crate) fn scan_tables(&self, draft: &Draft) -> BTreeMap<String, Vec<[f64; 2]>> {
         let mut tables = BTreeMap::new();
-        if draft.calibration {
+        if draft.calibration && !draft.scan_check {
             return tables;
         }
         let Some(job) = draft.current.recipe.as_ref() else { return tables };

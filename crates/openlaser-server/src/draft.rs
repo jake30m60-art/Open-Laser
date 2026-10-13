@@ -69,6 +69,10 @@ pub struct Draft {
     /// Calibration coupons must retain their nominal geometry.
     #[serde(default)]
     pub calibration: bool,
+    /// A scan-offset check: a coupon engraved with the stored offsets, to
+    /// see that its lines meet.
+    #[serde(default)]
+    pub scan_check: bool,
     /// Per filled marked layer, the scan offsets measured at its speed by
     /// angle, as the coordinator found them for this preparation.
     #[serde(skip)]
@@ -180,6 +184,8 @@ pub(crate) struct AuthoringState {
     workspace_id: Option<Id>,
     dry_run: bool,
     calibration: bool,
+    #[serde(default)]
+    scan_check: bool,
     source_count: usize,
     job: Option<Id>,
     saved_base: Option<openlaser_library::Job>,
@@ -197,6 +203,7 @@ impl AuthoringState {
         draft.dry_run = self.dry_run;
         draft.load_snapshot(self.current.clone());
         draft.calibration = self.calibration;
+        draft.scan_check = self.scan_check;
         draft.job.clone_from(&self.job);
         draft.saved_base.clone_from(&self.saved_base);
         draft.past.clone_from(&self.past);
@@ -294,6 +301,7 @@ impl Draft {
             workspace_id: self.workspace_id.clone(),
             dry_run: self.dry_run,
             calibration: self.calibration,
+            scan_check: self.scan_check,
             source_count: self.source_count,
             job: self.job.clone(),
             saved_base: self.saved_base.clone(),
@@ -352,6 +360,7 @@ impl Draft {
             capture_epoch: None,
             capture_used: false,
             calibration: false,
+            scan_check: false,
             scan_tables: std::collections::BTreeMap::new(),
             scan_runups: std::collections::BTreeMap::new(),
             stock_outline: Vec::new(),
