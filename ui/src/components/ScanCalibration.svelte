@@ -41,8 +41,7 @@
   const testAngles = $derived(threeAngles ? [0, 45, 90] : [foldedScanAngle(angle)]);
   let length = $state(session?.length ?? 10);
   let spacing = $state(session?.spacing ?? 1);
-  /** Engrave with the stored offsets, to check that the lines meet. */
-  let check = $state(false);
+
   let origin = $state<[number, number] | null>(session?.origin ?? null);
   let recipeId = $state<string | null>(session?.recipeId ?? null);
   /** The speed being measured. */
@@ -168,14 +167,17 @@
     number(tr("Test corner {0}", axis ? 'Y' : 'X'), origin[axis], 'mm', (v) => { origin = axis ? [origin![0], v] : [v, origin![1]]; }, () => true, '');
   }
 
-  function loadTest(): Promise<void> {
+  /** Loads the test: to measure, uncompensated, or to check the stored offsets. */
+  function loadTest(check: boolean): Promise<void> {
     return run(async () => {
       if (!recipe) throw new Error(tr("Add a recipe for this laser first."));
       if (!origin || !fits) throw new Error(tr("The test does not fit on the bed there."));
       await api.scanCoupon({ recipe: recipe.id, angle, angles: $state.snapshot(testAngles), speeds: $state.snapshot(speeds), origin: $state.snapshot(origin), length, spacing, compensated: check });
       session = { speeds: $state.snapshot(speeds), angle, threeAngles, length, spacing, origin: $state.snapshot(origin), recipeId: recipe.id };
       current = 0;
-      ui.say(tr("Test loaded: {0} speeds, angles {1}. Engrave it, then enter each measurement here.", speeds.length, testAngles.map(a => `${a}°`).join(' / ')));
+      ui.say(check
+        ? tr("Check loaded: engraved with the stored offsets. The lines of each block should meet.")
+        : tr("Test loaded: {0} speeds, angles {1}. Engrave it, then enter each measurement here.", speeds.length, testAngles.map(a => `${a}°`).join(' / ')));
       ui.setupPanel = null;
       ui.tab = 'setup';
     });
@@ -297,7 +299,6 @@
             <button class="chip" disabled={busy || speeds.length >= 24} onclick={addSpeed}>{tr("+ Speed")}</button>
           </div>
           <div class="settings">
-            <button disabled={busy} onclick={() => (check = !check)}><span>{tr("Test kind")}</span><strong>{check ? tr("Check the stored offsets") : tr("Measure, without offsets")}</strong><small>{check ? tr("The lines of each block meet when the offsets are right") : tr("Measure the shift between → and ← lines")}</small></button>
             <button disabled={busy} onclick={() => { threeAngles = !threeAngles; current = 0; }}><span>{tr("Test directions")}</span><strong>{threeAngles ? '0° / 45° / 90°' : tr("Custom angle")}</strong><small>{tr("Click to switch between three directions and one angle")}</small></button>
             {#if !threeAngles}<button disabled={busy} onclick={() => number(tr('Scan angle'), angle, '°', v => { angle = v; current = 0; }, v => v >= 0 && v < 360, tr('Enter 0 to 359°.'))}><span>{tr("Scan angle")}</span><strong>{fmt(angle, 1)}°</strong><small>{tr("0° along X · 90° along Y")}</small></button>{/if}
             <button disabled={busy} onclick={() => number(tr('Line length'), length, 'mm', (v) => (length = v), (v) => v >= 3 && v <= 50, tr('Enter 3 to 50 mm.'))}><span>{tr("Line length")}</span><strong>{fmt(length, 1)} mm</strong></button>
@@ -313,7 +314,14 @@
             {#if !recipe}<small>{tl("Create an engraving recipe for this laser in the material library first.")}</small><button class="btn btn-ghost" onclick={() => ui.tab = 'materials'}>{tl("To the material library")}</button>{/if}
           </label>
           <button class="btn btn-ghost" disabled={busy} onclick={() => { if (bed) origin = [bed.min.x + before[0] + 10, bed.min.y + before[1] + 10]; }}>{tr("Place with safe edge clearance")}</button>
-          <button class="btn btn-primary lg" disabled={busy || !fits || !recipe} onclick={loadTest}>{tr("Load test in Setup")}</button>
+          <div class="load-row">
+            <button class="btn btn-primary lg" disabled={busy || !fits || !recipe} onclick={() => loadTest(false)}>
+              <span>{tr("Pattern to measure")}</span><small>{tr("Without offsets: measure the shift between → and ← lines")}</small>
+            </button>
+            <button class="btn btn-move lg" disabled={busy || !fits || !recipe || !(data?.entries.length)} onclick={() => loadTest(true)}>
+              <span>{tr("Pattern to check")}</span><small>{tr("With the stored offsets: the lines of each block should meet")}</small>
+            </button>
+          </div>
           <button class="text-action" disabled={busy} onclick={() => (page = 1)}>{tr("Already engraved? Measure →")}</button>
         {:else if page === 1}
           <span class="eyebrow">{tr("2 · Measurement {0} of {1}", Math.min(current, tests.length - 1) + 1, tests.length)}</span>
@@ -395,6 +403,10 @@
   .bed-heading { display:flex; justify-content:space-between; gap:15px; color:var(--ink-3); font-size:var(--t-sm); padding:8px 0; }
   .progress { color:var(--ink-3); font-size:var(--t-sm); margin:6px 0; }
   .corner-buttons { display:flex; gap:8px; flex-wrap:wrap; }
+  .load-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .load-row .btn { display:flex; flex-direction:column; align-items:flex-start; gap:2px; height:auto; min-height:64px; padding:10px 14px; text-align:left; }
+  .load-row .btn small { font-weight:400; opacity:.85; }
+  @media (max-width: 700px) { .load-row { grid-template-columns:1fr; } }
   .eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:var(--t-sm); color:var(--accent); font-weight:700; }
   h3 { font-size:var(--t-xl); line-height:1.2; margin:10px 0 14px; color:var(--ink); text-transform:none; letter-spacing:normal; }
   .step-content p { color:var(--ink-3); font-size:var(--t-sm); line-height:1.6; margin:0 0 14px; }
