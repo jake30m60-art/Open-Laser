@@ -81,11 +81,14 @@
       .catch((error) => ui.say(explain(error), true))
       .finally(() => { busy = false; });
   }
-  /** A layer engraves: marked, filled, with the preferred engraving recipe when it has none. */
+  /** The job's own material is an engraving recipe: new engraving layers follow it. */
+  const jobEngraves = $derived(!!draft.recipe && isEngraving(draft.recipe));
+  /** A layer engraves: marked, filled, with the preferred engraving recipe when it has none
+   *  and the job's material does not engrave itself. */
   async function engrave(layer: string, recipe: RecipeView | null = preferred): Promise<void> {
     const edits: LayerChange[] = [{ kind: 'mode', layer, mode: 'mark' }, { kind: 'output', layer, on: true }];
     const current = draft.layers.find((l) => l.name === layer);
-    if (recipe && !current?.recipe) edits.push({ kind: 'recipe', layer, recipe: recipe.id });
+    if (recipe && !current?.recipe && !jobEngraves) edits.push({ kind: 'recipe', layer, recipe: recipe.id });
     await change(...edits);
     if (current?.mode !== 'mark' && !fillOfLayer(layer)) writeFill(layer, recipe ? fillOf(recipe.attributes) : defaultFill());
   }
@@ -96,7 +99,7 @@
     busy = true;
     try {
       await api.setFeatures(snapshot.features, snapshot.revision);
-      if (selectedContours.length && !draft.layers.find(l => l.name === NAME)?.recipe && preferred) {
+      if (selectedContours.length && !draft.layers.find(l => l.name === NAME)?.recipe && preferred && !jobEngraves) {
         await api.changeLayers({ kind: 'recipe', layer: NAME, recipe: preferred.id });
       }
       ui.say(tr("Engraving selection saved. Undo restores the previous engraving."));
@@ -205,6 +208,7 @@
     {@const fill = fillOfLayer(layer.name)}
     {@const closed = closedOn(layer.name)}
     {@const hidden = ui.drawingLayerHidden(layer.name)}
+    {@const used = layer.recipe ?? draft.recipe}
     <section class="layer" class:hidden>
       <header>
         <span class="layer-swatch mark" style:--layer={swatchColor(draft.layers, layer.name)}></span>
@@ -218,7 +222,7 @@
         <p class="warn-box">{tr("This layer has no recipe yet, so nothing on it is worked out or engraved. Choose one:")}</p>
       {/if}
       <details class="recipe-picker">
-        <summary>{tr("Recipe")}: {(layer.recipe ?? draft.recipe)?.name ?? tr("Choose one")}</summary>
+        <summary>{tr("Recipe")}: {used ? `${materialLabel(used.name)} · ${used.attributes['CutSpeed'] ?? '?'} mm/s` : tr("Choose one")}{#if used && !layer.recipe} · {tr("from the material")}{:else if layer.recipe} · {tr("own recipe")}{/if}</summary>
       <div class="recipes" role="group" aria-label={tr("Engraving recipes")}>
         {#each recipes as r (r.id)}
           <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{materialLabel(r.name)} · {tr(r.gas)}</button>
