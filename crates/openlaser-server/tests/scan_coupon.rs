@@ -254,22 +254,37 @@ async fn a_check_coupon_engraves_with_the_stored_offsets() {
         machine::prepare(&shared).await.unwrap();
         let draft = shared.lock().await.document().draft.unwrap();
         let preview = draft.preview.as_ref().unwrap();
-        let mut starts: Vec<i64> = preview
+        // Each mark: its line's height, the end it starts at and the one it
+        // stops at, in travel order, in µm.
+        let mut marks: Vec<(i64, i64, i64)> = preview
             .contours
             .iter()
             .flat_map(|c| &c.paths)
             .filter(|p| p.kind == PathKind::Cut)
-            .map(|p| (p.points[0][0].min(p.points[p.points.len() - 1][0]) * 1000.).round() as i64)
+            .map(|p| {
+                let um = |v: f64| (v * 1000.).round() as i64;
+                (um(p.points[0][1]), um(p.points[0][0]), um(p.points[p.points.len() - 1][0]))
+            })
             .collect();
-        starts.sort_unstable();
+        marks.sort_unstable();
         openlaser_server::shutdown(&shared).await.unwrap();
-        starts
+        marks
     };
     let plain = marks(false).await;
     let checked = marks(true).await;
     assert_eq!(plain.len(), checked.len());
-    assert_ne!(plain, checked, "the check coupon moves its marks by the stored offset");
-    let moved = plain.iter().zip(&checked).map(|(a, b)| (a - b).abs()).max().unwrap();
+    let mut directions = std::collections::BTreeSet::new();
+    for (p, c) in plain.iter().zip(&checked) {
+        let forward = p.2 > p.1;
+        directions.insert(forward);
+        // Every mark moves back against its travel by the stored 1 mm: its
+        // start and its end alike, on the → lines and on the ← lines.
+        let back = if forward { -1000 } else { 1000 };
+        assert!((c.1 - p.1 - back).abs() <= 100, "start {p:?} -> {c:?}");
+        assert!((c.2 - p.2 - back).abs() <= 100, "end {p:?} -> {c:?}");
+    }
+    assert_eq!(directions.len(), 2, "both directions were checked");
+    let moved = 1000;
     assert!((900..=1100).contains(&moved), "moved by {moved} µm, the stored 1 mm");
 }
 

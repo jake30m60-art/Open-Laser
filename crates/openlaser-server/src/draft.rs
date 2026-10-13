@@ -1782,9 +1782,25 @@ pub fn settings(bundle: &Bundle, recipe: &Recipe, binder: Binder) -> Result<Sett
         settings.hold_height = true;
         settings.no_follow = false;
         settings.absolute_cut_height = None;
+        // Between the fields and objects of an engraving the head travels
+        // often and short: gently, as the lines themselves.
+        settings.travel_acceleration =
+            settings.travel_acceleration.min(ENGRAVING_TRAVEL_ACCELERATION);
+        settings.travel_acceleration_time =
+            settings.travel_acceleration_time.max(ENGRAVING_ACCELERATION_TIME);
     }
     Ok(settings)
 }
+
+/// How hard an engraving's travel moves accelerate at most, in mm/s².
+pub const ENGRAVING_TRAVEL_ACCELERATION: f64 = 3000.;
+
+/// The gentlest a gantry engraves with by default: every scan line stops and
+/// turns, and the machine's cutting acceleration sets it swaying, which
+/// shows as waves in diagonal lines.
+pub const ENGRAVING_ACCELERATION: f64 = 1500.;
+/// The shortest ramp an engraving turn takes by default, in seconds.
+pub const ENGRAVING_ACCELERATION_TIME: f64 = 0.3;
 
 fn is_engraving(recipe: &Recipe) -> bool {
     recipe.attributes.get("OpenLaserProcess").is_some_and(|p| p == "engrave")
@@ -1792,8 +1808,8 @@ fn is_engraving(recipe: &Recipe) -> bool {
 
 /// The acceleration and ramp time an engraving recipe moves with: its own
 /// `OpenLaserFillAcceleration` (mm/s²) and `OpenLaserFillAccelerationTime`
-/// (ms) when it sets them, never harder than the machine's own; otherwise,
-/// and for a cutting recipe, the machine's.
+/// (ms), else the gentle defaults, never harder than the machine's own.
+/// A cutting recipe keeps the machine's.
 #[must_use]
 pub fn engraving_motion(recipe: &Recipe, acceleration: f64, time: f64) -> (f64, f64) {
     if !is_engraving(recipe) {
@@ -1806,8 +1822,9 @@ pub fn engraving_motion(recipe: &Recipe, acceleration: f64, time: f64) -> (f64, 
             .and_then(|v| v.trim().parse::<f64>().ok())
             .filter(|v| v.is_finite() && *v > 0.)
     };
-    let own = read("OpenLaserFillAcceleration").unwrap_or(acceleration);
-    let own_time = read("OpenLaserFillAccelerationTime").map_or(time, |ms| ms * 0.001);
+    let own = read("OpenLaserFillAcceleration").unwrap_or(ENGRAVING_ACCELERATION);
+    let own_time =
+        read("OpenLaserFillAccelerationTime").map_or(ENGRAVING_ACCELERATION_TIME, |ms| ms * 0.001);
     (own.clamp(1., acceleration), own_time.max(time))
 }
 
@@ -1984,11 +2001,11 @@ mod tests {
     }
 
     #[test]
-    fn an_engraving_moves_as_the_machine_unless_its_recipe_says_gentler() {
+    fn engraving_moves_gently_and_cutting_keeps_the_machine() {
         let cut = recipe_with(&[]);
         assert_eq!(engraving_motion(&cut, 6000., 0.25), (6000., 0.25));
         let engrave = recipe_with(&[("OpenLaserProcess", "engrave")]);
-        assert_eq!(engraving_motion(&engrave, 6000., 0.25), (6000., 0.25), "the machine's");
+        assert_eq!(engraving_motion(&engrave, 6000., 0.25), (1500., 0.3), "gentle by default");
         let own = recipe_with(&[
             ("OpenLaserProcess", "engrave"),
             ("OpenLaserFillAcceleration", "800"),
@@ -1997,11 +2014,7 @@ mod tests {
         assert_eq!(engraving_motion(&own, 6000., 0.25), (800., 0.5));
         let harder =
             recipe_with(&[("OpenLaserProcess", "engrave"), ("OpenLaserFillAcceleration", "9000")]);
-        assert_eq!(
-            engraving_motion(&harder, 6000., 0.25),
-            (6000., 0.25),
-            "never above the machine"
-        );
+        assert_eq!(engraving_motion(&harder, 6000., 0.25), (6000., 0.3), "never above the machine");
     }
     use openlaser_core::geometry::Contour;
     use openlaser_core::units::Millimeters;
