@@ -125,6 +125,47 @@ pub struct Run {
     raise: Option<Raise>,
     /// How full the FIFO stayed while blocks were still to come.
     watch: FifoWatch,
+    /// How fast the head was seen to move while the program ran.
+    speed: SpeedWatch,
+}
+
+/// The head's speed as the feedback shows it, between polls: what the
+/// machine actually did, to set against what the program planned.
+#[derive(Debug, Default)]
+struct SpeedWatch {
+    last: Option<([f64; 2], Instant)>,
+    /// Speeds seen, in mm/s, rounded to whole ones, with how often.
+    seen: std::collections::BTreeMap<u32, u32>,
+}
+
+impl SpeedWatch {
+    fn observe(&mut self, position: [f64; 2], now: Instant) {
+        if let Some((before, at)) = self.last {
+            let seconds = now.duration_since(at).as_secs_f64();
+            if seconds > 0.02 {
+                let speed = (position[0] - before[0]).hypot(position[1] - before[1]) / seconds;
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "a speed"
+                )]
+                let rounded = (speed / 10.).round() as u32 * 10;
+                if rounded > 0 {
+                    *self.seen.entry(rounded).or_default() += 1;
+                }
+            }
+        }
+        self.last = Some((position, now));
+    }
+
+    fn report(&self) {
+        let fastest = self.seen.keys().last().copied().unwrap_or(0);
+        // The most frequent speeds, which are where the head cruised.
+        let mut common: Vec<(u32, u32)> = self.seen.iter().map(|(s, n)| (*s, *n)).collect();
+        common.sort_by_key(|c| std::cmp::Reverse(c.1));
+        common.truncate(6);
+        tracing::info!(fastest, ?common, "head speed seen during the program (mm/s, polls)");
+    }
 }
 
 /// How full the FIFO stayed while the upload ran: an empty FIFO with
@@ -201,6 +242,7 @@ impl Run {
             shutdown: bindings.shutdown.clone(),
             raise: None,
             watch: FifoWatch::default(),
+            speed: SpeedWatch::default(),
         })
     }
 
@@ -366,6 +408,18 @@ impl Run {
         writes.extend(
             sequences::shutdown(&self.shutdown, false, false, &[]).map_err(|e| e.to_string())?,
         );
+        self.speed.report();
+        if !self.watch.reported {
+            self.watch.reported = true;
+            self.watch.report(self.capacity);
+        }
+        if let Some(started) = self.started {
+            tracing::info!(
+                planned_s = self.program.expected_seconds,
+                took_s = started.elapsed().as_secs_f64(),
+                "program run time"
+            );
+        }
         self.phase = Phase::Done(Ending::Completed);
         Ok(Step::Finish(writes))
     }
@@ -459,6 +513,11 @@ impl Operation for Run {
             && !snapshot.alarms_clear()
         {
             return Err("controller alarms are active".into());
+        }
+        if matches!(self.phase, Phase::Uploading | Phase::Finishing)
+            && let Ok(position) = snapshot.position_mm()
+        {
+            self.speed.observe([position[0], position[1]], now);
         }
         match self.phase {
             Phase::Start => self.start(snapshot, blocked, now),
