@@ -71,7 +71,7 @@ pub struct Draft {
     pub calibration: bool,
     /// A scan-offset check: a coupon engraved with the stored offsets, to
     /// see that its lines meet.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub scan_check: bool,
     /// Per filled marked layer, the scan offsets measured at its speed by
     /// angle, as the coordinator found them for this preparation.
@@ -184,7 +184,7 @@ pub(crate) struct AuthoringState {
     workspace_id: Option<Id>,
     dry_run: bool,
     calibration: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     scan_check: bool,
     source_count: usize,
     job: Option<Id>,
