@@ -224,8 +224,11 @@
       <details class="recipe-picker">
         <summary>{tr("Recipe")}: {used ? `${materialLabel(used.name)} · ${used.attributes['CutSpeed'] ?? '?'} mm/s` : tr("Choose one")}{#if used && !layer.recipe} · {tr("from the material")}{:else if layer.recipe} · {tr("own recipe")}{/if}</summary>
       <div class="recipes" role="group" aria-label={tr("Engraving recipes")}>
+        {#if draft.recipe}
+          <button class="chip" class:on={!layer.recipe} disabled={busy} onclick={() => change({ kind: 'recipe', layer: layer.name, recipe: null }).catch(() => undefined)}>{tr("Material")}: {materialLabel(draft.recipe.name)} · {draft.recipe.attributes['CutSpeed'] ?? '?'} mm/s</button>
+        {/if}
         {#each recipes as r (r.id)}
-          <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{materialLabel(r.name)} · {tr(r.gas)}</button>
+          <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => useRecipe(layer, r)}>{materialLabel(r.name)} · {r.attributes['CutSpeed'] ?? '?'} mm/s · {tr(r.gas)}</button>
         {:else}
           <p class="muted">{tr("No engraving recipe yet: in Materials, open a recipe and choose Make it an engraving recipe.")}</p>
         {/each}
