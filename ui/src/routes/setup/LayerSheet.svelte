@@ -140,6 +140,31 @@
         </div>
       </div>
 
+      <h3 class:warn-text={!layer.chosen}>{tr("Recipe{0}", !layer.chosen ? ' · choose one' : '')}</h3>
+      <p class="recipe-note">{layer.mode === 'cut' ? tr("Cuts run on the material unless you choose another.") : tr("The material's recipe would cut through: choose an engraving or marking recipe.")}</p>
+      <div class="recipes">
+        <button class="choice" class:on={usesJob} disabled={busy} onclick={() => use(null)}>
+          <strong>{tr("Material")}</strong><small>{draft.recipe ? `${recipeLabel(draft.recipe)} · ${draft.recipe.attributes['CutSpeed'] ?? '?'} mm/s` : tr("Not chosen yet")}</small>
+        </button>
+        {#each groups as [heading, materials] (heading)}
+          {#if materials.length}
+            <span class="group-head">{heading === 'Engraving' ? tr("Engraving recipes") : tr("Cutting recipes")}</span>
+            {#each materials as m (m.key)}
+              <div class="material">
+                <span class="mat-name">{materialLabel(m.name)}</span>
+                <div class="chips">
+                  {#each m.recipes as r (r.id)}
+                    <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => use(r.id)}>
+                      {r.thickness_mm > 0 ? `${quantity(r.thickness_mm, 'mm')} · ` : ''}{r.attributes['CutSpeed'] ?? '?'} mm/s · {tr(r.gas)}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/each}
+          {/if}
+        {/each}
+      </div>
+
       {#if layer.mode === 'mark'}
         <div class="setting">
           <span><strong>{tr("Fill")}</strong><small>{fill ? tr("Engraves the closed shapes line by line") : tr("Traces the outlines only")}</small></span>
@@ -156,30 +181,6 @@
         <button class="btn btn-ghost" onclick={machining}>{tr("Edit")}</button>
       </div>
 
-      <h3 class:warn-text={!layer.chosen}>{tr("Recipe{0}", !layer.chosen ? ' · choose one' : '')}</h3>
-      <p class="recipe-note">{layer.mode === 'cut' ? tr("Cuts run on the material unless you choose another.") : tr("The material's recipe would cut through: choose an engraving or marking recipe.")}</p>
-      <div class="recipes">
-        <button class="choice" class:on={usesJob} disabled={busy} onclick={() => use(null)}>
-          <strong>{tr("Material")}</strong><small>{draft.recipe ? recipeLabel(draft.recipe) : tr("Not chosen yet")}</small>
-        </button>
-        {#each groups as [heading, materials] (heading)}
-          {#if materials.length}
-            <span class="group-head">{heading === 'Engraving' ? tr("Engraving recipes") : tr("Cutting recipes")}</span>
-            {#each materials as m (m.key)}
-              <div class="material">
-                <span class="mat-name">{materialLabel(m.name)}</span>
-                <div class="chips">
-                  {#each m.recipes as r (r.id)}
-                    <button class="chip" class:on={layer.recipe?.id === r.id} disabled={busy} onclick={() => use(r.id)}>
-                      {r.thickness_mm > 0 ? `${quantity(r.thickness_mm, 'mm')} · ` : ''}{tr(r.gas)}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-            {/each}
-          {/if}
-        {/each}
-      </div>
     {/if}
   </div>
 </Modal>

@@ -1472,6 +1472,18 @@ impl Coordinator {
         if draft.job.is_none() && !draft.calibration && dxf {
             draft.current.correction = self.correction.active(recipe.laser);
         }
+        // An engraving material is what the job engraves with: every layer's
+        // own engraving recipe gives way to it, as the operator chose it.
+        let engraves = recipe.attributes.get("OpenLaserProcess").is_some_and(|p| p == "engrave");
+        if engraves {
+            for choice in &mut draft.current.layers {
+                if choice.recipe.as_ref().is_some_and(|r| {
+                    r.attributes.get("OpenLaserProcess").is_some_and(|p| p == "engrave")
+                }) {
+                    choice.recipe = None;
+                }
+            }
+        }
         draft.current.recipe = Some(recipe);
         draft.current.film = film;
         if let Some((job, name, at, features)) = source {
