@@ -11,6 +11,7 @@
   import { explain } from '../lib/format';
   import type { CheckAction, PreflightReview, PostflightReview } from '../api';
   import { actionName, holdKind, movesMachine } from '../lib/preflight';
+  import { setChecklist } from '../lib/checklist-toggle';
 
   let { initial, onclose }: { initial: PreflightReview | PostflightReview; onclose: () => void } = $props();
   let review = $state<PreflightReview | PostflightReview>(untrack(() => initial));
@@ -35,6 +36,16 @@
   const complete = $derived(done === total);
   const title = $derived(postflight ? t('Postflight Checklist') : preflight?.intent === 'resume' ? t('Pause Checklist') : t('Preflight Checklist'));
   const button = $derived(postflight ? t('Done') : preflight?.intent === 'resume' ? t('Resume') : preflight?.dry_run ? t('Start dry run') : t('Start cutting'));
+
+  /** Switches this checklist off for both lasers; it can be switched on
+   *  again under Settings, Checklists. */
+  async function turnOff(): Promise<void> {
+    try {
+      await setChecklist(postflight ? 'postflight' : preflight?.intent === 'resume' ? 'pause' : 'preflight', false);
+      ui.say(postflight ? 'Checklist off' : 'Checklist off · press Start again');
+      onclose();
+    } catch (e) { error = explain(e); }
+  }
 
   function toggle(index: number, on: boolean): void {
     checked = on ? [...checked.filter((i) => i !== index), index] : checked.filter((i) => i !== index);
@@ -127,7 +138,7 @@
 </script>
 
 <Modal {title} dismissable={!submitting && !busy} onclose={() => { if (!submitting) close(); }}>
-  {#snippet actions()}<button class="btn btn-ghost" aria-label={t('Edit {0}', t(title))} disabled={submitting || busy || loading} onclick={edit}>{t("Edit")}</button>{/snippet}
+  {#snippet actions()}<button class="btn btn-ghost" disabled={submitting || busy} onclick={turnOff}>{t("Turn off")}</button><button class="btn btn-ghost" aria-label={t('Edit {0}', t(title))} disabled={submitting || busy || loading} onclick={edit}>{t("Edit")}</button>{/snippet}
   <div class="preflight-progress"><span>{postflight ? postflight.notice.name : preflight?.intent === 'resume' ? t("Before resuming") : preflight?.dry_run ? t('Dry run · laser off') : t('Machine and material')}</span><strong>{done} / {total}</strong></div>
   <div class="preflight-checks">
     {#each review.steps as step, i}

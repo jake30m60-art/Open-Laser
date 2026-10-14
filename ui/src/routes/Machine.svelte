@@ -10,6 +10,8 @@
   // beside the jog pad (components/MachineTools.svelte), not here.
   import { onDestroy, tick } from 'svelte';
   import PreflightEditor from '../components/PreflightEditor.svelte';
+  import { checklistOn, setChecklist, type ChecklistPhase } from '../lib/checklist-toggle';
+  import type { PreflightPreferences } from '../api';
   import MatrixCalibration from '../components/MatrixCalibration.svelte';
   import ScanCalibration from '../components/ScanCalibration.svelte';
   import MachineSettings from '../components/MachineSettings.svelte';
@@ -30,6 +32,20 @@
 
   let { compact = false, sectionOnly = false }: { compact?: boolean; sectionOnly?: boolean } = $props();
   const doc = $derived(server.doc!);
+  // The checklists' switches, read again whenever the defaults change.
+  let checklists = $state<PreflightPreferences | null>(null);
+  $effect(() => {
+    void doc.preflight_revision;
+    api.preflightPreferences().then((value) => (checklists = value)).catch(() => {});
+  });
+  async function switchChecklist(phase: ChecklistPhase): Promise<void> {
+    if (!checklists) return;
+    try {
+      const on = !checklistOn(checklists, phase);
+      checklists = await setChecklist(phase, on);
+      ui.say(on ? 'Checklist on' : 'Checklist off');
+    } catch (error) { ui.say(explain(error), true); }
+  }
   const machine = $derived(doc.machine);
   const feedback = $derived(machine.feedback);
   const bindings = $derived(doc.bindings);
@@ -171,15 +187,21 @@
     <div class="setting-group"><h3>{t("Checklists")}</h3>
       <div class="setting">
         <div class="lbl">{t("Before cutting")}<small>{t("Preflight · Fiber and CO₂")}</small></div>
-        <button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'defaults')}>{t("Edit")}</button>
+        <span class="checklist-actions"><button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'defaults')}>{t("Edit")}</button>
+          {#if checklists}{@const on = checklistOn(checklists, 'preflight')}<button class="switch" role="switch" class:on aria-checked={on}
+            aria-label={t("Before cutting")} onclick={() => switchChecklist('preflight')}></button>{/if}</span>
       </div>
       <div class="setting">
         <div class="lbl">{t("When paused")}<small>{t("Clear debris and check before resuming")}</small></div>
-        <button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'pause')}>{t("Edit")}</button>
+        <span class="checklist-actions"><button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'pause')}>{t("Edit")}</button>
+          {#if checklists}{@const on = checklistOn(checklists, 'pause')}<button class="switch" role="switch" class:on aria-checked={on}
+            aria-label={t("When paused")} onclick={() => switchChecklist('pause')}></button>{/if}</span>
       </div>
       <div class="setting">
         <div class="lbl">{t("After the job")}<small>{t("Postflight · parking and part inspection")}</small></div>
-        <button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'postflight')}>{t("Edit")}</button>
+        <span class="checklist-actions"><button class="btn btn-ghost" onclick={() => (ui.checklistEditor = 'postflight')}>{t("Edit")}</button>
+          {#if checklists}{@const on = checklistOn(checklists, 'postflight')}<button class="switch" role="switch" class:on aria-checked={on}
+            aria-label={t("After the job")} onclick={() => switchChecklist('postflight')}></button>{/if}</span>
       </div>
     </div>
   {:else if name === 'interface'}
@@ -357,6 +379,7 @@
 {#if ui.checklistEditor}<PreflightEditor scope={ui.checklistEditor} onclose={() => (ui.checklistEditor = null)} />{/if}
 
 <style>
+  .checklist-actions { display:flex; align-items:center; gap:10px; }
   .settings-page { grid-column: 1 / -1; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 0; padding: 0; overflow: hidden; }
   .settings-page.section-only { grid-template-columns: minmax(0, 1fr); border: 0; background: transparent; box-shadow: none; }
   .section-only .settings-content { padding: 0; overflow: visible; }

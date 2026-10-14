@@ -3609,5 +3609,9 @@
   "a point of the part outline": "einen Punkt am Teilrahmen",
   "a crossing": "einen Schnittpunkt",
   "the tapped point": "den angetippten Punkt",
-  "Tap the point the origin stands for: dots snap, anywhere else takes the tapped point": "Punkt für den Nullpunkt antippen: Punkte rasten ein, sonst gilt die angetippte Stelle"
+  "Tap the point the origin stands for: dots snap, anywhere else takes the tapped point": "Punkt für den Nullpunkt antippen: Punkte rasten ein, sonst gilt die angetippte Stelle",
+  "Turn off": "Ausschalten",
+  "Checklist on": "Checkliste ein",
+  "Checklist off · press Start again": "Checkliste aus · Start erneut drücken",
+  "Pendant: origin set where the head is": "Handrad: Nullpunkt an der Kopfposition gesetzt"
 }

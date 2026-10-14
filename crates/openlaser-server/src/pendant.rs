@@ -29,6 +29,8 @@ const STEP_MM: f64 = 1.;
 const TABLE_MM_S: f64 = 20.;
 /// How long Start must be held, as the screen's held buttons.
 const START_HOLD: Duration = Duration::from_secs(1);
+/// How long Go origin must be held to home the machine instead.
+const HOME_HOLD: Duration = Duration::from_millis(1500);
 /// A test pulse from the Laser key, as the screen's test defaults.
 const PULSE: (u32, u8) = (100, 10);
 
@@ -171,6 +173,9 @@ struct Pendant {
     start: u32,
     /// Since when Start is held, until it counts as a press.
     start_held: Option<Instant>,
+    /// Since when Go origin is held: let go early it goes to the origin,
+    /// held on it homes the machine.
+    origin_held: Option<Instant>,
 }
 
 /// Starts reading the pendant: a thread for the USB device, a task for its keys.
@@ -185,6 +190,7 @@ pub fn spawn(shared: Shared) {
             sequence: 0,
             start: 0,
             start_held: None,
+            origin_held: None,
         };
         let mut renew = tokio::time::interval(RENEW);
         loop {
@@ -237,6 +243,16 @@ impl Pendant {
             Event::Released | Event::Lost => {
                 self.down = None;
                 self.release(shared).await;
+                // Go origin let go before it homed: a short press.
+                if self.origin_held.take().is_some() && event == Event::Released {
+                    let went = match gate(shared, |r| r.position.clone()).await {
+                        Ok(()) => machine::go_origin(shared, false).await,
+                        Err(error) => Err(error),
+                    };
+                    if let Err(error) = went {
+                        shared.lock().await.note(format!("Pendant: {error}"), true);
+                    }
+                }
             }
             Event::Press { key, with_fn } => {
                 // The held key repeating: it keeps its move alive, nothing more.
@@ -248,6 +264,7 @@ impl Pendant {
                 }
                 tracing::info!(?key, with_fn, "pendant key");
                 self.down = Some((event, Instant::now()));
+                self.origin_held = None;
                 self.release(shared).await;
                 if let Err(error) = self.press(shared, key, with_fn).await {
                     // A step pressed while the last one still moves is dropped
@@ -318,11 +335,13 @@ impl Pendant {
             }
             (Key::Laser, _) => machine::pulse(shared, PULSE.0, PULSE.1).await?,
             (Key::Frame, _) => machine::frame(shared).await?,
-            (Key::GoOrigin, true) => machine::go_origin(shared, false).await?,
-            (Key::ZCalibrate, true) => machine::calibrate(shared).await?,
-            (Key::GoOrigin | Key::ZCalibrate, false) => {
-                return Err(crate::Error::Refused("hold Fn+ with this key".into()));
-            }
+            // Short: to the job's origin; held: homes. Decided on release
+            // or once held long enough.
+            (Key::GoOrigin, false) => self.origin_held = Some(Instant::now()),
+            // Fn+Go origin sets the origin where the head is, as the
+            // screen's held Set origin.
+            (Key::GoOrigin, true) => set_origin_here(shared).await?,
+            (Key::ZCalibrate, _) => machine::calibrate(shared).await?,
             // The screen starts it as its own Start button: checklist,
             // countdown, then the run or the resume.
             // Held for a second, it counts, as the screen's Start button.
@@ -360,7 +379,9 @@ impl Pendant {
             (Key::ZUp | Key::ZDown, true) => Some(r.jog),
             (Key::RedLight | Key::Shutter | Key::Blow | Key::Laser, _) => Some(r.outputs),
             (Key::Frame, _) => Some(r.frame),
-            (Key::GoOrigin, _) => Some(r.position),
+            // Go origin's gate depends on how long it is held.
+            (Key::GoOrigin, false) => None,
+            (Key::GoOrigin, true) => Some(r.set_origin),
             (Key::ZCalibrate | Key::Follow, _) => Some(r.calibrate),
             (Key::Start, _) => Some(if held { r.resume } else { r.run }),
             (Key::Pause, _) => Some(r.hold),
@@ -390,6 +411,17 @@ impl Pendant {
     /// Keeps a held move going while its key repeats, or ends it; counts
     /// Start once it has been held long enough.
     async fn renew(&mut self, shared: &Shared) {
+        let origin_down = matches!(self.down, Some((Event::Press { key: Key::GoOrigin, with_fn: false }, seen)) if seen.elapsed() < DEADMAN);
+        if self.origin_held.is_some_and(|since| origin_down && since.elapsed() >= HOME_HOLD) {
+            self.origin_held = None;
+            let homed = match gate(shared, |r| r.home.clone()).await {
+                Ok(()) => machine::home(shared).await,
+                Err(error) => Err(error),
+            };
+            if let Err(error) = homed {
+                shared.lock().await.note(format!("Pendant: {error}"), true);
+            }
+        }
         let start_down = matches!(self.down, Some((Event::Press { key: Key::Start, .. }, seen)) if seen.elapsed() < DEADMAN);
         if !start_down {
             self.start_held = None;
@@ -414,6 +446,42 @@ impl Pendant {
             let _ = machine::release(shared, lease).await;
         }
     }
+}
+
+/// Refuses with the screen button's reason while its gate is closed.
+async fn gate(
+    shared: &Shared,
+    pick: impl Fn(&crate::document::Readiness) -> crate::document::Gate,
+) -> crate::Result<()> {
+    let g = pick(&shared.lock().await.document().readiness);
+    if g.ok {
+        Ok(())
+    } else {
+        Err(crate::Error::Refused(g.reason.unwrap_or_else(|| "not possible now".into())))
+    }
+}
+
+/// Sets the origin where the head is, as the screen's held Set origin: a
+/// fixed placement keeps the new machine position, any other takes the head
+/// for this run.
+async fn set_origin_here(shared: &Shared) -> crate::Result<()> {
+    let (change, revision) = {
+        let c = shared.lock().await;
+        let doc = c.document();
+        let fixed = doc
+            .draft
+            .as_ref()
+            .is_some_and(|d| d.placement.mode == crate::placement::PlacementMode::Fixed);
+        let change = if fixed {
+            crate::placement::PlacementChange::FixedHead {}
+        } else {
+            crate::placement::PlacementChange::SetOrigin {}
+        };
+        (change, doc.draft_revision)
+    };
+    crate::placement::change(shared, change, revision).await?;
+    shared.lock().await.note("Pendant: origin set where the head is", false);
+    Ok(())
 }
 
 /// Reads the receiver for as long as the program runs, finding it again
