@@ -142,13 +142,12 @@ impl Coordinator {
             draft.remember();
         }
         match change {
+            // Floating: the origin follows the head, taken where it stands
+            // now when it can be, else at the next frame or start.
             PlacementChange::Head {} => {
                 draft.current.placement = Some(Placement::Head {});
-                draft.current.anchor = openlaser_library::Anchor::FrontLeft;
                 forget_capture(draft);
-            }
-            PlacementChange::SetOrigin {} if is_head(draft) => {
-                pin_head(draft, &self.machine.state(), true)?;
+                let _ = pin_head(draft, &self.machine.state(), false);
             }
             PlacementChange::SetOrigin {} | PlacementChange::FixedHead {} => {
                 let origin = head_position(draft, &self.machine.state())?;
@@ -190,16 +189,19 @@ impl Coordinator {
         let epoch = state.configuration.map(|c| c.epoch);
         let draft =
             self.draft.as_mut().ok_or_else(|| Error::Refused("open a part first".into()))?;
-        if is_head(draft) && draft.capture_used && self.held.is_none() {
-            forget_capture(draft);
-        }
-        if is_head(draft)
-            && (draft.current.sheet_offset.is_none()
+        // Floating: every frame and start takes the head where it stands
+        // now, after a finished job as before the first; a paused job keeps
+        // the position it was started at.
+        if is_head(draft) && self.held.is_none() {
+            let moved = draft.current.sheet_offset.is_none()
                 || epoch.is_none()
-                || draft.capture_epoch != epoch)
-        {
-            pin_head(draft, &state, false)?;
-            self.draft_changed();
+                || draft.capture_epoch != epoch
+                || draft.capture_used
+                || draft.origin() != head_position(draft, &state).ok();
+            if moved {
+                pin_head(draft, &state, false)?;
+                self.draft_changed();
+            }
         }
         Ok(())
     }

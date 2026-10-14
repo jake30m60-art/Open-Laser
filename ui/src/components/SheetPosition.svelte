@@ -32,14 +32,17 @@
   /** Why Set origin is unavailable, beside the title. */
   const originHint = $derived(!disabled && !doc.readiness.set_origin.ok && doc.readiness.set_origin.reason
     ? plain(doc.readiness.set_origin.reason).text : null);
-  const collapsed = $derived(!!placement?.captured && !changing);
+  // Floating needs nothing set; absolute shows once its position is set.
+  const collapsed = $derived((fixed ? !!placement?.captured : true) && !changing);
 
-  function chooseEachRun(): void {
+  /** Floating: the origin follows the head, from where it stands now. */
+  function chooseFloating(): void {
     method = 'head';
-    if (fixed) void change({ kind: 'head' });
+    void change({ kind: 'head' });
   }
+  /** A set origin is absolute: it stays where the head is now. */
   async function setOrigin(): Promise<void> {
-    await change(method === 'fixed' ? { kind: 'fixed_head' } : { kind: 'set_origin' });
+    await change({ kind: 'fixed_head' });
     changing = false;
   }
 
@@ -66,7 +69,7 @@
   <section class="sheet-position" class:compact aria-label={t("Sheet origin")}>
     {#if collapsed}
       <div class="origin-line">
-        <span><strong>{t("Origin set")}</strong> · {fixed ? t("Absolute") : t('Each run')}{#if draft.origin_point} · {t("point in the drawing")}{/if} {#if draft.origin} · X {distance(draft.origin[0])} · Y {distance(draft.origin[1])} {unitLabel('mm')}{/if}</span>
+        <span><strong>{fixed ? t("Origin set") : t("Floating")}</strong> · {fixed ? t("Absolute") : t("follows the head")}{#if draft.origin_point} · {t("point in the drawing")}{/if} {#if fixed && draft.origin} · X {distance(draft.origin[0])} · Y {distance(draft.origin[1])} {unitLabel('mm')}{/if}</span>
         {#if !placement.saved && (draft.job || fixed) && !completed}<button class="text-button" disabled={disabled || !draft.recipe} onclick={save}>{t("Save job")}</button>{/if}
         {#if !completed || !fixed}<button class="text-button" disabled={disabled} onclick={() => (changing = true)}>{t("Change")}</button>{/if}
       </div>
@@ -81,8 +84,8 @@
         {#if draft.origin_point}<button class="text-button" disabled={disabled} onclick={() => resetPoint(null)}>{t("Corner")}</button>{/if}
       </div>
       <div class="position-method" role="group" aria-label={t("Positioning method")}>
-        <button aria-pressed={method === 'head'} disabled={disabled} title={t("Set the origin at the head for each new run")} onclick={chooseEachRun}>{t("Each run")}</button>
-        <button aria-pressed={method === 'fixed'} disabled={disabled} title={t("Keep one machine position for a fixture")} onclick={() => (method = 'fixed')}>{t("Absolute")}</button>
+        <button aria-pressed={method === 'head'} disabled={disabled} title={t("The origin follows the head; each start takes it where it stands")} onclick={chooseFloating}>{t("Floating")}</button>
+        <button aria-pressed={method === 'fixed'} disabled={disabled || !fixed} title={t("Set by holding Set origin here: stays at that machine position")} onclick={() => (method = 'fixed')}>{t("Absolute")}</button>
       </div>
       {#if !completed || !fixed}
         <HoldButton class="set-origin" kind="zero" disabled={disabled || !doc.readiness.set_origin.ok} title={t("Set the origin where the head is")} onhold={setOrigin}>

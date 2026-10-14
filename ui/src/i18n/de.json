@@ -3987,5 +3987,9 @@
   "Saved in the recipe {0}": "Gespeichert im Rezept {0}",
   "New · as many as needed": "Neu · so viele wie nötig",
   "0 = as many as needed": "0 = so viele wie nötig",
-  "New sheets to use · 0 = auto": "Neue Bleche · 0 = automatisch"
+  "New sheets to use · 0 = auto": "Neue Bleche · 0 = automatisch",
+  "Floating": "Fliegend",
+  "follows the head": "folgt dem Kopf",
+  "The origin follows the head; each start takes it where it stands": "Der Nullpunkt folgt dem Kopf; jeder Start nimmt ihn dort, wo der Kopf gerade steht",
+  "Set by holding Set origin here: stays at that machine position": "Wird mit „Nullpunkt hier setzen“ (halten) gesetzt und bleibt an dieser Maschinenposition"
 }

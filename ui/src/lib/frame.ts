@@ -23,5 +23,13 @@ export function frameOf(doc: Document): Frame {
   const bed = extent ? { minX: extent[0][0], maxX: extent[0][1], minY: extent[1][0], maxY: extent[1][1] } : null;
   const position = doc.machine.feedback?.position_mm;
   const head: [number, number] | null = position ? [position[0], position[1]] : null;
-  return { bed, head, origin: doc.draft?.origin ?? null, zero: doc.draft?.zero ?? [0, 0] };
+  // Floating: the workpiece is shown where the head is, as the next start
+  // will take it; a running or paused job keeps the position it started at.
+  const draft = doc.draft;
+  const program = doc.machine.program?.state;
+  const busy = !!program && ['running', 'finishing', 'held'].includes(program);
+  if (draft?.placement?.mode === 'head' && draft.dock && head && !busy) {
+    return { bed, head, origin: head, zero: [head[0] - draft.dock[0], head[1] - draft.dock[1]] };
+  }
+  return { bed, head, origin: draft?.origin ?? null, zero: draft?.zero ?? [0, 0] };
 }

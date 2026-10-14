@@ -152,3 +152,70 @@ async fn the_z_keys_stop_at_the_head_soft_limits_once_referenced() {
     assert!(high.abs() < 0.1, "up stops at the reference, not past it: {high}");
     openlaser_server::shutdown(&shared).await.unwrap();
 }
+
+#[tokio::test]
+async fn a_floating_origin_follows_the_head_and_setting_it_makes_it_absolute() {
+    use openlaser_core::LaserMode;
+    use openlaser_server::coordinator::{NewRecipe, Values};
+    use openlaser_server::placement::{self, PlacementChange, PlacementMode};
+    let (_simulator, shared) = start("floating-origin").await;
+    connect::connect(&shared).await.unwrap();
+    let pixels = vec![0u8; 16 * 8];
+    {
+        let mut c = shared.lock().await;
+        let part = c
+            .library
+            .add_image_part("black.png", &pixels, (16, 8), pixels.clone(), [8., 4.])
+            .unwrap();
+        let recipe = c
+            .add_recipe(&NewRecipe {
+                name: "Steel".into(),
+                laser: LaserMode::Fiber,
+                thickness_mm: 1.,
+                values: Values::Bank(1),
+                gas: None,
+            })
+            .unwrap();
+        c.open_part(&part.id).unwrap();
+        c.set_recipe(&recipe.id).unwrap();
+    }
+    machine::home(&shared).await.unwrap();
+    until(&shared, 10, |d| d.machine.session.homed && d.machine.operation.is_none()).await;
+    let settled = |shared: &openlaser_server::coordinator::Shared| {
+        let shared = shared.clone();
+        async move {
+            until(&shared, 20, |d| {
+                d.machine.operation.is_none()
+                    && d.machine.feedback.as_ref().is_some_and(|f| f.stationary)
+            })
+            .await;
+        }
+    };
+    machine::prepare(&shared).await.unwrap();
+    let revision = shared.lock().await.document().draft_revision;
+    placement::change(&shared, PlacementChange::Head {}, revision).await.unwrap();
+    machine::go_xy(&shared, [200., 150.]).await.unwrap();
+    settled(&shared).await;
+    placement::prepare(&shared).await.unwrap();
+    let first = shared.lock().await.document().draft.unwrap().origin.unwrap();
+    assert!((first[0] - 200.).abs() < 0.01 && (first[1] - 150.).abs() < 0.01, "{first:?}");
+    // Moved on: the next start takes the head where it stands now.
+    machine::go_xy(&shared, [260., 180.]).await.unwrap();
+    settled(&shared).await;
+    placement::prepare(&shared).await.unwrap();
+    let draft = shared.lock().await.document().draft.unwrap();
+    let second = draft.origin.unwrap();
+    assert!((second[0] - 260.).abs() < 0.01 && (second[1] - 180.).abs() < 0.01, "{second:?}");
+    assert_eq!(draft.placement.mode, PlacementMode::Head);
+    // Setting the origin makes it absolute: it no longer follows the head.
+    let revision = shared.lock().await.document().draft_revision;
+    placement::change(&shared, PlacementChange::SetOrigin {}, revision).await.unwrap();
+    machine::go_xy(&shared, [300., 200.]).await.unwrap();
+    settled(&shared).await;
+    placement::prepare(&shared).await.unwrap();
+    let draft = shared.lock().await.document().draft.unwrap();
+    assert_eq!(draft.placement.mode, PlacementMode::Fixed);
+    let kept = draft.origin.unwrap();
+    assert!((kept[0] - 260.).abs() < 0.01 && (kept[1] - 180.).abs() < 0.01, "{kept:?}");
+    openlaser_server::shutdown(&shared).await.unwrap();
+}
