@@ -9,6 +9,7 @@
   import { onMount } from 'svelte';
   import { Hold } from '../lib/hold';
   import SheetPosition from '../components/SheetPosition.svelte';
+  import WorkpieceAlignment from '../components/WorkpieceAlignment.svelte';
   import GoToXy from '../components/GoToXy.svelte';
   import HoldButton from '../components/HoldButton.svelte';
   import { api } from '../api/client';
@@ -136,6 +137,7 @@
     </div>
   {/if}
   {#if !machine.program || !['running', 'finishing', 'held'].includes(machine.program.state)}<SheetPosition compact />{/if}
+  <WorkpieceAlignment />
   <div class="dro">
     {#each [['X', 0], ['Y', 1], ['Z', 2]] as [name, i]}
       {@const reading = work ? distance(work[i as number]!) : '—'}

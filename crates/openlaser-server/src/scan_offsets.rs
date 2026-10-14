@@ -284,17 +284,17 @@ pub fn layout(origin: [f64; 2], size: [f64; 2], count: usize) -> Vec<[f64; 2]> {
 /// How long the head runs at full speed, laser off, before a line marks:
 /// a gantry still sways from the turn when it reaches speed, and on a
 /// diagonal the two axes sway apart and the line waves.
-pub const SETTLE_SECONDS: f64 = 0.25;
+pub const SETTLE_SECONDS: f64 = 0.05;
 
-/// Estimated laser-off run-up distance, capped at the fill limit.
+/// Estimated laser-off run-up distance including ramp and settling reserves.
 fn run_up(speed: f64, acceleration: f64, time: f64) -> f64 {
-    // Same jerk-limited ramp timing as the vendor planner, plus 50% and
+    // Same jerk-limited ramp timing as the vendor planner, plus 10% and
     // 5 mm reserve, then the settling run. Never shorten a ramp silently
     // to fit the bed.
     let time = time.max(0.06);
     let seconds =
         if speed <= acceleration * time * 0.5 { time } else { speed / acceleration + time * 0.5 };
-    0.75 * speed * seconds + speed * SETTLE_SECONDS + 5.
+    0.55 * speed * seconds + speed * SETTLE_SECONDS + 5.
 }
 
 /// A layer name for a test speed.
@@ -741,7 +741,8 @@ mod tests {
 
     #[test]
     fn faster_lines_run_up_further() {
-        assert!((run_up(100., 6000., 0.25) - 48.75).abs() < 1e-9);
+        assert!((run_up(350., 1500., 0.3) - 96.291_666_666_666_67).abs() < 1e-9);
+        assert!((run_up(100., 6000., 0.25) - 23.75).abs() < 1e-9);
         assert!(run_up(500., 6000., 0.25) > run_up(100., 6000., 0.25));
         assert!(run_up(5000., 6000., 0.25) > 1000.);
         assert!(run_up(200., 1000., 0.25) > run_up(200., 6000., 0.25));

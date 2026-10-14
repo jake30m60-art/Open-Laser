@@ -1263,6 +1263,7 @@ pub async fn run_reviewed(
     {
         let coordinator = shared.lock().await;
         coordinator.not_held()?;
+        coordinator.alignment.guard()?;
         refuse_open_door(&coordinator)?;
         let calibration = coordinator.calibration_gate(&coordinator.machine.state());
         if !calibration.ok {
@@ -1455,6 +1456,7 @@ impl Execution {
         configuration: &Configuration,
         sheet_offset: [f64; 2],
     ) -> Result<Self> {
+        coordinator.alignment.guard()?;
         if coordinator.acceptance()? != *configuration {
             return Err(Error::Refused("the machine configuration changed; compile again".into()));
         }
@@ -1580,6 +1582,7 @@ async fn start_run(
             if shared.ensure_running()? != epoch || coordinator.operation != Some(owner) {
                 return Err(Error::Refused("the operation was cancelled".into()));
             }
+            coordinator.alignment.guard()?;
             if coordinator.acceptance()? != program.configuration {
                 return Err(Error::Refused(
                     "the machine configuration changed during construction".into(),

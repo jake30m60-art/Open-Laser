@@ -6,6 +6,8 @@
   // their counts, and the remnants of the same material beside them.
   import { quantity } from '../lib/units.svelte';
   import AddStock from './AddStock.svelte';
+  import RemnantSketch from './RemnantSketch.svelte';
+  let sketchRemnant = $state(false);
   import StockEditor from './StockEditor.svelte';
   import { api } from '../api/client';
   import { server } from '../stores/server.svelte';
@@ -43,6 +45,7 @@
 
 <div class="stock-rack">
   <div class="rack-tools">
+    <button class="btn" onclick={() => sketchRemnant = true}>{t("Create remnant from sketch")}</button>
     <button class="btn btn-primary" onclick={() => adding = true}><i class="ic ic-plus"></i>{t("Add sheets")}</button>
   </div>
   {#each groups as g (g.key)}
@@ -76,6 +79,7 @@
     </div>
   {/each}
 </div>
+{#if sketchRemnant}<RemnantSketch onclose={() => sketchRemnant = false} />{/if}
 {#if adding}<AddStock folder={null} onclose={() => adding = false} />{/if}
 {#if editing}<StockEditor id={editing} onclose={() => editing = null} />{/if}
 

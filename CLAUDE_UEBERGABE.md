@@ -1,3 +1,7 @@
+## Codex-Fortsetzung 2026-10-09: Werkstückausrichtung und Restblechskizzen
+
+Offline-Registrierung für Rechteck, Scheibe und Spezialkontur mit begrenzten Suchwegen, Fehlerfällen, Lageberechnung und separat kompilierter Vorschau implementiert. Persistente Messvorlagen und Restblechrevisionen sind mit vorhandener Datenbank und Nesting verbunden. Geänderte Restkonturen invalidieren alte Vorlagen und Nesting-Geometrie. Simulation aktiviert eine serverseitige Startsperre; echte Kantensuche bleibt mangels belegtem Protokoll und verifizierter Freigaben gesperrt. Ausführliche Bedienvorgaben, Koordinatenerklärung, Testbefunde und offene Punkte: [Entwicklungsstand](WERKSTUECK_AUSRICHTEN_ENTWICKLUNG.md). Keine Installation, kein Upload und keine reale Maschinenverbindung.
+
 
 ## Codex-Fortsetzung 2026-10-08: Skizzenleiste, exklusive Übersicht und Abschluss Punkte 1/2/3
 

@@ -34,6 +34,7 @@ use serde_json::{Value, json};
 #[allow(clippy::too_many_lines, reason = "the route table is one list")]
 pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
     Router::new()
+        .merge(crate::alignment::routes())
         .route("/api/state", get(state))
         .route(
             "/api/fonts",

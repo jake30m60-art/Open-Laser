@@ -1337,3 +1337,156 @@ async fn a_dxf_part_opens_in_the_sketch_with_its_ellipses() {
         server.request("GET", &format!("/api/parts/{part}/sketch-source"), None, &[]).await;
     assert!(response_json(&response)["curves"].is_null(), "{response}");
 }
+
+/// Only loopback fixtures; measurement must never send a controller command.
+#[tokio::test]
+async fn alignment_offline_measurement_and_remnant_revision_cross_http_boundary() {
+    use openlaser_core::{
+        LaserMode,
+        geometry::{Contour, Curve, Drawing, Point},
+    };
+    use openlaser_server::coordinator::{NewRecipe, Values};
+    use serde_json::json;
+    let server = Server::start().await;
+    let rect = |x: f64, y: f64, w: f64, h: f64| {
+        let p = [
+            Point::new(x, y),
+            Point::new(x + w, y),
+            Point::new(x + w, y + h),
+            Point::new(x, y + h),
+        ];
+        Contour {
+            layer: "Cut".into(),
+            curves: (0..4).map(|i| Curve::Line { start: p[i], end: p[(i + 1) % 4] }).collect(),
+        }
+    };
+    {
+        let mut c = server.shared.lock().await;
+        let p = c
+            .library
+            .add_part(
+                "alignment.dxf",
+                b"fixture",
+                Drawing { contours: vec![rect(200., 200., 20., 20.)] },
+            )
+            .unwrap();
+        let recipe = c
+            .add_recipe(&NewRecipe {
+                name: "Steel".into(),
+                laser: LaserMode::Fiber,
+                thickness_mm: 1.,
+                values: Values::Bank(1),
+                gas: None,
+            })
+            .unwrap();
+        c.open_part(&p.id).unwrap();
+        c.set_recipe(&recipe.id).unwrap();
+    }
+    openlaser_server::machine::prepare(&server.shared).await.unwrap();
+    openlaser_server::machine::compile(&server.shared, false).await.unwrap();
+    let before =
+        serde_json::to_value(&server.shared.lock().await.draft.as_ref().unwrap().current).unwrap();
+    let template = json!({"shape":{"kind":"rectangle","width":600.,"height":500.},"picks":[
+        {"contour":0,"curve":0,"t":0.3},{"contour":0,"curve":0,"t":0.7},{"contour":0,"curve":1,"t":0.5},
+        {"contour":0,"curve":2,"t":0.3},{"contour":0,"curve":2,"t":0.7},{"contour":0,"curve":3,"t":0.5}],
+        "drawing_point":[300.,250.],"machine_point":[450.,400.],"search_mm":50.,"angle_deg":5.,"tolerance_mm":0.1,"every_job":true});
+    let (status, response) = server
+        .request(
+            "POST",
+            "/api/alignment",
+            Some(&json!({"revision":0,"enabled":true,"template":template}).to_string()),
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200, "{response}");
+    let revision = response_json(&response)["revision"].as_u64().unwrap();
+    let control = server.simulator.control();
+    control.clear_writes();
+    let (status, response) = server
+        .request(
+            "POST",
+            "/api/alignment/simulate",
+            Some(
+                &json!({"revision":revision,"delta":[25.,-20.],"angle_deg":2.,"fault":"none"})
+                    .to_string(),
+            ),
+            &[],
+        )
+        .await;
+    assert_eq!(status, 200, "{response}");
+    let result = response_json(&response);
+    assert_eq!(result["view"]["phase"], "ready");
+    assert_eq!(result["view"]["hardware_available"], false);
+    assert!(result["compiled"].is_object(), "{result}");
+    assert_eq!(
+        result["compiled"]["plan"].as_array().unwrap().len(),
+        1,
+        "reference is never a cutting contour"
+    );
+    let after =
+        serde_json::to_value(&server.shared.lock().await.draft.as_ref().unwrap().current).unwrap();
+    assert_eq!(before, after);
+    for endpoint in ["/api/alignment/measure", "/api/machine/run", "/api/alignment/associate"] {
+        let body = if endpoint.ends_with("associate") {
+            json!({"revision":revision,"drawing_point":[0.,0.]})
+        } else {
+            json!({})
+        };
+        let (status, response) =
+            server.request("POST", endpoint, Some(&body.to_string()), &[]).await;
+        assert_eq!(status, 409, "{endpoint}: {response}");
+    }
+    assert!(control.writes().is_empty());
+    assert!(server.shared.lock().await.machine.state().program.is_none());
+    let (status, _) = server.request("POST", "/api/alignment/cancel", Some("{}"), &[]).await;
+    assert_eq!(status, 200);
+    let (status, response) = server.request("GET", "/api/alignment", None, &[]).await;
+    assert_eq!(status, 200);
+    assert_eq!(response_json(&response)["phase"], "stale");
+    let drawing = Drawing { contours: vec![rect(0., 0., 600., 500.), rect(270., 230., 30., 30.)] };
+    let mut change = json!({"id":null,"revision":null,"name":"Shelf A-1","material":"Steel","thickness_mm":1.,"mode":"fiber","drawing":drawing,"inspected":false});
+    let (status, _) =
+        server.request("POST", "/api/remnants/sketch", Some(&change.to_string()), &[]).await;
+    assert_eq!(status, 409);
+    change["inspected"] = json!(true);
+    let (status, response) =
+        server.request("POST", "/api/remnants/sketch", Some(&change.to_string()), &[]).await;
+    assert_eq!(status, 200, "{response}");
+    let id = response_json(&response)["id"].as_str().unwrap().to_owned();
+    let (status, response) =
+        server.request("GET", &format!("/api/alignment/remnant/{id}"), None, &[]).await;
+    assert_eq!(status, 200, "{response}");
+    let saved = response_json(&response);
+    assert_eq!(saved["shape"]["drawing"]["contours"].as_array().unwrap().len(), 2);
+    assert!(saved["picks"].as_array().unwrap().is_empty());
+    server.edit("stock", json!({"kind":"remnant","id":id})).await;
+    let c = server.shared.lock().await;
+    let stock = c.draft.as_ref().unwrap().current.nesting.as_ref().unwrap().stock.clone();
+    if let openlaser_core::nesting::NestStock::Remnant { cutouts, .. } = &stock {
+        assert_eq!(cutouts.len(), 1);
+    } else {
+        panic!("not remnant stock");
+    }
+    drop(c);
+    change["id"] = json!(id);
+    change["revision"] = saved["remnant"]["revision"].clone();
+    change["drawing"] =
+        json!(Drawing { contours: vec![rect(0., 0., 550., 500.), rect(250., 230., 30., 30.)] });
+    let (status, response) =
+        server.request("POST", "/api/remnants/sketch", Some(&change.to_string()), &[]).await;
+    assert_eq!(status, 200, "{response}");
+    let (status, _) =
+        server.request("POST", "/api/remnants/sketch", Some(&change.to_string()), &[]).await;
+    assert_eq!(status, 409, "old revision cannot overwrite a later inspection");
+    let mut c = server.shared.lock().await;
+    assert!(
+        c.compile_inputs(false).err().unwrap().to_string().contains("remnant geometry changed")
+    );
+    assert!(c.data_dir().join("sheets/revisions").join(format!("{id}-1.json")).exists());
+    drop(c);
+    let (status, response) =
+        server.request("GET", &format!("/api/alignment/remnant/{id}"), None, &[]).await;
+    assert_eq!(status, 200, "{response}");
+    assert_eq!(response_json(&response)["remnant"]["revision"], 2);
+    server.close().await;
+}

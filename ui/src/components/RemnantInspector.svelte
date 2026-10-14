@@ -5,6 +5,9 @@
   import { onMount } from 'svelte';
   import Modal from './Modal.svelte';
   import SheetShape from './SheetShape.svelte';
+  import RemnantSketch from './RemnantSketch.svelte';
+  import WorkpieceAlignment from './WorkpieceAlignment.svelte';
+  let editingGeometry = $state(false);
   import { api } from '../api/client';
   import type { SheetView } from '../api';
   import { osk } from '../lib/osk.svelte';
@@ -107,6 +110,10 @@
         {#if sheet.state === 'interrupted' || sheet.state === 'cutting'}
           <p class="missing">{t("This record has no completed cut. Resume the job to finish it; planned part areas stay reserved.")}</p>
         {/if}
+        {#if sheet.state === 'remnant' && !sheet.used}
+          <button class="btn" disabled={busy} onclick={() => editingGeometry = true}>{t("Update remnant sketch")}</button>
+          <WorkpieceAlignment remnantId={id} />
+        {/if}
         <div class="primary">
           {#if sheet.state === 'completed' && !sheet.used}
             <button
@@ -125,6 +132,8 @@
     </div>
   {:else if !error}<p>{t("Loading sheet…")}</p>{/if}
 </Modal>
+
+{#if editingGeometry}<RemnantSketch {id} onclose={() => { editingGeometry = false; onchanged(); onclose(); }} />{/if}
 
 <style>
   .remnant-review { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(260px,1fr); gap:30px; }

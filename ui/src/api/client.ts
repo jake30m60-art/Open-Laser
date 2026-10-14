@@ -108,6 +108,17 @@ export interface FontFace { id: string; family: string; name: string; weight: nu
 export interface TextPreview { outline: number[][][]; width: number; height: number; contours: number; warnings: string[] }
 
 export const api = {
+  alignmentRemnant: (id: string) => request<import('../lib/workpiece-alignment').Template>('GET', '/api/alignment/remnant/'+encodeURIComponent(id)),
+  alignmentStock: () => request<import('../lib/workpiece-alignment').Template>('GET', '/api/alignment/stock'),
+  alignmentSketch: (dxf: string) => post<import('../sketch/from-drawing').SourceDrawing>('/api/alignment/sketch', {dxf}),
+  saveSketchRemnant: (body: {id: string|null; revision: number|null; name: string; material: string; thickness_mm: number; mode: LaserMode; drawing: import('../sketch/from-drawing').SourceDrawing; inspected: boolean}) => post<{id: string}>('/api/remnants/sketch',body),
+  alignment: () => request<import('../lib/workpiece-alignment').AlignmentView>('GET', '/api/alignment'),
+  saveAlignment: (body: {revision: number; enabled: boolean; template: import('../lib/workpiece-alignment').Template}) => post<import('../lib/workpiece-alignment').AlignmentView>('/api/alignment', body),
+  alignmentPlan: (body: import('../lib/workpiece-alignment').Template) => post<import('../lib/workpiece-alignment').Plan>('/api/alignment/plan', body),
+  alignmentReference: () => request<import('../sketch/from-drawing').SourceDrawing>('GET', '/api/alignment/reference'),
+  associateAlignment: (revision: number, drawing_point: [number,number]) => post<import('../lib/workpiece-alignment').AlignmentView>('/api/alignment/associate', {revision,drawing_point}),
+  simulateAlignment: (body: {revision: number; delta: [number,number]; angle_deg: number; fault: string}) => post<import('../lib/workpiece-alignment').SimulationReply>('/api/alignment/simulate', body),
+  cancelAlignment: () => post<import('../lib/workpiece-alignment').AlignmentView>('/api/alignment/cancel'),
   placement: (change: PlacementChange) => draftPost('/api/draft/placement', change),
   preparePlacement: () => draftPost('/api/draft/placement/prepare'),
   sheets: (query: { remnants?: boolean; before?: string } = {}) => request<SheetPage>('GET', `/api/sheets?remnants=${query.remnants ?? false}${query.before ? `&before=${encodeURIComponent(query.before)}` : ''}`),

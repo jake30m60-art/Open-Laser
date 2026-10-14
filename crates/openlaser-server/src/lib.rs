@@ -16,6 +16,7 @@
 
 mod access;
 pub mod alarm_history;
+mod alignment;
 pub mod api;
 pub mod backup;
 pub mod bindings;

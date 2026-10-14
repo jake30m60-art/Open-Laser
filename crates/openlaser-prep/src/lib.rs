@@ -125,6 +125,19 @@ pub fn crosses_itself(contour: &Contour) -> bool {
     contour.is_closed() && topology::polyline(contour).is_err()
 }
 
+/// Validate one physical piece with an outer boundary and disjoint internal holes.
+/// Returns the outer contour index without changing source geometry.
+pub fn reference_outline(drawing: &Drawing) -> Result<usize> {
+    let contours: Vec<_> = drawing.contours.iter().collect();
+    let depths = topology::depths(&contours)?;
+    let outer: Vec<_> =
+        depths.iter().enumerate().filter(|(_, d)| **d == 0).map(|(i, _)| i).collect();
+    if outer.len() != 1 || depths.iter().any(|d| *d > 1) {
+        return Err(feature("reference", "one outer boundary and internal holes are required"));
+    }
+    Ok(outer[0])
+}
+
 /// The drawing's contours with their indices, less the skipped layers.
 fn kept<'a>(drawing: &'a Drawing, features: &Features) -> Vec<(usize, &'a Contour)> {
     drawing

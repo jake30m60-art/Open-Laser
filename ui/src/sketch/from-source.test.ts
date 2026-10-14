@@ -18,12 +18,12 @@ it('builds a slot of elliptical ends and lines whose ends meet, and a rational s
   const ends = endsOf(half!)!;
   expect(ends).toContain(endsOf(low!)![1]);
   expect(ends).toContain(endsOf(high!)![0]);
-  if (half!.kind !== 'ellipse-arc') throw new Error();
+  if (!half || half.kind !== 'ellipse-arc') throw new Error();
   const [from, to] = arcParams(s, half);
   expect(to - from).toBeCloseTo(Math.PI);
   expect(point(s, half.m)).toEqual({ id: half.m, x: 20, y: 5 });
   // The spline starts on the upper line's start and keeps its weights.
-  if (spline!.kind !== 'spline') throw new Error();
+  if (!spline || spline.kind !== 'spline') throw new Error();
   expect(spline.poles[0]).toBe(endsOf(high!)![0]);
   expect(spline.weights).toEqual([1, 0.7, 1]);
 });

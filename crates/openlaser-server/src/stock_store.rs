@@ -301,6 +301,100 @@ impl Store {
         })
     }
 
+    /// Refuse a retained nesting job whose physical stock was deliberately revised.
+    pub(crate) fn validate_stock(&self, stock: &NestStock) -> Result<()> {
+        if let NestStock::Remnant { reference, outline, cutouts, clearance, .. } = stock {
+            let at = outline.bounds().ok_or_else(|| fail("empty remnant"))?.min;
+            let current = self.stock(reference, at)?;
+            let NestStock::Remnant { outline: now, cutouts: holes, clearance: margin, .. } =
+                current
+            else {
+                return Err(fail("invalid remnant"));
+            };
+            if *outline != now || *cutouts != holes || (*clearance - margin).abs() > 1e-9 {
+                return Err(fail("remnant geometry changed; reload stock and nest again"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Create or deliberately revise inspected stock from its actual sketch.
+    pub(crate) fn save_sketch(
+        &mut self,
+        change: &crate::alignment::remnants::SketchRemnant,
+    ) -> Result<String> {
+        if !change.inspected {
+            return Err(fail("confirm the actual remaining material before saving"));
+        }
+        crate::alignment::geometry::Shape::Special { drawing: change.drawing.clone() }.drawing()?;
+        if change.name.trim().is_empty()
+            || change.name.chars().count() > 120
+            || change.material.trim().is_empty()
+            || change.material.chars().count() > 120
+            || !change.thickness_mm.is_finite()
+            || !(0.01..=200.).contains(&change.thickness_mm)
+        {
+            return Err(fail("name, material and a positive thickness are required"));
+        }
+        let mut record = if let Some(id) = &change.id {
+            let old = self.records.get(id).cloned().ok_or_else(|| fail("unknown remnant"))?;
+            if Some(old.revision) != change.revision
+                || self.used(id)
+                || old.state != SheetState::Remnant
+            {
+                return Err(fail("remnant changed, is reserved or is no longer available"));
+            }
+            // Keep the previous complete record beside the database, for audit/recovery.
+            let history = self.root.join("revisions");
+            std::fs::create_dir_all(&history).map_err(fail)?;
+            openlaser_library::atomic_write(
+                &history.join(format!("{}-{}.json", id, old.revision)),
+                &serde_json::to_vec_pretty(&old).map_err(fail)?,
+            )?;
+            old
+        } else {
+            if change.revision.is_some() {
+                return Err(fail("a new remnant has no revision"));
+            }
+            Record {
+                version: 1,
+                revision: 0,
+                at: now(),
+                state: SheetState::Remnant,
+                reported: true,
+                folder: None,
+                removed: vec![],
+                plan: SheetPlan {
+                    id: Id::generate(),
+                    job: None,
+                    name: change.name.trim().into(),
+                    mode: change.mode,
+                    material: change.material.trim().into(),
+                    thickness_mm: change.thickness_mm,
+                    outline: change.drawing.contours[0].clone(),
+                    existing: vec![],
+                    areas: vec![],
+                    parent: None,
+                    boundary_known: true,
+                    correction: None,
+                    clearance: 0.,
+                },
+            }
+        };
+        record.plan.name = change.name.trim().into();
+        record.plan.material = change.material.trim().into();
+        record.plan.mode = change.mode;
+        record.plan.thickness_mm = change.thickness_mm;
+        record.plan.outline = change.drawing.contours[0].clone();
+        record.plan.existing = change.drawing.contours[1..].to_vec();
+        record.plan.boundary_known = true;
+        record.removed.clear();
+        record.revision += 1;
+        let id = record.plan.id.to_string();
+        self.write(record)?;
+        Ok(id)
+    }
+
     pub(crate) fn begin(&mut self, plan: &SheetPlan) -> Result<()> {
         if let Some(record) = self.records.get(plan.id.as_str()) {
             let mut record = record.clone();
@@ -591,6 +685,9 @@ fn remnant_parent(draft: &Draft) -> Option<String> {
 impl Coordinator {
     /// Snapshot the active stock, outer part regions and open cut traces.
     pub(crate) fn sheet_plan(&self, draft: &Draft) -> Result<Option<Arc<SheetPlan>>> {
+        if let Some(nesting) = &draft.current.nesting {
+            self.sheet_store.validate_stock(&nesting.stock)?;
+        }
         let Some(prepared) = &draft.prepared else { return Ok(None) };
         let Some(recipe) = &draft.current.recipe else { return Ok(None) };
         let drawing = draft.drawing()?;

@@ -87,6 +87,7 @@ pub struct Held {
 /// [`Document`] every client streams. HTTP handlers take its lock for short
 /// transactions; slow work runs off the lock and checks back in.
 pub struct Coordinator {
+    pub(crate) alignment: crate::alignment::Session,
     pub(crate) sheet_store: crate::stock_store::Store,
     pub(crate) sheet_persistence_error: Option<String>,
     pub(crate) completed_sheet: Option<String>,
@@ -287,6 +288,8 @@ impl Coordinator {
         let mut draft_status = draft_store.watch();
         let (publisher, _) = watch::channel(Document::default());
         let mut coordinator = Self {
+            alignment: crate::alignment::Session::open(&config.data_dir)
+                .map_err(|e| e.to_string())?,
             calibration: None,
             sheet_store,
             sheet_persistence_error: None,
@@ -701,6 +704,9 @@ impl Coordinator {
     /// compiled draft; without one, the reason it failed to compile or the
     /// `compile` gate says why.
     fn run_gate(&self, motion: Gate, compile: &Gate) -> Gate {
+        if let Err(error) = self.alignment.guard() {
+            return Gate::closed(error.to_string());
+        }
         match &self.draft {
             _ if !motion.ok => motion,
             _ if self.held.is_some() => Gate::closed(HELD),
@@ -1816,6 +1822,9 @@ impl Coordinator {
     /// its own when the recipe removes film, each layer's own recipe bound,
     /// and the scale.
     pub fn compile_inputs(&mut self, dry_run: bool) -> Result<CompileInputs> {
+        if let Some(nesting) = self.draft.as_ref().and_then(|d| d.current.nesting.as_ref()) {
+            self.sheet_store.validate_stock(&nesting.stock)?;
+        }
         self.compile_serial += 1;
         let draft =
             self.draft.as_ref().ok_or_else(|| Error::Refused("open a part first".into()))?;
