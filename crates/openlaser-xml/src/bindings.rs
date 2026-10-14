@@ -910,7 +910,9 @@ impl Outputs {
     }
 
     /// The head jogged up or down while held.
-    pub fn head_jog(&self, up: bool, fast: bool) -> Result<Manual> {
+    /// `travel` bounds the move in thousandths of a millimetre, positive
+    /// down; `None` moves until let go or stopped by the head controller.
+    pub fn head_jog(&self, up: bool, fast: bool, travel: Option<i32>) -> Result<Manual> {
         let tenths = self
             .head_jog_tenths
             .ok_or_else(|| Error::Unsupported("the native head jog needs a type 1 head".into()))?;
@@ -919,7 +921,10 @@ impl Outputs {
         if speed == 0 || speed > 10_000 {
             return Err(Error::Unsupported("the head jog speed must be 0.1 to 1000".into()));
         }
-        let travel = if up { -1_000_000 } else { 1_000_000 };
+        let travel = travel.unwrap_or(if up { -1_000_000 } else { 1_000_000 });
+        if travel == 0 || (travel < 0) != up {
+            return Err(Error::Unsupported("the head is at its soft limit".into()));
+        }
         Ok(Manual {
             on: vec![Step::Write(requests::head_move(speed, travel))],
             off: vec![requests::head_cancel()],
@@ -1078,7 +1083,7 @@ mod tests {
             [vec![9999, 2, 64, 0], vec![9999, 4, 1, 0], vec![9999, 2, 128, 0]]
         );
         assert!(b.outputs.gas(0, 5.).is_err(), "air has no valve");
-        let up = b.outputs.head_jog(true, false).unwrap();
+        let up = b.outputs.head_jog(true, false, None).unwrap();
         assert_eq!(up.on, vec![Step::Write(requests::head_move(300, -1_000_000))]);
         assert_eq!(words(&up.off), [vec![101]]);
         assert_eq!(up.lease_ms, 300);

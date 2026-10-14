@@ -939,6 +939,36 @@ pub enum OutputRequest {
     },
 }
 
+/// Where a Z key takes the head up to: all the way to its upper reference,
+/// as the head controller's own soft limit does on the machine
+/// (`zfSoftLimitEnable`), never past it onto the limit switch.
+const HEAD_TOP_SOFT_MM: f64 = 0.;
+/// How far below its upper reference a Z key takes the head, in mm: this
+/// head reaches its bottom limit switch at 65.0 mm (edge-search capture of
+/// 2026-10-14), so the key stops 2 mm short of it, as Joe chose.
+const HEAD_BOTTOM_SOFT_MM: f64 = 63.;
+
+/// Once the head is referenced, a Z key moves it only within its soft
+/// limits, never onto a limit switch; before that it moves until let go.
+fn head_jog_travel(coordinator: &crate::coordinator::Coordinator, up: bool) -> Result<Option<i32>> {
+    let state = coordinator.machine.state();
+    let Some(feedback) = state.feedback.filter(|f| f.head.referenced) else { return Ok(None) };
+    let z = feedback.position_mm[2];
+    let target = if up { HEAD_TOP_SOFT_MM } else { HEAD_BOTTOM_SOFT_MM };
+    let travel = ((target - z) * 1000.).round();
+    if (up && travel > -10.) || (!up && travel < 10.) {
+        return Err(Error::Refused(
+            if up {
+                "the head is at its upper soft limit"
+            } else {
+                "the head is at its lower soft limit"
+            }
+            .into(),
+        ));
+    }
+    Ok(Some(travel as i32))
+}
+
 /// Holds a manual output on until released.
 pub async fn outputs(shared: &Shared, request: OutputRequest, lease: Lease) -> Result<()> {
     shared.ensure_running()?;
@@ -951,7 +981,9 @@ pub async fn outputs(shared: &Shared, request: OutputRequest, lease: Lease) -> R
             OutputRequest::Pointer => ("pointer", outputs.pointer()?),
             OutputRequest::Shutter => ("shutter", outputs.shutter()?),
             OutputRequest::Gas { selector, pressure } => ("gas", outputs.gas(selector, pressure)?),
-            OutputRequest::HeadJog { up, fast } => ("head", outputs.head_jog(up, fast)?),
+            OutputRequest::HeadJog { up, fast } => {
+                ("head", outputs.head_jog(up, fast, head_jog_travel(&coordinator, up)?)?)
+            }
         };
         let plan = Plan {
             name: name.into(),

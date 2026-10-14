@@ -116,3 +116,39 @@ async fn a_jog_after_a_job_takes_the_head_up_first() {
     assert!(after[3] < low || low < 1., "the head went up first: {low} → {}", after[3]);
     openlaser_server::shutdown(&shared).await.unwrap();
 }
+
+#[tokio::test]
+async fn the_z_keys_stop_at_the_head_soft_limits_once_referenced() {
+    use openlaser_server::machine::OutputRequest;
+    let (simulator, shared) = start("z-soft-limits").await;
+    let control = simulator.control();
+    connect::connect(&shared).await.unwrap();
+    machine::home(&shared).await.unwrap();
+    until(&shared, 10, |d| d.machine.session.homed && d.machine.operation.is_none()).await;
+    let hold = |up: bool, sequence: u64| {
+        let shared = shared.clone();
+        async move {
+            let lease = Lease { client: "z-test".into(), sequence };
+            machine::outputs(&shared, OutputRequest::HeadJog { up, fast: true }, lease.clone())
+                .await
+                .unwrap();
+            for _ in 0..80 {
+                let _ = machine::heartbeat(&shared, lease.clone());
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            let _ = machine::release(&shared, lease).await;
+            until(&shared, 10, |d| d.machine.operation.is_none()).await;
+        }
+    };
+    hold(false, 1).await;
+    let low = control.view().position_mm[3];
+    assert!((low - 63.).abs() < 0.1, "down stops at 63 mm, not on the limit: {low}");
+    assert_eq!(
+        shared.lock().await.document().machine.alarms.iter().filter(|a| a.blocking).count(),
+        0
+    );
+    hold(true, 2).await;
+    let high = control.view().position_mm[3];
+    assert!(high.abs() < 0.1, "up stops at the reference, not past it: {high}");
+    openlaser_server::shutdown(&shared).await.unwrap();
+}
