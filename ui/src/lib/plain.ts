@@ -5,6 +5,7 @@
 import type { AlarmView, Gate } from '../api';
 import { diagnosticText } from './units.svelte';
 import { t } from '../i18n/index';
+import catalog from '../i18n/de.json';
 
 /** A reason in plain words, with the original kept when it was reworded. */
 export interface Plain {
@@ -50,7 +51,7 @@ const PATTERNS: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
     const names = m[1]!.split('; ').map((name) => t(name));
     return names.length === 1 ? t('Alarm: {0}.', names[0]) : t('{0} alarms: {1} and {2} more.', names.length, names[0], names.length - 1);
   }],
-  [/^(.+) is active$/, (m) => t('Please wait: {0} is in progress.', t(m[1]!.toLowerCase()))],
+  [/^([^:;]+) is active$/, (m) => t('Please wait: {0} is in progress.', t(m[1]!.toLowerCase()))],
   [/machine files have no \S+/, () => t('Alarm: machine backup is missing a setting. Tap for details.')],
   [/missing setting \S+/, () => t('The machine files are missing a setting. Re-import the machine backup in Settings.')],
   [/^setting \S+: /, () => t('A machine setting is not valid. Check the machine backup in Settings.')],
@@ -61,6 +62,42 @@ const PATTERNS: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
   [/^XML /, () => t('The machine backup file could not be read.')],
   [/machine files did not bind/, () => t('Connected, but the machine files are not loaded. Import the machine backup in Settings.')],
 ];
+
+/** The catalog's texts with placeholders, as patterns: the longest fixed
+ *  wording first, so "Calibration failed: {0}" wins over "{0} failed: {1}". */
+let templates: Array<[RegExp, string]> | null = null;
+function templateList(): Array<[RegExp, string]> {
+  templates ??= Object.keys(catalog)
+    .filter((key) => /\{\d+\}/.test(key) && key.replace(/\{\d+\}/g, '').trim().length >= 3)
+    .sort((a, b) => b.replace(/\{\d+\}/g, '').length - a.replace(/\{\d+\}/g, '').length)
+    .flatMap((key): Array<[RegExp, string]> => {
+      // A placeholder used twice would name its group twice: such a text is skipped.
+      try { return [[new RegExp(`^${key.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{(\d+)\}/g, '(?<p$1>.+?)')}$`, 's'), key]]; }
+      catch { return []; }
+    });
+  return templates;
+}
+
+/**
+ * A server text in the operator's language: as the catalog has it, as one
+ * of its texts with placeholders (the values themselves translated where
+ * the catalog knows them), as "Prefix: rest", or clause by clause. Unknown
+ * words stay as they are.
+ */
+export function serverText(raw: string, depth = 0): string {
+  const whole = t(raw);
+  if (whole !== raw || depth > 4) return whole;
+  for (const [pattern, key] of templateList()) {
+    const match = raw.match(pattern);
+    if (!match?.groups) continue;
+    const values = Object.keys(match.groups).sort().map((name) => serverText(match.groups![name]!, depth + 1));
+    return t(key, ...values);
+  }
+  const prefixed = raw.match(/^([A-Za-z][\w /-]{0,40}): (.+)$/s);
+  if (prefixed) return `${t(prefixed[1]!)}: ${serverText(prefixed[2]!, depth + 1)}`;
+  if (raw.includes('; ')) return raw.split('; ').map((part) => serverText(part, depth + 1)).join('; ');
+  return raw;
+}
 
 /** A vendor parameter path such as `ManuParam.FC.ShortNoUpMaxLength`. */
 const PARAMETER = /\b[A-Z]\w*Param\.[\w.]+/g;
@@ -83,6 +120,9 @@ export function plain(reason: string | null | undefined, alarms: AlarmView[] = [
   }
   const exact = EXACT[raw];
   if (exact) return { text: t(exact), detail: null };
+  // The catalog's own German for this very text comes before any rewording.
+  const listed = t(raw);
+  if (listed !== raw) return { text: sentence(listed), detail: null };
   for (const [pattern, word] of PATTERNS) {
     const match = raw.match(pattern);
     if (match) {
@@ -95,9 +135,10 @@ export function plain(reason: string | null | undefined, alarms: AlarmView[] = [
     const text = raw.replace(PARAMETER, 'a machine setting').replace(REGISTER, 'a controller signal');
     return { text: sentence(diagnosticText(text)), detail: raw };
   }
-  // Any other server text in German where the catalog knows it, as written or as a sentence.
-  const known = t(raw);
-  if (known !== raw) return { text: known, detail: null };
+  // Any other server text in German where the catalog knows it, as written,
+  // with its values, after its prefix, clause by clause, or as a sentence.
+  const known = serverText(raw);
+  if (known !== raw) return { text: sentence(known), detail: null };
   return { text: t(sentence(diagnosticText(raw))), detail: null };
 }
 
