@@ -203,6 +203,8 @@ struct Pendant {
     /// Since when Go origin is held: let go early it goes to the origin,
     /// held on it homes the machine.
     origin_held: Option<Instant>,
+    /// The axes a held jog of the pendant drives and their directions.
+    jogging: [Option<bool>; 2],
 }
 
 /// Starts reading the pendant: a thread for the USB device, a task for its keys.
@@ -218,6 +220,7 @@ pub fn spawn(shared: Shared) {
             start: 0,
             start_held: None,
             origin_held: None,
+            jogging: [None; 2],
         };
         let mut renew = tokio::time::interval(RENEW);
         loop {
@@ -299,6 +302,9 @@ impl Pendant {
                 tracing::info!(x_positive, y_positive, "pendant diagonal");
                 self.down = Some((event, Instant::now()));
                 self.origin_held = None;
+                if self.mode != Mode::Step && self.add_axis(shared, x_positive, y_positive).await {
+                    return;
+                }
                 self.release(shared).await;
                 if let Err(error) = self.diagonal(shared, x_positive, y_positive).await {
                     let busy =
@@ -319,6 +325,9 @@ impl Pendant {
                 tracing::info!(?key, with_fn, "pendant key");
                 self.down = Some((event, Instant::now()));
                 self.origin_held = None;
+                if !with_fn && self.drop_axis(shared, key).await {
+                    return;
+                }
                 self.release(shared).await;
                 if let Err(error) = self.press(shared, key, with_fn).await {
                     // A step pressed while the last one still moves is dropped
@@ -430,9 +439,62 @@ impl Pendant {
             diagonal: Some(y),
         };
         if self.mode == Mode::Step {
-            machine::jog(shared, request, None).await
-        } else {
-            self.hold(shared, Held::Jog(request)).await
+            return machine::jog(shared, request, None).await;
+        }
+        // Held: X runs, then Y joins it, each axis on its own as Mlaser's.
+        self.hold(shared, Held::Jog(JogRequest { diagonal: None, ..request })).await?;
+        if !self.add_axis(shared, x, y).await {
+            return Err(crate::Error::Refused("Y could not join the jog".into()));
+        }
+        Ok(())
+    }
+
+    /// A second arrow on a running held jog: its axis joins, the first keeps
+    /// going. False when there is no such jog to join.
+    async fn add_axis(&mut self, shared: &Shared, x: bool, y: bool) -> bool {
+        let Some((lease, _)) = self.held.clone() else { return false };
+        let (axis, positive) = match self.jogging {
+            [Some(dx), None] if dx == x => (1, y),
+            [None, Some(dy)] if dy == y => (0, x),
+            [Some(dx), Some(dy)] if dx == x && dy == y => return true,
+            _ => return false,
+        };
+        // Just after its start the first jog may not be moving yet.
+        let since = Instant::now();
+        loop {
+            match machine::jog_axis(shared, lease.clone(), axis, Some(positive)).await {
+                Ok(()) => {
+                    self.jogging[axis] = Some(positive);
+                    return true;
+                }
+                Err(error)
+                    if since.elapsed() < Duration::from_millis(500)
+                        && error.to_string().contains("cannot take a second axis now") =>
+                {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+                Err(error) => {
+                    shared.lock().await.note(format!("Pendant: {error}"), true);
+                    return false;
+                }
+            }
+        }
+    }
+
+    /// One arrow let go of a jog on both axes: only its axis stops. False
+    /// when `key` is not the remaining arrow of such a jog.
+    async fn drop_axis(&mut self, shared: &Shared, key: Key) -> bool {
+        let Some((lease, _)) = self.held.clone() else { return false };
+        let Some((kept, positive)) = arrow(key) else { return false };
+        if self.jogging[kept] != Some(positive) || self.jogging[1 - kept].is_none() {
+            return false;
+        }
+        match machine::jog_axis(shared, lease, 1 - kept, None).await {
+            Ok(()) => {
+                self.jogging[1 - kept] = None;
+                true
+            }
+            Err(_) => false,
         }
     }
 
@@ -476,6 +538,8 @@ impl Pendant {
         let lease = Lease { client: "pendant".into(), sequence: self.sequence };
         match what {
             Held::Jog(request) => {
+                self.jogging = [None; 2];
+                self.jogging[request.axis] = Some(request.positive);
                 // From one arrow to two, or back, the last jog is still
                 // braking: the new one starts as soon as it has stopped.
                 let since = Instant::now();
@@ -532,6 +596,7 @@ impl Pendant {
     }
 
     async fn release(&mut self, shared: &Shared) {
+        self.jogging = [None; 2];
         if let Some((lease, _)) = self.held.take() {
             let _ = machine::release(shared, lease).await;
         }

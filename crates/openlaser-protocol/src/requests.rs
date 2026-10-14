@@ -145,6 +145,15 @@ pub fn rapid_stop(deceleration: u32) -> Write {
     Write::command(vec![1, 31, 2, deceleration, 200_000])
 }
 
+/// Decelerate only the axes in `mask` (bit 0 is X, bit 1 is Y):
+/// `[1, mask, 2, deceleration, 200000]`. Mlaser ends a released jog key this
+/// way, `[1, 1, …]` for X and `[1, 2, …]` for Y, leaving the other axis
+/// running (network capture of 2026-10-14).
+#[must_use]
+pub fn stop_axes(mask: u32, deceleration: u32) -> Write {
+    Write::command(vec![1, mask, 2, deceleration, 200_000])
+}
+
 // Head -----------------------------------------------------------------------
 
 /// Head reference search, the first write of Go Origin and the relief for

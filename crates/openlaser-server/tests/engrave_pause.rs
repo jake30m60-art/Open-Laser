@@ -60,6 +60,15 @@ async fn a_paused_engraving_resumes_in_flight_from_its_line_start() {
             .unwrap();
         c.open_part(&part.id).unwrap();
         c.set_recipe(&recipe.id).unwrap();
+        // A generous run-out, so the pause's own judgement is what is
+        // tested, not how far the simulated axes need to brake.
+        let mut features = c.document().draft.unwrap().features.clone();
+        for layer in &mut features.layers {
+            if let Some(fill) = layer.machining.as_mut().and_then(|m| m.fill.as_mut()) {
+                fill.run_up = 60.;
+            }
+        }
+        c.set_features(features).unwrap();
     }
     machine::home(&shared).await.unwrap();
     until(&shared, 10, |d| d.machine.session.homed && d.machine.operation.is_none()).await;

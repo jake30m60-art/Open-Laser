@@ -40,6 +40,24 @@
   let lastChosen = $state<string | null>(null);
   $effect(() => { try { lastChosen = localStorage.getItem(LAST(laser)); } catch { lastChosen = null; } });
   const preferred = $derived(recipes.find((r) => r.id === lastChosen && (!draft.recipe || sameMaterial(r.name, draft.recipe.name))) ?? recipes[0] ?? null);
+  /** The recipe this layer engraves with: its own, else the job's engraving material, else the one it would get. */
+  const engravingRecipe = $derived.by(() => {
+    const own = draft.layers.find((l) => l.name === NAME)?.recipe;
+    const id = own && isEngraving(own) ? own.id : jobEngraves ? draft.recipe!.id : preferred?.id;
+    return (server.doc?.library.recipes ?? []).find((r) => r.id === id) ?? null;
+  });
+  const fixedHeight = $derived(engravingRecipe?.attributes['OpenLaserEngravingHeight'] === 'fixed');
+  /** Fixed or regulated height, saved in the engraving recipe itself, so
+   *  every job engraving with it does the same. */
+  async function setHeight(fixed: boolean): Promise<void> {
+    const recipe = engravingRecipe;
+    if (!recipe || fixed === fixedHeight) return;
+    const key = 'OpenLaserEngravingHeight';
+    try {
+      await api.updateRecipe(recipe.id, { attributes: { [key]: fixed ? 'fixed' : 'follow' }, expected_attributes: { [key]: recipe.attributes[key] ?? null } });
+      ui.say(fixed ? tr('Engraving height: fixed') : tr('Engraving height: regulated'));
+    } catch (error) { ui.say(explain(error), true); }
+  }
   function remember(recipe: RecipeView): void { lastChosen = recipe.id; try { localStorage.setItem(LAST(recipe.laser), recipe.id); } catch { /* not kept */ } }
   const fills = $derived(featureEdits.value(draft).layers ?? []);
   const fillOfLayer = (name: string): Fill | null => fills.find((l) => l.name === name)?.machining?.fill ?? null;
@@ -172,6 +190,14 @@
   <button class="btn btn-primary block" disabled={busy || previewBusy || refusedPreview || !ui.engravingPreview || (!selectedContours.length && !draft.layers.some(l => l.name === NAME && l.mode === 'mark'))} onclick={engraveSelection}>
     {tr("Done")} · {NAME}
   </button>
+  {#if engravingRecipe && engravingRecipe.laser === 'fiber'}
+    <h3>{tr("Engraving height")}</h3>
+    <div class="seg block" role="group" aria-label={tr("Engraving height mode")}>
+      <button class:on={!fixedHeight} aria-pressed={!fixedHeight} onclick={() => setHeight(false)}>{tr("Regulated height")}</button>
+      <button class:on={fixedHeight} aria-pressed={fixedHeight} onclick={() => setHeight(true)}>{tr("Fixed height")}</button>
+    </div>
+    <p class="muted">{tr("Saved in the recipe {0}", engravingRecipe.name)}</p>
+  {/if}
   {#if pickMode === 'area' && !pictures.has(NAME)}<FillSettings fill={areaFill} apply={c => (pendingFill = { ...areaFill, ...c })} speed={speedOf(draft.layers.find(l => l.name === NAME) ?? draft.layers[0]!)} />{/if}
   <h3>{tr("Layer visibility")}</h3>
   <div class="stack">

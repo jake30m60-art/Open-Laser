@@ -737,6 +737,41 @@ pub async fn jog(shared: &Shared, request: JogRequest, lease: Option<Lease>) -> 
     Ok(())
 }
 
+/// Adds the other XY axis to the held jog `lease` drives, towards its
+/// limit, or lets one of its two axes go: each axis runs and stops on its
+/// own, as Mlaser's jog keys.
+pub async fn jog_axis(
+    shared: &Shared,
+    lease: Lease,
+    axis: usize,
+    change: Option<bool>,
+) -> Result<()> {
+    shared.ensure_running()?;
+    let (machine, change) = {
+        let coordinator = shared.lock().await;
+        if axis > 1 {
+            return Err(Error::Request("the axis must be 0 or 1".into()));
+        }
+        let change = match change {
+            None => openlaser_controller::AxisChange::Part { axis },
+            Some(positive) => {
+                let verified = coordinator.jog_parameters()?;
+                let scale = verified.scale;
+                let position = coordinator.position()?;
+                let mut jog = coordinator.bound()?.jog;
+                jog.extent[axis] = within_bank(jog.extent[axis], &verified.banks[axis], scale);
+                jog.soft_limit = true;
+                let delta =
+                    jog.travel(axis, position[axis], if positive { 1. } else { -1. }, true, scale)?;
+                openlaser_controller::AxisChange::Join { axis, positive, delta }
+            }
+        };
+        (coordinator.machine.clone(), change)
+    };
+    machine.jog_axis(lease, change).await?;
+    Ok(())
+}
+
 /// `extent` narrowed to the soft limits in an axis bank, words 1 and 2, so
 /// a held jog never asks for a target the controller itself would refuse.
 fn within_bank(extent: [f64; 2], bank: &[u32], scale: i32) -> [f64; 2] {
@@ -1208,6 +1243,9 @@ async fn hold_after_line(shared: &Shared, epoch: u64) {
     let deadline = Instant::now() + std::time::Duration::from_secs(8);
     let mut last: Option<([f64; 3], Instant)> = None;
     let mut peak: f64 = 0.;
+    // Two slow readings in a row: one sample that merely arrived late
+    // must not pass for the turn while the line still marks.
+    let mut slow = 0;
     while Instant::now() < deadline {
         if shared.stop_epoch.load(Ordering::Acquire) != epoch {
             return;
@@ -1223,17 +1261,21 @@ async fn hold_after_line(shared: &Shared, epoch: u64) {
             return;
         }
         if let Some(feedback) = state.feedback {
-            let now = Instant::now();
+            // When the controller reported it, not when it reached us.
+            let now = Instant::now()
+                .checked_sub(std::time::Duration::from_millis(feedback.age_ms))
+                .unwrap_or_else(Instant::now);
             let position = feedback.position_mm;
             // A new feedback sample: the head has moved since the last one.
             if let Some((before, at)) = last
                 && (position[0] - before[0]).hypot(position[1] - before[1]) > 1e-6
             {
-                let seconds = now.duration_since(at).as_secs_f64();
+                let seconds = now.saturating_duration_since(at).as_secs_f64().max(1e-3);
                 let speed = (position[0] - before[0]).hypot(position[1] - before[1]) / seconds;
                 peak = peak.max(speed);
                 // Slowing for the turn, in the run-out past the last mark.
-                if peak > 5. && speed < peak * 0.3 {
+                slow = if peak > 5. && speed < peak * 0.3 { slow + 1 } else { 0 };
+                if slow >= 2 {
                     break;
                 }
                 last = Some((position, now));

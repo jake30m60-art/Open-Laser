@@ -81,6 +81,7 @@ enum Command {
     Initialize(Box<parameters::Initialization>, Reply<Verified>),
     Disconnect(Reply<()>),
     Release(Option<Lease>, Reply<()>),
+    Axis(Lease, AxisChange, Reply<()>),
     Hold(Reply<()>),
     Stop(Reply<()>),
     Shutdown(Reply<()>),
@@ -108,6 +109,7 @@ impl Command {
             self,
             Self::Disconnect(_)
                 | Self::Release(..)
+                | Self::Axis(..)
                 | Self::Hold(_)
                 | Self::Stop(_)
                 | Self::Shutdown(_)
@@ -127,6 +129,7 @@ impl Command {
             | Self::Relieve(_, reply)
             | Self::Disconnect(reply)
             | Self::Release(_, reply)
+            | Self::Axis(_, _, reply)
             | Self::Hold(reply)
             | Self::Stop(reply)
             | Self::Shutdown(reply) => drop(reply.send(Err(error))),
@@ -392,6 +395,12 @@ impl Machine {
         Ok(Completion(completion))
     }
 
+    /// Adds the other XY axis to this press's held jog, or lets one of its
+    /// two axes go while the other keeps running.
+    pub async fn jog_axis(&self, lease: Lease, change: AxisChange) -> Result<()> {
+        self.ask(|reply| Command::Axis(lease, change, reply)).await
+    }
+
     /// A terminal release affects only the matching press.
     pub async fn release_owned(&self, lease: Option<Lease>) -> Result<()> {
         self.ask(|reply| Command::Release(lease, reply)).await
@@ -500,6 +509,25 @@ impl Job {
             Self::Parameters(_, _, reply) => drop(reply.send(Err(error))),
         }
     }
+}
+
+/// A second axis on a held jog, or one of its two axes let go.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AxisChange {
+    /// Start the other XY axis, `delta` controller units towards its limit.
+    Join {
+        /// 0 for X, 1 for Y.
+        axis: usize,
+        /// The direction.
+        positive: bool,
+        /// The travel, in controller units, to the soft limit.
+        delta: i32,
+    },
+    /// Stop this axis; the other keeps jogging.
+    Part {
+        /// 0 for X, 1 for Y.
+        axis: usize,
+    },
 }
 
 struct Active {
@@ -752,6 +780,10 @@ impl Task {
             }
             Command::Release(lease, reply) => {
                 let outcome = self.release_press(lease).await;
+                self.answer(reply, outcome);
+            }
+            Command::Axis(lease, change, reply) => {
+                let outcome = self.change_axis(&lease, change).await;
                 self.answer(reply, outcome);
             }
         }
@@ -1154,6 +1186,34 @@ impl Task {
                 Err(Error::Refused(reason))
             }
         }
+    }
+
+    async fn change_axis(&mut self, lease: &Lease, change: AxisChange) -> Result<()> {
+        let snapshot = self.connected()?.clone();
+        let Some(active) = self.active.as_mut().filter(|a| a.lease.as_ref() == Some(lease)) else {
+            return Err(Error::Refused("this press holds no jog".into()));
+        };
+        let Job::Motion(motion, _) = &mut active.job else {
+            return Err(Error::Refused("this press holds no jog".into()));
+        };
+        let writes = match change {
+            AxisChange::Join { axis, positive, delta } => {
+                motion.join(axis, positive, delta, &snapshot, Instant::now())
+            }
+            AxisChange::Part { axis } => motion.part(axis),
+        }
+        .map_err(Error::Refused)?;
+        if let Err(error) = self.cleanup(&writes).await {
+            if let Some(active) = self.active.take() {
+                self.fail(active, error.clone()).await;
+            }
+            return Err(error);
+        }
+        if let Some(active) = &mut self.active {
+            active.sent = true;
+            active.written_at = Instant::now();
+        }
+        Ok(())
     }
 
     async fn release(&mut self) -> Result<()> {

@@ -78,6 +78,9 @@ pub struct Motion {
     axes: [usize; 2],
     retraction: Option<Home>,
     jog: Option<(usize, bool)>,
+    /// The other axis of a held jog, added while it runs: each axis keeps
+    /// its own direction and is stopped on its own, as Mlaser's jog keys.
+    joined: Option<(usize, bool)>,
     parameters: Verified,
     recovery_deadline: Option<Instant>,
 }
@@ -131,6 +134,7 @@ impl Motion {
             axes: [0, 1],
             retraction: None,
             jog,
+            joined: None,
             parameters: *verified,
             recovery_deadline: None,
         })
@@ -216,6 +220,74 @@ impl Motion {
         })
     }
 
+    /// Adds the other XY axis to a running held jog, `delta` towards its
+    /// limit: the writes to send now. Only a plain held jog on X or Y, not
+    /// a limit recovery, a positioning, a table move or a diagonal.
+    pub fn join(
+        &mut self,
+        axis: usize,
+        positive: bool,
+        delta: i32,
+        snapshot: &Snapshot,
+        now: Instant,
+    ) -> Result<Vec<Write>, String> {
+        let Some((running, _)) = self.jog else {
+            return Err("only a single-axis jog takes a second axis".into());
+        };
+        if !self.held()
+            || self.phase != Phase::Moving
+            || self.recovery_deadline.is_some()
+            || self.axes != [0, 1]
+            || self.joined.is_some()
+            || axis > 1
+            || axis == running
+            || delta == 0
+            || (delta > 0) != positive
+        {
+            return Err("this jog cannot take a second axis now".into());
+        }
+        if snapshot.xy_limit_alarms() || !snapshot.xy_jog_alarms_clear(axis, positive, false) {
+            return Err("an alarm blocks that direction".into());
+        }
+        let position = snapshot.axes.axis(axis).position;
+        let target = position.checked_add(delta).ok_or("the target is out of range")?;
+        let (low, high) = self.limits[axis];
+        if !(low..=high).contains(&target) {
+            return Err("the target is outside the soft limits".into());
+        }
+        let write = requests::jog(
+            u8::try_from(axis).map_err(|e| e.to_string())?,
+            self.request.speed,
+            self.request.acceleration,
+            delta,
+        )
+        .map_err(|e| e.to_string())?;
+        self.request.delta[axis] = delta;
+        self.target[axis] = target;
+        self.joined = Some((axis, positive));
+        self.heartbeat = now;
+        Ok(vec![write])
+    }
+
+    /// Stops one axis of a jog running on both, the other keeps going: the
+    /// writes to send now.
+    pub fn part(&mut self, axis: usize) -> Result<Vec<Write>, String> {
+        let (Some((first, _)), Some((second, direction))) = (self.jog, self.joined) else {
+            return Err("only a jog on both axes lets one go".into());
+        };
+        if self.phase != Phase::Moving || (axis != first && axis != second) {
+            return Err("that axis is not jogging".into());
+        }
+        if axis == first {
+            self.jog = Some((second, direction));
+        }
+        self.joined = None;
+        // The stopped axis is no longer headed anywhere: the held move ends
+        // when it is let go or its remaining axis reaches its limit.
+        self.request.delta[axis] = 0;
+        Ok(vec![requests::stop_axes(1 << axis, self.request.deceleration)])
+    }
+
     /// Renews a held jog's lease.
     pub fn heartbeat(&mut self, now: Instant) {
         self.heartbeat = now;
@@ -249,7 +321,9 @@ impl Motion {
 
     fn at_target(&self, snapshot: &Snapshot) -> bool {
         let position = self.positions(snapshot);
-        (0..2).all(|axis| {
+        // An axis not commanded, or let go of on a jog over both, has no
+        // target of its own: the moving ones decide.
+        (0..2).filter(|&axis| self.request.delta[axis] != 0).all(|axis| {
             (i64::from(position[axis]) - i64::from(self.target[axis])).unsigned_abs()
                 <= u64::from(self.tolerance[axis])
         })
@@ -423,7 +497,11 @@ impl Motion {
                 self.check_recovery(snapshot, axis)?;
                 snapshot.xy_jog_alarms_clear(axis, positive, true)
             } else if let Some((axis, positive)) = self.jog {
-                !snapshot.xy_limit_alarms() && snapshot.xy_jog_alarms_clear(axis, positive, false)
+                !snapshot.xy_limit_alarms()
+                    && snapshot.xy_jog_alarms_clear(axis, positive, false)
+                    && self
+                        .joined
+                        .is_none_or(|(other, way)| snapshot.xy_jog_alarms_clear(other, way, false))
             } else {
                 snapshot.positioning_alarms_clear()
             };

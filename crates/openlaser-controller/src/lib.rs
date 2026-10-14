@@ -43,7 +43,7 @@ pub mod streaming;
 
 pub use bindings::Bindings;
 pub use config::Config;
-pub use machine::Machine;
+pub use machine::{AxisChange, Machine};
 pub use simulator::Simulator;
 pub use state::State;
 

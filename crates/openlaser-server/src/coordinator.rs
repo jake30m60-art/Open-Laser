@@ -1288,8 +1288,38 @@ impl Coordinator {
             }
             recipe.attributes = attributes;
         })?;
+        self.refresh_draft_recipe(id);
         self.library_changed();
         Ok(())
+    }
+
+    /// The open job cuts with copies of its recipes: an edit saved in the
+    /// library reaches them at once, its material, film and layer recipes
+    /// alike. A running or paused job keeps what it was started with.
+    fn refresh_draft_recipe(&mut self, id: &Id) {
+        if self.idle().is_err() || self.held.is_some() {
+            return;
+        }
+        let Ok(fresh) = self.library.recipe(id).cloned() else { return };
+        let Some(draft) = self.draft.as_mut() else { return };
+        let mut changed = false;
+        let mut take = |slot: &mut Option<openlaser_library::Recipe>| {
+            if let Some(recipe) = slot
+                && recipe.id == *id
+                && *recipe != fresh
+            {
+                *recipe = fresh.clone();
+                changed = true;
+            }
+        };
+        take(&mut draft.current.recipe);
+        take(&mut draft.current.film);
+        for choice in &mut draft.current.layers {
+            take(&mut choice.recipe);
+        }
+        if changed {
+            self.reprepare();
+        }
     }
 
     /// Recipes that showed a bare selector before the selections had

@@ -16,14 +16,14 @@
   <Field {ed} key={ed.laser === 'fiber' ? 'CutPower' : 'CutDuty'} label="Duty Cycle" big />
   <Field {ed} key="CutFreq" label="Frequency" big />
 </div>
-{#if ed.a.height}
+{#if ed.laser === 'fiber'}
   <div class="section-head"><h2>{tr("Engraving height")}</h2></div>
   <div class="seg" role="group" aria-label={tr("Engraving height mode")}>
     <button class:on={!fixed} aria-pressed={!fixed} onclick={() => ed.set('OpenLaserEngravingHeight', 'follow')}>{tr("Regulated height")}</button>
     <button class:on={fixed} aria-pressed={fixed} onclick={() => ed.set('OpenLaserEngravingHeight', 'fixed')}>{tr("Fixed height")}</button>
   </div>
   <p class="muted">{fixed ? tr("Measures once over the sheet, then holds Z across all engraving lines and travel. The initial measuring point must be over the sheet.") : tr("Continuously follows the sheet. The complete travel must remain over material.")}</p>
-  <div class="fields big"><Field {ed} key="CutHeight" label="Engraving height" big /></div>
+  {#if ed.a.height}<div class="fields big"><Field {ed} key="CutHeight" label="Engraving height" big /></div>{/if}
 {/if}
 <div class="section-head"><h2>{tr("Engraving lines")}</h2></div>
 <div class="engrave">

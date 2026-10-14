@@ -182,6 +182,10 @@ struct FifoWatch {
     /// The longest gap between two polls.
     longest_gap: Duration,
     reported: bool,
+    /// Since when the current ten-second window runs, its fewest bytes
+    /// queued and its longest gap: logged as the run goes, so a run that
+    /// ran dry shows how it got there.
+    window: Option<(Instant, u32, Duration)>,
 }
 
 impl FifoWatch {
@@ -192,8 +196,18 @@ impl FifoWatch {
     fn observe(&mut self, queued: u32, now: Instant) {
         self.polls += 1;
         self.least = Some(self.least.map_or(queued, |least| least.min(queued)));
-        if let Some(last) = self.last_poll {
-            self.longest_gap = self.longest_gap.max(now.duration_since(last));
+        let gap = self.last_poll.map_or(Duration::ZERO, |last| now.duration_since(last));
+        self.longest_gap = self.longest_gap.max(gap);
+        let (since, least, longest) = self.window.get_or_insert((now, queued, gap));
+        *least = (*least).min(queued);
+        *longest = (*longest).max(gap);
+        if now.duration_since(*since) >= Duration::from_secs(10) {
+            tracing::info!(
+                least_queued = *least,
+                longest_poll_gap_ms = longest.as_millis(),
+                "program FIFO, last 10 s"
+            );
+            self.window = Some((now, queued, Duration::ZERO));
         }
         self.last_poll = Some(now);
         if queued < Self::LOW {
@@ -512,6 +526,14 @@ impl Operation for Run {
         if matches!(self.phase, Phase::Priming | Phase::Uploading | Phase::Finishing)
             && !snapshot.alarms_clear()
         {
+            // How full the FIFO was when the alarm came, and since the last report.
+            tracing::warn!(
+                uploaded = self.uploaded,
+                blocks = self.program.blocks.len(),
+                queued = self.capacity.saturating_sub(snapshot.status.fifo_free()),
+                window = ?self.watch.window.map(|(_, least, gap)| (least, gap.as_millis())),
+                "program stopped by a controller alarm"
+            );
             return Err("controller alarms are active".into());
         }
         if matches!(self.phase, Phase::Uploading | Phase::Finishing)

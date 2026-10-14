@@ -3981,5 +3981,8 @@
   "preflight preferences": "Checklisten-Einstellungen",
   "nested machining paths": "Verschachtelte Bearbeitungswege",
   "positioning task": "Positionierung",
-  "alarm history": "Alarmverlauf"
+  "alarm history": "Alarmverlauf",
+  "Engraving height: fixed": "Gravurhöhe: fest",
+  "Engraving height: regulated": "Gravurhöhe: geregelt",
+  "Saved in the recipe {0}": "Gespeichert im Rezept {0}"
 }
