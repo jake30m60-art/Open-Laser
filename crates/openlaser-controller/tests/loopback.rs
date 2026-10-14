@@ -1328,3 +1328,27 @@ async fn a_relative_retract_needs_travel_above_the_sheet() {
         machine.shutdown().await.unwrap();
     }
 }
+
+/// A height calibration that finds no sheet and runs the head onto its
+/// bottom limit ends with the head alarm, but the controller still answers:
+/// the connection stays, as with Mlaser, and the calibration no longer holds.
+#[tokio::test]
+async fn a_calibration_that_hits_the_bottom_limit_stays_connected() {
+    let (_simulator, control, machine) = homed().await;
+    let calibration = tokio::spawn({
+        let machine = machine.clone();
+        async move { machine.calibrate().await }
+    });
+    until(&machine, |s| s.operation.is_some()).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    control.head_on_limit(false);
+    assert!(calibration.await.unwrap().is_err());
+    let state = machine.state();
+    assert!(
+        !matches!(state.connection, Connection::Faulted { .. }),
+        "the head alarm dropped the connection: {:?}",
+        state.connection
+    );
+    assert!(state.session.calibration.is_none());
+    machine.shutdown().await.unwrap();
+}

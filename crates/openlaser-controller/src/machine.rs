@@ -1620,14 +1620,29 @@ impl Task {
         let ending_failed = matches!(&active.job, Job::Run(run, _)
             if matches!(run.state(), ProgramState::Held | ProgramState::Stopped));
         if active.sent {
+            let mut stopped = false;
             if self.link.is_some() {
                 let mut writes = active.job.view().cancel();
                 writes.extend(self.abort_writes(true));
-                if let Err(cleanup) = self.cleanup(&writes).await {
-                    error = Error::Link(format!("{error}; {cleanup}"));
+                match self.cleanup(&writes).await {
+                    Ok(()) => stopped = true,
+                    Err(cleanup) => error = Error::Link(format!("{error}; {cleanup}")),
                 }
             }
-            if !ending_failed || !matches!(error, Error::Failed(_)) {
+            // A head operation the machine ended, such as a calibration that
+            // found no sheet and ran the head onto its limit, with every
+            // stop write acknowledged, leaves a controller that answers: it
+            // stays connected, as with Mlaser, so its alarms can be read and
+            // reset. An uncertain link, or a failed XY move or program,
+            // still faults the connection. The height calibration no longer
+            // holds after a failed head operation.
+            let head_only = matches!(active.job, Job::Calibrate(..) | Job::Head(..));
+            if stopped && head_only && matches!(error, Error::Failed(_)) {
+                if !ending_failed {
+                    self.session.calibration = None;
+                    self.last_error = Some(error.to_string());
+                }
+            } else if !ending_failed || !matches!(error, Error::Failed(_)) {
                 self.mark_fault(error.to_string());
             }
         }
