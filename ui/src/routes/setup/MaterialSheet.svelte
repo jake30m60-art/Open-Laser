@@ -21,7 +21,8 @@
   const opened = server.doc?.draft?.recipe;
   let process = $state<'cut' | 'engrave'>(opened && isEngraving(opened) ? 'engrave' : 'cut');
   const engraving = $derived(process === 'engrave');
-  const recipes = $derived(all.filter((r) => isEngraving(r) === engraving));
+  // Only the laser in use, as Mlaser's laser choice; both while none is known.
+  const recipes = $derived(all.filter((r) => isEngraving(r) === engraving && (!doc.mode || r.laser === doc.mode)));
   const recent = $derived.by(() => {
     const seen = new Set<string>();
     return [...doc.library.jobs].sort((a, b) => b.updated - a.updated).map((j) => j.recipe)
@@ -31,7 +32,7 @@
         seen.add(live.id);
         return true;
       })
-      .map((r) => all.find((x) => x.key === r.key)!).filter((r) => isEngraving(r) === engraving).slice(0, 5);
+      .map((r) => all.find((x) => x.key === r.key)!).filter((r) => isEngraving(r) === engraving && (!doc.mode || r.laser === doc.mode)).slice(0, 5);
   });
   const materials = $derived(materialsOf(recipes));
 
