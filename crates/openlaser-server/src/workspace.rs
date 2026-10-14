@@ -455,6 +455,7 @@ impl Draft {
             placed: Vec::new(),
             sheet_offset: None,
             anchor: self.current.anchor,
+            origin_point: self.current.origin_point,
             favourite: false,
             created: 0,
             updated: 0,
@@ -471,6 +472,7 @@ impl Draft {
         job.sheet_offset =
             if crate::placement::is_head(self) { None } else { self.current.sheet_offset };
         job.anchor = self.current.anchor;
+        job.origin_point = self.current.origin_point;
         job.preflight.clone_from(&self.current.preflight);
         job.nesting.clone_from(&self.current.nesting);
         job.correction.clone_from(&self.current.correction);
@@ -498,6 +500,7 @@ impl Draft {
             self.capture_epoch = None;
         }
         self.current.anchor = job.anchor;
+        self.current.origin_point = job.origin_point;
         self.current.preflight.clone_from(&job.preflight);
         self.current.nesting.clone_from(&job.nesting);
         self.current.correction.clone_from(&job.correction);
@@ -671,4 +674,5 @@ fn preparation_changed(draft: &Draft, saved: &Job) -> bool {
         || draft.current.placed != saved.placed
         || !crate::placement::matches_saved(draft, saved)
         || draft.current.anchor != saved.anchor
+        || draft.current.origin_point != saved.origin_point
 }

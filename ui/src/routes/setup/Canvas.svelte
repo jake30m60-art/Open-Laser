@@ -33,6 +33,7 @@
   import { ui } from '../../stores/ui.svelte';
   import { osk } from '../../lib/osk.svelte';
   import { frameOf } from '../../lib/frame';
+  import { originCandidates, snapOrigin } from '../../lib/origin-snap';
   import { explain, plural } from '../../lib/format';
   import { withBusy } from '../../lib/busy';
   import { apply, centre, mirror, mirrorVertical, rotation, scaling, svgMatrix, translate, type Point } from '../../lib/transform';
@@ -144,7 +145,7 @@
     const key = `${draft?.generation ?? ''}/${draft?.job ?? ''}/${frame.bed ? 'bed' : ''}/${content ? 'parts' : ''}/${sheetKey}`;
     if (key !== fitted) { fitted = key; untrack(fit); }
   });
-  $effect(() => () => { ui.picking = null; });
+  $effect(() => () => { ui.picking = null; ui.originPicking = false; });
 
   // Shapes: the preview contours of each group, by the drawing contour they came from.
   const groupOf = $derived(new Map(groups.flatMap((members, g) => members.map((c) => [c, g] as const))));
@@ -258,7 +259,7 @@
   const selection = $derived(local ? axisAlignedBounds(selectionBase, local.m) ?? transformedBounds(selected.flatMap(pointsOf), local.m) : selectionBase);
   const fail = (error: unknown) => ui.say(explain(error), true);
   /** Picking or nesting has the canvas: shapes stay put and taps go there. */
-  const canvasTaken = $derived(!!ui.picking || ui.nestShown || ui.nestPicking);
+  const canvasTaken = $derived(!!ui.picking || ui.nestShown || ui.nestPicking || ui.originPicking);
   /** Nothing on the canvas can be moved or edited. */
   const canvasBusy = $derived(updating || canvasTaken);
   /** The selection cannot be edited: there is none, or the canvas is busy. */
@@ -340,6 +341,12 @@
     snap: {
       label: 'Snap', when: 'idle', text: () => (ui.snap ? 'On' : 'Off'), on: () => ui.snap,
       disabled: () => false, run: () => ui.toggleSnap(),
+    },
+    origin: {
+      label: 'Origin', title: 'Tap a corner, a hole or any point of the drawing: the origin stands for it',
+      when: 'always', icon: 'ic-pin', on: () => ui.originPicking, set: () => !!draft?.origin_point,
+      detail: () => (draft?.origin_point ? 'In the drawing' : 'Corner'),
+      disabled: () => !draft || canvasBusy, run: () => { ui.originPicking = !ui.originPicking; if (ui.originPicking) ui.say('Tap the point the origin stands for'); },
     },
     grid: { label: 'Grid', when: 'idle', text: () => quantity(ui.grid, 'mm'), disabled: () => false, run: () => gridSize() },
     'mirror-x': {
@@ -579,6 +586,13 @@
       return;
     }
     if (ui.nestShown) return;
+    if (ui.originPicking && draft) {
+      const sources = preview?.source_contours?.length ? preview.source_contours : preview?.contours ?? [];
+      const point = snapOrigin(at, originCandidates(sources.filter((c) => !hidden(c.layer))), 12 * view.mmPerPixel);
+      ui.originPicking = false;
+      api.setOriginPoint(point).then(() => ui.say('Origin set in the drawing: set it on the machine at the same point')).catch(fail);
+      return;
+    }
     if (ui.picking) { pickAt(at); return; }
     // Each line has a halo: inside a shape it grows until it meets the next
     // line's, so the nearest line always wins and the middle of a hole takes
@@ -860,7 +874,7 @@
 
 <div class="canvas-wrap">
 
-  <Stage {view} bed={frame.bed} head={frame.head} origin={ui.nestShown ? null : frame.origin} onhover={bridgeHover} {grab} {ondrag} {ondragend} {ontap} {onmarquee}
+  <Stage {view} bed={frame.bed} head={frame.head} origin={ui.nestShown ? null : frame.origin ?? (draft?.dock ? [draft.dock[0] + zero[0], draft.dock[1] + zero[1]] : null)} onhover={bridgeHover} {grab} {ondrag} {ondragend} {ontap} {onmarquee}
     lift={lifting && local ? [local.m[4], local.m[5]] : null} lifted={liftedShapes}>
     <g transform="translate({zero[0]} {zero[1]})">
     {#if stockOutline.length}

@@ -3590,5 +3590,14 @@
   "Passes and run-up": "Durchgänge und Anlauf",
   "Minimum laser-off run-up": "Mindestanlauf ohne Laser",
   "The actual run-up is calculated from speed and acceleration, and is at least this value.": "Der tatsächliche Anlauf wird aus Geschwindigkeit und Beschleunigung berechnet und beträgt mindestens diesen Wert.",
-  "Assist gas and optical setup": "Gas und optische Einrichtung"
+  "Assist gas and optical setup": "Gas und optische Einrichtung",
+  "Origin": "Nullpunkt",
+  "Tap a corner, a hole or any point of the drawing: the origin stands for it": "Ecke, Loch oder beliebigen Punkt der Zeichnung antippen: der Nullpunkt steht dann dort",
+  "In the drawing": "In der Zeichnung",
+  "Corner": "Ecke",
+  "Tap the point the origin stands for": "Punkt für den Nullpunkt antippen",
+  "Origin set in the drawing: set it on the machine at the same point": "Nullpunkt in der Zeichnung gesetzt: an der Maschine auf denselben Punkt setzen",
+  "Origin: point picked in the drawing": "Nullpunkt: Punkt aus der Zeichnung",
+  "Origin: front-left corner": "Nullpunkt: Ecke vorne links",
+  "point in the drawing": "Punkt aus der Zeichnung"
 }

@@ -40,7 +40,7 @@ export interface Picking {
 }
 
 /** The drawing bar's default order: view tools, then editing tools, then history. */
-const DRAW_BAR = ['fit', 'zoom-in', 'zoom-out', 'snap', 'grid', 'layer', 'mirror-x', 'mirror-y', 'turn', 'scale', 'center', 'reset', 'group', 'ungroup', 'copy', 'paste', 'delete', 'whole-part', 'deselect', 'undo', 'redo'];
+const DRAW_BAR = ['fit', 'zoom-in', 'zoom-out', 'snap', 'grid', 'origin', 'layer', 'mirror-x', 'mirror-y', 'turn', 'scale', 'center', 'reset', 'group', 'ungroup', 'copy', 'paste', 'delete', 'whole-part', 'deselect', 'undo', 'redo'];
 
 /** The machining bar's default order: every machining tool, then nesting and copying. */
 const MACHINING_BAR = [...FEATURE_IDS, 'engrave', 'nest', 'simulation', 'copy'];
@@ -105,6 +105,8 @@ class Ui {
    *  drawing, which cannot be edited meanwhile. */
   get nestShown(): boolean { return !!this.nestPreview || !!this.nestLive; }
   nestPicking = $state(false);
+  /** A tap on the drawing sets the point the origin stands for. */
+  originPicking = $state(false);
   selectionEpoch = $state(0);
   engravingLayer = $state<string | null>(null);
   engravingSession = $state(0);

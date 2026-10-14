@@ -276,6 +276,8 @@ export const api = {
   previewFeatures: (features: Features, revision: number) => post<{ preview: Preview; error: string | null; revision: number }>(`/api/draft/preview?revision=${revision}`, features),
   /** Which point of the part the origin stands for. */
   setAnchor: (anchor: Anchor) => draftPost('/api/draft/anchor', { anchor }),
+  /** Lets the origin stand for a point picked in the drawing, or for the anchor again with `null`. */
+  setOriginPoint: (point: [number, number] | null) => draftPost('/api/draft/origin-point', { point }),
   /** Puts the part's anchor point at machine coordinates, or where the head is. */
   setOrigin: (origin: [number, number] | 'head', anchor?: Anchor) => draftPost('/api/draft/origin', origin === 'head' ? { anchor } : { origin, anchor }),
   compile: (dryRun: boolean) => draftPost('/api/draft/compile', { dry_run: dryRun }),

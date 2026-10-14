@@ -432,6 +432,9 @@ pub struct Job {
     /// Which point of the part the origin stands for.
     #[serde(default)]
     pub anchor: Anchor,
+    /// A point picked in the drawing that the origin stands for instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_point: Option<[f64; 2]>,
     /// Whether it is starred.
     #[serde(default)]
     pub favourite: bool,
@@ -1100,6 +1103,7 @@ mod tests {
             placed: Vec::new(),
             sheet_offset: None,
             anchor: Anchor::default(),
+            origin_point: None,
             favourite: false,
             created: 0,
             updated: 0,
@@ -1164,6 +1168,7 @@ mod tests {
                     placed: Vec::new(),
                     sheet_offset: Some([120., 80.]),
                     anchor: Anchor::default(),
+                    origin_point: None,
                     favourite: true,
                     created: 0,
                     updated: 0,
@@ -1226,6 +1231,7 @@ mod tests {
                 placed: Vec::new(),
                 sheet_offset: None,
                 anchor: Anchor::default(),
+                origin_point: None,
                 favourite: false,
                 created: 0,
                 updated: 0,

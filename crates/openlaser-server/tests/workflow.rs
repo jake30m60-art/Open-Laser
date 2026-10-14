@@ -723,3 +723,31 @@ async fn the_sheet_edits_are_checked_and_undone() {
     assert_eq!((draft.placed.len(), draft.past, draft.future), (count, initial_history + 2, 0));
     assert!(matches!(coordinator.redo(), Err(openlaser_server::Error::Refused(_))));
 }
+
+#[tokio::test]
+async fn a_point_picked_in_the_drawing_lands_under_the_head() {
+    let (simulator, shared) = start("origin-point").await;
+    set_up(&shared).await;
+    connect::connect(&shared).await.unwrap();
+    machine::home(&shared).await.unwrap();
+    until(&shared, 10, |d| d.machine.session.homed && d.machine.operation.is_none()).await;
+    let mut c = shared.lock().await;
+    let bounds = c.document().draft.unwrap().preview.as_ref().unwrap().bounds.unwrap();
+    // A point inside the part, say a hole's centre, not one of the nine.
+    let point = [bounds.min.x + 13.5, bounds.min.y + 7.25];
+    c.set_origin_point(Some(point)).unwrap();
+    c.origin_here().unwrap();
+    let draft = c.document().draft.unwrap();
+    let head = simulator.control().view().position_mm;
+    let origin = draft.origin.unwrap();
+    assert!((origin[0] - head[0]).abs() < 1e-6 && (origin[1] - head[1]).abs() < 1e-6);
+    let zero = draft.sheet_offset.unwrap();
+    assert!((zero[0] + point[0] - head[0]).abs() < 1e-6, "the picked point sits under the head");
+    assert!((zero[1] + point[1] - head[1]).abs() < 1e-6);
+    assert_eq!(draft.dock, Some(point));
+    // Choosing one of the nine again lets go of the picked point.
+    c.set_anchor(openlaser_library::Anchor::Center).unwrap();
+    assert_eq!(c.document().draft.unwrap().origin_point, None);
+    drop(c);
+    openlaser_server::shutdown(&shared).await.unwrap();
+}

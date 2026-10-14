@@ -119,6 +119,10 @@ zero: [number, number] | null,
  */
 anchor: Anchor,
 /**
+ * The point picked in the drawing that the origin stands for, if any.
+ */
+origin_point: [number, number] | null,
+/**
  * The anchor point in drawing coordinates, once prepared.
  */
 dock: [number, number] | null,

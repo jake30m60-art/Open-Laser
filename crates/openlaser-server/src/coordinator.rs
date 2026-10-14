@@ -1448,6 +1448,7 @@ impl Coordinator {
         draft.current.sheet_offset = job.sheet_offset;
         draft.current.placement.clone_from(&job.placement);
         draft.current.anchor = job.anchor;
+        draft.current.origin_point = job.origin_point;
         draft.current.preflight = job.preflight.clone();
         draft.current.nesting.clone_from(&job.nesting);
         draft.current.correction.clone_from(&job.correction);
@@ -1728,12 +1729,16 @@ impl Coordinator {
             return Err(Error::Request("the origin is not finite".into()));
         }
         let draft = self.draft_mut()?;
-        let anchor = anchor.unwrap_or(draft.current.anchor);
         let bounds = crate::placement::reference_bounds(draft)
             .ok_or_else(|| Error::Refused("nothing prepared".into()))?;
-        let dock = anchor.on(bounds.min.into(), bounds.max.into());
+        // A chosen anchor replaces a picked point; without one the origin
+        // keeps standing for what it stood for.
+        let point = if anchor.is_some() { None } else { draft.current.origin_point };
+        let anchor = anchor.unwrap_or(draft.current.anchor);
+        let dock = point.unwrap_or_else(|| anchor.on(bounds.min.into(), bounds.max.into()));
         draft.remember();
         draft.current.anchor = anchor;
+        draft.current.origin_point = point;
         draft.current.sheet_offset = Some([origin[0] - dock[0], origin[1] - dock[1]]);
         draft.current.placement = Some(openlaser_library::placement::Placement::Fixed { origin });
         if draft.current.correction.is_some() {
@@ -1748,6 +1753,27 @@ impl Coordinator {
     pub fn set_anchor(&mut self, anchor: openlaser_library::Anchor) -> Result<()> {
         self.draft_mut()?.remember();
         self.draft_mut()?.current.anchor = anchor;
+        self.draft_mut()?.current.origin_point = None;
+        self.draft_changed();
+        Ok(())
+    }
+
+    /// Lets the origin stand for a point picked in the drawing, in drawing
+    /// coordinates, or for the anchor again with `None`. The layout stays
+    /// where it is; a fixed origin moves with the point it stands for.
+    pub fn set_origin_point(&mut self, point: Option<[f64; 2]>) -> Result<()> {
+        if point.is_some_and(|p| !p.iter().all(|v| v.is_finite())) {
+            return Err(Error::Request("the origin point is not finite".into()));
+        }
+        let draft = self.draft_mut()?;
+        draft.remember();
+        draft.current.origin_point = point;
+        if let (Some(openlaser_library::placement::Placement::Fixed { .. }), Some(origin)) =
+            (&draft.current.placement, draft.origin())
+        {
+            draft.current.placement =
+                Some(openlaser_library::placement::Placement::Fixed { origin });
+        }
         self.draft_changed();
         Ok(())
     }

@@ -170,6 +170,10 @@ pub struct Snapshot {
     pub sheet_offset: Option<[f64; 2]>,
     /// Which point of the placed part the origin stands for.
     pub anchor: Anchor,
+    /// A point picked in the drawing, in drawing coordinates, that the
+    /// origin stands for instead of the anchor: a corner, a hole's centre.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_point: Option<[f64; 2]>,
     /// Operator checklist policy, saved with the job.
     pub preflight: openlaser_library::preflight::JobPreflight,
     /// Where the features came from.
@@ -347,6 +351,7 @@ impl Draft {
                 correction: None,
                 nesting: None,
                 placed: Placed::all(contours),
+                origin_point: None,
                 grouping: Grouping::default(),
                 features: Features::default(),
                 recipe: None,
@@ -444,6 +449,9 @@ impl Draft {
     /// The anchor point in drawing coordinates, once the layout is prepared.
     #[must_use]
     pub fn anchor_point(&self) -> Option<[f64; 2]> {
+        if let Some(point) = self.current.origin_point {
+            return Some(point);
+        }
         let bounds = crate::placement::reference_bounds(self)?;
         Some(self.current.anchor.on(bounds.min.into(), bounds.max.into()))
     }
@@ -551,6 +559,7 @@ impl Draft {
                     || self.current.features != base.features
                     || !crate::placement::matches_saved(self, base)
                     || self.current.anchor != base.anchor
+                    || self.current.origin_point != base.origin_point
                     || self.current.preflight != base.preflight
                     || self.current.placed
                         != if base.placed.is_empty() {
@@ -981,6 +990,7 @@ impl Draft {
             origin: self.origin(),
             sheet_offset: self.current.sheet_offset,
             anchor: self.current.anchor,
+            origin_point: self.current.origin_point,
             dock: self.anchor_point(),
             past: self.past.len(),
             future: self.future.len(),

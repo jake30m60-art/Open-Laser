@@ -141,6 +141,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/draft/placement", post(set_placement))
         .route("/api/draft/placement/prepare", post(prepare_placement))
         .route("/api/draft/anchor", post(set_anchor))
+        .route("/api/draft/origin-point", post(set_origin_point))
         .route("/api/draft/compile", post(compile))
         .route("/api/draft/save", post(save_job))
         .merge(machine_actions::routes())
@@ -1170,6 +1171,23 @@ async fn set_anchor(
 ) -> Reply {
     edit(&shared, Some(v.revision), |c| {
         c.set_anchor(request.anchor)?;
+        Ok(Value::Null)
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+struct OriginPointRequest {
+    point: Option<[f64; 2]>,
+}
+
+async fn set_origin_point(
+    State(shared): State<Shared>,
+    Query(v): Query<Revision>,
+    Json(request): Json<OriginPointRequest>,
+) -> Reply {
+    edit(&shared, Some(v.revision), |c| {
+        c.set_origin_point(request.point)?;
         Ok(Value::Null)
     })
     .await

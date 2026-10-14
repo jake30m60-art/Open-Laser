@@ -39,6 +39,9 @@ pub struct SheetLayout {
     sheet_offset: Option<[f64; 2]>,
     /// See `Snapshot::anchor`.
     anchor: Anchor,
+    /// See `Snapshot::origin_point`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    origin_point: Option<[f64; 2]>,
     /// How many parts (contour groups) the sheet holds.
     parts: usize,
 }
@@ -55,6 +58,7 @@ impl SheetLayout {
             features: current.features.clone(),
             sheet_offset: current.sheet_offset,
             anchor: current.anchor,
+            origin_point: current.origin_point,
             parts: draft.groups.len(),
         }
     }
@@ -69,6 +73,7 @@ impl SheetLayout {
         current.features.clone_from(&self.features);
         current.sheet_offset = self.sheet_offset;
         current.anchor = self.anchor;
+        current.origin_point = self.origin_point;
         crate::placement::forget_capture(draft);
     }
 

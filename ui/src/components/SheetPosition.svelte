@@ -48,6 +48,11 @@
     await withBusy((b) => (busy = b), () => api.placement(value));
   }
 
+  async function resetPoint(point: [number, number] | null): Promise<void> {
+    if (busy) return;
+    await withBusy((b) => (busy = b), () => api.setOriginPoint(point));
+  }
+
   function save(): void {
     const job = doc.library.jobs.find(j => j.id === draft?.job);
     const perform = (name: string): Promise<void> =>
@@ -61,7 +66,7 @@
   <section class="sheet-position" class:compact aria-label={t("Sheet origin")}>
     {#if collapsed}
       <div class="origin-line">
-        <span><strong>{t("Origin set")}</strong> · {fixed ? t("Absolute") : t('Each run')} {#if draft.origin} · X {distance(draft.origin[0])} · Y {distance(draft.origin[1])} {unitLabel('mm')}{/if}</span>
+        <span><strong>{t("Origin set")}</strong> · {fixed ? t("Absolute") : t('Each run')}{#if draft.origin_point} · {t("point in the drawing")}{/if} {#if draft.origin} · X {distance(draft.origin[0])} · Y {distance(draft.origin[1])} {unitLabel('mm')}{/if}</span>
         {#if !placement.saved && (draft.job || fixed) && !completed}<button class="text-button" disabled={disabled || !draft.recipe} onclick={save}>{t("Save job")}</button>{/if}
         {#if !completed || !fixed}<button class="text-button" disabled={disabled} onclick={() => (changing = true)}>{t("Change")}</button>{/if}
       </div>
@@ -70,6 +75,10 @@
         <strong>{t("Sheet origin")}</strong>
         {#if originHint}<span class="origin-reason">{originHint}</span>{/if}
         {#if changing}<button class="text-button" onclick={() => (changing = false)}>{t("Done")}</button>{/if}
+      </div>
+      <div class="origin-point">
+        <span>{draft.origin_point ? t("Origin: point picked in the drawing") : t("Origin: front-left corner")}</span>
+        {#if draft.origin_point}<button class="text-button" disabled={disabled} onclick={() => resetPoint(null)}>{t("Corner")}</button>{/if}
       </div>
       <div class="position-method" role="group" aria-label={t("Positioning method")}>
         <button aria-pressed={method === 'head'} disabled={disabled} title={t("Set the origin at the head for each new run")} onclick={chooseEachRun}>{t("Each run")}</button>
@@ -94,6 +103,7 @@
   .sheet-position :global(button[aria-pressed="true"]) { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
   .sheet-position :global(button:disabled) { opacity:.4; cursor:default; }
   .sheet-position :global(.set-origin) { width:100%; min-height:48px; padding:0 12px; border-color:var(--accent); color:var(--accent); font-variant-numeric:tabular-nums; }
+  .origin-point { display:flex; justify-content:space-between; gap:8px; align-items:center; font-size:var(--t-sm); color:var(--ink-2); }
   .origin-reason { flex:1; min-width:0; text-align:right; color:var(--warn); font-size:var(--t-sm); }
   .sheet-position .text-button { flex:none; min-width:44px; padding:0 8px; color:var(--accent); border:0; background:transparent; font-size:var(--t-sm); }
 </style>
