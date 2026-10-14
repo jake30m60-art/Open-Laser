@@ -532,8 +532,11 @@ body.osk-open .app { padding-bottom: 0; }
 
 /* ---------- Stage: bed, origin, head, toolpath layers ---------- */
 .bed { fill: none; stroke: var(--ink-3); stroke-dasharray: 6 6; }
-.zero circle { fill: var(--accent); }
-.zero path { stroke: var(--accent); stroke-width: 2; fill: none; }
+.zero .zero-halo { fill: var(--panel); fill-opacity: .9; stroke: var(--panel); stroke-width: 5; }
+.zero .zero-ring { fill: none; stroke: var(--accent); stroke-width: 3; }
+.zero .zero-cross { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
+.zero .zero-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 1; }
+.zero text { fill: var(--accent-2); stroke: var(--panel); stroke-width: 4; paint-order: stroke; stroke-linejoin: round; font: 700 13px var(--font); }
 .crosshair line { stroke: #6366b1; stroke-width: 1; stroke-dasharray: 4 3; opacity: .8; }
 .crosshair circle { fill: none; stroke: #6366b1; stroke-width: 2; }
 .path { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }

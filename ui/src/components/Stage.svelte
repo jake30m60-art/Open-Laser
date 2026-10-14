@@ -283,18 +283,23 @@
     <rect x={shown.x} y={shown.y} width={shown.w} height={shown.h} fill="url(#coarse-{uid})"/>
     <g transform="scale(1 -1)">
       {#if bed}<rect class="bed" x={bed.minX} y={bed.minY} width={bed.maxX - bed.minX} height={bed.maxY - bed.minY} vector-effect="non-scaling-stroke"/>{/if}
-      {#if origin}
-        <g class="zero" transform="translate({origin[0]} {origin[1]})">
-          <circle r={unit / 3}/>
-          <path d="M0 0H{unit * 4}M0 0V{unit * 4}" vector-effect="non-scaling-stroke"/>
-        </g>
-      {/if}
+
       {@render children?.()}
       {#if head}
         <g class="crosshair">
           <line x1={head[0]} y1={-shown.y - shown.h} x2={head[0]} y2={-shown.y} vector-effect="non-scaling-stroke"/>
           <line x1={shown.x} y1={head[1]} x2={shown.x + shown.w} y2={head[1]} vector-effect="non-scaling-stroke"/>
           <circle cx={head[0]} cy={head[1]} r={unit} vector-effect="non-scaling-stroke"/>
+        </g>
+      {/if}
+      {#if origin}
+        <g class="zero" transform="translate({origin[0]} {origin[1]}) scale({view.shownMmPerPixel} {-view.shownMmPerPixel})" pointer-events="none">
+          <title>{t("Origin")}</title>
+          <circle class="zero-halo" r="12" />
+          <circle class="zero-ring" r="9" />
+          <path class="zero-cross" d="M-16 0H16M0 -16V16" />
+          <circle class="zero-dot" r="3" />
+          <text x="18" y="-17">{t("Origin")}</text>
         </g>
       {/if}
       {#if marquee}<rect class="marquee" x={marquee.minX} y={marquee.minY} width={marquee.maxX - marquee.minX} height={marquee.maxY - marquee.minY} vector-effect="non-scaling-stroke"/>{/if}
