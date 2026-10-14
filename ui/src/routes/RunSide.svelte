@@ -121,6 +121,7 @@
   {@const label = `${xPositive ? 'X+' : 'X−'} ${yPositive ? 'Y+' : 'Y−'}`}
   <button
     class="diagonal"
+    class:lit={doc.pendant?.key === `${xPositive ? 'Right' : 'Left'}+${yPositive ? 'Up' : 'Down'}`}
     style:--turn="{cornerTurn(xPositive, yPositive)}deg"
     aria-label="Jog {t(label)}"
     onpointerdown={(event) => press(event, 0, xPositive, yPositive)}
@@ -157,13 +158,13 @@
       title={plain(readiness.home.reason).text}
     ><i class="ic ic-home"></i>{t("Home")}</HoldButton>
     <HoldButton
-      class="btn btn-move {lit('GoOrigin', true) ? 'lit' : ''}"
+      class="btn btn-move {lit('GoOrigin') ? 'lit' : ''}"
       onhold={() => call(() => api.machine('go-origin', { fast: ui.jogFast }))}
       disabled={!originGate.ok}
       title={plain(originGate.reason).text}
     >{t("Go origin")}</HoldButton>
     <HoldButton
-      class="btn btn-move {lit('ZCalibrate', true) ? 'lit' : ''}"
+      class="btn btn-move {lit('ZCalibrate') || lit('ZCalibrate', true) ? 'lit' : ''}"
       label={t("Calibrate Z")}
       onhold={() => call(() => api.machine('calibrate'))}
       disabled={!readiness.calibrate.ok}

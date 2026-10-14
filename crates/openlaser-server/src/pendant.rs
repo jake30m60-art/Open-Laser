@@ -98,6 +98,13 @@ pub enum Event {
         /// Whether Fn+ is held with it.
         with_fn: bool,
     },
+    /// An X and a Y arrow held together: a 45° jog.
+    Diagonal {
+        /// Right rather than left.
+        x_positive: bool,
+        /// Up rather than down.
+        y_positive: bool,
+    },
     /// Every key is up.
     Released,
     /// The receiver is gone or stopped answering.
@@ -119,8 +126,26 @@ pub fn decode(report: &[u8]) -> Option<Event> {
         (Some(Key::Fn), _, code) => {
             Key::from_code(code).map(|key| Event::Press { key, with_fn: true })
         }
+        // Two arrows of different axes, in either order, jog diagonally.
+        (Some(a), _, code) if code != 0 => match (arrow(a), Key::from_code(code).and_then(arrow)) {
+            (Some((0, x)), Some((1, y))) | (Some((1, y)), Some((0, x))) => {
+                Some(Event::Diagonal { x_positive: x, y_positive: y })
+            }
+            _ => Some(Event::Press { key: a, with_fn: false }),
+        },
         (Some(key), _, _) => Some(Event::Press { key, with_fn: false }),
         (None, _, _) => None,
+    }
+}
+
+/// An arrow's axis and direction.
+const fn arrow(key: Key) -> Option<(usize, bool)> {
+    match key {
+        Key::Left => Some((0, false)),
+        Key::Right => Some((0, true)),
+        Key::Down => Some((1, false)),
+        Key::Up => Some((1, true)),
+        _ => None,
     }
 }
 
@@ -210,6 +235,14 @@ impl Pendant {
     async fn show(&self, shared: &Shared, connected: bool) {
         let key = match self.down {
             Some((Event::Press { key, with_fn }, _)) => Some((format!("{key:?}"), with_fn)),
+            Some((Event::Diagonal { x_positive, y_positive }, _)) => Some((
+                format!(
+                    "{}+{}",
+                    if x_positive { "Right" } else { "Left" },
+                    if y_positive { "Up" } else { "Down" }
+                ),
+                false,
+            )),
             _ => None,
         };
         let view = PendantView {
@@ -250,6 +283,25 @@ impl Pendant {
                         Err(error) => Err(error),
                     };
                     if let Err(error) = went {
+                        shared.lock().await.note(format!("Pendant: {error}"), true);
+                    }
+                }
+            }
+            Event::Diagonal { x_positive, y_positive } => {
+                if let Some((down, seen)) = &mut self.down
+                    && *down == event
+                {
+                    *seen = Instant::now();
+                    return;
+                }
+                tracing::info!(x_positive, y_positive, "pendant diagonal");
+                self.down = Some((event, Instant::now()));
+                self.origin_held = None;
+                self.release(shared).await;
+                if let Err(error) = self.diagonal(shared, x_positive, y_positive).await {
+                    let busy =
+                        self.mode == Mode::Step && error.to_string().contains("a move is active");
+                    if !busy {
                         shared.lock().await.note(format!("Pendant: {error}"), true);
                     }
                 }
@@ -359,6 +411,27 @@ impl Pendant {
             (Key::Fn, _) => {}
         }
         Ok(())
+    }
+
+    /// Jogs X and Y together at 45°, as the screen's corner keys, under
+    /// both arrows' gates.
+    async fn diagonal(&mut self, shared: &Shared, x: bool, y: bool) -> crate::Result<()> {
+        let x_index = usize::from(x);
+        let y_index = usize::from(y);
+        gate(shared, |r| r.xy_jog[0][x_index].clone()).await?;
+        gate(shared, |r| r.xy_jog[1][y_index].clone()).await?;
+        let request = JogRequest {
+            axis: 0,
+            positive: x,
+            step_mm: (self.mode == Mode::Step).then_some(STEP_MM),
+            fast: self.mode == Mode::Fast,
+            diagonal: Some(y),
+        };
+        if self.mode == Mode::Step {
+            machine::jog(shared, request, None).await
+        } else {
+            self.hold(shared, Held::Jog(request)).await
+        }
     }
 
     /// Whether the screen's button for this key would be enabled now: the
@@ -565,6 +638,13 @@ mod tests {
         // As the receiver sent them on 12 October, the last byte 0x10 higher.
         assert_eq!(decode(&[0x04, 0x10, 0x0B, 0, 0, 0x15]), press(Key::Fn, false));
         assert_eq!(decode(&[0x04, 0x10, 0x01, 0, 0, 0x1F]), press(Key::Follow, false));
+        // Two arrows of different axes, either way round, jog diagonally;
+        // two of one axis keep the first.
+        let diagonal = |x_positive, y_positive| Some(Event::Diagonal { x_positive, y_positive });
+        assert_eq!(decode(&[0x04, 0x10, 0x13, 0x0F, 0, 0x05]), diagonal(true, true));
+        assert_eq!(decode(&[0x04, 0x10, 0x11, 0x12, 0, 0x05]), diagonal(false, false));
+        assert_eq!(decode(&[0x04, 0x10, 0x12, 0x13, 0, 0x05]), diagonal(true, false));
+        assert_eq!(decode(&[0x04, 0x10, 0x13, 0x11, 0, 0x05]), press(Key::Right, false));
         assert_eq!(decode(&[0x04, 0x10, 0x14, 0, 0, 0x0C]), None, "no such key");
         assert_eq!(decode(&[0x04, 0x10, 0x01, 0]), None, "too short");
         assert_eq!(decode(&[0x05, 0x10, 0x01, 0, 0, 0x0F]), None);

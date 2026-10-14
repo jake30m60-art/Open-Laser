@@ -12,6 +12,7 @@
     Frame: 'Frame', GoOrigin: 'Go to origin', Start: 'Start', Pause: 'Pause', Stop: 'Stop',
     Fn: 'Fn', ZCalibrate: 'Z calibration', FastStep: 'Fast/Step', ZDown: 'Z−', ZUp: 'Z+',
     Up: 'Y+', Down: 'Y−', Left: 'X−', Right: 'X+',
+    'Right+Up': 'X+ Y+', 'Left+Up': 'X− Y+', 'Right+Down': 'X+ Y−', 'Left+Down': 'X− Y−',
   };
   const key = $derived(pendant.key ? `${pendant.with_fn ? 'Fn+ ' : ''}${t(KEYS[pendant.key] ?? pendant.key)}` : null);
 </script>
