@@ -192,13 +192,21 @@ async fn a_floating_origin_follows_the_head_and_setting_it_makes_it_absolute() {
         }
     };
     machine::prepare(&shared).await.unwrap();
+    // A reference point off the drawing's zero, as a real part has: the
+    // origin is then a sum that need not round back to the head exactly.
+    shared.lock().await.set_origin_point(Some([3.3, 1.7])).unwrap();
     let revision = shared.lock().await.document().draft_revision;
     placement::change(&shared, PlacementChange::Head {}, revision).await.unwrap();
-    machine::go_xy(&shared, [200., 150.]).await.unwrap();
+    machine::go_xy(&shared, [200.123, 150.457]).await.unwrap();
     settled(&shared).await;
     placement::prepare(&shared).await.unwrap();
     let first = shared.lock().await.document().draft.unwrap().origin.unwrap();
-    assert!((first[0] - 200.).abs() < 0.01 && (first[1] - 150.).abs() < 0.01, "{first:?}");
+    // A start prepares again without the head moving: the job stays as
+    // reviewed, so the checklist's approval still holds.
+    let reviewed = shared.lock().await.document().draft_revision;
+    placement::prepare(&shared).await.unwrap();
+    assert_eq!(shared.lock().await.document().draft_revision, reviewed, "the job changed unmoved");
+    assert!((first[0] - 200.123).abs() < 0.01 && (first[1] - 150.457).abs() < 0.01, "{first:?}");
     // Moved on: the next start takes the head where it stands now.
     machine::go_xy(&shared, [260., 180.]).await.unwrap();
     settled(&shared).await;

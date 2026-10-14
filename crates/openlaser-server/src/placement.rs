@@ -197,7 +197,9 @@ impl Coordinator {
                 || epoch.is_none()
                 || draft.capture_epoch != epoch
                 || draft.capture_used
-                || draft.origin() != head_position(draft, &state).ok();
+                || draft.origin().zip(head_position(draft, &state).ok()).is_none_or(
+                    |(origin, head)| (origin[0] - head[0]).hypot(origin[1] - head[1]) > 0.005,
+                );
             if moved {
                 pin_head(draft, &state, false)?;
                 self.draft_changed();
