@@ -346,7 +346,6 @@ async fn chosen_sheets_fill_in_order_within_what_is_on_hand() {
             StockSource::Stock { id: steel.clone(), count: 2 },
         ],
         vec![StockSource::Stock { id: other, count: 1 }],
-        vec![StockSource::Sheet { width: 80., height: 50., count: 0 }],
     ];
     for stock in refused {
         assert!(nesting::start(&shared, revision, asking(stock)).await.is_err());
@@ -372,4 +371,23 @@ async fn chosen_sheets_fill_in_order_within_what_is_on_hand() {
     let left = c.inventory.iter().find(|i| i.id == steel).unwrap().quantity;
     assert_eq!(left, 3, "a cut marked afterwards left the rack before it was counted");
     assert_eq!(c.document().library.stock.len(), 2);
+}
+
+#[tokio::test]
+async fn new_sheets_on_auto_take_as_many_as_the_parts_need() {
+    let (_sim, shared) = start("auto-sheets").await;
+    setup(&shared).await;
+    let revision = shared.lock().await.document().draft_revision;
+    let mut request = request();
+    request.quantity = 65;
+    request.seconds = 5;
+    // 0: no count chosen, the search opens sheets until every part sits.
+    request.stock = vec![StockSource::Sheet { width: 240., height: 160., count: 0 }];
+    let task = nesting::start(&shared, revision, request).await.unwrap();
+    let result = finished(&shared, task.id).await;
+    assert!(result.error.is_none(), "{:?}", result.error);
+    assert!(!result.needs_sheets);
+    assert!(result.sheets.len() > 1, "more than one sheet was needed");
+    assert_eq!(result.sheets.iter().map(|p| p.parts).sum::<usize>(), 66);
+    assert!(result.sheets.iter().all(|p| p.parts > 0), "no empty sheet is opened");
 }

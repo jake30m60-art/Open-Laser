@@ -54,7 +54,8 @@ export function current(plan: StockSource[], rack: StockItem[], remnants: SheetV
 
 /** One more of a listed sheet: a new sheet always, a rack sheet while more are on hand. */
 export function oneMore(source: StockSource | undefined, rack: StockItem[]): StockSource | null {
-  if (source?.kind === 'sheet') return { ...source, count: source.count + 1 };
+  // Auto (0) already takes as many as needed.
+  if (source?.kind === 'sheet') return source.count ? { ...source, count: source.count + 1 } : null;
   if (source?.kind === 'stock') {
     const onHand = rack.find((i) => i.id === source.id)?.quantity ?? 0;
     return source.count < onHand ? { ...source, count: source.count + 1 } : null;

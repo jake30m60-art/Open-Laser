@@ -87,7 +87,7 @@ pub enum StockSource {
         width: f64,
         /// Height in millimetres.
         height: f64,
-        /// At most this many.
+        /// At most this many; 0 for as many as the parts need.
         count: u32,
     },
     /// Sheets from the rack, at most as many as are on hand.
@@ -112,7 +112,8 @@ const MAX_SOURCES: usize = 32;
 #[derive(Clone)]
 struct Source {
     stock: NestStock,
-    count: usize,
+    /// How many of this sheet, or `None` for as many as needed.
+    count: Option<usize>,
 }
 
 /// Compact progress plus a complete preview once a search succeeds.
@@ -368,7 +369,7 @@ impl Coordinator {
                 .nesting
                 .as_ref()
                 .ok_or_else(|| Error::Request("choose the sheets to nest on first".into()))?;
-            return Ok(vec![Source { stock: nesting.stock.clone(), count: 1 }]);
+            return Ok(vec![Source { stock: nesting.stock.clone(), count: Some(1) }]);
         }
         if request.stock.len() > MAX_SOURCES {
             return Err(Error::Request(format!("choose at most {MAX_SOURCES} kinds of sheet")));
@@ -379,15 +380,12 @@ impl Coordinator {
             .stock
             .iter()
             .map(|source| match source {
-                StockSource::Sheet { width, height, count } => {
-                    if *count == 0 {
-                        return Err(Error::Request("use at least one sheet of each size".into()));
-                    }
-                    Ok(Source {
-                        stock: self.rectangle(draft, drawing, *width, *height),
-                        count: *count as usize,
-                    })
-                }
+                // New sheets of a size: as many as asked, or with 0 as
+                // many as the parts need.
+                StockSource::Sheet { width, height, count } => Ok(Source {
+                    stock: self.rectangle(draft, drawing, *width, *height),
+                    count: (*count > 0).then_some(*count as usize),
+                }),
                 StockSource::Stock { id, count } => {
                     let item = self.inventory.iter().find(|i| &i.id == id).ok_or_else(|| {
                         Error::Missing("those sheets are no longer on the rack".into())
@@ -415,7 +413,7 @@ impl Coordinator {
                     }
                     Ok(Source {
                         stock: self.rectangle(draft, drawing, item.width_mm, item.height_mm),
-                        count: *count as usize,
+                        count: Some(*count as usize),
                     })
                 }
                 StockSource::Remnant { id } => {
@@ -423,7 +421,7 @@ impl Coordinator {
                         return Err(Error::Request("list each remnant once".into()));
                     }
                     remnants.push(id);
-                    Ok(Source { stock: self.remnant(draft, id)?, count: 1 })
+                    Ok(Source { stock: self.remnant(draft, id)?, count: Some(1) })
                 }
             })
             .collect()
@@ -680,7 +678,7 @@ fn input(
                 cutouts: cutouts(&nesting).to_vec(),
                 rectangular: matches!(nesting.stock, NestStock::Rectangle { .. }),
                 margin: nesting.margin(),
-                count: Some(source.count),
+                count: source.count,
             })
         })
         .collect::<Result<Vec<_>>>()?;

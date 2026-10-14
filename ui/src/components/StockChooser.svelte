@@ -63,7 +63,7 @@
         <button
           class="btn btn-primary lg block"
           disabled={width <= 0 || height <= 0}
-          onclick={() => add({ kind: 'sheet', width, height, count: 1 })}>{t("Add this sheet")}</button>
+          onclick={() => add({ kind: 'sheet', width, height, count: 0 })}>{t("Add this sheet")}</button>
       </div>
     </div>
   {:else if page === 'rack'}

@@ -3984,5 +3984,8 @@
   "alarm history": "Alarmverlauf",
   "Engraving height: fixed": "Gravurhöhe: fest",
   "Engraving height: regulated": "Gravurhöhe: geregelt",
-  "Saved in the recipe {0}": "Gespeichert im Rezept {0}"
+  "Saved in the recipe {0}": "Gespeichert im Rezept {0}",
+  "New · as many as needed": "Neu · so viele wie nötig",
+  "0 = as many as needed": "0 = so viele wie nötig",
+  "New sheets to use · 0 = auto": "Neue Bleche · 0 = automatisch"
 }

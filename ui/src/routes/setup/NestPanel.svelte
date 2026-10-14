@@ -44,7 +44,7 @@
   /** The sheet chosen for the drawing starts the list, once; nothing else
    *  is added unasked. A drawing outline is sent as no list at all. */
   const own = $derived<StockSource[]>(stock?.kind === 'rectangle'
-    ? [{ kind: 'sheet', width: stock.bounds.max.x - stock.bounds.min.x, height: stock.bounds.max.y - stock.bounds.min.y, count: 1 }]
+    ? [{ kind: 'sheet', width: stock.bounds.max.x - stock.bounds.min.x, height: stock.bounds.max.y - stock.bounds.min.y, count: 0 }]
     : stock?.kind === 'remnant' ? [{ kind: 'remnant', id: stock.reference }] : []);
   /** The operator's own list once they change it. */
   let chosen = $state<StockSource[] | null>(null);
@@ -73,7 +73,7 @@
         ? { title: sheetLabel(item.width_mm, item.height_mm), detail: t('Rack · {0} of {1}', source.count, item.quantity) }
         : { title: t("Rack sheets"), detail: t('No longer on the rack') };
     }
-    return { title: sheetLabel(source.width, source.height), detail: t('New · {0}', plural(source.count, 'sheet')) };
+    return { title: sheetLabel(source.width, source.height), detail: source.count ? t('New · {0}', plural(source.count, 'sheet')) : t('New · as many as needed') };
   }
   /** Sheets added to the list; they replace a drawing outline, which Undo brings back. */
   async function add(source: StockSource): Promise<void> {
@@ -105,7 +105,8 @@
   function setCount(index: number, count: number): void {
     const source = plan[index];
     if (source?.kind === 'sheet') {
-      edit(plan.map((s, i) => i === index ? { ...source, count: Math.min(99, Math.max(1, Math.round(count))) } : s));
+      // 0 lets the search take as many as the parts need.
+      edit(plan.map((s, i) => i === index ? { ...source, count: Math.min(500, Math.max(0, Math.round(count))) } : s));
       return;
     }
     if (source?.kind !== 'stock') return;
@@ -271,7 +272,8 @@
               onclick={() => osk.number(t('Rack sheets to use'), source.count, 'sheets', (v) => setCount(i, v))}>{source.count}</button>
           {:else if source?.kind === 'sheet'}
             <button class="plan-count" aria-label={t("New sheets to use")}
-              onclick={() => osk.number(t('New sheets to use'), source.count, 'sheets', (v) => setCount(i, v))}>{source.count}</button>
+              title={t("0 = as many as needed")}
+              onclick={() => osk.number(t('New sheets to use · 0 = auto'), source.count, 'sheets', (v) => setCount(i, v))}>{source.count || t("Auto")}</button>
           {/if}
           {#if source}
             <button class="plan-remove" aria-label={t("Leave out")} onclick={() => edit(plan.filter((_, j) => j !== i))}><i class="ic ic-x"></i></button>
