@@ -33,7 +33,7 @@
   import { ui } from '../../stores/ui.svelte';
   import { osk } from '../../lib/osk.svelte';
   import { frameOf } from '../../lib/frame';
-  import { originCandidates, snapOrigin } from '../../lib/origin-snap';
+  import { originCandidates, snapOrigin, type SnapKind } from '../../lib/origin-snap';
   import { explain, plural } from '../../lib/format';
   import { withBusy } from '../../lib/busy';
   import { apply, centre, mirror, mirrorVertical, rotation, scaling, svgMatrix, translate, type Point } from '../../lib/transform';
@@ -259,6 +259,16 @@
   const selection = $derived(local ? axisAlignedBounds(selectionBase, local.m) ?? transformedBounds(selected.flatMap(pointsOf), local.m) : selectionBase);
   const fail = (error: unknown) => ui.say(explain(error), true);
   /** Picking or nesting has the canvas: shapes stay put and taps go there. */
+  /** The points the origin can snap to, while it is being picked. */
+  const originSnaps = $derived.by(() => {
+    if (!ui.originPicking) return [];
+    const sources = preview?.source_contours?.length ? preview.source_contours : preview?.contours ?? [];
+    return originCandidates(sources.filter((c) => !hidden(c.layer)), preview?.bounds ?? null);
+  });
+  const SNAP_NAMES: Record<SnapKind | 'free', string> = {
+    corner: 'a corner', end: 'a line end', middle: 'an edge middle', centre: 'a circle or arc centre',
+    shape: 'a shape centre', part: 'a point of the part outline', crossing: 'a crossing', free: 'the tapped point',
+  };
   const canvasTaken = $derived(!!ui.picking || ui.nestShown || ui.nestPicking || ui.originPicking);
   /** Nothing on the canvas can be moved or edited. */
   const canvasBusy = $derived(updating || canvasTaken);
@@ -346,7 +356,7 @@
       label: 'Origin', title: 'Tap a corner, a hole or any point of the drawing: the origin stands for it',
       when: 'always', icon: 'ic-pin', on: () => ui.originPicking, set: () => !!draft?.origin_point,
       detail: () => (draft?.origin_point ? 'In the drawing' : 'Corner'),
-      disabled: () => !draft || canvasBusy, run: () => { ui.originPicking = !ui.originPicking; if (ui.originPicking) ui.say('Tap the point the origin stands for'); },
+      disabled: () => !draft || canvasBusy, run: () => { ui.originPicking = !ui.originPicking;  },
     },
     grid: { label: 'Grid', when: 'idle', text: () => quantity(ui.grid, 'mm'), disabled: () => false, run: () => gridSize() },
     'mirror-x': {
@@ -587,10 +597,11 @@
     }
     if (ui.nestShown) return;
     if (ui.originPicking && draft) {
-      const sources = preview?.source_contours?.length ? preview.source_contours : preview?.contours ?? [];
-      const point = snapOrigin(at, originCandidates(sources.filter((c) => !hidden(c.layer))), 12 * view.mmPerPixel);
+      const snap = snapOrigin(at, originSnaps, 12 * view.mmPerPixel);
       ui.originPicking = false;
-      api.setOriginPoint(point).then(() => ui.say('Origin set in the drawing: set it on the machine at the same point')).catch(fail);
+      api.setOriginPoint(snap?.at ?? at)
+        .then(() => ui.say(t('Origin set at {0}: set it on the machine at the same point', t(SNAP_NAMES[snap?.kind ?? 'free']))))
+        .catch(fail);
       return;
     }
     if (ui.picking) { pickAt(at); return; }
@@ -957,6 +968,9 @@
       {#if firstEnd}<circle class="mark bridge" cx={firstEnd[0]} cy={firstEnd[1]} r={mark * 1.5} vector-effect="non-scaling-stroke"/>{/if}
       {#if selection && selectionShown && !picks.length && !lifting}{@render gizmo(selection)}{/if}
     {/if}
+    {#each originSnaps as snap}
+      <circle class="origin-snap {snap.kind}" cx={snap.at[0]} cy={snap.at[1]} r={mark * 1.2} vector-effect="non-scaling-stroke" />
+    {/each}
     </g>
     <g class="guide">{#each guides as [x1, y1, x2, y2]}<line {x1} {y1} {x2} {y2} vector-effect="non-scaling-stroke"/>{/each}</g>
     {#snippet overlay()}
@@ -966,6 +980,7 @@
           {#each faultyParts as part}<button class="btn btn-primary" onclick={() => (repairing = { id: part.id, name: partName(part.id) })}>{t("Repair contours…")} · {partName(part.id)}</button>{/each}
         </div>
       {/if}
+      {#if ui.originPicking}<div class="hint top">{t("Tap the point the origin stands for: dots snap, anywhere else takes the tapped point")} <button class="btn btn-ghost" onclick={() => (ui.originPicking = false)}>{t("Cancel")}</button></div>{/if}
       {#if ui.picking && ui.picking.feature !== 'bridges'}
         <PickBar picking={ui.picking} picked={pickedCount} total={candidates.length} busy={updating || pickBusy} onfinish={finishPicks} />
       {/if}
@@ -984,6 +999,8 @@
 {#if repairing}{@const old = repairing.id}<RepairPart part={repairing} onclose={() => (repairing = null)} onsaved={(repaired) => swapRepaired(old, repaired)} />{/if}
 
 <style>
+  .origin-snap { fill:var(--panel); stroke:var(--accent); stroke-width:1.5; pointer-events:none; }
+  .origin-snap.centre, .origin-snap.shape, .origin-snap.part { fill:var(--accent); }
 .output-excluded { stroke:#94a3b8 !important; opacity:.25; }
 .trail-cut { fill:none; stroke:#2563eb; stroke-width:4; stroke-linecap:round; pointer-events:none; }
 .trail-mark { fill:none; stroke:#f97316; stroke-width:3; stroke-linecap:round; pointer-events:none; }
