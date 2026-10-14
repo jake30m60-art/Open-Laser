@@ -56,7 +56,7 @@
   /** Marks the recipe for engraving, with a fill to start from, or back for cutting. */
   function toggleProcess(): void {
     if (engraving) { onset(PROCESS, 'cut'); return; }
-    for (const [key, value] of Object.entries(engravingAttributes())) if (key === PROCESS || values[key] === undefined) onset(key, value);
+    for (const [key, value] of Object.entries(engravingAttributes(recipe.laser))) if (key === PROCESS || values[key] === undefined) onset(key, value);
     page = 'engraving';
   }
   let sheet = $state<string | null>(null);
@@ -168,8 +168,8 @@
   {#if airRecipeUsesNitrogen(recipe, values)}
     <p class="gas-source-warning" role="alert">{tr("Air recipe on the N₂ valve, as on the machine's own fiber layers: it cuts with whatever is connected to the N₂ inlet. Check the supply before cutting.")}</p>
   {/if}
-  <div class="recipe-summary"><MaterialSummary source={summary} ontap={editSummary} /></div>
-  <div class="recipe-tabs">
+  {#if !engraving}<div class="recipe-summary"><MaterialSummary source={summary} ontap={editSummary} /></div>{/if}
+  {#if !engraving}<div class="recipe-tabs">
     <div class="seg">
       <button class:on={page === 'cutting'} onclick={() => (page = 'cutting')}>{tr("Cutting")}</button>
       <button class:on={page === 'piercing'} onclick={() => (page = 'piercing')}>{tr("Piercing")}</button>
@@ -178,8 +178,11 @@
     </div>
     <span class="muted">{tr("Tap a value to edit it")}</span>
   </div>
+  {/if}
   <div class="recipe-body">
-    {#if page === 'cutting'}
+    {#if engraving}
+      <Engraving {ed} />
+    {:else if page === 'cutting'}
       <Cutting {ed} onpiercing={() => (page = 'piercing')} />
     {:else if page === 'piercing'}
       <Piercing {ed} {visible} onvisible={(i) => (visible = i)} onmode={() => (sheet = 'mode')} onrefine={() => (sheet = 'refine')} />

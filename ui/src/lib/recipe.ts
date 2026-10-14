@@ -78,6 +78,7 @@ const FIELDS: Record<string, Field> = {
   OpenLaserLens: n('Lens', 'mm', 1, 2000, 'Focal length of the focusing lens this recipe was made with, such as 150 mm.'),
   // An engraving recipe's scan fill, which a marked layer takes with the recipe.
   OpenLaserProcess: text('Process'),
+  OpenLaserEngravingHeight: text('Engraving height mode'),
   OpenLaserFillSpacing: n('Line spacing', 'mm', 0.01, 20, 'Distance between engraved lines.'),
   OpenLaserFillAngle: n('Line angle', '°', 0, 179.99, '0° engraves along X, 90° along Y.'),
   OpenLaserFillOverscan: n('Overscan, laser off', 'mm', 0, 1000, 'How far every line runs past the engraving, so the head turns round off the work.'),

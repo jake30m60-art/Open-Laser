@@ -1775,10 +1775,13 @@ pub fn settings(bundle: &Bundle, recipe: &Recipe, binder: Binder) -> Result<Sett
     (settings.acceleration, settings.acceleration_time) =
         engraving_motion(recipe, settings.acceleration, settings.acceleration_time);
     if is_engraving(recipe) {
-        // An engraving comes down once, at its first contour, and then
-        // follows the sheet through every field and line, never lifting or
-        // touching down again; the head controller watches for contact.
-        settings.fixed_height = false;
+        // Both modes establish height once. Fixed mode then holds Z; a
+        // recipe without the attribute follows on fiber, and the CO2 head
+        // has no follower, so it always holds.
+        settings.fixed_height = match recipe.attributes.get("OpenLaserEngravingHeight") {
+            Some(mode) => mode == "fixed",
+            None => recipe.laser == openlaser_core::LaserMode::Co2,
+        };
         settings.hold_height = true;
         settings.no_follow = false;
         settings.absolute_cut_height = None;
@@ -2580,6 +2583,37 @@ mod tests {
         Bundle::from_backup(
             openlaser_xml::Document::parse(openlaser_xml::Kind::Backup, &bytes).unwrap(),
         )
+    }
+
+    #[test]
+    fn engraving_height_mode_binds_and_keeps_existing_recipes_following() {
+        let bundle = backup();
+        let mut recipe = crate::recipes::from_bank(
+            &bundle,
+            openlaser_core::LaserMode::Fiber,
+            1,
+            "Engraving",
+            0.,
+        )
+        .unwrap();
+        recipe.attributes.insert("OpenLaserProcess".into(), "engrave".into());
+        let binder = Binder {
+            dry_run: false,
+            manual_focus: false,
+            film: false,
+            scale: 1000,
+            timeouts: Timeouts::default(),
+        };
+        for mode in [None, Some("fixed"), Some("follow")] {
+            if let Some(mode) = mode {
+                recipe.attributes.insert("OpenLaserEngravingHeight".into(), mode.into());
+            }
+            let bound = settings(&bundle, &recipe, binder).unwrap();
+            assert_eq!(bound.fixed_height, mode == Some("fixed"));
+            assert!(bound.hold_height, "measure only once across engraving contours");
+            assert!(!bound.no_follow, "fixed mode still needs its initial measurement");
+            assert!(bound.absolute_cut_height.is_none());
+        }
     }
 
     /// A film-removing cutting recipe and a film recipe kept in the same

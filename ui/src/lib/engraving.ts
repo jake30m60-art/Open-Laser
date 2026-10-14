@@ -42,10 +42,12 @@ export function fillOf(attributes: Attributes): Fill {
 }
 
 /** What marking a recipe for engraving adds: the default fill, spelled out. */
-export function engravingAttributes(): Record<string, string> {
+export function engravingAttributes(laser: string = 'fiber'): Record<string, string> {
   const f = defaultFill();
   return {
     [PROCESS]: 'engrave',
+    // The CO2 head has no follower: it engraves at a fixed height.
+    OpenLaserEngravingHeight: laser === 'co2' ? 'fixed' : 'follow',
     OpenLaserFillSpacing: String(f.spacing),
     OpenLaserFillAngle: String(f.angle),
     OpenLaserFillOverscan: String(f.run_up),
