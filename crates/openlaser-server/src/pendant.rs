@@ -29,6 +29,8 @@ const STEP_MM: f64 = 1.;
 const TABLE_MM_S: f64 = 20.;
 /// How long Start must be held, as the screen's held buttons.
 const START_HOLD: Duration = Duration::from_secs(1);
+/// How long a held jog waits for the one before it to stop braking.
+const SETTLE_WAIT: Duration = Duration::from_millis(1500);
 /// How long Go origin must be held to home the machine instead.
 const HOME_HOLD: Duration = Duration::from_millis(1500);
 /// A test pulse from the Laser key, as the screen's test defaults.
@@ -473,7 +475,22 @@ impl Pendant {
         self.sequence += 1;
         let lease = Lease { client: "pendant".into(), sequence: self.sequence };
         match what {
-            Held::Jog(request) => machine::jog(shared, request, Some(lease.clone())).await?,
+            Held::Jog(request) => {
+                // From one arrow to two, or back, the last jog is still
+                // braking: the new one starts as soon as it has stopped.
+                let since = Instant::now();
+                loop {
+                    match machine::jog(shared, request, Some(lease.clone())).await {
+                        Err(error)
+                            if since.elapsed() < SETTLE_WAIT
+                                && error.to_string().contains("a move is active") =>
+                        {
+                            tokio::time::sleep(Duration::from_millis(25)).await;
+                        }
+                        other => break other?,
+                    }
+                }
+            }
             Held::Output(request) => machine::outputs(shared, request, lease.clone()).await?,
             Held::Table(request) => machine::table(shared, request, lease.clone()).await?,
         }
