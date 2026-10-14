@@ -964,9 +964,11 @@ impl Task {
             Travel::Table(limits) => {
                 Motion::table(request, &verified, bindings.head_enabled, limits, requested)
             }
-            // Paused, the head waits at its safe height: a jog takes it up
-            // to its upper reference first, so the head can be moved.
-            Travel::Jog if self.program.as_ref().is_some_and(|p| p.state == ProgramState::Held) => {
+            // A head left low, paused at its safe height or raised only to
+            // its finishing height after a job, goes up to its upper
+            // reference first, so a jog never refuses: as Mlaser's jog keys.
+            // A limit recovery moves XY alone.
+            Travel::Jog if !snapshot.xy_limit_alarms() => {
                 Motion::new(request, &verified, bindings.head_enabled, requested)
                     .map(|motion| motion.retracting_first(bindings))
             }
@@ -1629,14 +1631,17 @@ impl Task {
                     Err(cleanup) => error = Error::Link(format!("{error}; {cleanup}")),
                 }
             }
-            // A head operation the machine ended, such as a calibration that
+            // A head operation or held output the machine ended, such as a calibration that
             // found no sheet and ran the head onto its limit, with every
             // stop write acknowledged, leaves a controller that answers: it
             // stays connected, as with Mlaser, so its alarms can be read and
             // reset. An uncertain link, or a failed XY move or program,
             // still faults the connection. The height calibration no longer
             // holds after a failed head operation.
-            let head_only = matches!(active.job, Job::Calibrate(..) | Job::Head(..));
+            // Z+/Z− keys run as held outputs: the head reaching its limit
+            // ends them the same way.
+            let head_only =
+                matches!(active.job, Job::Calibrate(..) | Job::Head(..) | Job::Outputs(..));
             if stopped && head_only && matches!(error, Error::Failed(_)) {
                 if !ending_failed {
                     self.session.calibration = None;

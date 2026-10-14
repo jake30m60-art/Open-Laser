@@ -60,3 +60,59 @@ async fn a_second_axis_joins_a_held_jog_and_each_is_let_go_alone() {
     .await;
     openlaser_server::shutdown(&shared).await.unwrap();
 }
+
+#[tokio::test]
+async fn a_jog_after_a_job_takes_the_head_up_first() {
+    use openlaser_controller::state::ProgramState;
+    use openlaser_core::LaserMode;
+    use openlaser_server::coordinator::{NewRecipe, Values};
+    let (simulator, shared) = start("jog-after-job").await;
+    let control = simulator.control();
+    connect::connect(&shared).await.unwrap();
+    let pixels = vec![0u8; 16 * 8];
+    {
+        let mut c = shared.lock().await;
+        let part = c
+            .library
+            .add_image_part("black.png", &pixels, (16, 8), pixels.clone(), [8., 4.])
+            .unwrap();
+        let recipe = c
+            .add_recipe(&NewRecipe {
+                name: "Steel".into(),
+                laser: LaserMode::Fiber,
+                thickness_mm: 1.,
+                values: Values::Bank(1),
+                gas: None,
+            })
+            .unwrap();
+        c.open_part(&part.id).unwrap();
+        c.set_recipe(&recipe.id).unwrap();
+    }
+    machine::home(&shared).await.unwrap();
+    until(&shared, 10, |d| d.machine.session.homed && d.machine.operation.is_none()).await;
+    machine::calibrate(&shared).await.unwrap();
+    until(&shared, 10, |d| d.calibration.current && d.machine.operation.is_none()).await;
+    machine::prepare(&shared).await.unwrap();
+    shared.lock().await.set_origin([300., 300.]).unwrap();
+    machine::compile(&shared, false).await.unwrap();
+    common::run(&shared).await.unwrap();
+    until(&shared, 120, |d| {
+        d.machine.program.as_ref().is_some_and(|p| p.state == ProgramState::Completed)
+            && d.machine.operation.is_none()
+    })
+    .await;
+    // The job left the head at its finishing height, below its reference.
+    let low = control.view().position_mm[3];
+    let before = control.view().position_mm[0];
+    let request =
+        JogRequest { axis: 0, positive: true, step_mm: Some(2.), fast: false, diagonal: None };
+    machine::jog(&shared, request, None).await.unwrap();
+    until(&shared, 20, |d| {
+        d.machine.operation.is_none() && d.machine.feedback.as_ref().is_some_and(|f| f.stationary)
+    })
+    .await;
+    let after = control.view().position_mm;
+    assert!((after[0] - before - 2.).abs() < 0.01, "X stepped 2 mm: {before} → {}", after[0]);
+    assert!(after[3] < low || low < 1., "the head went up first: {low} → {}", after[3]);
+    openlaser_server::shutdown(&shared).await.unwrap();
+}
