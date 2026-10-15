@@ -32,6 +32,12 @@
   const SHAPES = [['line', t('Line')], ['arc', 'Arc'], ['line_arc', t('Line and arc')]] as const;
   const SIDES = [['auto', t('Auto')], ['inside', t('Inside')], ['outside', t('Outside')]] as const;
   const defaultLead = (): Lead => ({ shape: 'line', length: 2, radius: 1, angle: 45 });
+  // The seam belongs with the lead-out, where Mlaser keeps it: the same
+  // setting the Start tool shows.
+  const SEAMS = [['seal', t('Seal')], ['gap', 'Gap'], ['overcut', t('Overcut')]] as const;
+  const seamKind = $derived(typeof features.seam === 'string' ? 'seal' : 'gap' in features.seam ? 'gap' : 'overcut');
+  const setSeam = (v: string) => set((f) => { f.seam = v === 'seal' ? 'seal' : v === 'gap' ? { gap: 0.5 } : { overcut: 1 }; });
+  const setSeamLength = (v: number) => set((f) => { f.seam = seamKind === 'gap' ? { gap: v } : { overcut: v }; });
 
   const leads = $derived(features.leads ?? defaultLeads());
   const role = $derived(tab === 0 ? 'entry' : 'exit');
@@ -106,6 +112,14 @@
 {#if !local}
   <Chips label={t("Side")} options={SIDES} current={leads.side} disabled={!on} apply={setSide} />
   <Toggle label={t("Closed contours only")} value={leads.closed_only} disabled={!on} apply={setClosedOnly} />
+{/if}
+{#if tab === 1 && !local}
+  <h4 class="lead-start">{t("Seam")}</h4>
+  <Chips label={t("Where the cut meets its start")} options={SEAMS} current={seamKind} disabled={!on} apply={setSeam} />
+  {#if typeof features.seam !== 'string'}
+    {@const seam = features.seam}
+    <Stepper label={'gap' in seam ? t('Gap') : t('Overcut')} value={'gap' in seam ? seam.gap : seam.overcut} unit="mm" step={0.1} disabled={!on} apply={setSeamLength} />
+  {/if}
 {/if}
 {#if tab === 0}
   <h4 class="lead-start">{t("Start point")}</h4>

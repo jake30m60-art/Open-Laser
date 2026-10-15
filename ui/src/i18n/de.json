@@ -815,7 +815,7 @@
   "Low power": "Niedrige Leistung",
   "Joint at an open contour’s start": "Steg am Anfang einer offenen Kontur",
   "Gap": "Spalt",
-  "Overcut": "Überlauf",
+  "Overcut": "Überschnitt",
   "Seal": "Geschlossen",
   "Matching tolerance": "Übereinstimmungstoleranz",
   "Pick": "Platzieren",
@@ -4021,5 +4021,6 @@
   "{0} leaves the list. Restore brings it back on the sketch page.": "{0} verschwindet aus der Liste. „Wiederherstellen“ auf der Skizzenseite holt sie zurück.",
   "Sketch removed": "Skizze entfernt",
   "Symmetry needs a line, or a circle or point to centre on.": "Symmetrie braucht eine Linie oder einen Kreis bzw. Punkt als Mitte.",
-  "Click the symmetry line, or a circle or point to centre on": "Symmetrielinie anklicken, oder einen Kreis bzw. Punkt als Mitte"
+  "Click the symmetry line, or a circle or point to centre on": "Symmetrielinie anklicken, oder einen Kreis bzw. Punkt als Mitte",
+  "Where the cut meets its start": "Wo der Schnitt auf seinen Anfang trifft"
 }
