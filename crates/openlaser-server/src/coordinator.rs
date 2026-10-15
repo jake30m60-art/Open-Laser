@@ -94,6 +94,9 @@ pub struct Coordinator {
     /// Everything cut on the sheet now on the bed, job after job, in machine
     /// millimetres: grey on the screen, and what a remnant sketch takes.
     pub(crate) sheet_cuts: Arc<Vec<Vec<[f64; 2]>>>,
+    /// The outlines cut out of that sheet, in machine millimetres: what a
+    /// remnant saved from it lacks.
+    pub(crate) sheet_removed: Arc<Vec<openlaser_core::geometry::Contour>>,
     pub(crate) correction: crate::correction::Store,
     pub(crate) scan_offsets: crate::scan_offsets::Store,
     pub(crate) fonts: crate::font_store::Store,
@@ -298,6 +301,7 @@ impl Coordinator {
             sheet_persistence_error: None,
             completed_sheet: None,
             sheet_cuts: Arc::new(crate::stock_store::load_sheet_cuts(&config.data_dir)),
+            sheet_removed: Arc::new(crate::stock_store::load_sheet_removed(&config.data_dir)),
             correction,
             scan_offsets,
             fonts,

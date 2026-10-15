@@ -401,14 +401,15 @@ async fn every_job_cut_on_the_sheet_is_kept_where_it_was_cut() {
                     && d.machine.feedback.as_ref().is_some_and(|f| f.stationary)
             })
             .await;
+            // As the screen's Start after a finished job: a new run first.
+            let revision = shared.lock().await.document().draft_revision;
+            placement::change(&shared, PlacementChange::NewRun {}, revision).await.unwrap();
             common::run(&shared).await.unwrap();
             until(&shared, 120, |d| {
                 d.machine.program.as_ref().is_some_and(|p| p.state == ProgramState::Completed)
                     && d.machine.operation.is_none()
             })
             .await;
-            let revision = shared.lock().await.document().draft_revision;
-            placement::change(&shared, PlacementChange::NewRun {}, revision).await.unwrap();
         }
     };
     cut_at(200., 120.).await;
@@ -420,5 +421,19 @@ async fn every_job_cut_on_the_sheet_is_kept_where_it_was_cut() {
     };
     assert!(near(204., 122.), "the first job's cuts are kept where it was cut");
     assert!(near(264., 172.), "the second job's cuts are added beside it");
+    // The remnant recorded with the last job lacks both jobs' parts.
+    let c = shared.lock().await;
+    let id = c.document().completed_sheet.clone().expect("a completed sheet");
+    let sheet = c.sheet_view(&id).unwrap();
+    // Remnant records are kept in machine millimetres.
+    let cut_near = |x: f64, y: f64| {
+        sheet.cutouts.iter().flatten().any(|p| (p[0] - x).abs() < 10. && (p[1] - y).abs() < 10.)
+    };
+    let firsts: Vec<_> = sheet.cutouts.iter().map(|c| c[0]).collect();
+    assert!(
+        cut_near(204., 122.) && cut_near(264., 172.),
+        "both parts are cut out of the remnant: {firsts:?}"
+    );
+    drop(c);
     openlaser_server::shutdown(&shared).await.unwrap();
 }

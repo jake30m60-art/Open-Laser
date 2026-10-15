@@ -223,6 +223,14 @@
     api.updateFolder(folder.id, { favourite: !folder.favourite }).catch((error) => ui.say(explain(error), true));
   }
 
+  /** Removes a sketch from the list; the sketch page can bring it back. */
+  async function removeSketch(e: MouseEvent, card: Card): Promise<void> {
+    e.stopPropagation();
+    if (!await ui.confirm({ title: t('Remove sketch?'), body: t('{0} leaves the list. Restore brings it back on the sketch page.', card.name), confirm: t('Remove sketch'), danger: true })) return;
+    sketchStore.removeById(card.id);
+    remoteSketches = (remoteSketches ?? []).filter((r) => r.id !== card.id);
+    ui.say(t('Sketch removed'));
+  }
   function starCard(e: MouseEvent, card: Card): void {
     e.stopPropagation();
     star(card);
@@ -347,6 +355,11 @@
           {#if c.kind === 'part' || c.kind === 'job'}
             <button class="fav" class:on={c.favourite} aria-label={t("Star")} onclick={(e) => starCard(e, c)}>
               <i class="ic {c.favourite ? 'ic-star-fill' : 'ic-star'}"></i>
+            </button>
+          {/if}
+          {#if c.kind === 'sketch' && !picking}
+            <button class="fav" title={t('Remove sketch')} aria-label={t('Remove sketch')} onclick={(e) => void removeSketch(e, c)}>
+              <i class="ic ic-trash"></i>
             </button>
           {/if}
           {#if c.kind === 'part' && !picking}

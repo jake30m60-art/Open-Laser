@@ -42,6 +42,15 @@ pub struct SheetPlan {
 }
 
 impl SheetPlan {
+    /// The outlines this run cut out, by its executed passes.
+    pub(crate) fn areas_cut(&self, executed: &[usize]) -> Vec<Contour> {
+        self.areas
+            .iter()
+            .filter(|a| a.passes.iter().any(|pass| executed.contains(pass)))
+            .map(|a| a.outline.clone())
+            .collect()
+    }
+
     /// Width and height when the sheet is a whole rectangle, not a remnant.
     pub(crate) fn full_sheet(&self) -> Option<[f64; 2]> {
         let rectangle = self.parent.is_none()
@@ -426,6 +435,7 @@ impl Store {
         plan: &SheetPlan,
         completed: bool,
         executed: &[usize],
+        removed: Option<Vec<Contour>>,
     ) -> Result<bool> {
         let mut record = self
             .records
@@ -436,12 +446,8 @@ impl Store {
         record.revision += 1;
         record.state = if completed { SheetState::Completed } else { SheetState::Interrupted };
         if completed {
-            record.removed = plan
-                .areas
-                .iter()
-                .filter(|a| a.passes.iter().any(|pass| executed.contains(pass)))
-                .map(|a| a.outline.clone())
-                .collect();
+            // Everything cut from the sheet so far, when known; else this run's.
+            record.removed = removed.unwrap_or_else(|| plan.areas_cut(executed));
         }
         self.write(record)?;
         Ok(first)
@@ -773,8 +779,24 @@ impl Coordinator {
         self.set_sheet_cuts(cuts);
     }
 
-    /// Replaces the sheet's cuts, keeps them on disk and shows them.
+    /// Replaces the outlines cut out of the sheet, kept on disk.
+    pub(crate) fn set_sheet_removed(&mut self, removed: Vec<Contour>) {
+        self.sheet_removed = Arc::new(removed);
+        let path = self.config.data_dir.join(SHEET_REMOVED_FILE);
+        if let Err(error) = serde_json::to_vec(&*self.sheet_removed)
+            .map_err(|e| e.to_string())
+            .and_then(|bytes| std::fs::write(&path, bytes).map_err(|e| e.to_string()))
+        {
+            tracing::warn!(%error, "the sheet's cut-out outlines were not kept");
+        }
+    }
+
+    /// Replaces the sheet's cuts, keeps them on disk and shows them; with
+    /// none, the sheet starts afresh and its cut-out outlines go too.
     pub fn set_sheet_cuts(&mut self, cuts: Vec<Vec<[f64; 2]>>) {
+        if cuts.is_empty() && !self.sheet_removed.is_empty() {
+            self.set_sheet_removed(Vec::new());
+        }
         self.sheet_cuts = Arc::new(cuts);
         let path = self.config.data_dir.join(SHEET_CUTS_FILE);
         match serde_json::to_vec(&*self.sheet_cuts) {
@@ -806,9 +828,16 @@ impl Coordinator {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
+        // What this run cut out joins what earlier jobs cut from the same
+        // sheet (the records are in machine millimetres), and the record
+        // gets all of it: a remnant saved from it lacks every part cut so
+        // far, not the last job's alone.
+        let mut removed: Vec<Contour> = (*self.sheet_removed).clone();
+        removed.extend(plan.areas_cut(&executed));
+        self.set_sheet_removed(removed.clone());
         // A completed sheet came off the rack; a stopped one may be
         // restarted, so it counts only once it completes.
-        if self.sheet_store.finish(&plan, completed, &executed)?
+        if self.sheet_store.finish(&plan, completed, &executed, Some(removed))?
             && let Err(error) = self.take_sheet(&plan)
         {
             tracing::warn!(%error, "sheet count on the rack not updated");
@@ -819,6 +848,11 @@ impl Coordinator {
         // This can run inside a publish, so the view is only rebuilt here.
         self.refresh_library();
         Ok(())
+    }
+
+    /// A recorded sheet as the screen shows it.
+    pub fn sheet_view(&self, id: &str) -> Result<SheetView> {
+        self.sheet_store.view(id)
     }
 
     /// Record the operator's statement that a saved job was cut previously.
@@ -910,7 +944,7 @@ mod tests {
         let id = plan.id.as_str();
         let mut store = Store::open(&root).unwrap();
         store.begin(&plan).unwrap();
-        store.finish(&plan, false, &[1]).unwrap();
+        store.finish(&plan, false, &[1], None).unwrap();
         drop(store);
         let mut store = Store::open(&root).unwrap();
         assert_eq!(store.view(id).unwrap().state, SheetState::Interrupted);
@@ -921,7 +955,7 @@ mod tests {
         );
         assert!(store.stock(id, Point::ORIGIN).is_err());
         store.begin(&plan).unwrap();
-        store.finish(&plan, true, &[1]).unwrap();
+        store.finish(&plan, true, &[1], None).unwrap();
         assert_eq!(
             store.view(id).unwrap().cutouts.len(),
             2,
@@ -981,6 +1015,17 @@ const MAX_SHEET_CUT_POINTS: usize = 2_000_000;
 /// The sheet's cuts kept from the last session, or none.
 pub(crate) fn load_sheet_cuts(data_dir: &std::path::Path) -> Vec<Vec<[f64; 2]>> {
     std::fs::read(data_dir.join(SHEET_CUTS_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+/// Where the outlines cut out of the sheet are kept between sessions.
+const SHEET_REMOVED_FILE: &str = "sheet-removed.json";
+
+/// The outlines cut out of the sheet, kept from the last session, or none.
+pub(crate) fn load_sheet_removed(data_dir: &std::path::Path) -> Vec<Contour> {
+    std::fs::read(data_dir.join(SHEET_REMOVED_FILE))
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
         .unwrap_or_default()

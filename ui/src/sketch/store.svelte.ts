@@ -285,7 +285,23 @@ export class SketchStore {
     this.sketch=next ? clone(next.sketch) : emptySketch();
     this.use(null);this.past=[];this.future=[];this.history();this.selection=new Set();this.view=null;
     try { localStorage.setItem(REMOVED,JSON.stringify(this.removedDocuments)); } catch {}
-    this.save();this.refreshFreedom();
+    // With the last one removed, the blank page that follows is not kept:
+    // it would come back as a "New sketch" after every removal.
+    if (next) this.save();
+    else try { localStorage.setItem(ARCHIVE,JSON.stringify(this.documents.filter(d=>!d.remote))); } catch {}
+    this.refreshFreedom();
+  }
+  /** Removes a sketch from the list, open or not; it stays restorable. */
+  removeById(id: string): void {
+    if (id === this.activeDocument) { this.removeDocument(); return; }
+    const removed = this.documents.find(d=>d.id===id);
+    if (removed) this.removedDocuments = [...this.removedDocuments, structuredClone($state.snapshot(removed))];
+    this.documents = this.documents.filter(d=>d.id!==id);
+    try {
+      localStorage.setItem(ARCHIVE,JSON.stringify(this.documents.filter(d=>!d.remote)));
+      localStorage.setItem(REMOVED,JSON.stringify(this.removedDocuments));
+    } catch { /* storage full or private */ }
+    void removeRemote(id);
   }
   restoreDocument(): void {
     const removed=this.removedDocuments.at(-1);if(!removed)return;

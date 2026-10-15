@@ -4015,5 +4015,9 @@
   "Job origin": "Werkstücknullpunkt",
   "The sheet's front-left corner is where the head is": "Die vordere linke Blechecke liegt dort, wo der Kopf steht",
   "{0} cut paths on this sheet": "{0} geschnittene Bahnen auf diesem Blech",
-  "Cut paths cleared": "Geschnittene Bahnen gelöscht"
+  "Cut paths cleared": "Geschnittene Bahnen gelöscht",
+  "Remove sketch": "Skizze entfernen",
+  "Remove sketch?": "Skizze entfernen?",
+  "{0} leaves the list. Restore brings it back on the sketch page.": "{0} verschwindet aus der Liste. „Wiederherstellen“ auf der Skizzenseite holt sie zurück.",
+  "Sketch removed": "Skizze entfernt"
 }
