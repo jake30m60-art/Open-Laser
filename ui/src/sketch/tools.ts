@@ -151,6 +151,19 @@ function rectangle(sketch: Sketch, corners: [Vec, Vec, Vec, Vec], ids: [Id, Id, 
   for (let i = 0; i < 4; i++) addLine(sketch, ids[i]!, ids[(i + 1) % 4]!, corners[i]!, corners[(i + 1) % 4]!);
 }
 
+/** A typed width and height stay as dimensions, as Fusion keeps them: the
+ *  rectangle then holds its size and moves whole when it is dimensioned to
+ *  something else. */
+function typedSize(sketch: Sketch, corners: [Vec, Vec, Vec, Vec], ids: [Id, Id, Id, Id], locked: Locked): void {
+  const [a, b, c] = corners;
+  if (locked.width !== undefined) {
+    addConstraint(sketch, { kind: 'distance', a: ids[0], b: ids[1], axis: 'horizontal', value: locked.width, at: [(a.x + b.x) / 2, Math.min(a.y, c.y) - 8] });
+  }
+  if (locked.height !== undefined) {
+    addConstraint(sketch, { kind: 'distance', a: ids[1], b: ids[2], axis: 'vertical', value: locked.height, at: [Math.max(a.x, b.x) + 8, (b.y + c.y) / 2] });
+  }
+}
+
 const rectShapes = (c: [Vec, Vec, Vec, Vec]): Shape[] => c.map((p, i) => line(p, c[(i + 1) % 4]!));
 
 /** Two opposite corners. */
@@ -171,13 +184,14 @@ class Rect2Tool extends Tool {
   }
   private corners(a: Vec, c: Vec): [Vec, Vec, Vec, Vec] { return [a, { x: c.x, y: a.y }, c, { x: a.x, y: c.y }]; }
   ghost(at: Snap): Ghost { const a = this.anchor(); return a ? ghost(rectShapes(this.corners(a, at))) : ghost(); }
-  click(sketch: Sketch, at: Snap): Outcome {
+  click(sketch: Sketch, at: Snap, locked: Locked = {}): Outcome {
     const a = this.picks[0];
     if (!a) { this.picks.push(at); return 'more'; }
     if (Math.abs(at.x - a.x) < EPS || Math.abs(at.y - a.y) < EPS) return 'ignored';
     const corners = this.corners(a, at);
     const ids: [Id, Id, Id, Id] = [use(sketch, a, this.automaticConstraints), addPoint(sketch, corners[1].x, corners[1].y), use(sketch, at, this.automaticConstraints), addPoint(sketch, corners[3].x, corners[3].y)];
     rectangle(sketch, corners, ids);
+    typedSize(sketch, corners, ids, locked);
     this.reset();
     return 'done';
   }
@@ -209,13 +223,14 @@ class RectCTool extends Tool {
     const k = this.corners(c, at);
     return ghost(rectShapes(k), [line(k[0], k[2]), line(k[1], k[3])], [c]);
   }
-  click(sketch: Sketch, at: Snap): Outcome {
+  click(sketch: Sketch, at: Snap, locked: Locked = {}): Outcome {
     const c = this.picks[0];
     if (!c) { this.picks.push(at); return 'more'; }
     if (Math.abs(at.x - c.x) < EPS || Math.abs(at.y - c.y) < EPS) return 'ignored';
     const k = this.corners(c, at);
     const ids = k.map((p) => addPoint(sketch, p.x, p.y)) as [Id, Id, Id, Id];
     rectangle(sketch, k, ids);
+    typedSize(sketch, k, ids, locked);
     const center = use(sketch, c, this.automaticConstraints);
     const diagonal = addLine(sketch, ids[0], ids[2], k[0], k[2], true);
     addLine(sketch, ids[1], ids[3], k[1], k[3], true);
@@ -238,12 +253,14 @@ class CircleTool extends Tool {
     return moved(cursor, polar(c, locked.diameter / 2, angle));
   }
   ghost(at: Snap): Ghost { const c = this.anchor(); return c ? ghost([{ kind: 'circle', c, r: dist(c, at) }], [], [c]) : ghost(); }
-  click(sketch: Sketch, at: Snap): Outcome {
+  click(sketch: Sketch, at: Snap, locked: Locked = {}): Outcome {
     const c = this.picks[0];
     if (!c) { this.picks.push(at); return 'more'; }
     const r = dist(c, at);
     if (r < EPS) return 'ignored';
-    addEntity(sketch, { kind: 'circle', c: use(sketch, c, this.automaticConstraints), r });
+    const circle = addEntity(sketch, { kind: 'circle', c: use(sketch, c, this.automaticConstraints), r });
+    // A typed diameter stays as a dimension, as Fusion keeps it.
+    if (locked.diameter !== undefined) addConstraint(sketch, { kind: 'diameter', curve: circle, value: locked.diameter, at: [c.x + r * 0.7, c.y + r * 0.7] });
     this.reset();
     return 'done';
   }
