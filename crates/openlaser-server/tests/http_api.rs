@@ -179,8 +179,10 @@ async fn editing_builds_automatically_and_repeated_jobs_keep_home_and_calibratio
     let control = server.simulator.control();
     for attempt in 0..2 {
         if attempt > 0 {
+            // A set origin is absolute: the next run keeps it.
             let response = server.edit("placement", json!({"kind":"new_run"})).await;
-            assert_eq!(response["draft"]["placement"]["captured"], false);
+            assert_eq!(response["draft"]["placement"]["captured"], true);
+            assert_eq!(response["draft"]["placement"]["mode"], "fixed");
         }
         let response = server.edit("placement", json!({"kind":"set_origin"})).await;
         assert!(response["draft"]["compiled"].is_object());
