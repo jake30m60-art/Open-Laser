@@ -43,12 +43,15 @@ export interface Picking {
 const DRAW_BAR = ['fit', 'zoom-in', 'zoom-out', 'snap', 'grid', 'origin', 'layer', 'mirror-x', 'mirror-y', 'turn', 'scale', 'center', 'reset', 'group', 'ungroup', 'copy', 'paste', 'delete', 'whole-part', 'deselect', 'undo', 'redo'];
 
 /** The machining bar's default order: every machining tool, then nesting and copying. */
-const MACHINING_BAR = ['sheet', ...FEATURE_IDS, 'engrave', 'nest', 'simulation', 'copy'];
+const MACHINING_BAR = ['sheet', ...FEATURE_IDS.flatMap((id) => (id === 'leads' ? ['leads', 'leadout'] : [id])), 'engrave', 'nest', 'simulation', 'copy'];
 
 /** A saved order keeps only known tools and gains tools added since it was saved. */
 function withAll(order: string[], all: string[]): string[] {
   const known = order.filter((id, i) => all.includes(id) && order.indexOf(id) === i);
-  return [...known, ...all.filter((id) => !known.includes(id))];
+  // A tool new to a remembered bar goes in after the one it follows.
+  const out = [...known];
+  for (const [i, id] of all.entries()) if (!out.includes(id)) { const at = i ? out.indexOf(all[i - 1]!) : -1; out.splice(at + 1 || out.length, 0, id); }
+  return out;
 }
 
 function remembered<T>(key: string, fallback: T): T {
@@ -92,7 +95,7 @@ class Ui {
    *  the library is not picking. */
   partPicks = $state<string[] | null>(null);
   selectedRecipe = $state<string | null>(null);
-  setupPanel = $state<FeatureId | 'copy' | 'clipboard' | 'nest' | 'engrave' | 'simulation' | 'sheet' | null>(null);
+  setupPanel = $state<FeatureId | 'leadout' | 'copy' | 'clipboard' | 'nest' | 'engrave' | 'simulation' | 'sheet' | null>(null);
   /** The layer the machining panels edit; none edits the job's own. */
   machiningLayer = $state<string | null>(null);
   /** The layer whose settings sheet is open. */

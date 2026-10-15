@@ -4022,5 +4022,9 @@
   "Sketch removed": "Skizze entfernt",
   "Symmetry needs a line, or a circle or point to centre on.": "Symmetrie braucht eine Linie oder einen Kreis bzw. Punkt als Mitte.",
   "Click the symmetry line, or a circle or point to centre on": "Symmetrielinie anklicken, oder einen Kreis bzw. Punkt als Mitte",
-  "Where the cut meets its start": "Wo der Schnitt auf seinen Anfang trifft"
+  "Where the cut meets its start": "Wo der Schnitt auf seinen Anfang trifft",
+  "Entry lead": "Anschnitt",
+  "Exit lead": "Auslauf",
+  "Exit lead and seam": "Auslauf und Überschnitt",
+  "Behaviour": "Verhalten"
 }

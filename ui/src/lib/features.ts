@@ -10,7 +10,7 @@ import type { MachiningPart } from '../api';
 export interface Tool { id: string; short: string; name: string; desc: string; optional: boolean }
 
 export const TOOLS: Tool[] = [
-  { id: 'leads', short: t("Leads"), name: t("Entry & exit leads"), desc: t("Keep pierce marks off the finished edge."), optional: true },
+  { id: 'leads', short: t("Entry lead"), name: t("Entry lead"), desc: t("Keep pierce marks off the finished edge."), optional: true },
   { id: 'joints', short: t("Microjoints"), name: t("Microjoints"), desc: t("Leave small gaps to hold parts in place."), optional: true },
   { id: 'cooling', short: t("Cooling"), name: t("Cooling points"), desc: t("Pause at corners to reduce heat."), optional: true },
   { id: 'kerf', short: t("Kerf"), name: t("Kerf compensation"), desc: t("Offset cuts to allow for the beam width."), optional: true },

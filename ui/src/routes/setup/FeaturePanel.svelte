@@ -11,7 +11,6 @@
   import { ui, type FeatureId } from '../../stores/ui.svelte';
   import { ago, explain, recipeLabel } from '../../lib/format';
   import { TOOLS, defaultBridges, defaultCommon, defaultCooling, defaultFly, defaultJoints, defaultKerf, defaultLeads, isOn, toggled } from '../../lib/features';
-  import Tabs from '../../components/params/Tabs.svelte';
   import OrderTree from './OrderTree.svelte';
   import BridgesForm from './features/BridgesForm.svelte';
   import CommonForm from './features/CommonForm.svelte';
@@ -28,8 +27,10 @@
   import { SELECTION_MACHINING, clearSelection, selectionHasOwn, selectionView, setSelection } from '../../lib/selection-machining';
   import type { MachiningPart } from '../../api';
 
-  let { id, ontoggle, selectedContours, onfocus = () => {}, compact = false }: {
+  let { id, exit = false, ontoggle, selectedContours, onfocus = () => {}, compact = false }: {
     id: FeatureId;
+    /** Leads: the exit lead and seam instead of the entry lead. */
+    exit?: boolean;
     ontoggle: () => void;
     selectedContours: number[];
     onfocus?: (source:number) => void;
@@ -57,8 +58,7 @@
   const selectionOwn = $derived(inSelection && selectionHasOwn(base, chosen, id as MachiningPart));
   const on = $derived(isOn(features, id));
   const order = $derived(draft.layers.map((l) => l.name));
-  let tab = $state(0);
-  $effect(() => { void id; tab = 0; });
+  const tab = $derived(exit ? 1 : 0);
 
   /** An edit to the job's machining; with a layer chosen, to that layer's
    *  own; with contours selected, to theirs alone. */
@@ -128,7 +128,7 @@
 
 {#if !compact || tool.optional}
   <div class="feat-head">
-    <h2 class="feat-title"><i class="ic ic-tool-{id}"></i>{compact ? t("Enabled") : tool.name}</h2>
+    <h2 class="feat-title"><i class="ic ic-tool-{id}"></i>{compact ? t("Enabled") : exit ? t("Exit lead and seam") : tool.name}</h2>
     {#if tool.optional}<button class="switch" class:on={on} onclick={toggle} aria-label={t("On")}></button>{/if}
     {#if !compact}<button class="btn btn-ghost" onclick={close}>{t("Close")}</button>{/if}
   </div>
@@ -166,18 +166,18 @@
 {#if featureEdits.error}
   <p class="muted">{featureEdits.error} <button class="link" onclick={() => featureEdits.discard()}>{t("Discard refused edits")}</button></p>
 {/if}
-{#if id === 'leads'}<Tabs names={['Entry', t('Exit')]} bind:active={tab} />{/if}
 {#if id === 'leads' && scope && base.layers?.find(l => l.name === scope)?.machining?.fill}
   <p class="muted">{t("Filled engraving uses scan run-ups at every hatch line. Entry and exit leads apply to contour paths.")}</p>
   <button class="btn btn-soft" onclick={() => (ui.setupPanel = 'engrave')}>{t("Edit engraving run-ups")}</button>
 {/if}
 {#if id === 'leads'}<p class="muted lead-hint">{t("Drag a lead to edit it. Selected copies update the matching lead.")}</p>{/if}
-{#if id === 'joints' || id === 'start'}<Tabs names={['Basic', t('More')]} bind:active={tab} />{/if}
 <div class="stack" style="opacity:{on ? 1 : 0.45}">
   {#if id === 'leads'}
     <LeadsForm {features} {on} {tab} selectedContours={inSelection ? [] : selectedContours} {set} {pick} preview={scope || inSelection ? null : draft.preview} />
   {:else if id === 'joints'}
-    <JointsForm {features} {on} {tab} contours={draft.placed.length} {set} {pick} />
+    <JointsForm {features} {on} tab={0} contours={draft.placed.length} {set} {pick} />
+    <h3 class="more-head">{t("Behaviour")}</h3>
+    <JointsForm {features} {on} tab={1} contours={draft.placed.length} {set} {pick} />
   {:else if id === 'cooling'}
     <CoolingForm {features} {on} contours={draft.placed.length} {set} {pick} />
   {:else if id === 'kerf'}
@@ -191,7 +191,9 @@
   {:else if id === 'order'}
     <OrderForm {features} {on} preview={draft.preview} {set} {pick} />
   {:else if id === 'start'}
-    <StartForm {features} {on} {tab} {set} {pick} />
+    <StartForm {features} {on} tab={0} {set} {pick} />
+    <h3 class="more-head">{t("Seam")}</h3>
+    <StartForm {features} {on} tab={1} {set} {pick} />
   {/if}
 </div>
 <div class="side-foot">
@@ -207,6 +209,7 @@
 
 <style>
   .lead-hint { font-size:var(--t-sm); }
+  .more-head { margin:12px 0 0; padding-top:10px; border-top:1px solid var(--line); font-size:var(--t-md); }
   .feat-title { display:flex; align-items:center; gap:10px; }
   .feat-title .ic { width:24px; height:24px; color:var(--accent-2); }
   .scope { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; }

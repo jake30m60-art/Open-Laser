@@ -78,7 +78,7 @@
       ui.setupPanel='engrave'; return;
     }
     ui.setupPanel = ui.setupPanel === id ? null : (id as typeof ui.setupPanel);
-    if (id === 'leads' && ui.setupPanel === 'leads') {
+    if ((id === 'leads' || id === 'leadout') && ui.setupPanel === id) {
       const names = new Set((draft?.preview?.contours ?? []).filter(c => c.sources.some(s => selectedContours.includes(s))).map(c => c.layer));
       ui.machiningLayer = names.size === 1 ? [...names][0]! : null;
       for (const kind of ['lead_in', 'lead_out']) if (!ui.layerShown(kind)) ui.toggleLayer(kind);
@@ -108,6 +108,11 @@
       label: t.short, when: 'always', icon: `ic-tool-${t.id}`, detail: () => (draft ? toolbarState(featureEdits.value(draft), t.id, draft.layers.map(l=>l.name)) : ''),
       on: () => ui.setupPanel === t.id, set: () => !!draft && toolbarOn(featureEdits.value(draft), t.id), disabled: () => false, run: () => runTool(t.id),
     }]),
+    // The exit lead and seam: the leads feature, as a tool of its own.
+    ['leadout', {
+      label: t("Exit lead"), when: 'always', icon: 'ic-tool-leads', detail: () => (draft ? toolbarState(featureEdits.value(draft), 'leads', draft.layers.map(l=>l.name)) : ''),
+      on: () => ui.setupPanel === 'leadout', set: () => !!draft && toolbarOn(featureEdits.value(draft), 'leads'), disabled: () => false, run: () => runTool('leadout'),
+    }] as [string, Tool],
     ...EXTRA.map((t): [string, Tool] => [t.id, {
       label: t.short, when: 'always', icon: t.id === 'sheet' ? 'ic-frame' : t.id === 'simulation' ? 'ic-tool-order' : t.id === 'nest' ? 'ic-tool-nest' : t.id === 'engrave' ? 'ic-tool-engrave' : 'ic-copy', on: () => ui.setupPanel === t.id, disabled: () => false, run: () => runTool(t.id),
     }]),
@@ -150,7 +155,7 @@
   {:else if ui.setupPanel === 'nest'}
     <NestPanel {selectedContours} onselectall={() => canvas?.selectAll()} />
   {:else if ui.setupPanel}
-    <FeaturePanel id={ui.setupPanel} {selectedContours} {compact} onfocus={source => canvas?.focusContour(source)} ontoggle={() => toggle(ui.setupPanel!)} />
+    <FeaturePanel id={ui.setupPanel === 'leadout' ? 'leads' : ui.setupPanel} exit={ui.setupPanel === 'leadout'} {selectedContours} {compact} onfocus={source => canvas?.focusContour(source)} ontoggle={() => toggle(ui.setupPanel === 'leadout' ? 'leads' : ui.setupPanel!)} />
   {:else}
     <JobPanel onselectpart={(first, count) => canvas?.selectPart(first, count)} />
   {/if}
