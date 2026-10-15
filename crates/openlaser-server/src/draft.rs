@@ -174,6 +174,12 @@ pub struct Snapshot {
     /// origin stands for instead of the anchor: a corner, a hole's centre.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin_point: Option<[f64; 2]>,
+    /// Where the sheet's front-left corner lies on the bed, in machine
+    /// millimetres: the sheet origin, set at the head or found by the edge
+    /// search. Separate from the job origin; absent, the sheet lies at the
+    /// bed minimum.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sheet_corner: Option<[f64; 2]>,
     /// Operator checklist policy, saved with the job.
     pub preflight: openlaser_library::preflight::JobPreflight,
     /// Where the features came from.
@@ -352,6 +358,7 @@ impl Draft {
                 nesting: None,
                 placed: Placed::all(contours),
                 origin_point: None,
+                sheet_corner: None,
                 grouping: Grouping::default(),
                 features: Features::default(),
                 recipe: None,
@@ -560,6 +567,7 @@ impl Draft {
                     || !crate::placement::matches_saved(self, base)
                     || self.current.anchor != base.anchor
                     || self.current.origin_point != base.origin_point
+                    || self.current.sheet_corner != base.sheet_corner
                     || self.current.preflight != base.preflight
                     || self.current.placed
                         != if base.placed.is_empty() {
@@ -991,6 +999,7 @@ impl Draft {
             sheet_offset: self.current.sheet_offset,
             anchor: self.current.anchor,
             origin_point: self.current.origin_point,
+            sheet_corner: self.current.sheet_corner,
             dock: self.anchor_point(),
             past: self.past.len(),
             future: self.future.len(),

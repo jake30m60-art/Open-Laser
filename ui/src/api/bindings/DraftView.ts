@@ -123,6 +123,10 @@ anchor: Anchor,
  */
 origin_point: [number, number] | null,
 /**
+ * Where the sheet's front-left corner lies on the bed, if set.
+ */
+sheet_corner: [number, number] | null,
+/**
  * The anchor point in drawing coordinates, once prepared.
  */
 dock: [number, number] | null,

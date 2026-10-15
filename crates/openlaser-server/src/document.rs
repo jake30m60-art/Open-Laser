@@ -870,6 +870,8 @@ pub struct DraftView {
     pub anchor: Anchor,
     /// The point picked in the drawing that the origin stands for, if any.
     pub origin_point: Option<[f64; 2]>,
+    /// Where the sheet's front-left corner lies on the bed, if set.
+    pub sheet_corner: Option<[f64; 2]>,
     /// The anchor point in drawing coordinates, once prepared.
     pub dock: Option<[f64; 2]>,
     /// How many edits can be undone.

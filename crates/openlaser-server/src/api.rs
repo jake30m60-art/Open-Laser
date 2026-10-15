@@ -142,6 +142,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/draft/placement/prepare", post(prepare_placement))
         .route("/api/draft/anchor", post(set_anchor))
         .route("/api/draft/origin-point", post(set_origin_point))
+        .route("/api/draft/sheet-origin", post(set_sheet_origin))
         .route("/api/draft/compile", post(compile))
         .route("/api/draft/save", post(save_job))
         .merge(machine_actions::routes())
@@ -1179,6 +1180,28 @@ async fn set_anchor(
 #[derive(Deserialize)]
 struct OriginPointRequest {
     point: Option<[f64; 2]>,
+}
+
+#[derive(Deserialize)]
+struct SheetOriginRequest {
+    /// Machine XY; absent, the head.
+    #[serde(default)]
+    at: Option<[f64; 2]>,
+    /// Back to the bed minimum.
+    #[serde(default)]
+    clear: bool,
+}
+
+async fn set_sheet_origin(
+    State(shared): State<Shared>,
+    Query(v): Query<Revision>,
+    Json(request): Json<SheetOriginRequest>,
+) -> Reply {
+    edit(&shared, Some(v.revision), |c| {
+        c.set_sheet_corner(request.at, request.clear)?;
+        Ok(Value::Null)
+    })
+    .await
 }
 
 async fn set_origin_point(

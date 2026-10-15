@@ -1479,6 +1479,7 @@ impl Coordinator {
         draft.current.placement.clone_from(&job.placement);
         draft.current.anchor = job.anchor;
         draft.current.origin_point = job.origin_point;
+        draft.current.sheet_corner = job.sheet_corner;
         draft.current.preflight = job.preflight.clone();
         draft.current.nesting.clone_from(&job.nesting);
         draft.current.correction.clone_from(&job.correction);
@@ -1785,6 +1786,39 @@ impl Coordinator {
         self.draft_mut()?.current.anchor = anchor;
         self.draft_mut()?.current.origin_point = None;
         self.draft_changed();
+        Ok(())
+    }
+
+    /// Puts the sheet's front-left corner at `corner` on the bed, or at the
+    /// head with `None` as `at`; `clear` lets it lie at the bed minimum
+    /// again. The sheet only: the job origin and its parts stay.
+    pub fn set_sheet_corner(&mut self, at: Option<[f64; 2]>, clear: bool) -> Result<()> {
+        let corner = if clear {
+            None
+        } else if let Some(at) = at {
+            if !at.iter().all(|v| v.is_finite()) {
+                return Err(Error::Request("the origin is not finite".into()));
+            }
+            Some(at)
+        } else {
+            let state = self.machine.state();
+            if !state.session.homed {
+                return Err(Error::Refused("home XY before positioning this sheet".into()));
+            }
+            let feedback = state
+                .feedback
+                .filter(|f| f.age_ms <= FRESH_FEEDBACK_MS && f.stationary)
+                .ok_or_else(|| {
+                    Error::Refused(
+                        "set the origin with fresh feedback and the axes stationary".into(),
+                    )
+                })?;
+            Some([feedback.position_mm[0], feedback.position_mm[1]])
+        };
+        let draft = self.draft_mut()?;
+        draft.remember();
+        draft.current.sheet_corner = corner;
+        self.reprepare();
         Ok(())
     }
 
@@ -2102,7 +2136,7 @@ impl Coordinator {
 /// stock or cross material already removed, checked where the head will
 /// really go: after the bed correction, when one applies.
 fn check_within_stock(draft: &Draft, compiled: &draft::CompiledJob) -> Result<()> {
-    let Some(nesting) = &draft.current.nesting else { return Ok(()) };
+    let Some(nesting) = &crate::nesting::placed_nesting(draft) else { return Ok(()) };
     let stock = crate::nesting::stock(draft.drawing()?, nesting)?;
     let physical = physical_cuts(draft, compiled)?;
     openlaser_nest::check_region_polylines(

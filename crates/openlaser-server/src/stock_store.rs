@@ -733,7 +733,7 @@ impl Coordinator {
     /// The stock in drawing coordinates: the nested stock, or else the
     /// whole bed where the sheet lies.
     fn sheet_outline(&self, draft: &Draft, drawing: &Drawing) -> Result<Contour> {
-        if let Some(nesting) = &draft.current.nesting {
+        if let Some(nesting) = &crate::nesting::placed_nesting(draft) {
             return crate::nesting::stock(drawing, nesting);
         }
         let extent = self.extent().ok_or_else(|| Error::Refused("no sheet dimensions".into()))?;

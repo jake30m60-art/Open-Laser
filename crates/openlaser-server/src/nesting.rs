@@ -261,6 +261,23 @@ pub fn stock(drawing: &Drawing, nesting: &Nesting) -> Result<Contour> {
     }
 }
 
+/// The job's sheet where it lies on the bed, in drawing coordinates: a
+/// rectangular sheet with its own origin is moved there through the sheet
+/// offset. `None` while that origin is set but the job is not yet placed,
+/// so nothing can be checked against it.
+pub(crate) fn placed_nesting(draft: &Draft) -> Option<Nesting> {
+    let mut nesting = draft.current.nesting.clone()?;
+    if let (NestStock::Rectangle { bounds }, Some([x, y])) =
+        (&mut nesting.stock, draft.current.sheet_corner)
+    {
+        let zero = draft.current.sheet_offset?;
+        let (width, height) = (bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y);
+        bounds.min = Point::new(x - zero[0], y - zero[1]);
+        bounds.max = Point::new(bounds.min.x + width, bounds.min.y + height);
+    }
+    Some(nesting)
+}
+
 /// Unavailable regions retained with the stock reference.
 pub(crate) fn cutouts(nesting: &Nesting) -> &[Contour] {
     match &nesting.stock {
@@ -319,8 +336,16 @@ impl Coordinator {
         if let Some(nesting) = &nesting {
             nesting.validate(drawing.contours.len()).map_err(Error::Request)?;
         }
+        // A rectangular sheet always has its place on the bed: at first the
+        // bed minimum, until its origin is set at the sheet's corner.
+        let bed_min = self.extent().map(|e| [e[0][0], e[1][0]]);
         let draft =
             self.draft.as_mut().ok_or_else(|| Error::Refused("open a drawing first".into()))?;
+        if matches!(nesting.as_ref().map(|n| &n.stock), Some(NestStock::Rectangle { .. }))
+            && draft.current.sheet_corner.is_none()
+        {
+            draft.current.sheet_corner = bed_min;
+        }
         if let Some(contour) = remove {
             draft.remove(&drawing, &[contour])?;
         } else {
@@ -361,6 +386,13 @@ impl Coordinator {
     /// or drawing lies when no bed is known.
     fn rectangle(&self, draft: &Draft, drawing: &Drawing, width: f64, height: f64) -> NestStock {
         let zero = draft.current.sheet_offset.unwrap_or([0., 0.]);
+        // Where the sheet lies on the bed, once its origin is set.
+        if let Some([x, y]) = draft.current.sheet_corner {
+            let min = Point::new(x - zero[0], y - zero[1]);
+            return NestStock::Rectangle {
+                bounds: Bounds { min, max: Point::new(min.x + width, min.y + height) },
+            };
+        }
         let min = self.extent().map_or_else(
             || {
                 draft
@@ -388,7 +420,17 @@ impl Coordinator {
                 .nesting
                 .as_ref()
                 .ok_or_else(|| Error::Request("choose the sheets to nest on first".into()))?;
-            return Ok(vec![Source { stock: nesting.stock.clone(), count: Some(1) }]);
+            // The job's rectangular sheet is searched where it lies on the bed.
+            let stock = match nesting.stock {
+                NestStock::Rectangle { bounds } => self.rectangle(
+                    draft,
+                    drawing,
+                    bounds.max.x - bounds.min.x,
+                    bounds.max.y - bounds.min.y,
+                ),
+                ref other => other.clone(),
+            };
+            return Ok(vec![Source { stock, count: Some(1) }]);
         }
         if request.stock.len() > MAX_SOURCES {
             return Err(Error::Request(format!("choose at most {MAX_SOURCES} kinds of sheet")));
@@ -663,6 +705,16 @@ pub async fn apply(shared: &Shared, id: u64) -> Result<()> {
         .candidate
         .clone()
         .ok_or_else(|| Error::Refused("no complete nesting result to apply".into()))?;
+    let mut candidate = candidate;
+    // Parts nested onto a sheet lying on the bed stay on it: a floating job
+    // origin is fixed where the search placed them.
+    if candidate.current.sheet_corner.is_some()
+        && crate::placement::is_head(&candidate)
+        && let Some(origin) = candidate.origin()
+    {
+        candidate.current.placement =
+            Some(openlaser_library::placement::Placement::Fixed { origin });
+    }
     c.draft = Some(candidate);
     c.draft_changed();
     c.nesting_task = None;
@@ -879,7 +931,17 @@ pub(crate) fn check_prepared(
     draft: &Draft,
     prepared: &crate::draft::Prepared,
 ) -> Result<()> {
-    let Some(nesting) = &draft.current.nesting else {
+    // A sheet with its own origin is checked once the job is placed on it,
+    // at compile: before that the parts are anywhere the origin floats to.
+    if draft.current.sheet_corner.is_some()
+        && matches!(
+            draft.current.nesting.as_ref().map(|n| &n.stock),
+            Some(NestStock::Rectangle { .. })
+        )
+    {
+        return Ok(());
+    }
+    let Some(nesting) = &placed_nesting(draft) else {
         return Ok(());
     };
     let stock = stock(drawing, nesting)?;

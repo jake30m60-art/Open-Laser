@@ -227,3 +227,69 @@ async fn a_floating_origin_follows_the_head_and_setting_it_makes_it_absolute() {
     assert!((kept[0] - 260.).abs() < 0.01 && (kept[1] - 180.).abs() < 0.01, "{kept:?}");
     openlaser_server::shutdown(&shared).await.unwrap();
 }
+
+#[tokio::test]
+async fn the_sheet_origin_and_the_job_origin_are_apart() {
+    use openlaser_core::LaserMode;
+    use openlaser_server::coordinator::{NewRecipe, Values};
+    use openlaser_server::nesting::StockChoice;
+    use openlaser_server::placement::{self, PlacementChange};
+    let (_simulator, shared) = start("sheet-origin").await;
+    connect::connect(&shared).await.unwrap();
+    let pixels = vec![0u8; 16 * 8];
+    {
+        let mut c = shared.lock().await;
+        let part = c
+            .library
+            .add_image_part("black.png", &pixels, (16, 8), pixels.clone(), [8., 4.])
+            .unwrap();
+        let recipe = c
+            .add_recipe(&NewRecipe {
+                name: "Steel".into(),
+                laser: LaserMode::Fiber,
+                thickness_mm: 1.,
+                values: Values::Bank(1),
+                gas: None,
+            })
+            .unwrap();
+        c.open_part(&part.id).unwrap();
+        c.set_recipe(&recipe.id).unwrap();
+    }
+    machine::home(&shared).await.unwrap();
+    until(&shared, 10, |d| d.machine.session.homed && d.machine.operation.is_none()).await;
+    machine::prepare(&shared).await.unwrap();
+    shared
+        .lock()
+        .await
+        .set_stock(StockChoice::Rectangle { width: 1200., height: 800., min: None })
+        .unwrap();
+    machine::prepare(&shared).await.unwrap();
+    let revision = shared.lock().await.document().draft_revision;
+    placement::change(&shared, PlacementChange::Head {}, revision).await.unwrap();
+    let settled = || async {
+        until(&shared, 20, |d| {
+            d.machine.operation.is_none()
+                && d.machine.feedback.as_ref().is_some_and(|f| f.stationary)
+        })
+        .await;
+    };
+    // The sheet origin at the head: the sheet's corner lies there.
+    machine::go_xy(&shared, [20., 30.]).await.unwrap();
+    settled().await;
+    shared.lock().await.set_sheet_corner(None, false).unwrap();
+    machine::prepare(&shared).await.unwrap();
+    // The job origin floats elsewhere: the parts move, the sheet stays.
+    machine::go_xy(&shared, [300., 200.]).await.unwrap();
+    settled().await;
+    placement::prepare(&shared).await.unwrap();
+    let draft = shared.lock().await.document().draft.unwrap();
+    let corner = draft.sheet_corner.unwrap();
+    assert!((corner[0] - 20.).abs() < 0.01 && (corner[1] - 30.).abs() < 0.01, "{corner:?}");
+    let origin = draft.origin.unwrap();
+    assert!((origin[0] - 300.).abs() < 0.01 && (origin[1] - 200.).abs() < 0.01, "{origin:?}");
+    // The job origin stands for the parts, not the sheet: the parts begin there.
+    let bounds = draft.preview.as_ref().unwrap().bounds.unwrap();
+    let zero = draft.sheet_offset.unwrap();
+    assert!((bounds.min.x + zero[0] - 300.).abs() < 0.01, "parts start at the job origin");
+    openlaser_server::shutdown(&shared).await.unwrap();
+}

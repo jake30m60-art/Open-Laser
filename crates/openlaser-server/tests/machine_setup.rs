@@ -95,7 +95,8 @@ async fn home_uses_the_job_source_and_compile_keeps_machine_setup() {
     placement::change(&shared, PlacementChange::NewRun {}, doc.draft_revision).await.unwrap();
     let doc = shared.lock().await.document();
     assert!(doc.calibration.current && doc.machine.session.homed);
-    assert!(!doc.draft.as_ref().unwrap().placement.captured);
+    // A set origin is absolute: the next run keeps it.
+    assert!(doc.draft.as_ref().unwrap().placement.captured);
     assert!(doc.draft.as_ref().unwrap().compiled.is_some());
     {
         let mut c = shared.lock().await;

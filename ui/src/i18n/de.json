@@ -4005,5 +4005,11 @@
   "{0} selected parts as one part": "{0} gewählte Teile als ein Teil",
   "Tap the number: they are grouped and nest as one": "Zahl antippen: sie werden gruppiert und als eines genestet",
   "Sheet placed · origin absolute at its corner": "Blech platziert · Nullpunkt absolut an seiner Ecke",
-  "The sheet the job is cut from. Drag the sheet to where it lies on the bed: the parts go with it and its corner becomes the absolute origin. Drag parts to move them on the sheet.": "Das Blech, aus dem der Auftrag geschnitten wird. Blech dorthin ziehen, wo es auf dem Tisch liegt: Die Teile wandern mit, seine Ecke wird zum absoluten Nullpunkt. Teile ziehen verschiebt sie auf dem Blech."
+  "The sheet the job is cut from. Drag the sheet to where it lies on the bed: the parts go with it and its corner becomes the absolute origin. Drag parts to move them on the sheet.": "Das Blech, aus dem der Auftrag geschnitten wird. Blech dorthin ziehen, wo es auf dem Tisch liegt: Die Teile wandern mit, seine Ecke wird zum absoluten Nullpunkt. Teile ziehen verschiebt sie auf dem Blech.",
+  "Sheet back at the bed corner": "Blech wieder an der Tischecke",
+  "Sheet origin set at the head": "Blechnullpunkt an der Kopfposition gesetzt",
+  "The sheet the job is cut from, with its own origin on the bed, apart from the job origin: move the laser to the sheet's front-left corner and set the sheet origin there.": "Das Blech, aus dem geschnitten wird, mit eigenem Nullpunkt auf dem Tisch, getrennt vom Werkstücknullpunkt: den Laser an die Blechecke vorne links fahren und dort den Blechnullpunkt setzen.",
+  "bed corner": "Tischecke",
+  "Set sheet origin here": "Blechnullpunkt hier setzen",
+  "Back to the bed corner": "Zurück auf die Tischecke"
 }

@@ -22,6 +22,7 @@
   import { server } from '../stores/server.svelte';
   import { ui } from '../stores/ui.svelte';
   import { frameOf } from '../lib/frame';
+  import { sheetOnBed } from '../lib/sheet';
   import { LAYERS } from '../lib/layers';
   import { explain, laserLabel, recipeLabel, seconds } from '../lib/format';
   import { boxOf, boxOfBounds, pathOf } from '../lib/svg';
@@ -85,6 +86,8 @@
   // finished one gives way to the next run: floating, it follows the head.
   // A finished job keeps its recovery record for a restart; only an open
   // recovery, not the record alone, holds the view where it was cut.
+  /** A rectangular sheet where it lies on the bed, apart from the job origin. */
+  const sheetBed = $derived(sheetOnBed(draft, frameOf(doc).bed));
   const live = $derived(['running', 'finishing', 'held'].includes(program?.state ?? '') || recovering);
   const frame = $derived.by(() => {
     const frame = frameOf(doc);
@@ -246,7 +249,9 @@
 
   {#if !recovering && !running && !paused}<SheetStrip />{/if}
   <Stage {view} variant="run-canvas" bed={frame.bed} head={frame.head} origin={frame.origin} ontap={pickRestart}>
-    {#if draft?.stock_outline.length && (!displayed || !live)}
+    {#if sheetBed}
+      <path class="stock-reference" d={pathOf(sheetBed, false) + 'Z'} vector-effect="non-scaling-stroke" />
+    {:else if draft?.stock_outline.length && (!displayed || !live)}
       <g transform="translate({frame.zero[0]} {frame.zero[1]})">
         <path class="stock-reference" d={pathOf(draft.stock_outline, false) + 'Z'} vector-effect="non-scaling-stroke" />
         {#each draft.stock_cutouts as cutout}<path class="stock-cutout" d={pathOf(cutout, false) + 'Z'} vector-effect="non-scaling-stroke" />{/each}

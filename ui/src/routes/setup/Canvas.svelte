@@ -34,6 +34,7 @@
   import { osk } from '../../lib/osk.svelte';
   import { frameOf } from '../../lib/frame';
   import { originCandidates, snapOrigin, type SnapKind } from '../../lib/origin-snap';
+  import { sheetOnBed } from '../../lib/sheet';
   import { explain, plural } from '../../lib/format';
   import { withBusy } from '../../lib/busy';
   import { apply, centre, mirror, mirrorVertical, rotation, scaling, svgMatrix, translate, type Point } from '../../lib/transform';
@@ -117,9 +118,9 @@
   const frame = $derived(frameOf({ ...doc, draft: scene }));
 
   /** What the machine adds to a drawing coordinate: the canvas is in machine coordinates. */
-  let sheetDrag = $state<{ dx: number; dy: number; revision: number } | null>(null);
-  // While the sheet is dragged, the whole job moves with it on the bed.
-  const zero = $derived<[number, number]>(sheetDrag ? [frame.zero[0] + sheetDrag.dx, frame.zero[1] + sheetDrag.dy] : frame.zero);
+  const zero = $derived(frame.zero);
+  /** A rectangular sheet where it lies on the bed, apart from the job origin. */
+  const sheetBed = $derived(ui.nestPreview || ui.nestLive ? null : sheetOnBed(scene, frame.bed));
   const toDrawing = (p: Point): Point => [p[0] - zero[0], p[1] - zero[1]];
 
   const view = new Viewport();
@@ -494,14 +495,9 @@
 
   // Gestures: a shape moves; turns and sizes change only through the tools
   // and typed values, never by a drag. While picking, the shapes stay put and taps go to the feature.
-  /** The rectangular sheet, while the sheet panel is open: dragging it moves it under the parts. */
-  const sheetRect = $derived(ui.setupPanel === 'sheet' && draft?.nesting?.stock.kind === 'rectangle' ? draft.nesting.stock.bounds : null);
   const grab = (target: Element, at: Point): string | null => {
     if (canvasBusy) return null;
-    if (sheetRect) {
-      const [x, y] = toDrawing(at);
-      return x >= sheetRect.min.x && x <= sheetRect.max.x && y >= sheetRect.min.y && y <= sheetRect.max.y ? 'sheet' : null;
-    }
+
     const lead = target.closest<SVGGElement>('[data-lead]')?.dataset['lead'];
     if (lead !== undefined) return `lead:${lead}`;
     // Taking shapes one by one, a drag draws a box that takes more.
@@ -521,17 +517,6 @@
     if (updating) return;
     const from = toDrawing(at);
     const to = toDrawing(towards);
-    if (kind === 'sheet' && sheetRect && draft) {
-      // Measured against where the sheet was, not where the drag shows it.
-      const base = frame.zero;
-      let dx = towards[0] - at[0], dy = towards[1] - at[1];
-      if (ui.snap) {
-        dx = Math.round((sheetRect.min.x + base[0] + dx) / ui.grid) * ui.grid - sheetRect.min.x - base[0];
-        dy = Math.round((sheetRect.min.y + base[1] + dy) / ui.grid) * ui.grid - sheetRect.min.y - base[1];
-      }
-      sheetDrag = { dx, dy, revision: draft.revision };
-      return;
-    }
     if (kind.startsWith('lead:')) {
       if (leadDrag) { leadDrag.point = to; return; }
       const handle = leadHandles[Number(kind.slice(5))];
@@ -581,21 +566,6 @@
   }
 
   function ondragend(_kind: string, cancelled: boolean): void {
-    if (sheetDrag) {
-      const { dx, dy, revision } = sheetDrag;
-      const rect = sheetRect;
-      sheetDrag = null;
-      if (cancelled || !rect || !draft || draft.revision !== revision || (dx === 0 && dy === 0)) return;
-      // Where the sheet lies on the bed: its corner becomes the absolute origin.
-      // The origin moves with it: the sheet's corner, or a point picked in the drawing.
-      const origin: [number, number] = frame.origin
-        ? [frame.origin[0] + dx, frame.origin[1] + dy]
-        : [rect.min.x + frame.zero[0] + dx, rect.min.y + frame.zero[1] + dy];
-      api.placement({ kind: 'fixed', origin })
-        .then(() => ui.say(t('Sheet placed · origin absolute at its corner')))
-        .catch(fail);
-      return;
-    }
     if (leadDrag) {
       const { handle, targets, point, revision } = leadDrag;
       leadDrag = null;
@@ -921,11 +891,14 @@
 
   <Stage {view} bed={frame.bed} head={frame.head} origin={ui.nestShown ? null : frame.origin ?? (draft?.dock ? [draft.dock[0] + zero[0], draft.dock[1] + zero[1]] : null)} onhover={bridgeHover} {grab} {ondrag} {ondragend} {ontap} {onmarquee}
     lift={lifting && local ? [local.m[4], local.m[5]] : null} lifted={liftedShapes}>
+    {#if sheetBed}
+      <path d={pathOf(sheetBed, false) + 'Z'} fill="var(--accent)" fill-opacity="0.06" stroke="var(--accent)"
+        stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none" />
+    {/if}
     <g transform="translate({zero[0]} {zero[1]})">
-    {#if stockOutline.length}
-      <path d={pathOf(stockOutline, false) + 'Z'} fill="var(--accent)" fill-opacity={sheetRect ? 0.08 : 0.035} stroke="var(--accent)"
-        style:cursor={sheetRect ? 'move' : undefined}
-        stroke-dasharray="8 5" stroke-width={sheetRect ? 2.5 : 1.5} vector-effect="non-scaling-stroke" pointer-events="none" />
+    {#if stockOutline.length && !sheetBed}
+      <path d={pathOf(stockOutline, false) + 'Z'} fill="var(--accent)" fill-opacity="0.035" stroke="var(--accent)"
+        stroke-dasharray="8 5" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none" />
     {/if}
     {#each stockCutouts as cutout}
       <path d={pathOf(cutout, false) + 'Z'} fill="var(--ink-3)" fill-opacity="0.16" stroke="var(--ink-3)"

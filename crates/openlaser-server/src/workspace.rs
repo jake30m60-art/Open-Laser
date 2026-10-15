@@ -456,6 +456,7 @@ impl Draft {
             sheet_offset: None,
             anchor: self.current.anchor,
             origin_point: self.current.origin_point,
+            sheet_corner: self.current.sheet_corner,
             favourite: false,
             created: 0,
             updated: 0,
@@ -473,6 +474,7 @@ impl Draft {
             if crate::placement::is_head(self) { None } else { self.current.sheet_offset };
         job.anchor = self.current.anchor;
         job.origin_point = self.current.origin_point;
+        job.sheet_corner = self.current.sheet_corner;
         job.preflight.clone_from(&self.current.preflight);
         job.nesting.clone_from(&self.current.nesting);
         job.correction.clone_from(&self.current.correction);
@@ -501,6 +503,7 @@ impl Draft {
         }
         self.current.anchor = job.anchor;
         self.current.origin_point = job.origin_point;
+        self.current.sheet_corner = job.sheet_corner;
         self.current.preflight.clone_from(&job.preflight);
         self.current.nesting.clone_from(&job.nesting);
         self.current.correction.clone_from(&job.correction);
@@ -675,4 +678,5 @@ fn preparation_changed(draft: &Draft, saved: &Job) -> bool {
         || !crate::placement::matches_saved(draft, saved)
         || draft.current.anchor != saved.anchor
         || draft.current.origin_point != saved.origin_point
+        || draft.current.sheet_corner != saved.sheet_corner
 }

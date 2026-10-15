@@ -435,6 +435,9 @@ pub struct Job {
     /// A point picked in the drawing that the origin stands for instead.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin_point: Option<[f64; 2]>,
+    /// Where the sheet's front-left corner lies on the bed, if set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sheet_corner: Option<[f64; 2]>,
     /// Whether it is starred.
     #[serde(default)]
     pub favourite: bool,
@@ -1104,6 +1107,7 @@ mod tests {
             sheet_offset: None,
             anchor: Anchor::default(),
             origin_point: None,
+            sheet_corner: None,
             favourite: false,
             created: 0,
             updated: 0,
@@ -1169,6 +1173,7 @@ mod tests {
                     sheet_offset: Some([120., 80.]),
                     anchor: Anchor::default(),
                     origin_point: None,
+                    sheet_corner: None,
                     favourite: true,
                     created: 0,
                     updated: 0,
@@ -1232,6 +1237,7 @@ mod tests {
                 sheet_offset: None,
                 anchor: Anchor::default(),
                 origin_point: None,
+                sheet_corner: None,
                 favourite: false,
                 created: 0,
                 updated: 0,
