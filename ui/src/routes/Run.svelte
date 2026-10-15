@@ -294,7 +294,7 @@
           <path class="path travel" d={pathOf(move.points, false)} vector-effect="non-scaling-stroke" />
         {/each}
       {/if}
-      {#if ui.layerShown('done')}
+      {#if ui.layerShown('done') && !ghost}
         {#each history as points}<path class="path done" d={pathOf(points, false)} vector-effect="non-scaling-stroke" />{/each}
       {/if}
       {#if ui.layerShown('pierce')}
