@@ -60,24 +60,31 @@
   });
   const retained = $derived(execution && !execution.frame && original?.id === recovery?.id ? original : null);
   const displayed = $derived(retained ?? execution);
-  const compiled = $derived(displayed?.compiled ?? (recovering ? null : draft?.compiled) ?? null);
+  // After a finished job with a floating origin: the cut job stays grey
+  // where it was cut, the next run shows green at the head.
+  const ghost = $derived(!!displayed && !displayed.frame && !recovering
+    && !['running', 'finishing', 'held'].includes(program?.state ?? '')
+    && draft?.placement.mode === 'head' && !!draft.dock && !!doc.machine.feedback);
+  /** The job drawn in colour: the running or retained one, or the next run. */
+  const shown = $derived(ghost ? null : displayed);
+  const compiled = $derived(shown?.compiled ?? (recovering ? null : draft?.compiled) ?? null);
   // The pushed draft leaves its moves out: they are fetched once for the
   // revision shown. A run's own program carries them.
   let fetched = $state.raw<{ revision: number; moves: Move[] } | null>(null);
   $effect(() => {
-    const revision = !displayed && !recovering && draft?.compiled ? draft.revision : null;
+    const revision = !shown && !recovering && draft?.compiled ? draft.revision : null;
     if (revision === null || fetched?.revision === revision) return;
     api.draftMoves(revision)
       .then(reply => { if (server.doc?.draft?.revision === revision) fetched = { revision, moves: reply.moves }; })
       // A newer draft has arrived and fetches its own.
       .catch(error => { if (!(error instanceof ApiError && error.status === 409)) ui.say(explain(error), true); });
   });
-  const moves = $derived(displayed?.compiled.moves ?? (compiled && fetched && fetched.revision === draft?.revision ? fetched.moves : []));
+  const moves = $derived(shown?.compiled.moves ?? (compiled && fetched && fetched.revision === draft?.revision ? fetched.moves : []));
   const history = $derived(retained && recovery ? cutHistory(retained.compiled.moves, recovery.steps) : []);
   const resumed = $derived(!!retained && !!execution && retained.id !== execution.id && !recovering);
   const material = $derived(displayed ? displayed.material : draft?.recipe);
   const preview = $derived(draft?.preview ?? null);
-  const engravingRegions = $derived(compiled?.engraving_regions ?? (!displayed ? preview?.engraving_regions : []) ?? []);
+  const engravingRegions = $derived(compiled?.engraving_regions ?? (!shown ? preview?.engraving_regions : []) ?? []);
   const engravingPasses = $derived(new Set(compiled?.engraving_passes ?? []));
   const engravingPaths = $derived(compiled?.engraving_paths ?? (preview?.contours ?? []).filter(c => !c.closed && engravingRegions.some(r => r.layer === c.layer)).flatMap(c => c.paths.filter(p => p.kind === 'cut')));
   const engravingLayers = $derived([...new Set(engravingRegions.map(c => c.layer))]);
@@ -119,7 +126,7 @@
   const running = $derived(program?.state === 'running' || program?.state === 'finishing');
   /** Item tags name the remainder; map them back to the full retained job. */
   const contours = $derived(compiled?.plan.length ?? 0);
-  const done = $derived(retained ? recovery?.steps.filter(s => s.status === 'completed').length ?? 0 : execution ? doc.progress?.completed ?? 0 : 0);
+  const done = $derived(ghost ? 0 : retained ? recovery?.steps.filter(s => s.status === 'completed').length ?? 0 : execution ? doc.progress?.completed ?? 0 : 0);
   const current = $derived.by(() => {
     if (recovering) return recovery?.selected?.pass ?? null;
     const index = doc.progress?.pass;
@@ -255,6 +262,13 @@
       <g transform="translate({frame.zero[0]} {frame.zero[1]})">
         <path class="stock-reference" d={pathOf(draft.stock_outline, false) + 'Z'} vector-effect="non-scaling-stroke" />
         {#each draft.stock_cutouts as cutout}<path class="stock-cutout" d={pathOf(cutout, false) + 'Z'} vector-effect="non-scaling-stroke" />{/each}
+      </g>
+    {/if}
+    {#if ghost && displayed}
+      <g class="ghost" transform="translate({displayed.zero[0]} {displayed.zero[1]})">
+        {#each displayed.compiled.moves as move}
+          {#if move.kind !== 'travel'}<path class="path done" d={pathOf(move.points, false)} vector-effect="non-scaling-stroke"/>{/if}
+        {/each}
       </g>
     {/if}
     <g transform="translate({frame.zero[0]} {frame.zero[1]})">
