@@ -293,3 +293,61 @@ async fn the_sheet_origin_and_the_job_origin_are_apart() {
     assert!((bounds.min.x + zero[0] - 300.).abs() < 0.01, "parts start at the job origin");
     openlaser_server::shutdown(&shared).await.unwrap();
 }
+
+#[tokio::test]
+async fn go_origin_when_floating_returns_to_where_the_last_job_started() {
+    use openlaser_controller::state::ProgramState;
+    use openlaser_core::LaserMode;
+    use openlaser_server::coordinator::{NewRecipe, Values};
+    use openlaser_server::placement::{self, PlacementChange};
+    let (simulator, shared) = start("go-last-origin").await;
+    let control = simulator.control();
+    connect::connect(&shared).await.unwrap();
+    let pixels = vec![0u8; 16 * 8];
+    {
+        let mut c = shared.lock().await;
+        let part = c
+            .library
+            .add_image_part("black.png", &pixels, (16, 8), pixels.clone(), [8., 4.])
+            .unwrap();
+        let recipe = c
+            .add_recipe(&NewRecipe {
+                name: "Steel".into(),
+                laser: LaserMode::Fiber,
+                thickness_mm: 1.,
+                values: Values::Bank(1),
+                gas: None,
+            })
+            .unwrap();
+        c.open_part(&part.id).unwrap();
+        c.set_recipe(&recipe.id).unwrap();
+    }
+    machine::home(&shared).await.unwrap();
+    until(&shared, 10, |d| d.machine.session.homed && d.machine.operation.is_none()).await;
+    machine::prepare(&shared).await.unwrap();
+    let revision = shared.lock().await.document().draft_revision;
+    placement::change(&shared, PlacementChange::Head {}, revision).await.unwrap();
+    let settled = || async {
+        until(&shared, 30, |d| {
+            d.machine.operation.is_none()
+                && d.machine.feedback.as_ref().is_some_and(|f| f.stationary)
+        })
+        .await;
+    };
+    machine::go_xy(&shared, [220., 140.]).await.unwrap();
+    settled().await;
+    common::run(&shared).await.unwrap();
+    until(&shared, 120, |d| {
+        d.machine.program.as_ref().is_some_and(|p| p.state == ProgramState::Completed)
+            && d.machine.operation.is_none()
+    })
+    .await;
+    // Moved away, floating: Go origin brings the head back to the last start.
+    machine::go_xy(&shared, [300., 200.]).await.unwrap();
+    settled().await;
+    machine::go_origin(&shared, false).await.unwrap();
+    settled().await;
+    let at = control.view().position_mm;
+    assert!((at[0] - 220.).abs() < 0.01 && (at[1] - 140.).abs() < 0.01, "{at:?}");
+    openlaser_server::shutdown(&shared).await.unwrap();
+}

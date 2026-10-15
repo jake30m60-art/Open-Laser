@@ -880,11 +880,18 @@ fn position_target(
         Position::Bed(point) => coordinator.bed_point(point),
         Position::Xy(target) => Ok(target),
         Position::Postflight { id, step } => coordinator.postflight_target(id, step),
-        Position::Origin => coordinator
-            .draft
-            .as_ref()
-            .and_then(crate::draft::Draft::origin)
-            .ok_or_else(|| Error::Refused("nothing prepared".into())),
+        // Floating, the origin is wherever the head is: Go origin returns
+        // to where the last job, finished or stopped, was started instead.
+        Position::Origin => {
+            let draft = coordinator.draft.as_ref();
+            let last = coordinator.execution.as_ref().filter(|e| !e.frame).map(|e| e.origin);
+            match (draft.is_some_and(crate::placement::is_head), last) {
+                (true, Some(origin)) => Ok(origin),
+                _ => draft
+                    .and_then(crate::draft::Draft::origin)
+                    .ok_or_else(|| Error::Refused("nothing prepared".into())),
+            }
+        }
     }
 }
 
