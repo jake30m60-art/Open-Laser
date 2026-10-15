@@ -172,7 +172,14 @@ function translate(sketch: Sketch, c: Constraint): SketchPrimitive[] {
       if ((k === 'ellipse' || k === 'ellipse-arc') && solvable(sketch, c.curve)) return [{ id, type: 'point_on_ellipse', p_id: P(c.point), e_id: E(c.curve) }];
       return [];
     }
-    case 'symmetric': return [{ id, type: 'p2p_symmetric_ppl', p1_id: P(c.a), p2_id: P(c.b), l_id: E(c.line) }];
+    case 'symmetric': {
+      // About a line it mirrors; about a circle, an arc or a point it is
+      // symmetric through that centre.
+      const about = entityOf(sketch, c.line);
+      if (about?.kind === 'line') return [{ id, type: 'p2p_symmetric_ppl', p1_id: P(c.a), p2_id: P(c.b), l_id: E(c.line) }];
+      const centre = about && 'c' in about ? about.c : sketch.points.some((p) => p.id === c.line) ? c.line : null;
+      return centre === null ? [] : [{ id, type: 'p2p_symmetric_ppp', p1_id: P(c.a), p2_id: P(c.b), p_id: P(centre) }];
+    }
     case 'fix': return [];
     case 'distance': {
       if (c.axis === 'aligned') return [{ id, type: 'p2p_distance', p1_id: P(c.a), p2_id: P(c.b), distance: c.value }];
@@ -586,6 +593,11 @@ function solveEditDirect(previous: Sketch, next: Sketch): Solved {
     } else if (c.kind === 'radius' || c.kind === 'diameter') {
       const curve = entityOf(next, c.curve);
       if (curve?.kind === 'circle' && known.has(curve.c)) anchors.add(curve.c);
+    } else if (c.kind === 'symmetric') {
+      // The line, circle or point the two are symmetric about stays; the
+      // two come to it.
+      const about = entityOf(next, c.line);
+      for (const id of about ? pointsOf(about) : [c.line]) if (known.has(id)) anchors.add(id);
     }
   }
     // An inter-object dimension should move the newer object as a whole, rather

@@ -4019,5 +4019,7 @@
   "Remove sketch": "Skizze entfernen",
   "Remove sketch?": "Skizze entfernen?",
   "{0} leaves the list. Restore brings it back on the sketch page.": "{0} verschwindet aus der Liste. „Wiederherstellen“ auf der Skizzenseite holt sie zurück.",
-  "Sketch removed": "Skizze entfernt"
+  "Sketch removed": "Skizze entfernt",
+  "Symmetry needs a line, or a circle or point to centre on.": "Symmetrie braucht eine Linie oder einen Kreis bzw. Punkt als Mitte.",
+  "Click the symmetry line, or a circle or point to centre on": "Symmetrielinie anklicken, oder einen Kreis bzw. Punkt als Mitte"
 }

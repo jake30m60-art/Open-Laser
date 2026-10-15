@@ -302,7 +302,7 @@ class Relate extends Action {
       case 'hv': return ['line'];
       case 'tangent': return ['curve', 'curve'];
       case 'equal': return first && entityOf(ctx.sketch, first.entity)?.kind === 'line' ? ['line', 'line'] : ['curve', 'curve'];
-      case 'symmetric': return ['any', 'any', 'line'];
+      case 'symmetric': return ['any', 'any', 'any'];
     }
   }
 
@@ -319,7 +319,7 @@ class Relate extends Action {
       hv: ['Click a line to make it horizontal or vertical'],
       tangent: ['Click a curve', 'Click the curve to be tangent to'],
       equal: ['Click a line, circle or arc', 'Click the one to be equal to'],
-      symmetric: ['Click the first point or curve', 'Click its mirror image', 'Click the symmetry line'],
+      symmetric: ['Click the first point or curve', 'Click its mirror image', 'Click the symmetry line, or a circle or point to centre on'],
     };
     void ctx;
     return what[this.id][n] ?? '';
@@ -380,16 +380,28 @@ class Relate extends Action {
         return;
       }
       case 'symmetric': {
-        const line = c.entity!;
+        // The third pick: a line mirrors; a circle, an arc or a point is
+        // the centre the two are symmetric through.
+        const about = c.point !== null ? null : entityOf(s, c.entity);
+        const line = c.point !== null ? c.point : c.entity!;
+        const centre = c.point !== null ? point(s, c.point)
+          : about && about.kind !== 'line' && 'c' in about ? point(s, about.c) : null;
+        if (!centre && about?.kind !== 'line') return t("Symmetry needs a line, or a circle or point to centre on.");
         if (a.point !== null && b.point !== null) { add1({ kind: 'symmetric', a: a.point, b: b.point, line }); return; }
         const ea = entityOf(s, a.entity), eb = entityOf(s, b.entity);
         if (!ea || !eb || ea.kind !== eb.kind) return t("Symmetry takes two points, or two curves of the same kind.");
         if (ea.kind === 'line' && eb.kind === 'line') {
-          // Each end pairs with the mirror end nearer to it.
+          // Each end pairs with its mirror end: about a line the nearer one,
+          // through a centre the one across from it.
           const [a1, a2] = [point(s, ea.a), point(s, ea.b)];
-          const straight = dist(a1, point(s, eb.a)) + dist(a2, point(s, eb.b)) <= dist(a1, point(s, eb.b)) + dist(a2, point(s, eb.a));
+          const off = (p: { x: number; y: number }, q: { x: number; y: number }) =>
+            centre ? dist({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, centre) : dist(p, q);
+          const straight = off(a1, point(s, eb.a)) + off(a2, point(s, eb.b)) <= off(a1, point(s, eb.b)) + off(a2, point(s, eb.a));
           add1({ kind: 'symmetric', a: ea.a, b: straight ? eb.a : eb.b, line });
-          add1({ kind: 'symmetric', a: ea.b, b: straight ? eb.b : eb.a, line });
+          // Through a centre one pair across it centres the two: the other
+          // pair would say again what the shape's own relations already
+          // hold, as for a rectangle's opposite edges.
+          if (!centre) add1({ kind: 'symmetric', a: ea.b, b: straight ? eb.b : eb.a, line });
           return;
         }
         if ('c' in ea && 'c' in eb) {
