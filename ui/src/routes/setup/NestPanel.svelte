@@ -102,6 +102,18 @@
     chosen = current(next, library.stock, library.remnants);
     invalidate();
   }
+  /** Several parts taken together, such as the letters of a lettering:
+   *  grouped into one part, which then gets the quantity. */
+  async function asOne(count: number): Promise<void> {
+    const contours = draft.groups.filter(g => g.some(i => effectiveSelection.includes(i))).flat();
+    try {
+      await api.group(contours, true);
+      // Keyed by every contour: whichever the merged part lists first counts,
+      // once the drawing shows it grouped.
+      for (const c of contours) quantities[c] = count;
+      ui.say(t('Grouped as one part · Undo ungroups it'));
+    } catch (e) { error = explain(e); }
+  }
   function setCount(index: number, count: number): void {
     const source = plan[index];
     if (source?.kind === 'sheet') {
@@ -113,9 +125,10 @@
     const onHand = library.stock.find((i) => i.id === source.id)?.quantity ?? 0;
     edit(plan.map((s, i) => i === index ? { ...source, count: Math.min(onHand, Math.max(1, Math.round(count))) } : s));
   }
-  const quantityTitle = $derived(selected === 1 ? t('Selected part quantity') : t('{0} parts on this sheet', draft.groups.length));
+  const quantityTitle = $derived(selected === 1 ? t('Selected part quantity') : selected > 1 ? t('{0} selected parts as one part', selected) : t('{0} parts on this sheet', draft.groups.length));
   const quantityHint = $derived(selected === 1
     ? t('Including this one')
+    : selected > 1 ? t('Tap the number: they are grouped and nest as one')
     : extra.length ? t('{0} in all · tap a part to change its quantity', plural(total, 'part')) : t('Tap a part to set its quantity'));
   const liveNote = $derived(live
     ? t('Showing sheet {0}', first + live.sheet)
@@ -301,6 +314,8 @@
       <span>{quantityTitle}<small>{quantityHint}</small></span>
       {#if selected === 1}
         <button class="number" onclick={() => { const key = part![0]!; number(t('Part quantity'), quantity, 'copies', v => quantities[key] = v); }}>{quantity}</button>
+      {:else if selected > 1}
+        <button class="number" title={t("The selected parts nest as one, as a lettering")} onclick={() => number(t('Quantity of the selection as one part'), 1, 'copies', v => void asOne(v))}>1</button>
       {:else}
         <button class="btn btn-ghost" onclick={onselectall}>{t("Select all")}</button>
       {/if}

@@ -3998,5 +3998,12 @@
   "Change sheet size": "Blechgröße ändern",
   "Add sheet": "Blech hinzufügen",
   "Turn 90°": "90° drehen",
-  "Remove sheet": "Blech entfernen"
+  "Remove sheet": "Blech entfernen",
+  "The selected parts nest as one, as a lettering": "Die gewählten Teile werden als eines genestet, wie ein Schriftzug",
+  "Quantity of the selection as one part": "Stückzahl der Auswahl als ein Teil",
+  "Grouped as one part · Undo ungroups it": "Als ein Teil gruppiert · Rückgängig löst die Gruppe",
+  "{0} selected parts as one part": "{0} gewählte Teile als ein Teil",
+  "Tap the number: they are grouped and nest as one": "Zahl antippen: sie werden gruppiert und als eines genestet",
+  "Sheet placed · origin absolute at its corner": "Blech platziert · Nullpunkt absolut an seiner Ecke",
+  "The sheet the job is cut from. Drag the sheet to where it lies on the bed: the parts go with it and its corner becomes the absolute origin. Drag parts to move them on the sheet.": "Das Blech, aus dem der Auftrag geschnitten wird. Blech dorthin ziehen, wo es auf dem Tisch liegt: Die Teile wandern mit, seine Ecke wird zum absoluten Nullpunkt. Teile ziehen verschiebt sie auf dem Blech."
 }

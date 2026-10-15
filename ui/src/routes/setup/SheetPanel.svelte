@@ -40,7 +40,7 @@
   <h2 class="feat-title">{t("Sheet")}</h2>
   <button class="btn btn-ghost" onclick={() => (ui.setupPanel = null)}>{t("Close")}</button>
 </div>
-<p class="feat-desc">{t("The sheet the job is cut from. Drag it on the drawing to move it under the parts; its front-left corner is where the origin goes.")}</p>
+<p class="feat-desc">{t("The sheet the job is cut from. Drag the sheet to where it lies on the bed: the parts go with it and its corner becomes the absolute origin. Drag parts to move them on the sheet.")}</p>
 
 {#if rect}
   <p class="sheet-now"><strong>{distance(rect.max.x - rect.min.x)} × {distance(rect.max.y - rect.min.y)} {unitLabel('mm')}</strong></p>

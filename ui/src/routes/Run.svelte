@@ -83,7 +83,9 @@
   const jobName = $derived(displayed?.name ?? (draft?.name || 'untitled'));
   // A job running, paused or being recovered stays where it was cut; a
   // finished one gives way to the next run: floating, it follows the head.
-  const live = $derived(['running', 'finishing', 'held'].includes(program?.state ?? '') || !!retained);
+  // A finished job keeps its recovery record for a restart; only an open
+  // recovery, not the record alone, holds the view where it was cut.
+  const live = $derived(['running', 'finishing', 'held'].includes(program?.state ?? '') || recovering);
   const frame = $derived.by(() => {
     const frame = frameOf(doc);
     const floating = draft?.placement.mode === 'head' && !!frame.head && !!draft.dock;

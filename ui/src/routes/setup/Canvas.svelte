@@ -117,7 +117,9 @@
   const frame = $derived(frameOf({ ...doc, draft: scene }));
 
   /** What the machine adds to a drawing coordinate: the canvas is in machine coordinates. */
-  const zero = $derived(frame.zero);
+  let sheetDrag = $state<{ dx: number; dy: number; revision: number } | null>(null);
+  // While the sheet is dragged, the whole job moves with it on the bed.
+  const zero = $derived<[number, number]>(sheetDrag ? [frame.zero[0] + sheetDrag.dx, frame.zero[1] + sheetDrag.dy] : frame.zero);
   const toDrawing = (p: Point): Point => [p[0] - zero[0], p[1] - zero[1]];
 
   const view = new Viewport();
@@ -494,7 +496,6 @@
   // and typed values, never by a drag. While picking, the shapes stay put and taps go to the feature.
   /** The rectangular sheet, while the sheet panel is open: dragging it moves it under the parts. */
   const sheetRect = $derived(ui.setupPanel === 'sheet' && draft?.nesting?.stock.kind === 'rectangle' ? draft.nesting.stock.bounds : null);
-  let sheetDrag = $state<{ dx: number; dy: number; revision: number } | null>(null);
   const grab = (target: Element, at: Point): string | null => {
     if (canvasBusy) return null;
     if (sheetRect) {
@@ -521,10 +522,12 @@
     const from = toDrawing(at);
     const to = toDrawing(towards);
     if (kind === 'sheet' && sheetRect && draft) {
-      let dx = to[0] - from[0], dy = to[1] - from[1];
+      // Measured against where the sheet was, not where the drag shows it.
+      const base = frame.zero;
+      let dx = towards[0] - at[0], dy = towards[1] - at[1];
       if (ui.snap) {
-        dx = Math.round((sheetRect.min.x + zero[0] + dx) / ui.grid) * ui.grid - sheetRect.min.x - zero[0];
-        dy = Math.round((sheetRect.min.y + zero[1] + dy) / ui.grid) * ui.grid - sheetRect.min.y - zero[1];
+        dx = Math.round((sheetRect.min.x + base[0] + dx) / ui.grid) * ui.grid - sheetRect.min.x - base[0];
+        dy = Math.round((sheetRect.min.y + base[1] + dy) / ui.grid) * ui.grid - sheetRect.min.y - base[1];
       }
       sheetDrag = { dx, dy, revision: draft.revision };
       return;
@@ -583,7 +586,14 @@
       const rect = sheetRect;
       sheetDrag = null;
       if (cancelled || !rect || !draft || draft.revision !== revision || (dx === 0 && dy === 0)) return;
-      api.setStock({ kind: 'rectangle', width: rect.max.x - rect.min.x, height: rect.max.y - rect.min.y, min: [rect.min.x + dx, rect.min.y + dy] }, revision).catch(fail);
+      // Where the sheet lies on the bed: its corner becomes the absolute origin.
+      // The origin moves with it: the sheet's corner, or a point picked in the drawing.
+      const origin: [number, number] = frame.origin
+        ? [frame.origin[0] + dx, frame.origin[1] + dy]
+        : [rect.min.x + frame.zero[0] + dx, rect.min.y + frame.zero[1] + dy];
+      api.placement({ kind: 'fixed', origin })
+        .then(() => ui.say(t('Sheet placed · origin absolute at its corner')))
+        .catch(fail);
       return;
     }
     if (leadDrag) {
@@ -914,7 +924,7 @@
     <g transform="translate({zero[0]} {zero[1]})">
     {#if stockOutline.length}
       <path d={pathOf(stockOutline, false) + 'Z'} fill="var(--accent)" fill-opacity={sheetRect ? 0.08 : 0.035} stroke="var(--accent)"
-        transform={sheetDrag ? `translate(${sheetDrag.dx} ${sheetDrag.dy})` : undefined} style:cursor={sheetRect ? 'move' : undefined}
+        style:cursor={sheetRect ? 'move' : undefined}
         stroke-dasharray="8 5" stroke-width={sheetRect ? 2.5 : 1.5} vector-effect="non-scaling-stroke" pointer-events="none" />
     {/if}
     {#each stockCutouts as cutout}

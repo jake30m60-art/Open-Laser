@@ -449,6 +449,31 @@ impl Coordinator {
 
 /// Begin one bounded background search over an immutable draft snapshot.
 pub async fn start(shared: &Shared, revision: u64, request: NestRequest) -> Result<NestView> {
+    // Several parts taken together with a quantity, such as the letters of
+    // a lettering, are one part: they are grouped first, as Group would,
+    // and nest as one rigid piece.
+    let revision = {
+        let mut c = shared.lock().await;
+        c.check_draft(revision)?;
+        let draft =
+            c.draft.as_ref().ok_or_else(|| Error::Refused("open a drawing first".into()))?;
+        let together: Vec<usize> = draft
+            .groups
+            .iter()
+            .filter(|g| g.iter().any(|i| request.contours.contains(i)))
+            .flatten()
+            .copied()
+            .collect();
+        let parts = draft.groups.iter().filter(|g| g.iter().any(|i| together.contains(i))).count();
+        if request.quantity > 1 && parts > 1 {
+            c.set_grouped(&together, true)?;
+            drop(c);
+            crate::machine::prepare(shared).await?;
+            shared.lock().await.document().draft_revision
+        } else {
+            revision
+        }
+    };
     let mut c = shared.lock().await;
     c.check_draft(revision)?;
     if c.nesting_task.as_ref().is_some_and(|t| lock(&t.work).view.running) {
