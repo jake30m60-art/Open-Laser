@@ -56,6 +56,13 @@
     await withBusy((b) => (busy = b), () => api.setOriginPoint(point));
   }
 
+  /** A rectangular sheet on the job: its own origin, apart from the job's. */
+  const sheetLaid = $derived(draft?.nesting?.stock.kind === 'rectangle');
+  async function setSheetOrigin(): Promise<void> {
+    if (busy) return;
+    await withBusy((b) => (busy = b), async () => { await api.setSheetOrigin(); ui.say(t('Sheet origin set at the head')); });
+  }
+
   function save(): void {
     const job = doc.library.jobs.find(j => j.id === draft?.job);
     const perform = (name: string): Promise<void> =>
@@ -66,7 +73,7 @@
 </script>
 
 {#if draft && placement}
-  <section class="sheet-position" class:compact aria-label={t("Sheet origin")}>
+  <section class="sheet-position" class:compact aria-label={t("Job origin")}>
     {#if collapsed}
       <div class="origin-line">
         <span><strong>{fixed ? t("Origin set") : t("Floating")}</strong> · {fixed ? t("Absolute") : t("follows the head")}{#if draft.origin_point} · {t("point in the drawing")}{/if} {#if fixed && draft.origin} · X {distance(draft.origin[0])} · Y {distance(draft.origin[1])} {unitLabel('mm')}{/if}</span>
@@ -75,7 +82,7 @@
       </div>
     {:else}
       <div class="position-title">
-        <strong>{t("Sheet origin")}</strong>
+        <strong>{t("Job origin")}</strong>
         {#if originHint}<span class="origin-reason">{originHint}</span>{/if}
         {#if changing}<button class="text-button" onclick={() => (changing = false)}>{t("Done")}</button>{/if}
       </div>
@@ -93,6 +100,14 @@
         </HoldButton>
       {/if}
     {/if}
+    {#if sheetLaid}
+      <div class="sheet-line">
+        <span><strong>{t("Sheet origin")}</strong> · {#if draft.sheet_corner}X {distance(draft.sheet_corner[0])} · Y {distance(draft.sheet_corner[1])} {unitLabel('mm')}{:else}{t("bed corner")}{/if}</span>
+        <HoldButton class="set-sheet-origin" kind="zero" disabled={disabled || !position || !doc.machine.session.homed} title={t("The sheet's front-left corner is where the head is")} onhold={setSheetOrigin}>
+          {t('Set sheet origin here')}
+        </HoldButton>
+      </div>
+    {/if}
   </section>
 {/if}
 
@@ -107,6 +122,8 @@
   .sheet-position :global(button:disabled) { opacity:.4; cursor:default; }
   .sheet-position :global(.set-origin) { width:100%; min-height:48px; padding:0 12px; border-color:var(--accent); color:var(--accent); font-variant-numeric:tabular-nums; }
   .origin-point { display:flex; justify-content:space-between; gap:8px; align-items:center; font-size:var(--t-sm); color:var(--ink-2); }
+  .sheet-line { display:grid; gap:6px; padding-top:6px; border-top:1px solid var(--line); font-size:var(--t-sm); color:var(--ink-2); }
+  .sheet-position :global(.set-sheet-origin) { width:100%; min-height:44px; padding:0 12px; }
   .origin-reason { flex:1; min-width:0; text-align:right; color:var(--warn); font-size:var(--t-sm); }
   .sheet-position .text-button { flex:none; min-width:44px; padding:0 8px; color:var(--accent); border:0; background:transparent; font-size:var(--t-sm); }
 </style>

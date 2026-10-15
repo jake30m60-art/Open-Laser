@@ -1710,7 +1710,7 @@
   "Find a saved job…": "Gespeicherten Auftrag suchen…",
   "Find a cut job": "Geschnittenen Auftrag suchen",
   "Origin set": "Nullpunkt gesetzt",
-  "Sheet origin": "Blech-Nullpunkt",
+  "Sheet origin": "Blechnullpunkt",
   "Each run": "Jeder Lauf",
   "Positioning method": "Positionierung",
   "Set the origin at the head for each new run": "Nullpunkt bei jedem neuen Lauf an der Kopfposition setzen",
@@ -4011,5 +4011,7 @@
   "The sheet the job is cut from, with its own origin on the bed, apart from the job origin: move the laser to the sheet's front-left corner and set the sheet origin there.": "Das Blech, aus dem geschnitten wird, mit eigenem Nullpunkt auf dem Tisch, getrennt vom Werkstücknullpunkt: den Laser an die Blechecke vorne links fahren und dort den Blechnullpunkt setzen.",
   "bed corner": "Tischecke",
   "Set sheet origin here": "Blechnullpunkt hier setzen",
-  "Back to the bed corner": "Zurück auf die Tischecke"
+  "Back to the bed corner": "Zurück auf die Tischecke",
+  "Job origin": "Werkstücknullpunkt",
+  "The sheet's front-left corner is where the head is": "Die vordere linke Blechecke liegt dort, wo der Kopf steht"
 }
