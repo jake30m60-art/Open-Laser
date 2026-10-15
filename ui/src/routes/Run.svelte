@@ -264,12 +264,9 @@
         {#each draft.stock_cutouts as cutout}<path class="stock-cutout" d={pathOf(cutout, false) + 'Z'} vector-effect="non-scaling-stroke" />{/each}
       </g>
     {/if}
-    {#if ghost && displayed}
-      <g class="ghost" transform="translate({displayed.zero[0]} {displayed.zero[1]})">
-        {#each displayed.compiled.moves as move}
-          {#if move.kind !== 'travel'}<path class="path done" d={pathOf(move.points, false)} vector-effect="non-scaling-stroke"/>{/if}
-        {/each}
-      </g>
+    {#if !live}
+      <!-- Everything cut on this sheet so far, grey where it was cut. -->
+      {#each doc.sheet_cuts ?? [] as points}<path class="path done" d={pathOf(points, false)} vector-effect="non-scaling-stroke"/>{/each}
     {/if}
     <g transform="translate({frame.zero[0]} {frame.zero[1]})">
     {#each engravingLayers as layer}
@@ -280,7 +277,7 @@
     {/each}
     {#if compiled}
       {#each moves as move, i}
-        {@const finished = move.pass !== null && (retained ? recovery?.steps[move.pass]?.status === 'completed' : move.pass < done)}
+        {@const finished = !ghost && move.pass !== null && (retained ? recovery?.steps[move.pass]?.status === 'completed' : move.pass < done)}
         {#if !(move.pass !== null && engravingPasses.has(move.pass)) && ui.layerShown(finished ? 'done' : move.kind) && (move.kind !== 'travel' || !resumed && (ui.travelMode === 'all' || i === nextTravel))}
           <path
             class="path {move.kind}"

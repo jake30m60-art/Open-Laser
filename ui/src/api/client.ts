@@ -278,6 +278,8 @@ export const api = {
   setAnchor: (anchor: Anchor) => draftPost('/api/draft/anchor', { anchor }),
   /** Lets the origin stand for a point picked in the drawing, or for the anchor again with `null`. */
   setOriginPoint: (point: [number, number] | null) => draftPost('/api/draft/origin-point', { point }),
+  /** Forgets what was cut on the sheet now on the bed. */
+  clearSheetCuts: () => post('/api/sheet-cuts/clear', {}),
   /** Puts the sheet's corner at the head (no argument), at machine XY, or back on the bed minimum. */
   setSheetOrigin: (at?: [number, number] | 'clear') => draftPost('/api/draft/sheet-origin', at === 'clear' ? { clear: true } : { at }),
   /** Puts the part's anchor point at machine coordinates, or where the head is. */

@@ -91,6 +91,9 @@ pub struct Coordinator {
     pub(crate) sheet_store: crate::stock_store::Store,
     pub(crate) sheet_persistence_error: Option<String>,
     pub(crate) completed_sheet: Option<String>,
+    /// Everything cut on the sheet now on the bed, job after job, in machine
+    /// millimetres: grey on the screen, and what a remnant sketch takes.
+    pub(crate) sheet_cuts: Arc<Vec<Vec<[f64; 2]>>>,
     pub(crate) correction: crate::correction::Store,
     pub(crate) scan_offsets: crate::scan_offsets::Store,
     pub(crate) fonts: crate::font_store::Store,
@@ -294,6 +297,7 @@ impl Coordinator {
             sheet_store,
             sheet_persistence_error: None,
             completed_sheet: None,
+            sheet_cuts: Arc::new(crate::stock_store::load_sheet_cuts(&config.data_dir)),
             correction,
             scan_offsets,
             fonts,
@@ -444,6 +448,7 @@ impl Coordinator {
                 .as_ref()
                 .is_some_and(|p| p.state == openlaser_controller::state::ProgramState::Stopped)
         {
+            self.record_sheet_cuts(false);
             if let Err(error) = self.finish_sheet(false) {
                 self.sheet_persistence_error = Some(error.to_string());
             }
@@ -474,6 +479,7 @@ impl Coordinator {
         let progress = self.execution.as_ref().and_then(|execution| execution.progress(&machine));
         let document = Document {
             completed_sheet: self.completed_sheet.clone(),
+            sheet_cuts: self.sheet_cuts.clone(),
             postflight: self.postflight_notice(),
             recovery: self.recovery_view.clone(),
             persistence_error: self
@@ -1818,6 +1824,8 @@ impl Coordinator {
         let draft = self.draft_mut()?;
         draft.remember();
         draft.current.sheet_corner = corner;
+        // A sheet laid anew has nothing cut from it yet.
+        self.set_sheet_cuts(Vec::new());
         self.reprepare();
         Ok(())
     }

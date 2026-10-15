@@ -1755,6 +1755,9 @@ impl crate::Coordinator {
         if self.execution.as_ref().is_some_and(|execution| execution.frame) {
             self.execution_changed(None);
         }
+        if !matches!(outcome, Ok(Ending::Held)) {
+            self.record_sheet_cuts(matches!(outcome, Ok(Ending::Completed)));
+        }
         if !matches!(outcome, Ok(Ending::Held))
             && let Err(error) = self.finish_sheet(matches!(outcome, Ok(Ending::Completed)))
         {

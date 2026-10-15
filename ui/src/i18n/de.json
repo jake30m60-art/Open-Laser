@@ -4013,5 +4013,7 @@
   "Set sheet origin here": "Blechnullpunkt hier setzen",
   "Back to the bed corner": "Zurück auf die Tischecke",
   "Job origin": "Werkstücknullpunkt",
-  "The sheet's front-left corner is where the head is": "Die vordere linke Blechecke liegt dort, wo der Kopf steht"
+  "The sheet's front-left corner is where the head is": "Die vordere linke Blechecke liegt dort, wo der Kopf steht",
+  "{0} cut paths on this sheet": "{0} geschnittene Bahnen auf diesem Blech",
+  "Cut paths cleared": "Geschnittene Bahnen gelöscht"
 }

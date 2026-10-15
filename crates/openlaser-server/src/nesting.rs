@@ -354,6 +354,8 @@ impl Coordinator {
         draft.current.nesting = nesting;
         // Clearing an outline stock can leave its part with nothing on the sheet.
         draft.prune_parts();
+        // Another sheet has nothing cut from it yet.
+        self.set_sheet_cuts(Vec::new());
         self.reprepare();
         Ok(())
     }

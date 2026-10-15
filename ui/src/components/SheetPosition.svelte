@@ -11,6 +11,7 @@
   import { access } from '../lib/access.svelte';
   import HoldButton from './HoldButton.svelte';
   import { withBusy } from '../lib/busy';
+  import { explain } from '../lib/format';
 
   let { compact = false }: { compact?: boolean } = $props();
 
@@ -99,6 +100,12 @@
           {t('Set origin here')}{#if position} · X {distance(position[0])} · Y {distance(position[1])}{/if}
         </HoldButton>
       {/if}
+    {/if}
+    {#if doc.sheet_cuts?.length}
+      <div class="origin-line">
+        <span>{t('{0} cut paths on this sheet', doc.sheet_cuts.length)}</span>
+        <button class="text-button" disabled={disabled} onclick={() => api.clearSheetCuts().then(() => ui.say(t('Cut paths cleared'))).catch((e) => ui.say(explain(e), true))}>{t("Clear")}</button>
+      </div>
     {/if}
     {#if sheetLaid}
       <div class="sheet-line">

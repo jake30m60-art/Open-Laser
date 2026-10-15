@@ -744,6 +744,50 @@ impl Coordinator {
         })
     }
 
+    /// Adds what the ending job cut to the sheet's cuts: every cutting path
+    /// of a completed job, the passes done of a stopped one, in machine
+    /// millimetres. A dry run or a frame cuts nothing.
+    pub(crate) fn record_sheet_cuts(&mut self, completed: bool) {
+        let Some(execution) = self.execution.clone().filter(|e| !e.frame) else { return };
+        if self.held.as_ref().is_some_and(|h| h.dry_run) {
+            return;
+        }
+        let done = if completed {
+            usize::MAX
+        } else {
+            execution.progress(&self.machine.state()).map_or(0, |p| p.completed)
+        };
+        let zero = execution.sheet_offset;
+        let mut cuts = (*self.sheet_cuts).clone();
+        for m in execution.compiled.moves.iter() {
+            let cut = !matches!(m.kind, crate::document::PathKind::Travel);
+            if cut && m.pass.is_some_and(|p| p < done) && m.points.len() > 1 {
+                cuts.push(m.points.iter().map(|p| [p[0] + zero[0], p[1] + zero[1]]).collect());
+            }
+        }
+        // Bounded: a sheet engraved many times keeps its newest marks.
+        let mut total: usize = cuts.iter().map(Vec::len).sum();
+        while total > MAX_SHEET_CUT_POINTS && !cuts.is_empty() {
+            total -= cuts.remove(0).len();
+        }
+        self.set_sheet_cuts(cuts);
+    }
+
+    /// Replaces the sheet's cuts, keeps them on disk and shows them.
+    pub fn set_sheet_cuts(&mut self, cuts: Vec<Vec<[f64; 2]>>) {
+        self.sheet_cuts = Arc::new(cuts);
+        let path = self.config.data_dir.join(SHEET_CUTS_FILE);
+        match serde_json::to_vec(&*self.sheet_cuts) {
+            Ok(bytes) => {
+                if let Err(error) = std::fs::write(&path, bytes) {
+                    tracing::warn!(%error, "the sheet's cuts were not kept");
+                }
+            }
+            Err(error) => tracing::warn!(%error, "the sheet's cuts were not kept"),
+        }
+        self.execution_changed(self.execution.clone());
+    }
+
     pub(crate) fn finish_sheet(&mut self, completed: bool) -> Result<()> {
         let Some(held) = self.held.as_ref().filter(|h| !h.dry_run) else { return Ok(()) };
         let Some(plan) = held.sheet.clone() else { return Ok(()) };
@@ -927,4 +971,17 @@ mod tests {
         assert!(store.begin(&duplicate).is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
+}
+
+/// Where the sheet's cuts are kept between sessions.
+const SHEET_CUTS_FILE: &str = "sheet-cuts.json";
+/// Most points the sheet's cuts keep.
+const MAX_SHEET_CUT_POINTS: usize = 2_000_000;
+
+/// The sheet's cuts kept from the last session, or none.
+pub(crate) fn load_sheet_cuts(data_dir: &std::path::Path) -> Vec<Vec<[f64; 2]>> {
+    std::fs::read(data_dir.join(SHEET_CUTS_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
 }

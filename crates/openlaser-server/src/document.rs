@@ -16,6 +16,9 @@ use std::sync::Arc;
 pub struct Document {
     /// Most recent completed sheet; history geometry loads on demand.
     pub completed_sheet: Option<String>,
+    /// Everything cut on the sheet now on the bed, in machine millimetres.
+    #[cfg_attr(feature = "typescript", ts(type = "Array<Array<[number, number]>>"))]
+    pub sheet_cuts: Arc<Vec<Vec<[f64; 2]>>>,
     /// Retained original execution and recovery choices.
     pub recovery: Option<Arc<crate::resume::RecoveryView>>,
     /// Retained authoring edits that could not be written to disk.
@@ -171,6 +174,7 @@ impl Serialize for Patch<'_> {
         }
         if self.previous.is_none_or(|p| p.execution != d.revisions.execution) {
             map.serialize_entry("execution", &d.execution)?;
+            map.serialize_entry("sheet_cuts", &d.sheet_cuts)?;
         }
         map.end()
     }

@@ -143,6 +143,7 @@ pub fn router(shared: Shared, ui_dir: std::path::PathBuf) -> Router {
         .route("/api/draft/anchor", post(set_anchor))
         .route("/api/draft/origin-point", post(set_origin_point))
         .route("/api/draft/sheet-origin", post(set_sheet_origin))
+        .route("/api/sheet-cuts/clear", post(clear_sheet_cuts))
         .route("/api/draft/compile", post(compile))
         .route("/api/draft/save", post(save_job))
         .merge(machine_actions::routes())
@@ -1202,6 +1203,11 @@ async fn set_sheet_origin(
         Ok(Value::Null)
     })
     .await
+}
+
+async fn clear_sheet_cuts(State(shared): State<Shared>) -> Reply {
+    shared.lock().await.set_sheet_cuts(Vec::new());
+    Ok(Json(json!({ "ok": true })))
 }
 
 async fn set_origin_point(

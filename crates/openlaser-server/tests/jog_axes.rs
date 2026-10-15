@@ -351,3 +351,74 @@ async fn go_origin_when_floating_returns_to_where_the_last_job_started() {
     assert!((at[0] - 220.).abs() < 0.01 && (at[1] - 140.).abs() < 0.01, "{at:?}");
     openlaser_server::shutdown(&shared).await.unwrap();
 }
+
+#[tokio::test]
+async fn every_job_cut_on_the_sheet_is_kept_where_it_was_cut() {
+    use openlaser_controller::state::ProgramState;
+    use openlaser_core::LaserMode;
+    use openlaser_server::coordinator::{NewRecipe, Values};
+    use openlaser_server::placement::{self, PlacementChange};
+    let (_simulator, shared) = start("sheet-cuts").await;
+    connect::connect(&shared).await.unwrap();
+    let pixels = vec![0u8; 16 * 8];
+    {
+        let mut c = shared.lock().await;
+        let part = c
+            .library
+            .add_image_part("black.png", &pixels, (16, 8), pixels.clone(), [8., 4.])
+            .unwrap();
+        let recipe = c
+            .add_recipe(&NewRecipe {
+                name: "Steel".into(),
+                laser: LaserMode::Fiber,
+                thickness_mm: 1.,
+                values: Values::Bank(1),
+                gas: None,
+            })
+            .unwrap();
+        c.open_part(&part.id).unwrap();
+        c.set_recipe(&recipe.id).unwrap();
+        c.set_sheet_cuts(Vec::new());
+    }
+    machine::home(&shared).await.unwrap();
+    until(&shared, 10, |d| d.machine.session.homed && d.machine.operation.is_none()).await;
+    machine::prepare(&shared).await.unwrap();
+    let revision = shared.lock().await.document().draft_revision;
+    placement::change(&shared, PlacementChange::Head {}, revision).await.unwrap();
+    let settled = || async {
+        until(&shared, 30, |d| {
+            d.machine.operation.is_none()
+                && d.machine.feedback.as_ref().is_some_and(|f| f.stationary)
+        })
+        .await;
+    };
+    let cut_at = |x: f64, y: f64| {
+        let shared = shared.clone();
+        async move {
+            machine::go_xy(&shared, [x, y]).await.unwrap();
+            until(&shared, 30, |d| {
+                d.machine.operation.is_none()
+                    && d.machine.feedback.as_ref().is_some_and(|f| f.stationary)
+            })
+            .await;
+            common::run(&shared).await.unwrap();
+            until(&shared, 120, |d| {
+                d.machine.program.as_ref().is_some_and(|p| p.state == ProgramState::Completed)
+                    && d.machine.operation.is_none()
+            })
+            .await;
+            let revision = shared.lock().await.document().draft_revision;
+            placement::change(&shared, PlacementChange::NewRun {}, revision).await.unwrap();
+        }
+    };
+    cut_at(200., 120.).await;
+    cut_at(260., 170.).await;
+    settled().await;
+    let cuts = shared.lock().await.document().sheet_cuts.clone();
+    let near = |x: f64, y: f64| {
+        cuts.iter().flatten().any(|p| (p[0] - x).abs() < 10. && (p[1] - y).abs() < 10.)
+    };
+    assert!(near(204., 122.), "the first job's cuts are kept where it was cut");
+    assert!(near(264., 172.), "the second job's cuts are added beside it");
+    openlaser_server::shutdown(&shared).await.unwrap();
+}

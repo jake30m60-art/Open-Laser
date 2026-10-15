@@ -29,6 +29,10 @@ export type Document = {
  */
 completed_sheet: string | null,
 /**
+ * Everything cut on the sheet now on the bed, in machine millimetres.
+ */
+sheet_cuts: Array<Array<[number, number]>>,
+/**
  * Retained original execution and recovery choices.
  */
 recovery: RecoveryView | null,
