@@ -492,8 +492,15 @@
 
   // Gestures: a shape moves; turns and sizes change only through the tools
   // and typed values, never by a drag. While picking, the shapes stay put and taps go to the feature.
+  /** The rectangular sheet, while the sheet panel is open: dragging it moves it under the parts. */
+  const sheetRect = $derived(ui.setupPanel === 'sheet' && draft?.nesting?.stock.kind === 'rectangle' ? draft.nesting.stock.bounds : null);
+  let sheetDrag = $state<{ dx: number; dy: number; revision: number } | null>(null);
   const grab = (target: Element, at: Point): string | null => {
     if (canvasBusy) return null;
+    if (sheetRect) {
+      const [x, y] = toDrawing(at);
+      return x >= sheetRect.min.x && x <= sheetRect.max.x && y >= sheetRect.min.y && y <= sheetRect.max.y ? 'sheet' : null;
+    }
     const lead = target.closest<SVGGElement>('[data-lead]')?.dataset['lead'];
     if (lead !== undefined) return `lead:${lead}`;
     // Taking shapes one by one, a drag draws a box that takes more.
@@ -513,6 +520,15 @@
     if (updating) return;
     const from = toDrawing(at);
     const to = toDrawing(towards);
+    if (kind === 'sheet' && sheetRect && draft) {
+      let dx = to[0] - from[0], dy = to[1] - from[1];
+      if (ui.snap) {
+        dx = Math.round((sheetRect.min.x + zero[0] + dx) / ui.grid) * ui.grid - sheetRect.min.x - zero[0];
+        dy = Math.round((sheetRect.min.y + zero[1] + dy) / ui.grid) * ui.grid - sheetRect.min.y - zero[1];
+      }
+      sheetDrag = { dx, dy, revision: draft.revision };
+      return;
+    }
     if (kind.startsWith('lead:')) {
       if (leadDrag) { leadDrag.point = to; return; }
       const handle = leadHandles[Number(kind.slice(5))];
@@ -562,6 +578,14 @@
   }
 
   function ondragend(_kind: string, cancelled: boolean): void {
+    if (sheetDrag) {
+      const { dx, dy, revision } = sheetDrag;
+      const rect = sheetRect;
+      sheetDrag = null;
+      if (cancelled || !rect || !draft || draft.revision !== revision || (dx === 0 && dy === 0)) return;
+      api.setStock({ kind: 'rectangle', width: rect.max.x - rect.min.x, height: rect.max.y - rect.min.y, min: [rect.min.x + dx, rect.min.y + dy] }, revision).catch(fail);
+      return;
+    }
     if (leadDrag) {
       const { handle, targets, point, revision } = leadDrag;
       leadDrag = null;
@@ -889,8 +913,9 @@
     lift={lifting && local ? [local.m[4], local.m[5]] : null} lifted={liftedShapes}>
     <g transform="translate({zero[0]} {zero[1]})">
     {#if stockOutline.length}
-      <path d={pathOf(stockOutline, false) + 'Z'} fill="var(--accent)" fill-opacity="0.035" stroke="var(--accent)"
-        stroke-dasharray="8 5" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none" />
+      <path d={pathOf(stockOutline, false) + 'Z'} fill="var(--accent)" fill-opacity={sheetRect ? 0.08 : 0.035} stroke="var(--accent)"
+        transform={sheetDrag ? `translate(${sheetDrag.dx} ${sheetDrag.dy})` : undefined} style:cursor={sheetRect ? 'move' : undefined}
+        stroke-dasharray="8 5" stroke-width={sheetRect ? 2.5 : 1.5} vector-effect="non-scaling-stroke" pointer-events="none" />
     {/if}
     {#each stockCutouts as cutout}
       <path d={pathOf(cutout, false) + 'Z'} fill="var(--ink-3)" fill-opacity="0.16" stroke="var(--ink-3)"

@@ -231,7 +231,7 @@ async fn rectangle_keeps_the_fixture_position_after_nesting() {
     {
         let mut c = shared.lock().await;
         c.set_origin([146., 673.]).unwrap();
-        c.set_stock(StockChoice::Rectangle { width: 240., height: 160. }).unwrap();
+        c.set_stock(StockChoice::Rectangle { width: 240., height: 160., min: None }).unwrap();
     }
     machine::prepare(&shared).await.unwrap();
     let revision = shared.lock().await.document().draft_revision;
@@ -297,14 +297,22 @@ async fn repeat_without_selection_and_retry_after_no_fit_preserve_counts() {
     assert_eq!(view.total, 5, "no selection means all current parts at their existing counts");
     nesting::apply(&shared, second.id).await.unwrap();
     let before = shared.lock().await.draft.as_ref().unwrap().current.placed.clone();
-    shared.lock().await.set_stock(StockChoice::Rectangle { width: 15., height: 15. }).unwrap();
+    shared
+        .lock()
+        .await
+        .set_stock(StockChoice::Rectangle { width: 15., height: 15., min: None })
+        .unwrap();
     machine::prepare(&shared).await.unwrap();
     let revision = shared.lock().await.document().draft_revision;
     let failed = nesting::start(&shared, revision, again.clone()).await.unwrap();
     assert!(finished(&shared, failed.id).await.error.unwrap().contains("add a larger sheet"));
     assert!(nesting::apply(&shared, failed.id).await.is_err());
     assert_eq!(shared.lock().await.draft.as_ref().unwrap().current.placed, before);
-    shared.lock().await.set_stock(StockChoice::Rectangle { width: 240., height: 160. }).unwrap();
+    shared
+        .lock()
+        .await
+        .set_stock(StockChoice::Rectangle { width: 240., height: 160., min: None })
+        .unwrap();
     machine::prepare(&shared).await.unwrap();
     let revision = shared.lock().await.document().draft_revision;
     let retry = nesting::start(&shared, revision, again).await.unwrap();
@@ -390,4 +398,29 @@ async fn new_sheets_on_auto_take_as_many_as_the_parts_need() {
     assert!(result.sheets.len() > 1, "more than one sheet was needed");
     assert_eq!(result.sheets.iter().map(|p| p.parts).sum::<usize>(), 66);
     assert!(result.sheets.iter().all(|p| p.parts > 0), "no empty sheet is opened");
+}
+
+#[tokio::test]
+async fn a_sheet_is_placed_where_it_was_moved_and_turned_about_its_corner() {
+    let (_sim, shared) = start("sheet-place").await;
+    setup(&shared).await;
+    let mut c = shared.lock().await;
+    let bounds =
+        |c: &openlaser_server::Coordinator| match &c.draft.as_ref().unwrap().current.nesting {
+            Some(n) => match n.stock {
+                openlaser_core::nesting::NestStock::Rectangle { bounds } => {
+                    [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y]
+                }
+                _ => panic!("not a rectangle"),
+            },
+            None => panic!("no sheet"),
+        };
+    c.set_stock(StockChoice::Rectangle { width: 300., height: 200., min: Some([-10., 5.]) })
+        .unwrap();
+    assert_eq!(bounds(&c), [-10., 5., 290., 205.]);
+    // A quarter turn: the sizes swap about the same front-left corner.
+    c.set_stock(StockChoice::Rectangle { width: 200., height: 300., min: Some([-10., 5.]) })
+        .unwrap();
+    assert_eq!(bounds(&c), [-10., 5., 190., 305.]);
+    assert!(c.set_stock(StockChoice::Rectangle { width: 0., height: 300., min: None }).is_err());
 }

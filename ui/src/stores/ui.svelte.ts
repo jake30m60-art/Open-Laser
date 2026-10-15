@@ -43,7 +43,7 @@ export interface Picking {
 const DRAW_BAR = ['fit', 'zoom-in', 'zoom-out', 'snap', 'grid', 'origin', 'layer', 'mirror-x', 'mirror-y', 'turn', 'scale', 'center', 'reset', 'group', 'ungroup', 'copy', 'paste', 'delete', 'whole-part', 'deselect', 'undo', 'redo'];
 
 /** The machining bar's default order: every machining tool, then nesting and copying. */
-const MACHINING_BAR = [...FEATURE_IDS, 'engrave', 'nest', 'simulation', 'copy'];
+const MACHINING_BAR = ['sheet', ...FEATURE_IDS, 'engrave', 'nest', 'simulation', 'copy'];
 
 /** A saved order keeps only known tools and gains tools added since it was saved. */
 function withAll(order: string[], all: string[]): string[] {
@@ -92,7 +92,7 @@ class Ui {
    *  the library is not picking. */
   partPicks = $state<string[] | null>(null);
   selectedRecipe = $state<string | null>(null);
-  setupPanel = $state<FeatureId | 'copy' | 'clipboard' | 'nest' | 'engrave' | 'simulation' | null>(null);
+  setupPanel = $state<FeatureId | 'copy' | 'clipboard' | 'nest' | 'engrave' | 'simulation' | 'sheet' | null>(null);
   /** The layer the machining panels edit; none edits the job's own. */
   machiningLayer = $state<string | null>(null);
   /** The layer whose settings sheet is open. */

@@ -397,7 +397,7 @@ async fn a_completed_cut_takes_its_sheet_off_the_rack_once() {
         .unwrap()
     };
     machine::prepare(&server.shared).await.unwrap();
-    let turned = StockChoice::Rectangle { width: 120., height: 80. };
+    let turned = StockChoice::Rectangle { width: 120., height: 80., min: None };
     server.shared.lock().await.set_stock(turned).unwrap();
     machine::prepare(&server.shared).await.unwrap();
     connect::connect(&server.shared).await.unwrap();

@@ -33,6 +33,11 @@ pub enum StockChoice {
         width: f64,
         /// Height in millimetres.
         height: f64,
+        /// Its front-left corner in drawing coordinates: where the operator
+        /// moved or turned it. Absent, it starts at the bed minimum.
+        #[serde(default)]
+        #[cfg_attr(feature = "typescript", ts(optional))]
+        min: Option<[f64; 2]>,
     },
     /// Remove just this closed contour from cutting and retain it as stock.
     Outline {
@@ -274,28 +279,42 @@ impl Coordinator {
             draft.current.nesting.as_ref().map_or_else(NestSettings::default, |n| n.settings);
         let remove =
             if let StockChoice::Outline { contour } = &choice { Some(*contour) } else { None };
-        let reference =
-            match choice {
-                StockChoice::Remnant { id } => Some(self.remnant(draft, &id)?),
-                StockChoice::Clear => None,
-                StockChoice::Outline { contour } => {
-                    let placed =
-                        draft.current.placed.get(contour).copied().ok_or_else(|| {
-                            Error::Request("select a closed sheet outline".into())
-                        })?;
-                    if draft.current.placed.len() <= 1 {
-                        return Err(Error::Request(
-                            "the sheet outline needs at least one other contour to nest".into(),
-                        ));
-                    }
-                    let shape = placed.transform.contour(&drawing.contours[placed.source]);
-                    openlaser_nest::polygon(&shape).map_err(|e| Error::Request(e.to_string()))?;
-                    Some(NestStock::Outline { contour: placed })
+        let reference = match choice {
+            StockChoice::Remnant { id } => Some(self.remnant(draft, &id)?),
+            StockChoice::Clear => None,
+            StockChoice::Outline { contour } => {
+                let placed = draft
+                    .current
+                    .placed
+                    .get(contour)
+                    .copied()
+                    .ok_or_else(|| Error::Request("select a closed sheet outline".into()))?;
+                if draft.current.placed.len() <= 1 {
+                    return Err(Error::Request(
+                        "the sheet outline needs at least one other contour to nest".into(),
+                    ));
                 }
-                StockChoice::Rectangle { width, height } => {
-                    Some(self.rectangle(draft, &drawing, width, height))
+                let shape = placed.transform.contour(&drawing.contours[placed.source]);
+                openlaser_nest::polygon(&shape).map_err(|e| Error::Request(e.to_string()))?;
+                Some(NestStock::Outline { contour: placed })
+            }
+            StockChoice::Rectangle { width, height, min } => {
+                if !(width.is_finite() && height.is_finite() && width > 0. && height > 0.)
+                    || min.is_some_and(|m| !m.iter().all(|v| v.is_finite()))
+                {
+                    return Err(Error::Request("enter the actual sheet width and height".into()));
                 }
-            };
+                Some(match min {
+                    Some([x, y]) => NestStock::Rectangle {
+                        bounds: Bounds {
+                            min: Point::new(x, y),
+                            max: Point::new(x + width, y + height),
+                        },
+                    },
+                    None => self.rectangle(draft, &drawing, width, height),
+                })
+            }
+        };
         let nesting = reference.map(|stock| Nesting { stock, settings });
         if let Some(nesting) = &nesting {
             nesting.validate(drawing.contours.len()).map_err(Error::Request)?;

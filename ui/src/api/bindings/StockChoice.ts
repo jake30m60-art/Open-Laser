@@ -15,7 +15,12 @@ width: number,
 /**
  * Height in millimetres.
  */
-height: number, } | { "kind": "outline",
+height: number,
+/**
+ * Its front-left corner in drawing coordinates: where the operator
+ * moved or turned it. Absent, it starts at the bed minimum.
+ */
+min?: [number, number], } | { "kind": "outline",
 /**
  * Placed contour index.
  */

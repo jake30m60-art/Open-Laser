@@ -81,12 +81,13 @@
   const engravingPaths = $derived(compiled?.engraving_paths ?? (preview?.contours ?? []).filter(c => !c.closed && engravingRegions.some(r => r.layer === c.layer)).flatMap(c => c.paths.filter(p => p.kind === 'cut')));
   const engravingLayers = $derived([...new Set(engravingRegions.map(c => c.layer))]);
   const jobName = $derived(displayed?.name ?? (draft?.name || 'untitled'));
+  // A job running, paused or being recovered stays where it was cut; a
+  // finished one gives way to the next run: floating, it follows the head.
+  const live = $derived(['running', 'finishing', 'held'].includes(program?.state ?? '') || !!retained);
   const frame = $derived.by(() => {
     const frame = frameOf(doc);
-    if (displayed) return { ...frame, zero: displayed.zero, origin: displayed.origin };
-    if (draft?.placement.mode === 'head' && !draft.placement.captured && frame.head && draft.dock) {
-      return { ...frame, origin: frame.head, zero: [frame.head[0] - draft.dock[0], frame.head[1] - draft.dock[1]] as [number, number] };
-    }
+    const floating = draft?.placement.mode === 'head' && !!frame.head && !!draft.dock;
+    if (displayed && (live || !floating)) return { ...frame, zero: displayed.zero, origin: displayed.origin };
     return frame;
   });
 
@@ -243,7 +244,7 @@
 
   {#if !recovering && !running && !paused}<SheetStrip />{/if}
   <Stage {view} variant="run-canvas" bed={frame.bed} head={frame.head} origin={frame.origin} ontap={pickRestart}>
-    {#if draft?.stock_outline.length && !displayed}
+    {#if draft?.stock_outline.length && (!displayed || !live)}
       <g transform="translate({frame.zero[0]} {frame.zero[1]})">
         <path class="stock-reference" d={pathOf(draft.stock_outline, false) + 'Z'} vector-effect="non-scaling-stroke" />
         {#each draft.stock_cutouts as cutout}<path class="stock-cutout" d={pathOf(cutout, false) + 'Z'} vector-effect="non-scaling-stroke" />{/each}

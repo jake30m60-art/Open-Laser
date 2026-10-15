@@ -328,7 +328,11 @@ async fn nested_sheets_save_as_jobs_of_their_own_parts() {
     }
     machine::prepare(&shared).await.unwrap();
     // The plate fills one 120 × 80 sheet; the tab and the disc need another.
-    shared.lock().await.set_stock(StockChoice::Rectangle { width: 120., height: 80. }).unwrap();
+    shared
+        .lock()
+        .await
+        .set_stock(StockChoice::Rectangle { width: 120., height: 80., min: None })
+        .unwrap();
     machine::prepare(&shared).await.unwrap();
     // Two sheets of that size, chosen: none opens unasked.
     let two = vec![StockSource::Sheet { width: 120., height: 80., count: 2 }];
@@ -365,7 +369,11 @@ async fn a_running_nest_shows_its_arrangement_as_it_goes() {
         c.set_features(Features { leads: None, kerf: None, ..Features::default() }).unwrap();
     }
     machine::prepare(&shared).await.unwrap();
-    shared.lock().await.set_stock(StockChoice::Rectangle { width: 600., height: 400. }).unwrap();
+    shared
+        .lock()
+        .await
+        .set_stock(StockChoice::Rectangle { width: 600., height: 400., min: None })
+        .unwrap();
     machine::prepare(&shared).await.unwrap();
     let revision = shared.lock().await.document().draft_revision;
     let groups = shared.lock().await.draft.as_ref().unwrap().groups.len();

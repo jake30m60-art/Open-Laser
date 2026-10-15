@@ -12,6 +12,7 @@
   import CopyPanel from './setup/CopyPanel.svelte';
   import ClipboardPanel from './setup/ClipboardPanel.svelte';
   import NestPanel from './setup/NestPanel.svelte';
+  import SheetPanel from './setup/SheetPanel.svelte';
   import EngravePanel from './setup/EngravePanel.svelte';
   import SimulationPanel from './setup/SimulationPanel.svelte';
   import CreateText from '../components/CreateText.svelte';
@@ -37,7 +38,7 @@
   const doc = $derived(server.doc!);
   const draft = $derived(doc.draft);
 
-  const EXTRA = [{ id: 'simulation', short: t("Simulation") }, { id: 'engrave', short: t("Engrave") }, { id: 'nest', short: t("Nest parts") }, { id: 'copy', short: t("Copy job") }];
+  const EXTRA = [{ id: 'sheet', short: t("Sheet") }, { id: 'simulation', short: t("Simulation") }, { id: 'engrave', short: t("Engrave") }, { id: 'nest', short: t("Nest parts") }, { id: 'copy', short: t("Copy job") }];
   let texting = $state(false);
   let manualCutOpen=$state(false);
   let selectedContours = $state<number[]>([]);
@@ -108,7 +109,7 @@
       on: () => ui.setupPanel === t.id, set: () => !!draft && toolbarOn(featureEdits.value(draft), t.id), disabled: () => false, run: () => runTool(t.id),
     }]),
     ...EXTRA.map((t): [string, Tool] => [t.id, {
-      label: t.short, when: 'always', icon: t.id === 'simulation' ? 'ic-tool-order' : t.id === 'nest' ? 'ic-tool-nest' : t.id === 'engrave' ? 'ic-tool-engrave' : 'ic-copy', on: () => ui.setupPanel === t.id, disabled: () => false, run: () => runTool(t.id),
+      label: t.short, when: 'always', icon: t.id === 'sheet' ? 'ic-frame' : t.id === 'simulation' ? 'ic-tool-order' : t.id === 'nest' ? 'ic-tool-nest' : t.id === 'engrave' ? 'ic-tool-engrave' : 'ic-copy', on: () => ui.setupPanel === t.id, disabled: () => false, run: () => runTool(t.id),
     }]),
   ]));
 
@@ -144,6 +145,8 @@
     {#key ui.engravingSession}<EngravePanel {selectedContours} regions={engravingAreas} bind:pickMode={engraveMode} onclear={() => canvas?.clearSelection()} onfocus={source => canvas?.focusContour(source)} onremove={source => canvas?.removeEngraving(source)} />{/key}
   {:else if ui.setupPanel === 'simulation'}
     <SimulationPanel bind:progress={simulationProgress} bind:mode={simulationMode} />
+  {:else if ui.setupPanel === 'sheet'}
+    <SheetPanel />
   {:else if ui.setupPanel === 'nest'}
     <NestPanel {selectedContours} onselectall={() => canvas?.selectAll()} />
   {:else if ui.setupPanel}

@@ -3991,5 +3991,12 @@
   "Floating": "Fliegend",
   "follows the head": "folgt dem Kopf",
   "The origin follows the head; each start takes it where it stands": "Der Nullpunkt folgt dem Kopf; jeder Start nimmt ihn dort, wo der Kopf gerade steht",
-  "Set by holding Set origin here: stays at that machine position": "Wird mit „Nullpunkt hier setzen“ (halten) gesetzt und bleibt an dieser Maschinenposition"
+  "Set by holding Set origin here: stays at that machine position": "Wird mit „Nullpunkt hier setzen“ (halten) gesetzt und bleibt an dieser Maschinenposition",
+  "Sheet removed · Undo brings it back": "Blech entfernt · Rückgängig holt es zurück",
+  "The sheet the job is cut from. Drag it on the drawing to move it under the parts; its front-left corner is where the origin goes.": "Das Blech, aus dem der Auftrag geschnitten wird. Zum Verschieben auf der Zeichnung ziehen; seine Ecke vorne links ist der Nullpunkt.",
+  "The job uses a remnant or an outline as its sheet.": "Der Auftrag verwendet ein Restblech oder eine Kontur als Blech.",
+  "Change sheet size": "Blechgröße ändern",
+  "Add sheet": "Blech hinzufügen",
+  "Turn 90°": "90° drehen",
+  "Remove sheet": "Blech entfernen"
 }

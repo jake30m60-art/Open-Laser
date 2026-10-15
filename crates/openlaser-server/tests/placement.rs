@@ -89,7 +89,7 @@ async fn offline_head_jobs_save_intent_and_fixed_jobs_save_homed_xy() {
     assert!(saved.sheet_offset.is_none());
     assert!(c.change_placement(PlacementChange::SetOrigin {}).is_err());
     assert!(c.draft.as_ref().unwrap().current.sheet_offset.is_none());
-    c.set_stock(StockChoice::Rectangle { width: 250., height: 200. }).unwrap();
+    c.set_stock(StockChoice::Rectangle { width: 250., height: 200., min: None }).unwrap();
     drop(c);
     machine::prepare(&shared).await.unwrap();
     let control = simulator.control();

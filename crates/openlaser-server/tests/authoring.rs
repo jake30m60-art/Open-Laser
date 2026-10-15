@@ -32,13 +32,13 @@ async fn opening_a_part_starts_fresh_while_jobs_and_pending_setups_keep_their_sh
             .unwrap();
         c.open_part(&part.id).unwrap();
         c.set_recipe(&recipe.id).unwrap();
-        c.set_stock(StockChoice::Rectangle { width: 150., height: 100. }).unwrap();
+        c.set_stock(StockChoice::Rectangle { width: 150., height: 100., min: None }).unwrap();
         let job = c.save_job("Saved sheet").unwrap();
         let saved_nesting = c.draft.as_ref().unwrap().current.nesting.clone();
 
         c.open_part(&part.id).unwrap();
         assert!(c.draft.as_ref().unwrap().current.recipe.is_none());
-        c.set_stock(StockChoice::Rectangle { width: 200., height: 120. }).unwrap();
+        c.set_stock(StockChoice::Rectangle { width: 200., height: 120., min: None }).unwrap();
         c.transform(&[0], Some(Transform([1., 0., 0., 1., 5., 7.]))).unwrap();
         let first = key(c.draft.as_ref().unwrap());
         let first_nesting = c.draft.as_ref().unwrap().current.nesting.clone();
@@ -60,7 +60,7 @@ async fn opening_a_part_starts_fresh_while_jobs_and_pending_setups_keep_their_sh
             [&first]
         );
 
-        c.set_stock(StockChoice::Rectangle { width: 250., height: 180. }).unwrap();
+        c.set_stock(StockChoice::Rectangle { width: 250., height: 180., min: None }).unwrap();
         let second = key(c.draft.as_ref().unwrap());
         let second_nesting = c.draft.as_ref().unwrap().current.nesting.clone();
         c.open_retained(&first).unwrap();
@@ -105,7 +105,7 @@ async fn legacy_part_drafts_remain_recoverable_without_attaching_to_reopened_par
             .import_part("line.dxf", &std::fs::read(fixture("dxf/minimal-line.dxf")).unwrap())
             .unwrap();
         c.open_part(&part.id).unwrap();
-        c.set_stock(StockChoice::Rectangle { width: 200., height: 120. }).unwrap();
+        c.set_stock(StockChoice::Rectangle { width: 200., height: 120., min: None }).unwrap();
         let draft = c.draft.as_ref().unwrap();
         let old_key = openlaser_server::workspace::key(draft);
         let mut legacy = serde_json::to_value(draft).unwrap();
