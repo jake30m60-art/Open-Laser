@@ -399,7 +399,17 @@ impl Motion {
                 self.bound_recovery(snapshot, axis, now)?;
             }
         } else if let Some(positive) = self.table {
-            admit_alarms(snapshot.table_jog_alarms_clear(positive), blocked)?;
+            admit_alarms(snapshot.table_jog_alarms_clear(positive), blocked).map_err(|error| {
+                // The raw words, until table recovery is confirmed on the machine.
+                format!(
+                    "{error} (table {}, axis 4 status {:#x}, group 1 {:#x}, group 2 {:#x}, head {:#x})",
+                    if positive { "+" } else { "-" },
+                    snapshot.axes.axis(4).status,
+                    snapshot.status.alarm_group_1(),
+                    snapshot.status.alarm_group_2(),
+                    snapshot.head.alarm_word()
+                )
+            })?;
             if !snapshot.outputs_off(0) {
                 return Err("outputs are on".into());
             }
