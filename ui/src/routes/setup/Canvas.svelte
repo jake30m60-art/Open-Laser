@@ -10,6 +10,7 @@
   // apart and further each time; undo and redo are the server's. While a panel asks for places, a tap
   // snaps to a contour and the feature takes the spot.
   import { untrack } from 'svelte';
+  import { keepPendingPicks } from '../../lib/pending-picks.svelte';
   import Stage from '../../components/Stage.svelte';
   import ToolBar, { type Tool } from './ToolBar.svelte';
   import LayerAssign from './LayerAssign.svelte';
@@ -148,7 +149,7 @@
     const key = `${draft?.generation ?? ''}/${draft?.job ?? ''}/${frame.bed ? 'bed' : ''}/${content ? 'parts' : ''}/${sheetKey}`;
     if (key !== fitted) { fitted = key; untrack(fit); }
   });
-  $effect(() => () => { ui.picking = null; ui.originPicking = false; });
+  $effect(() => () => { keepPendingPicks(); ui.originPicking = false; });
 
   // Shapes: the preview contours of each group, by the drawing contour they came from.
   const groupOf = $derived(new Map(groups.flatMap((members, g) => members.map((c) => [c, g] as const))));

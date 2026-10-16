@@ -19,6 +19,7 @@
   import { featureEdits } from '../stores/feature-edits';
   import { server } from '../stores/server.svelte';
   import { ui } from '../stores/ui.svelte';
+  import { keepPendingPicks } from '../lib/pending-picks.svelte';
   import { explain } from '../lib/format';
   import { pasteable, type CopiedShapes, type PasteSettings } from '../lib/copy-paste';
   import { editableContours, fillAreas } from '../lib/viewer-geometry';
@@ -69,7 +70,7 @@
   }
 
   function runTool(id: string): void {
-    ui.picking = null;
+    keepPendingPicks();
     ui.jobOverviewOpen = false;
     if (id === 'engrave') {
       const names = new Set(draft?.layers.map(l=>l.name) ?? []);

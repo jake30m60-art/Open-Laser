@@ -4029,5 +4029,6 @@
   "Behaviour": "Verhalten",
   "{0} layers or selections keep their own leads without this one.": "{0} Ebenen oder Auswahlen haben eigene Einstellungen ohne diesen Anschnitt bzw. Auslauf.",
   "Add it there too": "Dort auch einschalten",
-  "Clear cut parts": "Geschnittene Teile löschen"
+  "Clear cut parts": "Geschnittene Teile löschen",
+  "The picked places were not kept; the drawing changed. Pick them again.": "Die gewählten Stellen wurden nicht übernommen, die Zeichnung hat sich geändert. Bitte neu wählen."
 }
