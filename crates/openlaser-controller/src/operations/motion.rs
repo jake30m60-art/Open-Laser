@@ -85,6 +85,9 @@ pub struct Motion {
     recovery_deadline: Option<Instant>,
     /// A table move and its direction: it may leave a table limit.
     table: Option<bool>,
+    /// A table move that started on a table limit, possibly before
+    /// initialization: it runs on the measured axis units.
+    table_recovery: bool,
 }
 
 impl Motion {
@@ -140,6 +143,7 @@ impl Motion {
             parameters: *verified,
             recovery_deadline: None,
             table: None,
+            table_recovery: false,
         })
     }
 
@@ -202,7 +206,9 @@ impl Motion {
     /// Recovery can precede session initialization. Its measured parameters
     /// are checked again before the first write and throughout the move.
     pub(crate) fn recovering_limit(&self, snapshot: &Snapshot) -> bool {
-        self.jog.is_some() && (self.recovery_deadline.is_some() || snapshot.xy_limit_alarms())
+        self.table_recovery
+            || (self.jog.is_some()
+                && (self.recovery_deadline.is_some() || snapshot.xy_limit_alarms()))
     }
 
     pub(crate) fn concession(&self, snapshot: &Snapshot) -> Concession {
@@ -414,6 +420,7 @@ impl Motion {
                 return Err("outputs are on".into());
             }
             admit_idle(snapshot)?;
+            self.table_recovery = snapshot.axes.axis(4).status & 0xf != 0;
         } else {
             admit_positioning(snapshot, blocked)?;
         }
