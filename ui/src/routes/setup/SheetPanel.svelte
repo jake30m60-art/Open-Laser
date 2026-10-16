@@ -80,13 +80,15 @@
       </HoldButton>
       {#if corner}<button class="btn btn-ghost" disabled={busy} onclick={() => setOrigin('clear')}>{t("Back to the bed corner")}</button>{/if}
     </div>
-    <button class="btn btn-ghost block" disabled={busy || !cuts} onclick={clearCuts}>
-      <i class="ic ic-trash"></i>{t("Clear cut parts")}{#if cuts} · {t('{0} cut paths on this sheet', cuts)}{/if}
-    </button>
     <div class="row">
       <button class="btn btn-ghost" disabled={busy} onclick={turn}><i class="ic ic-rotate"></i>{t("Turn 90°")}</button>
       <button class="btn btn-ghost" disabled={busy} onclick={remove}><i class="ic ic-trash"></i>{t("Remove sheet")}</button>
     </div>
+  {/if}
+  {#if cuts}
+    <button class="btn btn-ghost block" disabled={busy} onclick={clearCuts}>
+      <i class="ic ic-trash"></i>{t("Clear cut parts")} · {t('{0} cut paths on this sheet', cuts)}
+    </button>
   {/if}
 </div>
 

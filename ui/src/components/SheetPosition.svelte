@@ -101,18 +101,18 @@
         </HoldButton>
       {/if}
     {/if}
-    {#if doc.sheet_cuts?.length}
-      <div class="origin-line">
-        <span>{t('{0} cut paths on this sheet', doc.sheet_cuts.length)}</span>
-        <button class="btn btn-ghost" disabled={disabled} onclick={() => api.clearSheetCuts().then(() => ui.say(t('Cut paths cleared'))).catch((e) => ui.say(explain(e), true))}><i class="ic ic-trash"></i>{t("Clear cut parts")}</button>
-      </div>
-    {/if}
     {#if sheetLaid}
       <div class="sheet-line">
         <span><strong>{t("Sheet origin")}</strong> · {#if draft.sheet_corner}X {distance(draft.sheet_corner[0])} · Y {distance(draft.sheet_corner[1])} {unitLabel('mm')}{:else}{t("bed corner")}{/if}</span>
         <HoldButton class="set-sheet-origin" kind="zero" disabled={disabled || !position || !doc.machine.session.homed} title={t("The sheet's front-left corner is where the head is")} onhold={setSheetOrigin}>
           {t('Set sheet origin here')}
         </HoldButton>
+      </div>
+    {/if}
+    {#if doc.sheet_cuts?.length}
+      <div class="origin-line">
+        <span>{t('{0} cut paths on this sheet', doc.sheet_cuts.length)}</span>
+        <button class="btn btn-ghost" disabled={disabled} onclick={() => api.clearSheetCuts().then(() => ui.say(t('Cut paths cleared'))).catch((e) => ui.say(explain(e), true))}><i class="ic ic-trash"></i>{t("Clear cut parts")}</button>
       </div>
     {/if}
   </section>
