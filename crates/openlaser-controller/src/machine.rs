@@ -1191,7 +1191,7 @@ impl Task {
     }
 
     async fn change_axis(&mut self, lease: &Lease, change: AxisChange) -> Result<()> {
-        let snapshot = self.connected()?.clone();
+        let snapshot = *self.connected()?;
         let Some(active) = self.active.as_mut().filter(|a| a.lease.as_ref() == Some(lease)) else {
             return Err(Error::Refused("this press holds no jog".into()));
         };

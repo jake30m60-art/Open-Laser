@@ -450,14 +450,20 @@ pub async fn follow(shared: &Shared) -> Result<()> {
         c.follow_action()?
     };
     shared.machine.head(action).await?;
+    MANUAL_FOLLOW.store(true, std::sync::atomic::Ordering::SeqCst);
     Ok(())
 }
+
+/// Whether the last manual head command was Follow, not yet raised: the
+/// head's command word alone does not show it once the head has settled.
+pub static MANUAL_FOLLOW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// The Follow button again: the head retracts to the safe height the stop
 /// raises it to.
 pub async fn raise_head(shared: &Shared) -> Result<()> {
     shared.ensure_running()?;
     shared.lock().await.idle()?;
+    MANUAL_FOLLOW.store(false, std::sync::atomic::Ordering::SeqCst);
     shared.machine.head(openlaser_controller::operations::head::HeadAction::Raise).await?;
     Ok(())
 }

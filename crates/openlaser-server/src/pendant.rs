@@ -385,11 +385,15 @@ impl Pendant {
             (Key::Follow, _) => {
                 // As the screen's Follow button: the head's own command says
                 // whether it follows now (104 or 117), so a second press raises it.
-                let following = shared
-                    .machine
-                    .state()
-                    .feedback
-                    .is_some_and(|f| matches!(f.head.command, 104 | 117));
+                // Once settled the head may report another command, so a
+                // Follow not yet raised counts too: a second press never
+                // sends the head down again.
+                let following = machine::MANUAL_FOLLOW.load(std::sync::atomic::Ordering::SeqCst)
+                    || shared
+                        .machine
+                        .state()
+                        .feedback
+                        .is_some_and(|f| matches!(f.head.command, 104 | 117));
                 if following {
                     machine::raise_head(shared).await?;
                 } else {
