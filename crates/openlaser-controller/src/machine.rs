@@ -955,7 +955,10 @@ impl Task {
         let (snapshot, bindings) = self.ready()?;
         // An initial limit can prevent settings initialization. A recovery
         // pulse uses the measured axis units without accepting them for jobs.
-        let verified = if matches!(travel, Travel::Jog) && snapshot.xy_limit_alarms() {
+        let table_limit = snapshot.axes.axis(4).status & 0xf != 0;
+        let verified = if (matches!(travel, Travel::Jog) && snapshot.xy_limit_alarms())
+            || (matches!(travel, Travel::Table(_)) && table_limit)
+        {
             snapshot.parameters().map_err(|error| Error::Refused(error.to_string()))?
         } else {
             *self.verified_parameters()?

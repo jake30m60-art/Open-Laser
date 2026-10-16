@@ -538,7 +538,12 @@ impl TableRequest {
 
 fn table_request(c: &crate::Coordinator, request: TableRequest) -> Result<(Request, [i32; 2])> {
     c.idle()?;
-    let verified = c.measured_configuration()?.verified;
+    // A table limit at connection can prevent initialization; leaving it
+    // uses the measured axis units, as an X/Y limit recovery does.
+    let verified = match c.measured_configuration() {
+        Ok(configuration) => configuration.verified,
+        Err(error) => c.machine.state().observed_parameters.ok_or(error)?,
+    };
     let bound = c.bound()?;
     let table = bound
         .table
