@@ -96,6 +96,17 @@
   };
   /** On or off; for a layer or a selection, its own. */
   function toggle(): void {
+    // Entry and exit leads are two tools: each switch is its own lead's,
+    // and the leads go only once neither is left.
+    if (id === 'leads') {
+      const role = exit ? 'exit' : 'entry';
+      set((f) => {
+        const l = f.leads ?? { ...defaultLeads(), entry: null, exit: null };
+        l[role] = l[role] ? null : defaultLeads()[role] ?? { shape: 'line', length: 1, radius: 1, angle: 45 };
+        f.leads = l.entry || l.exit ? l : null;
+      });
+      return;
+    }
     if (!scope && !inSelection) { ontoggle(); return; }
     set((f) => { Object.assign(f, toggled(f, id)); });
   }
@@ -129,7 +140,7 @@
 {#if !compact || tool.optional}
   <div class="feat-head">
     <h2 class="feat-title"><i class="ic ic-tool-{id}"></i>{compact ? t("Enabled") : exit ? t("Exit lead and seam") : tool.name}</h2>
-    {#if tool.optional}<button class="switch" class:on={on} onclick={toggle} aria-label={t("On")}></button>{/if}
+    {#if tool.optional}<button class="switch" class:on={id === 'leads' ? !!features.leads?.[exit ? 'exit' : 'entry'] : on} onclick={toggle} aria-label={t("On")}></button>{/if}
     {#if !compact}<button class="btn btn-ghost" onclick={close}>{t("Close")}</button>{/if}
   </div>
 {/if}
