@@ -802,6 +802,12 @@ impl Coordinator {
         self.binding_view = self.bound.as_ref().map(|b| Arc::new(bindings_view(b)));
     }
 
+    /// Marks the execution view changed for the next publish, without
+    /// publishing now.
+    pub(crate) fn execution_touched(&mut self) {
+        self.revisions.execution += 1;
+    }
+
     pub(crate) fn execution_changed(&mut self, execution: Option<Arc<ExecutionView>>) {
         self.execution = execution;
         self.revisions.execution += 1;

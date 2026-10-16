@@ -765,7 +765,7 @@ impl Coordinator {
         };
         let zero = execution.sheet_offset;
         let mut cuts = (*self.sheet_cuts).clone();
-        for m in execution.compiled.moves.iter() {
+        for m in &execution.compiled.moves {
             let cut = !matches!(m.kind, crate::document::PathKind::Travel);
             if cut && m.pass.is_some_and(|p| p < done) && m.points.len() > 1 {
                 cuts.push(m.points.iter().map(|p| [p[0] + zero[0], p[1] + zero[1]]).collect());
@@ -776,7 +776,12 @@ impl Coordinator {
         while total > MAX_SHEET_CUT_POINTS && !cuts.is_empty() {
             total -= cuts.remove(0).len();
         }
-        self.set_sheet_cuts(cuts);
+        // This runs inside a publish when a held job is stopped: keeping
+        // the cuts must not publish again, or that publish records them
+        // anew, without end. The publish under way, or the note after a
+        // job, shows them.
+        self.keep_sheet_cuts(cuts);
+        self.execution_touched();
     }
 
     /// Replaces the outlines cut out of the sheet, kept on disk.
@@ -794,6 +799,12 @@ impl Coordinator {
     /// Replaces the sheet's cuts, keeps them on disk and shows them; with
     /// none, the sheet starts afresh and its cut-out outlines go too.
     pub fn set_sheet_cuts(&mut self, cuts: Vec<Vec<[f64; 2]>>) {
+        self.keep_sheet_cuts(cuts);
+        self.execution_changed(self.execution.clone());
+    }
+
+    /// Replaces the sheet's cuts and keeps them on disk, without publishing.
+    fn keep_sheet_cuts(&mut self, cuts: Vec<Vec<[f64; 2]>>) {
         if cuts.is_empty() && !self.sheet_removed.is_empty() {
             self.set_sheet_removed(Vec::new());
         }
@@ -807,7 +818,6 @@ impl Coordinator {
             }
             Err(error) => tracing::warn!(%error, "the sheet's cuts were not kept"),
         }
-        self.execution_changed(self.execution.clone());
     }
 
     pub(crate) fn finish_sheet(&mut self, completed: bool) -> Result<()> {
@@ -886,6 +896,30 @@ impl Coordinator {
         self.library_changed();
         Ok(id)
     }
+}
+
+/// Where the sheet's cuts are kept between sessions.
+const SHEET_CUTS_FILE: &str = "sheet-cuts.json";
+/// Most points the sheet's cuts keep.
+const MAX_SHEET_CUT_POINTS: usize = 2_000_000;
+
+/// The sheet's cuts kept from the last session, or none.
+pub(crate) fn load_sheet_cuts(data_dir: &std::path::Path) -> Vec<Vec<[f64; 2]>> {
+    std::fs::read(data_dir.join(SHEET_CUTS_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+/// Where the outlines cut out of the sheet are kept between sessions.
+const SHEET_REMOVED_FILE: &str = "sheet-removed.json";
+
+/// The outlines cut out of the sheet, kept from the last session, or none.
+pub(crate) fn load_sheet_removed(data_dir: &std::path::Path) -> Vec<Contour> {
+    std::fs::read(data_dir.join(SHEET_REMOVED_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -1005,28 +1039,4 @@ mod tests {
         assert!(store.begin(&duplicate).is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
-}
-
-/// Where the sheet's cuts are kept between sessions.
-const SHEET_CUTS_FILE: &str = "sheet-cuts.json";
-/// Most points the sheet's cuts keep.
-const MAX_SHEET_CUT_POINTS: usize = 2_000_000;
-
-/// The sheet's cuts kept from the last session, or none.
-pub(crate) fn load_sheet_cuts(data_dir: &std::path::Path) -> Vec<Vec<[f64; 2]>> {
-    std::fs::read(data_dir.join(SHEET_CUTS_FILE))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
-}
-
-/// Where the outlines cut out of the sheet are kept between sessions.
-const SHEET_REMOVED_FILE: &str = "sheet-removed.json";
-
-/// The outlines cut out of the sheet, kept from the last session, or none.
-pub(crate) fn load_sheet_removed(data_dir: &std::path::Path) -> Vec<Contour> {
-    std::fs::read(data_dir.join(SHEET_REMOVED_FILE))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default()
 }
