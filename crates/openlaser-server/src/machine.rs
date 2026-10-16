@@ -549,8 +549,25 @@ fn table_request(c: &crate::Coordinator, request: TableRequest) -> Result<(Reque
     if feedback.age_ms > crate::coordinator::FRESH_FEEDBACK_MS || !feedback.table_stationary {
         return Err(Error::Refused("wait for fresh stationary table feedback".into()));
     }
+    // The table has no reference and its counter restarts at power-up,
+    // wherever it stands. As in Mlaser, a held jog at the end of the
+    // remembered range may still go on, up to one full travel; the table's
+    // limit switches end it.
+    let range = [feedback.table_mm - table.maximum_mm, feedback.table_mm + table.maximum_mm];
     let extent =
-        table_extent(table.maximum_mm, &verified.banks[4], verified.scale, feedback.table_mm)?;
+        match table_extent(table.maximum_mm, &verified.banks[4], verified.scale, feedback.table_mm)
+        {
+            Ok(extent)
+                if (if request.positive {
+                    extent[1] - feedback.table_mm
+                } else {
+                    feedback.table_mm - extent[0]
+                }) >= 0.01 =>
+            {
+                extent
+            }
+            _ => range,
+        };
     let scale = verified.scale;
     let (travel, limits) =
         table_travel(request.positive, feedback.table_mm, extent, &verified.banks[4], scale)?;
