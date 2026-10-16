@@ -1341,6 +1341,7 @@ async fn a_dxf_part_opens_in_the_sketch_with_its_ellipses() {
 }
 
 /// Only loopback fixtures; measurement must never send a controller command.
+#[allow(clippy::too_many_lines, reason = "one end-to-end workflow across the HTTP boundary")]
 #[tokio::test]
 async fn alignment_offline_measurement_and_remnant_revision_cross_http_boundary() {
     use openlaser_core::{

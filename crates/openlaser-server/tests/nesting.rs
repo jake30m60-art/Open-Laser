@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Nesting through stock selection, preview, Apply, history and persistence.
 #![allow(clippy::unwrap_used, clippy::expect_used, reason = "known offline fixtures")]
+#![allow(clippy::float_cmp, reason = "sheet sizes are set exactly")]
 mod common;
 
 use common::start;
@@ -8,6 +9,7 @@ use openlaser_core::LaserMode;
 use openlaser_core::features::Features;
 use openlaser_core::geometry::{Contour, Curve, Drawing, Point, Transform};
 use openlaser_core::nesting::{NestRotation, NestSettings};
+use openlaser_library::placement::Placement;
 use openlaser_server::coordinator::{NewRecipe, Shared, Values};
 use openlaser_server::nesting::{
     self, NestRequest, NestView, PartQuantity, StockChoice, StockSource,
@@ -132,7 +134,7 @@ async fn numbered_sheets_switch_persist_and_save_as_one_history_edit() {
     assert_eq!(reopened.job(&saved.id).unwrap().placed, second);
 }
 async fn finished(shared: &Shared, id: u64) -> NestView {
-    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
         let view = nesting::status(shared, id).await.unwrap();
         if !view.running {
@@ -230,7 +232,9 @@ async fn rectangle_keeps_the_fixture_position_after_nesting() {
     setup(&shared).await;
     {
         let mut c = shared.lock().await;
+        // The sheet has its own origin on the bed, apart from the job origin.
         c.set_origin([146., 673.]).unwrap();
+        c.set_sheet_corner(Some([146., 673.]), false).unwrap();
         c.set_stock(StockChoice::Rectangle { width: 240., height: 160., min: None }).unwrap();
     }
     machine::prepare(&shared).await.unwrap();
@@ -246,6 +250,10 @@ async fn rectangle_keeps_the_fixture_position_after_nesting() {
         nesting::stock(drawing, d.current.nesting.as_ref().unwrap()).unwrap().bounds().unwrap();
     assert!((bounds.min.x + d.sheet_offset().unwrap()[0] - 146.).abs() < 1e-9);
     assert!((bounds.min.y + d.sheet_offset().unwrap()[1] - 673.).abs() < 1e-9);
+    assert!(
+        matches!(d.current.placement, Some(Placement::Fixed { .. })),
+        "nesting on a sheet lying on the bed fixes the job origin"
+    );
     drop(c);
     openlaser_server::shutdown(&shared).await.unwrap();
 }

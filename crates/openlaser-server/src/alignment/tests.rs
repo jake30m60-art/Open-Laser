@@ -55,7 +55,7 @@ fn disc_measures_center_and_does_not_invent_angle() {
     let plan = t.plan().unwrap();
     assert_eq!(plan.searches.len(), 8);
     let fit = simulate(&t, &plan, [50., -50.], 19., Fault::None).unwrap();
-    assert_eq!(fit.pose.angle, 0.);
+    assert!(fit.pose.angle.abs() < 1e-12);
     assert!(fit.pose.apply(t.drawing_point.into()).distance(Point::new(750., 550.)) < 1e-6);
     t.shape = Shape::Special { drawing: t.shape.drawing().unwrap() };
     t.picks = (0..8).map(|i| Pick { contour: 0, curve: 0, t: f64::from(i) / 8. }).collect();

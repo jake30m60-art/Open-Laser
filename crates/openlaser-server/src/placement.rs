@@ -76,9 +76,6 @@ pub(crate) fn view(draft: &Draft) -> PlacementView {
 /// Stock keeps its reference even when the parts inside it are rearranged.
 pub(crate) fn reference_bounds(draft: &Draft) -> Option<Bounds> {
     match draft.current.nesting.as_ref().map(|n| &n.stock) {
-        // A rectangular sheet has its own origin on the bed: the job's
-        // origin stands for the parts, never for the sheet.
-        Some(NestStock::Rectangle { .. }) => draft.preview.as_ref()?.bounds,
         Some(NestStock::Remnant { outline, .. }) => outline.bounds(),
         Some(NestStock::Outline { .. }) => {
             let mut points = draft.stock_outline.iter().copied();
@@ -88,7 +85,9 @@ pub(crate) fn reference_bounds(draft: &Draft) -> Option<Bounds> {
             }
             Some(bounds)
         }
-        None => draft.preview.as_ref()?.bounds,
+        // A rectangular sheet has its own origin on the bed: the job's
+        // origin stands for the parts, never for the sheet.
+        Some(NestStock::Rectangle { .. }) | None => draft.preview.as_ref()?.bounds,
     }
 }
 

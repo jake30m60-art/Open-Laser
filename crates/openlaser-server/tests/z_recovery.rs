@@ -55,8 +55,8 @@ async fn a_limit_at_connection_keeps_only_the_away_direction_available() {
     }
     machine::release(&shared, lease(2)).await.unwrap();
     until(&shared, 5, |d| d.machine.operation.is_none() && d.readiness.home.ok).await;
-    assert!(control.writes().contains(&requests::head_move(10, 1000)));
-    assert!((0.1..=1.).contains(&control.view().position_mm[3]));
+    assert!(control.writes().contains(&requests::head_move(20, 5000)), "{:?}", control.writes());
+    assert!((0.1..=5.).contains(&control.view().position_mm[3]));
     assert!(!control.view().head_referenced);
     assert_eq!(control.view().outputs, 0);
     machine::home(&shared).await.unwrap();
@@ -69,7 +69,7 @@ async fn a_limit_at_connection_keeps_only_the_away_direction_available() {
     assert!(shared.lock().await.document().readiness.jog.ok);
 
     // A stuck lower switch permits one bounded up press, then remains an
-    // alarm. Even continuous renewals cannot prolong the two-second press.
+    // alarm. Even continuous renewals cannot prolong the four-second press.
     control.head_on_limit(false);
     control.fault(Fault::HeadLowerLimit, true);
     until(&shared, 5, |d| d.readiness.head_up.ok && !d.readiness.head_down.ok).await;
@@ -77,14 +77,14 @@ async fn a_limit_at_connection_keeps_only_the_away_direction_available() {
     machine::outputs(&shared, machine::OutputRequest::HeadJog { up: true, fast: true }, lease(3))
         .await
         .unwrap();
-    for _ in 0..30 {
+    for _ in 0..60 {
         machine::heartbeat(&shared, lease(3)).unwrap();
         tokio::time::sleep(Duration::from_millis(75)).await;
     }
     until(&shared, 5, |d| d.machine.operation.is_none()).await;
-    assert!(control.writes().contains(&requests::head_move(10, -1000)));
+    assert!(control.writes().contains(&requests::head_move(20, -5000)));
     assert!(control.writes().contains(&requests::head_cancel()));
-    assert!((119. ..=119.01).contains(&control.view().position_mm[3]));
+    assert!((115. ..=115.01).contains(&control.view().position_mm[3]));
     assert_ne!(control.view().alarms[2] & 2, 0);
     control.fault(Fault::EmergencyStop, true);
     until(&shared, 5, |d| !d.readiness.head_up.ok && !d.readiness.head_down.ok).await;

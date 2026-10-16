@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Sketch-defined remnants share the existing stock database and nesting path.
 use super::{
+    Coordinator, Deserialize, Error, Json, Result, Router, Serialize, Shared, State,
     geometry::{Shape, Template},
-    *,
+    get, post,
 };
 use axum::extract::Path;
 use openlaser_core::geometry::{Drawing, Point};
@@ -52,6 +53,7 @@ pub(super) fn routes() -> Router<Shared> {
 struct SketchSource {
     dxf: String,
 }
+#[allow(clippy::unused_async, reason = "an axum handler")]
 async fn sketch(Json(source): Json<SketchSource>) -> Result<Json<Drawing>> {
     let imported =
         openlaser_dxf::import(source.dxf.as_bytes()).map_err(|e| Error::Request(e.to_string()))?;

@@ -517,17 +517,17 @@ impl Pendant {
             (Key::Up, _) => Some(r.xy_jog[1][1].clone()),
             (Key::ZUp, false) => Some(r.head_up),
             (Key::ZDown, false) => Some(r.head_down),
-            // The table admits itself: on a table limit only away from it.
-            (Key::ZUp | Key::ZDown, true) => None,
             (Key::RedLight | Key::Shutter | Key::Blow | Key::Laser, _) => Some(r.outputs),
             (Key::Frame, _) => Some(r.frame),
-            // Go origin's gate depends on how long it is held.
-            (Key::GoOrigin, false) => None,
             (Key::GoOrigin, true) => Some(r.set_origin),
             (Key::ZCalibrate | Key::Follow, _) => Some(r.calibrate),
             (Key::Start, _) => Some(if held { r.resume } else { r.run }),
             (Key::Pause, _) => Some(r.hold),
-            (Key::Stop | Key::Fn | Key::FastStep, _) => None,
+            // The table admits itself: on a table limit only away from it.
+            // Go origin's gate depends on how long it is held.
+            (Key::ZUp | Key::ZDown, true)
+            | (Key::GoOrigin, false)
+            | (Key::Stop | Key::Fn | Key::FastStep, _) => None,
         };
         match gate {
             Some(g) if !g.ok => {

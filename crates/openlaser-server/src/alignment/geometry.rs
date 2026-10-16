@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Offline metrology. Edge hits constrain a curve, not the clicked point along it.
+#![allow(clippy::many_single_char_names, reason = "the geometry's conventional names")]
 use crate::{Error, Result};
 use openlaser_core::geometry::{Contour, Curve, Drawing, Point, Transform};
 use serde::{Deserialize, Serialize};
@@ -126,7 +127,9 @@ impl Shape {
         }
         if drawing.contours.iter().flat_map(|c| &c.curves).any(|c| {
             let b = c.bounds();
-            [b.min.x, b.min.y, b.max.x, b.max.y].iter().any(|v| !v.is_finite() || v.abs() > 100000.)
+            [b.min.x, b.min.y, b.max.x, b.max.y]
+                .iter()
+                .any(|v| !v.is_finite() || v.abs() > 100_000.)
         }) {
             return Err(fail("Invalid reference coordinates"));
         }
@@ -193,7 +196,7 @@ fn crossings(curve: Curve, p: Point, v: Point) -> Vec<f64> {
 
 fn material(d: &Drawing, p: Point) -> bool {
     // Non-axis-aligned ray avoids the common horizontal/vertical vertex case.
-    let v = Point::direction(0.3712345);
+    let v = Point::direction(0.371_234_5);
     let mut hits: Vec<f64> = d
         .contours
         .iter()
@@ -233,7 +236,7 @@ impl Template {
             .drawing_point
             .iter()
             .chain(&self.machine_point)
-            .any(|x| !x.is_finite() || x.abs() > 100000.)
+            .any(|x| !x.is_finite() || x.abs() > 100_000.)
             || !self.search_mm.is_finite()
             || !(0.1..=50.).contains(&self.search_mm)
             || !self.angle_deg.is_finite()
@@ -332,15 +335,16 @@ fn linear(mut a: [[f64; 3]; 3], mut b: [f64; 3], n: usize) -> Result<[f64; 3]> {
             ));
         }
         let v = a[i][i];
-        for k in i..n {
-            a[i][k] /= v;
+        for x in &mut a[i][i..n] {
+            *x /= v;
         }
         b[i] /= v;
         for j in 0..n {
             if j != i {
                 let v = a[j][i];
-                for k in i..n {
-                    a[j][k] -= v * a[i][k];
+                let pivot = a[i];
+                for (x, p) in a[j][i..n].iter_mut().zip(&pivot[i..n]) {
+                    *x -= v * p;
                 }
                 b[j] -= v * b[i];
             }
@@ -572,11 +576,9 @@ pub(crate) fn prepare(p: &crate::draft::Prepared, pose: Pose) -> crate::draft::P
     for raster in &mut preview.rasters {
         let origin = pose.apply(raster.origin.into());
         raster.across =
-            (pose.apply((Point::from(raster.origin) + Point::from(raster.across)).into()) - origin)
-                .into();
-        raster.down = (pose.apply((Point::from(raster.origin) + Point::from(raster.down)).into())
-            - origin)
-            .into();
+            (pose.apply(Point::from(raster.origin) + Point::from(raster.across)) - origin).into();
+        raster.down =
+            (pose.apply(Point::from(raster.origin) + Point::from(raster.down)) - origin).into();
         raster.origin = origin.into();
     }
     crate::draft::Prepared {

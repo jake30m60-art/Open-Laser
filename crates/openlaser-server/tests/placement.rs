@@ -90,6 +90,8 @@ async fn offline_head_jobs_save_intent_and_fixed_jobs_save_homed_xy() {
     assert!(c.change_placement(PlacementChange::SetOrigin {}).is_err());
     assert!(c.draft.as_ref().unwrap().current.sheet_offset.is_none());
     c.set_stock(StockChoice::Rectangle { width: 250., height: 200., min: None }).unwrap();
+    // The sheet has its own origin; the job origin places the parts on it.
+    c.set_sheet_corner(Some([290., 190.]), false).unwrap();
     drop(c);
     machine::prepare(&shared).await.unwrap();
     let control = simulator.control();
@@ -112,7 +114,7 @@ async fn offline_head_jobs_save_intent_and_fixed_jobs_save_homed_xy() {
     let mut c = shared.lock().await;
     let d = c.draft.as_ref().unwrap();
     assert_eq!(d.origin(), Some([300., 200.]));
-    assert_eq!(d.anchor_point(), Some([0., 0.]));
+    assert_eq!(d.anchor_point(), Some([100., 80.]));
     assert!(d.view().placement.saved);
     c.change_placement(PlacementChange::NewRun {}).unwrap();
     assert_eq!(c.draft.as_ref().unwrap().origin(), Some([300., 200.]));
@@ -161,13 +163,14 @@ async fn absolute_origin_captures_machine_coordinates_and_reuses_them_after_jog_
         c.change_placement(PlacementChange::Head {}).unwrap();
         c.change_placement(PlacementChange::SetOrigin {}).unwrap();
         near(c.draft.as_ref().unwrap().origin().unwrap(), [175., 140.]);
+        // Set origin makes the origin absolute: a new run keeps it.
         c.change_placement(PlacementChange::NewRun {}).unwrap();
-        assert!(c.draft.as_ref().unwrap().current.sheet_offset.is_none());
+        near(c.draft.as_ref().unwrap().origin().unwrap(), [175., 140.]);
     }
 }
 
 #[tokio::test]
-async fn set_origin_pins_this_run_jogs_and_resume_keep_it_and_new_runs_recapture() {
+async fn set_origin_is_absolute_jogs_resume_and_new_runs_keep_it_and_floating_follows_the_head() {
     let (simulator, shared) = start("head-lifecycle").await;
     setup(&shared).await;
     home(&shared).await;
@@ -189,7 +192,7 @@ async fn set_origin_pins_this_run_jogs_and_resume_keep_it_and_new_runs_recapture
         let c = shared.lock().await;
         let captured = c.draft.as_ref().unwrap().origin().unwrap();
         near(captured, [150., 120.]);
-        assert_eq!(c.document().draft.unwrap().placement.mode, PlacementMode::Head);
+        assert_eq!(c.document().draft.unwrap().placement.mode, PlacementMode::Fixed);
         captured
     };
     move_to(&shared, [175., 140.]).await;
@@ -232,13 +235,16 @@ async fn set_origin_pins_this_run_jogs_and_resume_keep_it_and_new_runs_recapture
         let c = shared.lock().await;
         let doc = c.document();
         let draft = doc.draft.unwrap();
-        assert!(draft.sheet_offset.is_none());
+        assert!(draft.placement.captured, "New run keeps an absolute origin");
         assert!(draft.compiled.is_some(), "New run must be ready without revisiting Setup");
         assert!(doc.execution.is_none());
         assert!(doc.completed_sheet.is_none());
         assert!(doc.postflight.is_none());
         assert!(c.recovery.is_none());
     }
+    near(shared.lock().await.draft.as_ref().unwrap().origin().unwrap(), [150., 120.]);
+    // A floating origin follows the head instead.
+    shared.lock().await.change_placement(PlacementChange::Head {}).unwrap();
     move_to(&shared, [220., 180.]).await;
     placement::prepare(&shared).await.unwrap();
     near(shared.lock().await.draft.as_ref().unwrap().origin().unwrap(), [220., 180.]);
@@ -248,17 +254,21 @@ async fn set_origin_pins_this_run_jogs_and_resume_keep_it_and_new_runs_recapture
     near(shared.lock().await.draft.as_ref().unwrap().origin().unwrap(), [240., 190.]);
     let job = {
         let mut c = shared.lock().await;
-        let job = c.save_job("Repeat loose sheet").unwrap();
-        assert!(c.library.job(&job.id).unwrap().sheet_offset.is_none());
+        let job = c.save_job("Repeat fixture").unwrap();
+        match c.library.job(&job.id).unwrap().placement {
+            Some(Placement::Fixed { origin }) => near(origin, [240., 190.]),
+            _ => panic!("Set origin saves an absolute origin with the job"),
+        }
         c.change_placement(PlacementChange::NewRun {}).unwrap();
-        assert!(c.draft.as_ref().unwrap().current.sheet_offset.is_none());
+        near(c.draft.as_ref().unwrap().origin().unwrap(), [240., 190.]);
         job
     };
     {
         let mut c = shared.lock().await;
         c.open_job(&job.id).unwrap();
-        assert!(c.draft.as_ref().unwrap().current.sheet_offset.is_none());
     }
+    machine::prepare(&shared).await.unwrap();
+    near(shared.lock().await.draft.as_ref().unwrap().origin().unwrap(), [240., 190.]);
     openlaser_server::shutdown(&shared).await.unwrap();
 }
 
@@ -366,11 +376,11 @@ async fn calibration_keeps_normal_kerf_leads_and_editing_with_correction_off() {
     assert_eq!(c.document().draft.unwrap().placement.mode, PlacementMode::Head);
 }
 
-/// A dry run traces the same sheet, so it must not use up an each-run
-/// origin: the cut that follows starts where the trace did, wherever the
-/// dry run left the head. A real run does use it, and the view says so.
+/// Set origin makes the origin absolute: the cut after a dry run starts
+/// where the trace did, wherever the dry run left the head, and the real
+/// run does not use it up either.
 #[tokio::test]
-async fn a_dry_run_keeps_the_each_run_origin_and_a_real_run_uses_it() {
+async fn a_dry_run_and_a_real_run_both_keep_a_set_origin() {
     let (simulator, shared) = start("dry-run-origin").await;
     setup(&shared).await;
     home(&shared).await;
@@ -400,8 +410,8 @@ async fn a_dry_run_keeps_the_each_run_origin_and_a_real_run_uses_it() {
     finished(shared.clone()).await;
     near(shared.lock().await.document().execution.unwrap().origin, [150., 120.]);
     assert!(
-        !shared.lock().await.document().draft.unwrap().placement.captured,
-        "a real run uses up an each-run origin"
+        shared.lock().await.document().draft.unwrap().placement.captured,
+        "a real run keeps an absolute origin"
     );
     openlaser_server::shutdown(&shared).await.unwrap();
 }

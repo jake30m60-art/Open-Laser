@@ -185,6 +185,7 @@ async fn change(State(shared): State<Shared>, Json(request): Json<Change>) -> Re
     c.publish();
     Ok(Json(view(&c)))
 }
+#[allow(clippy::unused_async, reason = "an axum handler")]
 async fn plan(Json(template): Json<Template>) -> Result<Json<Plan>> {
     Ok(Json(template.plan()?))
 }
@@ -222,7 +223,7 @@ async fn associate(
                 && f.referenced.iter().all(|v| *v)
         })
         .ok_or_else(|| Error::Refused("Fresh stationary feedback is required".into()))?;
-    if request.drawing_point.iter().any(|x| !x.is_finite() || x.abs() > 100000.) {
+    if request.drawing_point.iter().any(|x| !x.is_finite() || x.abs() > 100_000.) {
         return Err(Error::Request("Invalid drawing point".into()));
     }
     let mut saved = c.alignment.saved.clone();
@@ -280,6 +281,7 @@ struct SimulationReply {
     compiled: Option<std::sync::Arc<crate::document::Compiled>>,
     compile_problem: Option<String>,
 }
+#[allow(clippy::too_many_lines, reason = "one simulated measurement, step by step")]
 async fn simulate(
     State(shared): State<Shared>,
     Json(request): Json<Simulation>,

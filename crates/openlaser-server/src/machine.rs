@@ -1001,6 +1001,7 @@ fn head_jog_travel(coordinator: &crate::coordinator::Coordinator, up: bool) -> R
             .into(),
         ));
     }
+    #[allow(clippy::cast_possible_truncation, reason = "rounded, within the head's travel")]
     Ok(Some(travel as i32))
 }
 
@@ -1215,10 +1216,12 @@ pub fn relieve(shared: &Shared, id: Option<u32>) -> Result<()> {
         // An alarm at connection, such as a limit switch since left, kept
         // the settings from being applied: a reset that clears it applies
         // them now, as Go Origin would.
-        if cleared && pending && machine.state().blocked.is_none() {
-            if let Some(problem) = apply_parameters(&shared).await {
-                shared.lock().await.note(problem, true);
-            }
+        if cleared
+            && pending
+            && machine.state().blocked.is_none()
+            && let Some(problem) = apply_parameters(&shared).await
+        {
+            shared.lock().await.note(problem, true);
         }
     });
     Ok(())
