@@ -207,6 +207,7 @@ impl Motion {
     /// are checked again before the first write and throughout the move.
     pub(crate) fn recovering_limit(&self, snapshot: &Snapshot) -> bool {
         self.table_recovery
+            || (self.table.is_some() && snapshot.axes.axis(4).status & 0xf != 0)
             || (self.jog.is_some()
                 && (self.recovery_deadline.is_some() || snapshot.xy_limit_alarms()))
     }
