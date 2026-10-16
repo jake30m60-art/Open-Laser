@@ -1205,9 +1205,21 @@ pub fn relieve(shared: &Shared, id: Option<u32>) -> Result<()> {
     tokio::spawn(async move {
         let rows = machine.state().alarms;
         let result = machine.relieve(id).await;
-        let mut coordinator = shared.lock().await;
-        coordinator.history.reset(&rows, id, &result);
-        coordinator.outcome(label, result);
+        let cleared = result.is_ok();
+        let pending = {
+            let mut coordinator = shared.lock().await;
+            coordinator.history.reset(&rows, id, &result);
+            coordinator.outcome(label, result);
+            coordinator.accepted.is_none() && coordinator.parameter_problem.is_some()
+        };
+        // An alarm at connection, such as a limit switch since left, kept
+        // the settings from being applied: a reset that clears it applies
+        // them now, as Go Origin would.
+        if cleared && pending && machine.state().blocked.is_none() {
+            if let Some(problem) = apply_parameters(&shared).await {
+                shared.lock().await.note(problem, true);
+            }
+        }
     });
     Ok(())
 }

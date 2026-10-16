@@ -197,6 +197,11 @@ impl Motion {
         Ok(motion)
     }
 
+    /// Whether this is a held table move.
+    pub(crate) const fn is_table(&self) -> bool {
+        self.table.is_some()
+    }
+
     /// Manual recovery belongs only to a single-axis jog, never an absolute
     /// position, diagonal move, table move or compiled program.
     pub(crate) const fn jog_direction(&self) -> Option<(usize, bool)> {
@@ -207,7 +212,7 @@ impl Motion {
     /// are checked again before the first write and throughout the move.
     pub(crate) fn recovering_limit(&self, snapshot: &Snapshot) -> bool {
         self.table_recovery
-            || (self.table.is_some() && snapshot.axes.axis(4).status & 0xf != 0)
+            || (self.table.is_some() && snapshot.table_limit_alarms())
             || (self.jog.is_some()
                 && (self.recovery_deadline.is_some() || snapshot.xy_limit_alarms()))
     }
@@ -411,7 +416,7 @@ impl Motion {
                 format!(
                     "{error} (table {}, axis 4 status {:#x}, group 1 {:#x}, group 2 {:#x}, head {:#x})",
                     if positive { "+" } else { "-" },
-                    snapshot.axes.axis(4).status,
+                    snapshot.table_status(),
                     snapshot.status.alarm_group_1(),
                     snapshot.status.alarm_group_2(),
                     snapshot.head.alarm_word()
@@ -421,7 +426,7 @@ impl Motion {
                 return Err("outputs are on".into());
             }
             admit_idle(snapshot)?;
-            self.table_recovery = snapshot.axes.axis(4).status & 0xf != 0;
+            self.table_recovery = snapshot.table_limit_alarms();
         } else {
             admit_positioning(snapshot, blocked)?;
         }

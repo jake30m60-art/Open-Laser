@@ -145,12 +145,26 @@ impl Snapshot {
             && self.status.alarm_group_2() == 0
     }
 
+    /// The table's status word. The controller reports a table limit in
+    /// the runtime block's record (the alarm detail word), which the plain
+    /// axis block need not carry, so both count.
+    #[must_use]
+    pub const fn table_status(&self) -> u32 {
+        self.axes.axis(4).status | self.runtime.axes().axis(4).status
+    }
+
+    /// Whether the table reports a hardware or software limit.
+    #[must_use]
+    pub const fn table_limit_alarms(&self) -> bool {
+        self.table_status() & LIMIT_BITS != 0
+    }
+
     /// A held table move: as positioning, and while the table (axis record
     /// 4) reports a limit, only away from it, with its controller summary
     /// (group 1 bit 4) conceded; any other table fault still blocks.
     #[must_use]
     pub const fn table_jog_alarms_clear(&self, positive: bool) -> bool {
-        let faults = self.axes.axis(4).status & AXIS_FAULT_BITS;
+        let faults = self.table_status() & AXIS_FAULT_BITS;
         if faults == 0 {
             return self.positioning_alarms_clear();
         }

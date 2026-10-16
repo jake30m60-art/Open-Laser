@@ -955,7 +955,7 @@ impl Task {
         let (snapshot, bindings) = self.ready()?;
         // An initial limit can prevent settings initialization. A recovery
         // pulse uses the measured axis units without accepting them for jobs.
-        let table_limit = snapshot.axes.axis(4).status & 0xf != 0;
+        let table_limit = snapshot.table_limit_alarms();
         let verified = if (matches!(travel, Travel::Jog) && snapshot.xy_limit_alarms())
             || (matches!(travel, Travel::Table(_)) && table_limit)
         {
@@ -1643,9 +1643,15 @@ impl Task {
             // holds after a failed head operation.
             // Z+/Z− keys run as held outputs: the head reaching its limit
             // ends them the same way.
+            // A held table move ended by its limit switch, likewise.
+            let table = matches!(&active.job, Job::Motion(motion, _) if motion.is_table());
             let head_only =
                 matches!(active.job, Job::Calibrate(..) | Job::Head(..) | Job::Outputs(..));
-            if stopped && head_only && matches!(error, Error::Failed(_)) {
+            if stopped && table && matches!(error, Error::Failed(_)) {
+                if !ending_failed {
+                    self.last_error = Some(error.to_string());
+                }
+            } else if stopped && head_only && matches!(error, Error::Failed(_)) {
                 if !ending_failed {
                     self.session.calibration = None;
                     self.last_error = Some(error.to_string());
