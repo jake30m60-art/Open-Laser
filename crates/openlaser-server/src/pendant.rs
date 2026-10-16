@@ -517,7 +517,8 @@ impl Pendant {
             (Key::Up, _) => Some(r.xy_jog[1][1].clone()),
             (Key::ZUp, false) => Some(r.head_up),
             (Key::ZDown, false) => Some(r.head_down),
-            (Key::ZUp | Key::ZDown, true) => Some(r.jog),
+            // The table admits itself: on a table limit only away from it.
+            (Key::ZUp | Key::ZDown, true) => None,
             (Key::RedLight | Key::Shutter | Key::Blow | Key::Laser, _) => Some(r.outputs),
             (Key::Frame, _) => Some(r.frame),
             // Go origin's gate depends on how long it is held.
