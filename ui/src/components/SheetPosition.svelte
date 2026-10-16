@@ -104,7 +104,7 @@
     {#if doc.sheet_cuts?.length}
       <div class="origin-line">
         <span>{t('{0} cut paths on this sheet', doc.sheet_cuts.length)}</span>
-        <button class="text-button" disabled={disabled} onclick={() => api.clearSheetCuts().then(() => ui.say(t('Cut paths cleared'))).catch((e) => ui.say(explain(e), true))}>{t("Clear")}</button>
+        <button class="btn btn-ghost" disabled={disabled} onclick={() => api.clearSheetCuts().then(() => ui.say(t('Cut paths cleared'))).catch((e) => ui.say(explain(e), true))}><i class="ic ic-trash"></i>{t("Clear cut parts")}</button>
       </div>
     {/if}
     {#if sheetLaid}

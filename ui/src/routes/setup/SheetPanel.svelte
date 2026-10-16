@@ -40,6 +40,13 @@
     } catch (e) { ui.say(explain(e), true); }
     finally { busy = false; }
   }
+  const cuts = $derived(server.doc!.sheet_cuts?.length ?? 0);
+  async function clearCuts(): Promise<void> {
+    busy = true;
+    try { await api.clearSheetCuts(); ui.say(t('Cut paths cleared')); }
+    catch (e) { ui.say(explain(e), true); }
+    finally { busy = false; }
+  }
   async function remove(): Promise<void> {
     busy = true;
     try { await api.setStock({ kind: 'clear' }); ui.say(t('Sheet removed · Undo brings it back')); }
@@ -73,6 +80,9 @@
       </HoldButton>
       {#if corner}<button class="btn btn-ghost" disabled={busy} onclick={() => setOrigin('clear')}>{t("Back to the bed corner")}</button>{/if}
     </div>
+    <button class="btn btn-ghost block" disabled={busy || !cuts} onclick={clearCuts}>
+      <i class="ic ic-trash"></i>{t("Clear cut parts")}{#if cuts} · {t('{0} cut paths on this sheet', cuts)}{/if}
+    </button>
     <div class="row">
       <button class="btn btn-ghost" disabled={busy} onclick={turn}><i class="ic ic-rotate"></i>{t("Turn 90°")}</button>
       <button class="btn btn-ghost" disabled={busy} onclick={remove}><i class="ic ic-trash"></i>{t("Remove sheet")}</button>
