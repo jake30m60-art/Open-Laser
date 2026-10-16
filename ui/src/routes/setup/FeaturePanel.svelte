@@ -173,7 +173,7 @@
 {#if id === 'leads'}<p class="muted lead-hint">{t("Drag a lead to edit it. Selected copies update the matching lead.")}</p>{/if}
 <div class="stack" style="opacity:{on ? 1 : 0.45}">
   {#if id === 'leads'}
-    <LeadsForm {features} {on} {tab} selectedContours={inSelection ? [] : selectedContours} {set} {pick} preview={scope || inSelection ? null : draft.preview} />
+    <LeadsForm {features} {on} {tab} selectedContours={inSelection ? [] : selectedContours} {set} {pick} preview={scope || inSelection ? null : draft.preview} whole={!scope && !inSelection} />
   {:else if id === 'joints'}
     <JointsForm {features} {on} tab={0} contours={draft.placed.length} {set} {pick} />
     <h3 class="more-head">{t("Behaviour")}</h3>

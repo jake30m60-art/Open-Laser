@@ -4026,5 +4026,7 @@
   "Entry lead": "Anschnitt",
   "Exit lead": "Auslauf",
   "Exit lead and seam": "Auslauf und Überschnitt",
-  "Behaviour": "Verhalten"
+  "Behaviour": "Verhalten",
+  "{0} layers or selections keep their own leads without this one.": "{0} Ebenen oder Auswahlen haben eigene Einstellungen ohne diesen Anschnitt bzw. Auslauf.",
+  "Add it there too": "Dort auch einschalten"
 }

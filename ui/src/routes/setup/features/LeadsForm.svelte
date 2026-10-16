@@ -15,7 +15,9 @@
   import type { Features, Lead, Leads, Preview } from '../../../api';
   import type { PickFeature, SetFeatures } from './form';
 
-  let { features, on, tab, selectedContours, set, pick, preview }: {
+  let { features, on, tab, selectedContours, set, pick, preview, whole = false }: {
+    /** Editing the whole job, not a layer's or a selection's own. */
+    whole?: boolean;
     features: Features;
     on: boolean;
     /** 0 edits the lead-in, 1 the lead-out. */
@@ -51,12 +53,21 @@
   const lead = $derived(local ? leadFor(leads, targets[0]!, role) : leads[role]);
   const selectionEdited = $derived(leads.overrides.some(edited => selectedContours.includes(edited.location.contour)));
 
+  /** Layers and selections with their own leads that lack this one. */
+  const shadowed = $derived(whole && leads[role] ? [...(features.layers ?? []).map(x => x.machining), ...(features.contour_machining ?? []).map(m => m.machining)]
+    .filter(m => m?.leads && !m.leads[role]).length : 0);
   function switchLead(v: boolean): void {
     set((f) => {
       const l = f.leads ?? defaultLeads();
       if (tab === 0) l.entry = v ? defaultLead() : null;
       else l.exit = v ? defaultLead() : null;
       f.leads = l;
+      // Job-wide, the switch also reaches layers and selections that keep
+      // their own leads; they would otherwise hide it.
+      if (whole) {
+        const own = [...(f.layers ?? []).map(x => x.machining), ...(f.contour_machining ?? []).map(m => m.machining)];
+        for (const m of own) if (m?.leads) m.leads[role] = v ? (m.leads[role] ?? defaultLead()) : null;
+      }
     });
   }
   /** Changes the lead on the open tab: the selection's, or the job's. */
@@ -102,6 +113,10 @@
   <p class="muted lead-note">{t("Changes apply to the")} {plural(targets.length, 'selected contour')} {t("only. Switching a lead off or changing the side applies to all contours.")}</p>
 {:else}
   <Toggle label={tab === 0 ? t('Lead-in') : t('Lead-out')} value={lead !== null} disabled={!on} apply={switchLead} />
+{/if}
+{#if shadowed}
+  <p class="muted">{t("{0} layers or selections keep their own leads without this one.", shadowed)}</p>
+  <button class="btn btn-soft" disabled={!on} onclick={() => switchLead(true)}>{t("Add it there too")}</button>
 {/if}
 {#if lead}
   <Chips label={t("Shape")} options={SHAPES} current={lead.shape} disabled={!on} apply={setShape} />
