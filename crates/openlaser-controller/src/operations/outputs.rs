@@ -19,13 +19,13 @@ use std::time::{Duration, Instant};
 
 /// Fastest speed, in the head's tenths, of a head jog admitted while the
 /// head reports a limit: the command's `speed_tenths` word is capped here.
-const LIMIT_RECOVERY_SPEED_TENTHS: u32 = 10;
+const LIMIT_RECOVERY_SPEED_TENTHS: u32 = 20;
 /// Largest travel, in the head controller's move units, of a head jog
 /// admitted while the head reports a limit; a normal held jog asks for
 /// 1 000 000 and relies on release to stop.
-const LIMIT_RECOVERY_TRAVEL: i32 = 1000;
+const LIMIT_RECOVERY_TRAVEL: i32 = 5000;
 /// How long a limit-recovery head jog may run before it is ended.
-const LIMIT_RECOVERY_TIME: Duration = Duration::from_secs(2);
+const LIMIT_RECOVERY_TIME: Duration = Duration::from_secs(4);
 
 /// A manual output plan.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -357,7 +357,7 @@ mod tests {
             let mut output = Outputs::new(head(up), now);
             assert_eq!(
                 output.step(&snapshot, blocked(&snapshot, up).as_deref(), now).unwrap(),
-                Step::Send(vec![requests::head_move(10, if up { -1000 } else { 1000 })])
+                Step::Send(vec![requests::head_move(20, if up { -5000 } else { 5000 })])
             );
             assert!(
                 Outputs::new(head(!up), now)
@@ -414,9 +414,9 @@ mod tests {
         );
         let mut recovery = Outputs::new(head(false), now);
         recovery.step(&limit, None, now).unwrap();
-        recovery.heartbeat(now + Duration::from_millis(1900));
+        recovery.heartbeat(now + Duration::from_millis(3900));
         assert_eq!(
-            recovery.step(&clear, None, now + Duration::from_secs(2)).unwrap(),
+            recovery.step(&clear, None, now + Duration::from_secs(4)).unwrap(),
             Step::Finish(vec![requests::head_cancel()]),
             "renewal cannot extend a recovery press indefinitely"
         );

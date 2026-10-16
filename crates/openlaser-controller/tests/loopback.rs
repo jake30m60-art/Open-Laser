@@ -870,19 +870,19 @@ async fn z_recovery_works_before_home_without_resetting_or_enabling_other_motion
     assert!(machine.outputs(plan(true)).await.is_err());
     assert!(control.writes().is_empty());
     let active = machine.start_outputs(plan(false), None, std::time::Instant::now()).await.unwrap();
-    for _ in 0..15 {
+    for _ in 0..40 {
         machine.heartbeat().unwrap();
         tokio::time::sleep(Duration::from_millis(80)).await;
     }
     assert_eq!(control.view().alarms[2] & 1, 0);
-    assert!((0.99..=1.).contains(&control.view().position_mm[3]));
+    assert!((4.99..=5.).contains(&control.view().position_mm[3]));
     assert!(!control.view().head_referenced);
     assert_eq!(control.view().position_mm[..2], [0.; 2]);
     assert_eq!(control.view().outputs, 0);
     assert_eq!(control.view().pwm, [[0; 3]; 2]);
     machine.release().await.unwrap();
     active.finished().await.unwrap();
-    assert_eq!(words(&control.take_writes()), [vec![109, 10, 1000], vec![101]]);
+    assert_eq!(words(&control.take_writes()), [vec![109, 20, 5000], vec![101]]);
     machine.home(false).await.unwrap();
     until(&machine, |s| s.alarms.is_empty()).await;
     assert!(machine.state().session.homed);
