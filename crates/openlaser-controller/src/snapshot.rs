@@ -43,6 +43,8 @@ pub(crate) const GROUP1_HEAD_SUMMARY: u32 = 1 << 24;
 /// Controller alarm group 1 bits 0 and 1, which summarise the X and Y
 /// axis records.
 const GROUP1_XY_SUMMARY: u32 = 0b11;
+/// Controller alarm group 1 bit 4, which summarises the table's axis record.
+const GROUP1_TABLE_SUMMARY: u32 = 1 << 4;
 
 /// The controller's feedback at one moment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -140,6 +142,28 @@ impl Snapshot {
                     u32::MAX
                 }
                 == 0
+            && self.status.alarm_group_2() == 0
+    }
+
+    /// A held table move: as positioning, and while the table (axis record
+    /// 4) reports a limit, only away from it, with its controller summary
+    /// (group 1 bit 4) conceded; any other table fault still blocks.
+    #[must_use]
+    pub const fn table_jog_alarms_clear(&self, positive: bool) -> bool {
+        let faults = self.axes.axis(4).status & AXIS_FAULT_BITS;
+        if faults == 0 {
+            return self.positioning_alarms_clear();
+        }
+        let away = if positive { AXIS_NEGATIVE_LIMITS } else { AXIS_POSITIVE_LIMITS };
+        let head_summary =
+            if !self.head.referenced() || self.head.alarm_word() & HEAD_NEEDS_HOMING != 0 {
+                GROUP1_HEAD_SUMMARY
+            } else {
+                0
+            };
+        faults & !away == 0
+            && self.head.alarm_word() & HEAD_ALARMS_BUT_HOMING == 0
+            && self.status.alarm_group_1() & !(GROUP1_TABLE_SUMMARY | head_summary) == 0
             && self.status.alarm_group_2() == 0
     }
 

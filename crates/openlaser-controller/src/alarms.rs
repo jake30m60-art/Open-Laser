@@ -137,6 +137,13 @@ pub enum Concession {
         /// Only known X/Y limits may be conceded, after direction validation.
         allow_limits: bool,
     },
+    /// A held table move, away from a reported table limit.
+    TableJog {
+        /// Any head fault beyond the missing-reference warning.
+        other_head_faults: bool,
+        /// Only the table's limits may be conceded, after direction validation.
+        allow_limits: bool,
+    },
     /// An authenticated manual Z move, away from only its opposite limit,
     /// or up from a nozzle touching the plate.
     HeadJog {
@@ -324,6 +331,7 @@ impl Monitor {
                     Concession::ProcessOnly
                         | Concession::ManualPositioning { .. }
                         | Concession::XyJog { .. }
+                        | Concession::TableJog { .. }
                         | Concession::HeadJog { .. }
                 )
             {
@@ -334,12 +342,18 @@ impl Monitor {
             {
                 return true;
             }
+            if matches!(concession, Concession::TableJog { allow_limits: true, .. })
+                && matches!(key, Key::Group1(4) | Key::Axis(4, 0..=3))
+            {
+                return true;
+            }
             match concession {
                 Concession::None | Concession::ProcessOnly => false,
                 Concession::HeadReference => row.id == Some(HEAD_REFERENCE),
                 Concession::HeadHome { other_head_faults }
                 | Concession::ManualPositioning { other_head_faults }
-                | Concession::XyJog { other_head_faults, .. } => {
+                | Concession::XyJog { other_head_faults, .. }
+                | Concession::TableJog { other_head_faults, .. } => {
                     matches!(row.id, Some(HEAD_REFERENCE | HEAD_REFERENCE_WARNING))
                         || (*key == Key::Group1(SPECIAL_GROUP1_BIT) && !other_head_faults)
                 }

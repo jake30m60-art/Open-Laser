@@ -83,6 +83,8 @@ pub struct Motion {
     joined: Option<(usize, bool)>,
     parameters: Verified,
     recovery_deadline: Option<Instant>,
+    /// A table move and its direction: it may leave a table limit.
+    table: Option<bool>,
 }
 
 impl Motion {
@@ -137,6 +139,7 @@ impl Motion {
             joined: None,
             parameters: *verified,
             recovery_deadline: None,
+            table: None,
         })
     }
 
@@ -177,6 +180,7 @@ impl Motion {
         if request.delta[1] != 0 || limits[0] >= limits[1] {
             return Err("invalid table travel".into());
         }
+        let up = request.delta[0] > 0;
         let mut table = *verified;
         table.banks[0] = verified.banks[4];
         table.banks[0][1] = limits[0].cast_unsigned();
@@ -184,6 +188,7 @@ impl Motion {
         let mut motion = Self::new(request, &table, head_enabled, now)?;
         motion.axes = [4, 1];
         motion.jog = None;
+        motion.table = Some(up);
         motion.parameters = *verified;
         Ok(motion)
     }
@@ -201,6 +206,12 @@ impl Motion {
     }
 
     pub(crate) fn concession(&self, snapshot: &Snapshot) -> Concession {
+        if let Some(positive) = self.table {
+            return Concession::TableJog {
+                other_head_faults: home::other_head_faults(snapshot),
+                allow_limits: snapshot.table_jog_alarms_clear(positive),
+            };
+        }
         self.jog.map_or(
             Concession::ManualPositioning { other_head_faults: home::other_head_faults(snapshot) },
             |(axis, positive)| {
@@ -387,6 +398,12 @@ impl Motion {
             if snapshot.xy_limit_alarms() {
                 self.bound_recovery(snapshot, axis, now)?;
             }
+        } else if let Some(positive) = self.table {
+            admit_alarms(snapshot.table_jog_alarms_clear(positive), blocked)?;
+            if !snapshot.outputs_off(0) {
+                return Err("outputs are on".into());
+            }
+            admit_idle(snapshot)?;
         } else {
             admit_positioning(snapshot, blocked)?;
         }
@@ -502,6 +519,8 @@ impl Motion {
                     && self
                         .joined
                         .is_none_or(|(other, way)| snapshot.xy_jog_alarms_clear(other, way, false))
+            } else if let Some(positive) = self.table {
+                snapshot.table_jog_alarms_clear(positive)
             } else {
                 snapshot.positioning_alarms_clear()
             };
