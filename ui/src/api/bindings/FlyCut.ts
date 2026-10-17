@@ -8,8 +8,9 @@
  */
 export type FlyCut = {
 /**
- * Placed contour identities, before bridges. Only contours made of
- * straight lines fly; others are cut as usual.
+ * Placed contour identities, before bridges. Contours made of straight
+ * lines fly along shared lines; circles and other closed contours fly
+ * whole when switched on below, or are cut as usual.
  */
 contours: Array<number>,
 /**
@@ -39,4 +40,19 @@ from_far_side: boolean,
  * Run the directions in the opposite order, such as vertical lines
  * before horizontal ones.
  */
-directions_reversed: boolean, };
+directions_reversed: boolean,
+/**
+ * Cut the selected round holes flying too: each circle is entered on
+ * a tangent at speed, the circles of a row joined in one movement.
+ */
+circles: boolean,
+/**
+ * Cut the other selected closed contours, arcs and all, flying too:
+ * each starts from a laser-off approach and runs on to the next.
+ */
+outlines: boolean,
+/**
+ * How far a flying circle or contour runs past its start to close,
+ * in millimetres.
+ */
+overlap: number, };

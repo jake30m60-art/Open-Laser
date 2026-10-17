@@ -375,9 +375,11 @@ pub struct CommonEdges {
 /// cut begins with a flying pierce rather than a stationary one.
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools, reason = "independent switches the operator sets")]
 pub struct FlyCut {
-    /// Placed contour identities, before bridges. Only contours made of
-    /// straight lines fly; others are cut as usual.
+    /// Placed contour identities, before bridges. Contours made of straight
+    /// lines fly along shared lines; circles and other closed contours fly
+    /// whole when switched on below, or are cut as usual.
     pub contours: Vec<usize>,
     /// Laser-off approach before the first cut of a line and after its
     /// last, in millimetres, so the head is at speed when the beam comes on.
@@ -398,6 +400,22 @@ pub struct FlyCut {
     /// before horizontal ones.
     #[serde(default)]
     pub directions_reversed: bool,
+    /// Cut the selected round holes flying too: each circle is entered on
+    /// a tangent at speed, the circles of a row joined in one movement.
+    #[serde(default)]
+    pub circles: bool,
+    /// Cut the other selected closed contours, arcs and all, flying too:
+    /// each starts from a laser-off approach and runs on to the next.
+    #[serde(default)]
+    pub outlines: bool,
+    /// How far a flying circle or contour runs past its start to close,
+    /// in millimetres.
+    #[serde(default = "fly_overlap")]
+    pub overlap: f64,
+}
+
+const fn fly_overlap() -> f64 {
+    0.3
 }
 
 /// A marked layer's closed shapes engraved by scan lines: one continuous

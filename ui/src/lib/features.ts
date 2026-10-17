@@ -27,7 +27,7 @@ export const defaultCooling = (): Cooling => ({ dwell: 300, placement: { automat
 export const defaultKerf = (): Kerf => ({ width: 0.2, side: 'auto' });
 export const defaultBridges = (): Bridges => ({ width: 2, connections: [] });
 export const defaultCommon = (contours: number[]): CommonEdges => ({ contours: [...contours], tolerance: 0.01, allow_overcut: false });
-export const defaultFly = (contours: number[]): FlyCut => ({ contours: [...contours], run_up: 3, overcut: 0, tolerance: 0.01, one_way: false, from_far_side: false, directions_reversed: false });
+export const defaultFly = (contours: number[]): FlyCut => ({ contours: [...contours], run_up: 3, overcut: 0, tolerance: 0.01, one_way: false, from_far_side: false, directions_reversed: false, circles: false, outlines: false, overlap: 0.3 });
 
 export function isOn(features: Features, id: string): boolean {
   switch (id) {

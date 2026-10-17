@@ -15,13 +15,20 @@
 //! alternating direction. A scan fill crosses a marked layer's closed
 //! shapes with parallel lines, inside by the even-odd rule, joined into a
 //! single zigzag.
+//!
+//! Flying circles and contours take whole closed contours instead: each
+//! opens from a laser-off approach at cutting speed, runs once round and a
+//! little past its start, and leaves on a laser-off run-out to the next. A
+//! circle is entered on the tangent that points along its row, so the
+//! circles of a row join in one smooth movement, row by row in a snake.
 
 use crate::{EPS, Error, Result, feature, float};
 use openlaser_core::features::{Fill, FlyCut, ImageFill, ImageMode};
-use openlaser_core::geometry::{Curve, Point};
+use openlaser_core::geometry::{Bounds, Curve, Point};
 use openlaser_core::raster::Raster;
 use openlaser_core::toolpath::{PreparedContour, PreparedSegment, SegmentProcess};
 use std::collections::HashMap;
+use std::f64::consts::{FRAC_PI_2, TAU};
 use std::sync::Arc;
 
 /// The smallest uncut web between two cuts on one line, in millimetres.
@@ -40,6 +47,12 @@ const MAX_IMAGE_CELLS: u32 = 60_000_000;
 const LINES_PER_PATH: usize = 250;
 /// Chord tolerance when an arc is flattened for scanning, in millimetres.
 const FLATTEN: f64 = 0.005;
+/// The most segments one path of flying circles or contours holds, so the
+/// motion planner's 2048 profile builds per contour hold.
+const LOOP_SEGMENTS: usize = 400;
+/// The widest turn, in radians, a laser-off link between two flying loops
+/// takes straight from one to the next without its own run-out and run-up.
+const SMOOTH_TURN: f64 = 0.5;
 
 /// A stretch at cutting speed with the beam off.
 fn off() -> SegmentProcess {
@@ -152,6 +165,9 @@ fn overcut(spans: &mut [(f64, f64)], overcut: f64) {
 }
 
 fn check_fly(fly: &FlyCut) -> Result<()> {
+    if !(fly.overlap.is_finite() && (0. ..=5.).contains(&fly.overlap)) {
+        return Err(feature("flying cut", "the overlap must be 0 to 5 mm"));
+    }
     if !(fly.run_up.is_finite() && (0. ..=50.).contains(&fly.run_up)) {
         return Err(feature("flying cut", "the run-up must be 0 to 50 mm"));
     }
@@ -300,7 +316,226 @@ fn passes(
     Ok(lines)
 }
 
-/// Replaces the selected straight contours by one flying pass per line.
+/// The cut segments of a closed contour, its leads left out; none when it
+/// does not close.
+fn cut_loop(contour: &PreparedContour) -> Option<Vec<PreparedSegment>> {
+    let segments: Vec<PreparedSegment> =
+        contour.segments.iter().filter(|s| s.process.lead.is_none()).cloned().collect();
+    let (first, last) = (segments.first()?, segments.last()?);
+    let closes = first.curve.start().distance(last.curve.end()) <= 1e-3;
+    (contour.closed && closes).then_some(segments)
+}
+
+/// The centre, radius and turning sense of a contour that is one full
+/// circle, whole or in arcs, with no joints.
+fn circle_of(segments: &[PreparedSegment]) -> Option<(Point, f64, f64)> {
+    let Curve::Arc { center, radius, sweep, .. } = segments.first()?.curve else {
+        return None;
+    };
+    let mut total = 0.;
+    for segment in segments {
+        let Curve::Arc { center: c, radius: r, sweep: s, .. } = segment.curve else {
+            return None;
+        };
+        if segment.process.joint
+            || c.distance(center) > 1e-4
+            || (r - radius).abs() > 1e-4
+            || s.signum() != sweep.signum()
+        {
+            return None;
+        }
+        total += s;
+    }
+    ((total.abs() - TAU).abs() < 1e-6).then_some((center, radius, sweep.signum()))
+}
+
+/// A selected closed contour cut flying.
+struct Loop {
+    index: usize,
+    /// Where it sits for ordering into rows, and half its height.
+    middle: Point,
+    half_height: f64,
+    /// A circle's centre, radius and sense; none for any other contour.
+    circle: Option<(Point, f64, f64)>,
+    segments: Vec<PreparedSegment>,
+}
+
+impl Loop {
+    /// The cut, entering a circle where it runs along `along` and any other
+    /// contour at its own start, once round and on by `overlap`.
+    fn cut(&self, along: Point, overlap: f64) -> Vec<PreparedSegment> {
+        if let Some((center, radius, sense)) = self.circle {
+            let process = SegmentProcess { repierce: false, ..self.segments[0].process.clone() };
+            let start_angle = along.angle() - sense * FRAC_PI_2;
+            let round = Curve::Arc { center, radius, start_angle, sweep: sense * TAU };
+            let mut cut = vec![PreparedSegment::new(round, process.clone())];
+            // At most a quarter turn, so the overlap never retraces much.
+            let extra = overlap.min(radius * FRAC_PI_2) / radius;
+            if extra * radius > EPS {
+                let on = Curve::Arc { center, radius, start_angle, sweep: sense * extra };
+                cut.push(PreparedSegment::new(on, process));
+            }
+            return cut;
+        }
+        let mut cut = self.segments.clone();
+        let mut left = overlap;
+        for segment in &self.segments {
+            if left <= EPS {
+                break;
+            }
+            let length = segment.curve.length();
+            if length <= EPS {
+                continue;
+            }
+            cut.push(if length <= left {
+                segment.clone()
+            } else {
+                segment.slice(0., left / length)
+            });
+            left -= length;
+        }
+        if let Some(first) = cut.first_mut() {
+            first.process.repierce = false;
+        }
+        cut
+    }
+}
+
+/// The loops in rows across Y, each row along X, alternating unless every
+/// pass should run the same way, so the head snakes from row to row.
+/// Returns each loop with the direction its row runs.
+fn rows(mut loops: Vec<Loop>, fly: &FlyCut) -> Vec<(Loop, Point)> {
+    loops.sort_by(|a, b| a.middle.y.total_cmp(&b.middle.y));
+    if fly.from_far_side {
+        loops.reverse();
+    }
+    let mut rows: Vec<Vec<Loop>> = Vec::new();
+    for item in loops {
+        match rows.last_mut() {
+            Some(row)
+                if (item.middle.y - row[0].middle.y).abs()
+                    <= item.half_height.min(row[0].half_height) =>
+            {
+                row.push(item);
+            }
+            _ => rows.push(vec![item]),
+        }
+    }
+    let mut out = Vec::new();
+    for (i, mut row) in rows.into_iter().enumerate() {
+        let forward = (fly.one_way || i % 2 == 0) != fly.directions_reversed;
+        row.sort_by(|a, b| a.middle.x.total_cmp(&b.middle.x));
+        if !forward {
+            row.reverse();
+        }
+        let along = Point::new(if forward { 1. } else { -1. }, 0.);
+        out.extend(row.into_iter().map(|item| (item, along)));
+    }
+    out
+}
+
+/// Appends a laser-off line at cutting speed, if it has length.
+fn off_line(segments: &mut Vec<PreparedSegment>, start: Point, end: Point) {
+    if start.distance(end) > EPS {
+        segments.push(PreparedSegment::new(Curve::Line { start, end }, off()));
+    }
+}
+
+/// The angle between two directions, in radians.
+fn turn(a: Point, b: Point) -> f64 {
+    a.cross(b).atan2(a.dot(b)).abs()
+}
+
+/// One flying path under construction.
+#[derive(Default)]
+struct Path {
+    segments: Vec<PreparedSegment>,
+    film: Vec<Curve>,
+    members: Vec<usize>,
+}
+
+impl Path {
+    /// The finished path, with its run-out; none when it is empty.
+    fn finish(&mut self, contours: &[PreparedContour], run_up: f64) -> Option<PreparedContour> {
+        let last = self.segments.last()?;
+        let (end, tangent) = (last.curve.end(), last.curve.tangent(1.));
+        off_line(&mut self.segments, end, end + tangent * run_up);
+        let mut sources: Vec<usize> =
+            self.members.iter().flat_map(|&i| contours[i].sources.iter().copied()).collect();
+        sources.sort_unstable();
+        sources.dedup();
+        let first = &contours[self.members[0]];
+        let path = std::mem::take(self);
+        Some(PreparedContour {
+            sources,
+            lead_target: None,
+            layer: first.layer.clone(),
+            closed: false,
+            depth: first.depth,
+            segments: path.segments,
+            film: path.film,
+        })
+    }
+}
+
+/// Flying paths through the loops in order: a run-up into the first, each
+/// cut joined to the next by a laser-off link, straight when the turns are
+/// gentle and through a run-out and a run-up otherwise, and a run-out after
+/// the last. A path holds at most [`LOOP_SEGMENTS`] segments.
+fn loop_paths(
+    contours: &[PreparedContour],
+    ordered: Vec<(Loop, Point)>,
+    fly: &FlyCut,
+) -> Vec<PreparedContour> {
+    let mut paths = Vec::new();
+    let mut path = Path::default();
+    for (item, along) in ordered {
+        let cut = item.cut(along, fly.overlap);
+        if path.segments.len() + cut.len() + 4 > LOOP_SEGMENTS {
+            paths.extend(path.finish(contours, fly.run_up));
+        }
+        let (entry, heading) = (cut[0].curve.start(), cut[0].curve.tangent(0.));
+        match path.segments.last() {
+            None => off_line(&mut path.segments, entry - heading * fly.run_up, entry),
+            Some(last) => {
+                let (exit, leaving) = (last.curve.end(), last.curve.tangent(1.));
+                let link = entry - exit;
+                let gentle = exit.distance(entry) > EPS
+                    && turn(leaving, link) <= SMOOTH_TURN
+                    && turn(link, heading) <= SMOOTH_TURN;
+                if gentle {
+                    off_line(&mut path.segments, exit, entry);
+                } else {
+                    let out = exit + leaving * fly.run_up;
+                    let into = entry - heading * fly.run_up;
+                    off_line(&mut path.segments, exit, out);
+                    off_line(&mut path.segments, out, into);
+                    off_line(&mut path.segments, into, entry);
+                }
+            }
+        }
+        path.film.extend(item.segments.iter().map(|s| s.curve));
+        path.segments.extend(cut);
+        path.members.push(item.index);
+    }
+    paths.extend(path.finish(contours, fly.run_up));
+    paths
+}
+
+/// What a selected contour becomes in a flying cut.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Fate {
+    /// Not selected.
+    Stays,
+    /// Selected, but cut as usual.
+    Curved,
+    Line,
+    Loop,
+}
+
+/// Replaces the selected straight contours by one flying pass per line,
+/// and, when chosen, the selected circles and other closed contours by
+/// flying paths that never stop to pierce.
 pub(crate) fn fly(
     contours: Vec<PreparedContour>,
     fly: &FlyCut,
@@ -308,39 +543,83 @@ pub(crate) fn fly(
     warnings: &mut Vec<String>,
 ) -> Result<Vec<PreparedContour>> {
     check_fly(fly)?;
-    // Marked layers engrave or trace: a flying cut leaves them as they are.
-    let selected: Vec<bool> = contours
+    let mut loops = Vec::new();
+    let fates: Vec<Fate> = contours
         .iter()
-        .map(|c| {
-            !c.sources.is_empty()
-                && !marked.contains(&c.layer.as_str())
-                && c.sources.iter().all(|s| fly.contours.contains(s))
+        .enumerate()
+        .map(|(index, contour)| {
+            // Marked layers engrave or trace: a flying cut leaves them as they are.
+            let selected = !contour.sources.is_empty()
+                && !marked.contains(&contour.layer.as_str())
+                && contour.sources.iter().all(|s| fly.contours.contains(s));
+            if !selected {
+                return Fate::Stays;
+            }
+            let whole = cut_loop(contour);
+            let circle = whole.as_deref().and_then(circle_of);
+            let takes = if circle.is_some() {
+                fly.circles || fly.outlines
+            } else {
+                fly.outlines && !straight(contour)
+            };
+            match whole {
+                Some(segments) if takes => {
+                    let bounds = segments
+                        .iter()
+                        .map(|s| s.curve.bounds())
+                        .reduce(Bounds::union)
+                        .unwrap_or(Bounds::of(Point::new(0., 0.)));
+                    loops.push(Loop {
+                        index,
+                        middle: bounds.center(),
+                        half_height: bounds.height() / 2.,
+                        circle,
+                        segments,
+                    });
+                    Fate::Loop
+                }
+                _ if straight(contour) => Fate::Line,
+                _ => Fate::Curved,
+            }
         })
         .collect();
-    let flying: Vec<bool> =
-        contours.iter().zip(&selected).map(|(c, &s)| s && straight(c)).collect();
-    let curved = selected.iter().zip(&flying).filter(|(s, f)| **s && !**f).count();
+    let curved = fates.iter().filter(|&&f| f == Fate::Curved).count();
     if curved > 0 {
         warnings.push(format!(
-            "{curved} selected contour{} with arcs cut as usual: a flying cut takes straight edges only",
-            if curved == 1 { "" } else { "s" }
+            "{curved} selected contour{} with arcs cut as usual: \
+             switch on flying circles or contours to fly {}",
+            if curved == 1 { "" } else { "s" },
+            if curved == 1 { "it" } else { "them" },
         ));
     }
-    let Some(first) = flying.iter().position(|&f| f) else {
+    let Some(first) = fates.iter().position(|&f| matches!(f, Fate::Line | Fate::Loop)) else {
         return Err(feature(
             "flying cut",
-            "none of the selected contours is made of straight lines",
+            "none of the selected contours can fly: \
+             switch on flying circles or contours for shapes with arcs",
         ));
     };
-    let groups = gather(&contours, &flying, fly.tolerance)?;
-    let mut lines = passes(&contours, groups, fly)?;
+    let lining: Vec<bool> = fates.iter().map(|&f| f == Fate::Line).collect();
+    let groups = gather(&contours, &lining, fly.tolerance)?;
+    let mut paths = passes(&contours, groups, fly)?;
+    // Each layer and depth flies on its own path.
+    while let Some(item) = loops.first() {
+        let key = (contours[item.index].layer.clone(), contours[item.index].depth);
+        let (these, rest): (Vec<Loop>, Vec<Loop>) = loops.into_iter().partition(|item| {
+            contours[item.index].layer == key.0 && contours[item.index].depth == key.1
+        });
+        loops = rest;
+        paths.extend(loop_paths(&contours, rows(these, fly), fly));
+    }
+    // Holes before the outlines round them, so no part drops early.
+    paths.sort_by_key(|p| std::cmp::Reverse(p.depth));
 
-    let mut out = Vec::with_capacity(contours.len() + lines.len());
+    let mut out = Vec::with_capacity(contours.len() + paths.len());
     for (index, contour) in contours.into_iter().enumerate() {
         if index == first {
-            out.append(&mut lines);
+            out.append(&mut paths);
         }
-        if !flying[index] {
+        if matches!(fates[index], Fate::Stays | Fate::Curved) {
             out.push(contour);
         }
     }
@@ -735,6 +1014,9 @@ mod tests {
             one_way: false,
             from_far_side: false,
             directions_reversed: false,
+            circles: false,
+            outlines: false,
+            overlap: 0.3,
         }
     }
 
@@ -1145,5 +1427,169 @@ mod tests {
         for settings in [image(60., 40., 1.), image(0., 120., 1.), image(0., 100., 0.)] {
             assert!(fill_framing(&[&frame], &settings, Some(&halves())).is_err());
         }
+    }
+
+    fn hole(source: usize, center: Point, radius: f64, curves: Vec<Curve>) -> PreparedContour {
+        let curves = if curves.is_empty() { vec![Curve::circle(center, radius)] } else { curves };
+        PreparedContour {
+            sources: vec![source],
+            lead_target: None,
+            layer: "0".into(),
+            closed: true,
+            depth: 1,
+            segments: curves
+                .into_iter()
+                .map(|c| PreparedSegment::new(c, SegmentProcess::default()))
+                .collect(),
+            film: Vec::new(),
+        }
+    }
+
+    fn grid_of_holes(columns: usize, rows: usize, radius: f64) -> Vec<PreparedContour> {
+        let mut holes = Vec::new();
+        for j in 0..rows {
+            for i in 0..columns {
+                let center = Point::new(float(i) * 10., float(j) * 10.);
+                holes.push(hole(holes.len(), center, radius, Vec::new()));
+            }
+        }
+        holes
+    }
+
+    fn circles(contours: Vec<usize>) -> FlyCut {
+        FlyCut { circles: true, ..settings(contours) }
+    }
+
+    /// The path runs on without a gap and only ever enters a cut from a
+    /// laser-off stretch or another cut, never from a standstill.
+    fn flies_through(path: &PreparedContour) {
+        assert!(!path.closed);
+        assert!(path.segments.first().unwrap().process.joint, "enters at speed");
+        assert!(path.segments.last().unwrap().process.joint, "leaves at speed");
+        for pair in path.segments.windows(2) {
+            assert!(pair[0].curve.end().distance(pair[1].curve.start()) < 1e-9, "continuous");
+        }
+    }
+
+    #[test]
+    fn a_grid_of_holes_flies_in_one_snake() {
+        let radius = 2.;
+        let out =
+            fly(grid_of_holes(3, 3, radius), &circles((0..9).collect()), &[], &mut Vec::new())
+                .unwrap();
+        assert_eq!(out.len(), 1, "one path through all nine holes");
+        let path = &out[0];
+        flies_through(path);
+        let cut = cut_length(path);
+        assert!(
+            (cut - 9. * (TAU * radius + 0.3)).abs() < 1e-6,
+            "once round and the overlap: {cut}"
+        );
+        let arcs: Vec<_> = path.segments.iter().filter(|s| !s.process.joint).collect();
+        assert!(arcs.iter().all(|s| matches!(s.curve, Curve::Arc { .. })));
+        // Each circle opens on the tangent along its row: the first row
+        // runs +X along the bottoms, the second -X along the tops.
+        let entries: Vec<_> = arcs.iter().step_by(2).collect();
+        assert!((entries[0].curve.tangent(0.).x - 1.).abs() < 1e-9);
+        assert!((entries[0].curve.start().y + radius).abs() < 1e-9);
+        assert!((entries[3].curve.tangent(0.).x + 1.).abs() < 1e-9);
+        assert!((entries[3].curve.start().y - (10. + radius)).abs() < 1e-9);
+        assert!(entries[3].curve.start().x > entries[4].curve.start().x, "snakes back");
+        // Within a row the head goes straight on from one hole to the next.
+        let links = path.segments.iter().filter(|s| s.process.joint).count();
+        assert_eq!(links, 2 + 6 + 2 * 3, "run-up, six links, two turns of three, run-out");
+    }
+
+    #[test]
+    fn a_hole_drawn_in_arcs_flies_as_a_circle() {
+        let center = Point::new(5., 5.);
+        let halves = vec![
+            Curve::Arc { center, radius: 3., start_angle: 0., sweep: std::f64::consts::PI },
+            Curve::Arc {
+                center,
+                radius: 3.,
+                start_angle: std::f64::consts::PI,
+                sweep: std::f64::consts::PI,
+            },
+        ];
+        let out = fly(vec![hole(0, center, 3., halves)], &circles(vec![0]), &[], &mut Vec::new())
+            .unwrap();
+        assert_eq!(out.len(), 1);
+        flies_through(&out[0]);
+        assert!((cut_length(&out[0]) - (TAU * 3. + 0.3)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn circles_stay_unless_chosen() {
+        let mut warnings = Vec::new();
+        assert!(fly(grid_of_holes(2, 1, 2.), &settings(vec![0, 1]), &[], &mut warnings).is_err());
+    }
+
+    /// A 20 by 10 mm slot with round ends, starting on its bottom edge.
+    fn slot(source: usize) -> PreparedContour {
+        let (a, b) = (Point::new(0., 0.), Point::new(20., 0.));
+        let curves = vec![
+            Curve::Line { start: a, end: b },
+            Curve::Arc {
+                center: Point::new(20., 5.),
+                radius: 5.,
+                start_angle: -FRAC_PI_2,
+                sweep: std::f64::consts::PI,
+            },
+            Curve::Line { start: Point::new(20., 10.), end: Point::new(0., 10.) },
+            Curve::Arc {
+                center: Point::new(0., 5.),
+                radius: 5.,
+                start_angle: FRAC_PI_2,
+                sweep: std::f64::consts::PI,
+            },
+        ];
+        hole(source, Point::new(10., 5.), 5., curves)
+    }
+
+    #[test]
+    fn contours_with_arcs_fly_with_an_overlap() {
+        let fly_settings = FlyCut { outlines: true, overlap: 1., ..settings(vec![0, 1]) };
+        let mut second = slot(1);
+        for s in &mut second.segments {
+            s.curve = s.curve.translated(Point::new(0., 30.));
+        }
+        let mut warnings = Vec::new();
+        let out = fly(vec![slot(0), second], &fly_settings, &[], &mut warnings).unwrap();
+        assert!(warnings.is_empty());
+        assert_eq!(out.len(), 1);
+        flies_through(&out[0]);
+        let perimeter = 40. + TAU * 5.;
+        assert!((cut_length(&out[0]) - 2. * (perimeter + 1.)).abs() < 1e-6);
+        // The overlap runs on along the first edge past the start.
+        let lit: Vec<_> = out[0].segments.iter().filter(|s| !s.process.joint).collect();
+        assert!((lit[4].curve.end().distance(Point::new(1., 0.))) < 1e-9);
+        assert!((lit[0].curve.start().distance(Point::new(0., 0.))) < 1e-9);
+    }
+
+    #[test]
+    fn holes_fly_before_the_outline_round_them() {
+        let mut outer = hole(0, Point::new(0., 0.), 20., Vec::new());
+        outer.depth = 0;
+        let inner = hole(1, Point::new(0., 0.), 3., Vec::new());
+        let both = FlyCut { outlines: true, ..settings(vec![0, 1]) };
+        let out = fly(vec![outer, inner], &both, &[], &mut Vec::new()).unwrap();
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].sources, vec![1]);
+        assert_eq!(out[1].sources, vec![0]);
+    }
+
+    #[test]
+    fn many_holes_split_into_paths_the_planner_can_take() {
+        let out =
+            fly(grid_of_holes(20, 20, 1.), &circles((0..400).collect()), &[], &mut Vec::new())
+                .unwrap();
+        assert!(out.len() > 1);
+        for path in &out {
+            assert!(path.segments.len() <= LOOP_SEGMENTS);
+            flies_through(path);
+        }
+        let total: f64 = out.iter().map(cut_length).sum();
+        assert!((total - 400. * (TAU + 0.3)).abs() < 1e-6);
     }
 }
