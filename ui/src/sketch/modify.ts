@@ -287,7 +287,14 @@ function corner(s: Sketch, vertex: Id): { lines: [Id, Id]; far: [Vec, Vec] } | {
       return true;
     });
   }
-  const lines = s.entities.filter((e) => e.kind === 'line' && !e.construction && (e.a === vertex || e.b === vertex));
+  let lines = s.entities.filter((e) => e.kind === 'line' && !e.construction && (e.a === vertex || e.b === vertex));
+  if (lines.length > 2) {
+    // A mirror line ending at the corner is not one of its sides: the
+    // corner is between a line and its mirror image.
+    const axes = new Set(s.constraints.flatMap((c) => (c.kind === 'symmetric' ? [c.line] : [])));
+    const sides = lines.filter((l) => !axes.has(l.id));
+    if (sides.length === 2) lines = sides;
+  }
   if (lines.length !== 2) return { error: 'Pick a corner where exactly two lines meet.' };
   const farEnd = (l: Entity): Vec => (l.kind === 'line' ? point(s, l.a === vertex ? l.b : l.a) : point(s, vertex));
   const far: [Vec, Vec] = [farEnd(lines[0]!), farEnd(lines[1]!)];

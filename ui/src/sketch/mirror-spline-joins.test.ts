@@ -1,7 +1,7 @@
 import { beforeAll, expect, it } from 'vitest';
 import { addEntity, addPoint, emptySketch, point, type Sketch } from './model';
 import { createTool } from './tools';
-import { fillet, mirror, type Outcome } from './modify';
+import { chamfer, fillet, mirror, type Outcome } from './modify';
 import { snap } from './snap';
 import { initSolver, solve } from './solver';
 import type { Id } from './model';
@@ -37,6 +37,20 @@ it('rounds a corner left as two separate points by earlier mirrors', () => {
   addEntity(s, { kind: 'line', a: v2, b: addPoint(s, 40, 0) });
   const rounded = ok(fillet(s, v2, 5));
   expect(rounded.entities.filter((e) => e.kind === 'arc')).toHaveLength(1);
+});
+
+it('chamfers and rounds a line and its mirror image where the mirror line ends', () => {
+  const s = emptySketch();
+  const apex = addPoint(s, 0, 20);
+  const side = addEntity(s, { kind: 'line', a: addPoint(s, -30, 0), b: apex });
+  const axis = addEntity(s, { kind: 'line', a: addPoint(s, 0, -10), b: apex });
+  const both = solve(ok(mirror(s, [side], axis))).sketch;
+  for (const cut of [chamfer(both, apex, 3), fillet(both, apex, 3)]) {
+    const done = ok(cut);
+    expect(done.entities).toHaveLength(4);
+    expect(done.entities.some((e) => e.id === axis && e.kind === 'line' && e.b === apex)).toBe(true);
+    expect(solve(done).ok).toBe(true);
+  }
 });
 
 it('a line snapped to a spline control point by the grid shares it and follows the spline', () => {
