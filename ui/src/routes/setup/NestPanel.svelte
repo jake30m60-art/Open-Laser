@@ -18,6 +18,11 @@
   const selected = $derived(draft.groups.filter(g => g.some(i => effectiveSelection.includes(i))).length);
   let settings = $state<NestSettings>({ spacing: 3, margin: 3, remnant_clearance: 10, rotation: 'any' });
   let seconds = $state(10), page = $state(0);
+  /** Most copies one request may ask for: the server's own limit. */
+  const MAX_COPIES = 100000;
+  /** At zero spacing, cut the edges touching parts share once. */
+  let commonEdges = $state(true);
+  const flush = $derived(settings.spacing === 0);
   /** Copies wanted of each part, by its first contour; a part not listed is nested once. */
   let quantities = $state<Record<number, number>>({});
   /** The one part selected, whose quantity the keypad edits. */
@@ -189,8 +194,8 @@
   async function start(): Promise<void> {
     if (busy || result?.running) return;
     if (!plan.length && stock?.kind !== 'outline') { chooseNext(); return; }
-    if (extra.some(q => !Number.isInteger(q.quantity) || q.quantity > 500)) {
-      error = t('Enter a whole quantity from 1 to 500.');
+    if (extra.some(q => !Number.isInteger(q.quantity) || q.quantity > MAX_COPIES)) {
+      error = t('Enter a whole quantity from 1 to {0}.', MAX_COPIES);
       return;
     }
     busy = true; error = ''; ui.nestPicking = false; previewPage = null; page = 0;
@@ -198,7 +203,8 @@
     try {
       searched = $state.snapshot(plan);
       result = await api.nest(
-        { contours: effectiveSelection, quantity: 1, quantities: extra, settings: $state.snapshot(settings), seconds, stock: searched },
+        { contours: effectiveSelection, quantity: 1, quantities: extra, settings: $state.snapshot(settings), seconds, stock: searched,
+          common_edges: flush && commonEdges },
         draft.revision);
       timer = setTimeout(() => { if (result) void poll(result.id); }, 200);
     }
@@ -260,6 +266,7 @@
       </button>
     {/each}
   </div>
+  {#if result.notice}<p class="nest-note warn" role="status">{result.notice}</p>{/if}
   <p class="nest-note">{t("After applying, switch sheets above the drawing.")}</p>
 {:else if result?.running}
   <div class="searching" role="status">
@@ -330,6 +337,12 @@
         <strong>{measure(settings.margin, 'mm')}</strong>
       </button>
     </div>
+    {#if flush}
+      <label class="common">
+        <input type="checkbox" bind:checked={commonEdges} onchange={invalidate} />
+        <span>{t("Cut shared edges once")}<small>{t("At 0 mm, rectangular parts are laid edge to edge and each shared edge is cut only once.")}</small></span>
+      </label>
+    {/if}
     {#if plan.some((source) => source.kind === 'remnant') || stock?.kind === 'remnant'}
       <button
         class="value remnant-buffer"
@@ -354,6 +367,7 @@
           <button class:on={seconds === duration} onclick={() => setSeconds(duration)}>{duration} {t("sec")}</button>
         {/each}
       </div>
+      <small class="nest-note">{t("Large quantities are laid out in rows and columns at once; the search time is for the rest.")}</small>
     </details>
   </fieldset>
   {#if stale}<p class="error">{t("The drawing changed. Preview again.")}</p>{/if}
@@ -414,6 +428,10 @@
   .rotations strong { font-size:var(--t-sm); }
   .rotations small { display:block; margin-top:8px; font-size:var(--t-sm); color:var(--ink-3); }
   .rotations button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .nest-note.warn { color:var(--warn); }
+  .common { display:flex; gap:12px; align-items:flex-start; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); cursor:pointer; font-size:var(--t-sm); }
+  .common input { width:22px; height:22px; flex-shrink:0; }
+  .common small { display:block; margin-top:6px; color:var(--ink-3); line-height:1.5; }
   .nest-note { color:var(--ink-3); font-size:var(--t-sm); line-height:1.7; margin:16px 0; }
   .search-options summary { cursor:pointer; min-height:48px; display:flex; align-items:center; color:var(--ink-3); font-size:var(--t-sm); }
   .search-options .seg button { min-height:48px; }

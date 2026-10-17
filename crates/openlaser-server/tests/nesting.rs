@@ -75,6 +75,7 @@ fn request() -> NestRequest {
         seconds: 1,
         stock: vec![],
         quantities: Vec::new(),
+        common_edges: false,
     }
 }
 
@@ -431,4 +432,79 @@ async fn a_sheet_is_placed_where_it_was_moved_and_turned_about_its_corner() {
         .unwrap();
     assert_eq!(bounds(&c), [-10., 5., 190., 305.]);
     assert!(c.set_stock(StockChoice::Rectangle { width: 0., height: 300., min: None }).is_err());
+}
+
+/// Thousands of copies fill sheets in grids within moments; at zero
+/// spacing they touch and their shared edges are cut once.
+#[tokio::test]
+async fn thousands_of_copies_fill_sheets_in_grids_with_common_edges() {
+    let (_sim, shared) = start("nest-thousands").await;
+    setup(&shared).await;
+    let groups = shared.lock().await.draft.as_ref().unwrap().groups.clone();
+    let square = groups.iter().find(|g| g.len() == 1).unwrap().clone();
+    let revision = shared.lock().await.document().draft_revision;
+    let wanted = NestRequest {
+        contours: square,
+        quantity: 2000,
+        settings: NestSettings {
+            remnant_clearance: 0.,
+            spacing: 0.,
+            margin: 2.,
+            rotation: NestRotation::Fixed,
+        },
+        seconds: 5,
+        stock: vec![StockSource::Sheet { width: 500., height: 300., count: 0 }],
+        common_edges: true,
+        ..request()
+    };
+    let started = std::time::Instant::now();
+    let task = nesting::start(&shared, revision, wanted).await.unwrap();
+    let view = finished(&shared, task.id).await;
+    assert!(view.error.is_none(), "{:?}", view.error);
+    assert!(view.notice.is_none(), "{:?}", view.notice);
+    assert!(started.elapsed() < std::time::Duration::from_secs(30), "{:?}", started.elapsed());
+    assert_eq!(view.sheets.iter().map(|s| s.parts).sum::<usize>(), 2001);
+    // 24 columns and 14 rows of 20 mm squares within the 2 mm margin.
+    assert_eq!(view.sheets[0].parts, 336);
+    nesting::apply(&shared, task.id).await.unwrap();
+    let c = shared.lock().await;
+    let draft = c.draft.as_ref().unwrap();
+    let common = draft.current.features.common.as_ref().expect("common edges taken");
+    assert_eq!(common.contours.len(), 336);
+    assert!(draft.error.is_none(), "{:?}", draft.error);
+    drop(c);
+    openlaser_server::shutdown(&shared).await.unwrap();
+}
+
+/// Machining chosen for one part's contours applies to every nested copy.
+#[tokio::test]
+async fn a_parts_own_machining_follows_every_copy() {
+    let (_sim, shared) = start("nest-own-machining").await;
+    setup(&shared).await;
+    let groups = shared.lock().await.draft.as_ref().unwrap().groups.clone();
+    let part = groups.iter().find(|g| g.len() == 2).unwrap().clone();
+    {
+        let mut c = shared.lock().await;
+        let mut features = c.draft.as_ref().unwrap().current.features.clone();
+        features.contour_machining = vec![openlaser_core::features::ContourMachining {
+            contours: part.clone(),
+            own: vec![openlaser_core::features::MachiningPart::Start],
+            machining: openlaser_core::features::Machining::default(),
+        }];
+        c.set_features(features).unwrap();
+    }
+    machine::prepare(&shared).await.unwrap();
+    let revision = shared.lock().await.document().draft_revision;
+    let wanted = NestRequest { contours: part, quantity: 3, ..request() };
+    let task = nesting::start(&shared, revision, wanted).await.unwrap();
+    let view = finished(&shared, task.id).await;
+    assert!(view.error.is_none(), "{:?}", view.error);
+    nesting::apply(&shared, task.id).await.unwrap();
+    let c = shared.lock().await;
+    let draft = c.draft.as_ref().unwrap();
+    let own = &draft.current.features.contour_machining;
+    assert_eq!(own.len(), 1);
+    assert_eq!(own[0].contours.len(), 6, "both contours of all three copies");
+    drop(c);
+    openlaser_server::shutdown(&shared).await.unwrap();
 }

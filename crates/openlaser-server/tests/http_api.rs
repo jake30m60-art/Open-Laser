@@ -499,6 +499,7 @@ async fn completed_sheet_survives_edits_and_becomes_stock_with_all_cutouts_exclu
         seconds: 2,
         stock: vec![],
         quantities: Vec::new(),
+        common_edges: false,
     };
     let work = nesting::start(&server.shared, revision, request).await.unwrap();
     loop {
@@ -650,6 +651,7 @@ async fn several_parts_nest_on_a_remnant_then_a_chosen_sheet() {
         seconds: 2,
         stock,
         quantities: Vec::new(),
+        common_edges: false,
     };
     let work = nesting::start(&server.shared, revision, request).await.unwrap();
     let result = loop {

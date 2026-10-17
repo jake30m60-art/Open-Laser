@@ -12,9 +12,11 @@ use openlaser_core::nesting::Nesting;
 use openlaser_library::{Anchor, Id};
 use serde::{Deserialize, Serialize};
 
-/// Most sheets one job set may hold, and most parts one saved sheet may
-/// list: as many as copies in one nesting search.
-const MAX_SHEETS: usize = crate::nesting::MAX_NEST_COPIES as usize;
+/// Most sheets one job set may hold.
+const MAX_SHEETS: usize = 500;
+/// Most parts one saved sheet may list: one contour each at the most one
+/// sheet can prepare.
+const MAX_SHEET_PARTS: usize = openlaser_prep::MAX_CONTOURS;
 
 /// Geometry specific to a sheet; material and correction belong to the job set.
 ///
@@ -91,7 +93,7 @@ impl SheetLayout {
         if let Some(nesting) = &self.nesting {
             nesting.validate(count).map_err(Error::Refused)?;
         }
-        if self.parts > MAX_SHEETS
+        if self.parts > MAX_SHEET_PARTS
             || self.placed.is_empty()
             || self.sheet_offset.is_some_and(|p| p.iter().any(|v| !v.is_finite()))
         {

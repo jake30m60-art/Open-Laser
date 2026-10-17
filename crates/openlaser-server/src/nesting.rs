@@ -68,6 +68,11 @@ pub struct NestRequest {
     /// with none here is nested once, the selected part `quantity` times.
     #[serde(default)]
     pub quantities: Vec<PartQuantity>,
+    /// At zero spacing, cut the edges the parts share once: the result
+    /// takes common edges over every part's outline.
+    #[serde(default)]
+    #[cfg_attr(feature = "typescript", ts(as = "Option<bool>", optional))]
+    pub common_edges: bool,
 }
 
 /// The copies wanted of one part, the original included.
@@ -155,6 +160,31 @@ pub struct NestView {
     /// The chosen sheets filled up with parts still to place: `placed` of
     /// `total` fit, and the operator chooses the next sheet.
     pub needs_sheets: bool,
+    /// Something the complete result could not do as asked.
+    pub notice: Option<String>,
+}
+
+impl NestView {
+    /// A search just begun, nothing placed yet.
+    fn started(id: u64, revision: u64, total: usize) -> Self {
+        Self {
+            sheets: Vec::new(),
+            stock_outline: Vec::new(),
+            stock_cutouts: Vec::new(),
+            id,
+            revision,
+            running: true,
+            placed: 0,
+            total,
+            coverage: None,
+            preview: None,
+            live_serial: 0,
+            live: None,
+            error: None,
+            needs_sheets: false,
+            notice: None,
+        }
+    }
 }
 
 /// Where a running search has the draft's groups on the sheet it is filling
@@ -530,22 +560,7 @@ pub async fn start(shared: &Shared, revision: u64, request: NestRequest) -> Resu
     let (input, sheets) = input(draft.drawing()?, &draft, &request, &sources)?;
     let id = NEXT_TASK.fetch_add(1, Ordering::Relaxed);
     let total = input.items.iter().map(|i| i.quantity).sum();
-    let view = NestView {
-        sheets: Vec::new(),
-        stock_outline: Vec::new(),
-        stock_cutouts: Vec::new(),
-        id,
-        revision,
-        running: true,
-        placed: 0,
-        total,
-        coverage: None,
-        preview: None,
-        live_serial: 0,
-        live: None,
-        error: None,
-        needs_sheets: false,
-    };
+    let view = NestView::started(id, revision, total);
     let work =
         Arc::new(Mutex::new(Work { previews: Vec::new(), view: view.clone(), candidate: None }));
     let cancel = Arc::new(AtomicBool::new(false));
@@ -564,7 +579,8 @@ pub async fn start(shared: &Shared, revision: u64, request: NestRequest) -> Resu
                 work.view.live_serial += 1;
                 work.view.live = Some(Arc::new(live));
             };
-            search_sheets(&draft, &input, &sheets, &sources, &cancel, &full, progress, live)
+            let common = request.common_edges;
+            search_sheets(&draft, &input, &sheets, &sources, &cancel, &full, common, progress, live)
         }))
         .unwrap_or_else(|_| {
             Err(Error::Refused(
@@ -575,7 +591,8 @@ pub async fn start(shared: &Shared, revision: u64, request: NestRequest) -> Resu
         w.view.running = false;
         w.view.live = None;
         match result {
-            Ok((draft, sheets, previews)) if !cancel.load(Ordering::Relaxed) => {
+            Ok((draft, sheets, previews, notice)) if !cancel.load(Ordering::Relaxed) => {
+                w.view.notice = notice;
                 w.view.coverage = sheets.first().map(|s| s.coverage);
                 if let Some(first) = previews.first() {
                     w.view.preview.clone_from(&first.preview);
@@ -604,11 +621,18 @@ fn search_sheets(
     sources: &[Source],
     cancel: &AtomicBool,
     full: &AtomicBool,
+    common_edges: bool,
     progress: impl Fn(usize, usize) + Sync,
     live: impl Fn(NestLive) + Sync,
-) -> Result<(Draft, Vec<NestSheetSummary>, Vec<NestSheetPreview>)> {
+) -> Result<Searched> {
     let drawing = draft.drawing()?;
     let settings = input.settings;
+    let common = common_edges.then_some(()).and_then(|()| {
+        (settings.spacing == 0.).then(|| {
+            let kerf = draft.current.features.kerf.as_ref().map_or(0., |k| k.width.0);
+            (kerf + COMMON_TOLERANCE).min(1.)
+        })
+    });
     let outline = |c: &Contour| openlaser_nest::polygon(c).unwrap_or_default();
     let shapes: Vec<_> = sheets
         .iter()
@@ -637,11 +661,14 @@ fn search_sheets(
     let mut drafts = Vec::new();
     let mut summaries = Vec::new();
     let mut previews = Vec::new();
+    let mut notice = None;
     for (i, solution) in solutions.iter().enumerate() {
         let mut page = draft.clone();
         let stock = sources[solution.sheet].stock.clone();
         page.current.nesting = Some(Nesting { stock, settings });
-        let page = candidate(page, drawing, &draft.groups, &solution.layout, settings)?;
+        let (page, note) =
+            candidate(page, drawing, &draft.groups, &solution.layout, settings, common)?;
+        notice = notice.or(note);
         let bounds = sheets[solution.sheet]
             .stock
             .bounds()
@@ -661,8 +688,12 @@ fn search_sheets(
         drafts.push(page);
     }
     let combined = crate::sheets::attach(draft, &drafts)?;
-    Ok::<_, Error>((combined, summaries, previews))
+    Ok((combined, summaries, previews, notice))
 }
+
+/// A search's draft with every sheet, each sheet's summary and preview,
+/// and what it could not do as asked.
+type Searched = (Draft, Vec<NestSheetSummary>, Vec<NestSheetPreview>, Option<String>);
 
 /// Return a compact current search state.
 pub async fn status(shared: &Shared, id: u64) -> Result<NestView> {
@@ -732,7 +763,10 @@ fn task(c: &Coordinator, id: u64) -> Result<&Task> {
 
 /// Most copies one nesting request may ask for; the nesting crate's own
 /// limit.
-pub(crate) const MAX_NEST_COPIES: u32 = 500;
+pub(crate) const MAX_NEST_COPIES: u32 = 100_000;
+/// How far apart, in millimetres, two copies' shared edges may lie beyond
+/// the kerf to be cut once.
+const COMMON_TOLERANCE: f64 = 0.01;
 /// Longest nesting search, in seconds, a request may ask for; the nesting
 /// crate's own limit.
 const MAX_NEST_SECONDS: u32 = 30;
@@ -758,13 +792,12 @@ fn input(
     if draft.preparing {
         return Err(Error::Refused("wait for drawing preparation".into()));
     }
-    if draft.current.features.common.is_some()
-        || draft.current.features.fly.is_some()
+    // Common edges are taken again over the new layout, when asked.
+    if draft.current.features.fly.is_some()
         || draft.current.features.bridges.as_ref().is_some_and(|b| !b.connections.is_empty())
     {
         return Err(Error::Refused(
-            "remove common edges, flying cuts and bridge connections before changing their layout"
-                .into(),
+            "remove flying cuts and bridge connections before changing their layout".into(),
         ));
     }
     let sheets = sources
@@ -855,10 +888,24 @@ fn candidate(
     groups: &[Vec<usize>],
     solution: &openlaser_nest::Solution,
     settings: NestSettings,
-) -> Result<Draft> {
+    common: Option<f64>,
+) -> Result<(Draft, Option<String>)> {
     let original = draft.current.placed.clone();
     let mut next = Vec::new();
     let mut next_groups = Vec::new();
+    // Each copy's outline: its group's largest closed contour.
+    let outer = |group: &[usize]| {
+        group
+            .iter()
+            .enumerate()
+            .filter(|&(_, &i)| drawing.contours[original[i].source].is_closed())
+            .max_by(|&(_, &a), &(_, &b)| {
+                let area = |i: usize| drawing.contours[original[i].source].signed_area().abs();
+                area(a).total_cmp(&area(b))
+            })
+            .map(|(k, _)| k)
+    };
+    let mut outlines = Vec::new();
     let mut map = vec![Vec::<usize>::new(); original.len()];
     for (copy, placement) in solution.placements.iter().enumerate() {
         let copy = u32::try_from(copy).map_err(|_| Error::Refused("too many copies".into()))?;
@@ -873,6 +920,7 @@ fn candidate(
             });
         }
         next_groups.push((first..next.len()).collect());
+        outlines.extend(outer(&groups[placement.item]).map(|k| first + k));
     }
     if next.len() > openlaser_core::geometry::MAX_PLACED_CONTOURS {
         return Err(Error::Refused("the nested layout exceeds 100000 contours".into()));
@@ -882,6 +930,38 @@ fn candidate(
     if !draft.current.grouping.0.is_empty() {
         draft.current.grouping = openlaser_core::grouping::Grouping(next_groups);
     }
+    repeat(&mut draft.current.features, &map);
+    if let OrderStrategy::Manual(order) = &mut draft.current.features.order.strategy {
+        *order = (0..draft.current.placed.len()).collect();
+    }
+    if let Some(n) = &mut draft.current.nesting {
+        n.settings = settings;
+    }
+    draft.current.features.common = common.filter(|_| outlines.len() > 1).map(|tolerance| {
+        openlaser_core::features::CommonEdges {
+            contours: outlines,
+            tolerance,
+            allow_overcut: false,
+        }
+    });
+    draft.prepare(drawing);
+    let mut notice = None;
+    if let Some(error) = draft.error.clone()
+        && draft.current.features.common.take().is_some()
+    {
+        // The parts stay where they touch; each is cut on its own.
+        notice = Some(format!("common edges were left off: {error}"));
+        draft.prepare(drawing);
+    }
+    if let Some(error) = &draft.error {
+        return Err(Error::Refused(format!("nested machining paths: {error}")));
+    }
+    Ok((draft, notice))
+}
+
+/// Everything picked on one part's contours, repeated on every copy:
+/// `map` lists each original contour's copies, in copy order.
+fn repeat(features: &mut openlaser_core::features::Features, map: &[Vec<usize>]) {
     let repeat = |spots: &[Spot]| -> Vec<Spot> {
         spots
             .iter()
@@ -890,18 +970,18 @@ fn candidate(
             })
             .collect()
     };
-    if let Some(j) = &mut draft.current.features.joints
+    if let Some(j) = &mut features.joints
         && let JointPlacement::Manual(spots) = &mut j.placement
     {
         *spots = repeat(spots);
     }
-    if let Some(c) = &mut draft.current.features.cooling
+    if let Some(c) = &mut features.cooling
         && let CoolingPlacement::Manual(spots) = &mut c.placement
     {
         *spots = repeat(spots);
     }
-    draft.current.features.start.spots = repeat(&draft.current.features.start.spots);
-    if let Some(leads) = &mut draft.current.features.leads {
+    features.start.spots = repeat(&features.start.spots);
+    if let Some(leads) = &mut features.leads {
         leads.overrides = leads
             .overrides
             .iter()
@@ -914,17 +994,30 @@ fn candidate(
             })
             .collect();
     }
-    if let OrderStrategy::Manual(order) = &mut draft.current.features.order.strategy {
-        *order = (0..draft.current.placed.len()).collect();
+    // A part's own machining, engraving areas and worked contours follow
+    // every copy of it, as its picked places do.
+    let copies = |contours: &[usize]| -> Vec<usize> {
+        contours.iter().flat_map(|&c| map[c].iter().copied()).collect()
+    };
+    for selection in &mut features.contour_machining {
+        selection.contours = copies(&selection.contours);
     }
-    if let Some(n) = &mut draft.current.nesting {
-        n.settings = settings;
+    features.contour_machining.retain(|s| !s.contours.is_empty());
+    features.fill_regions = features
+        .fill_regions
+        .iter()
+        .flat_map(|region| {
+            map[region.contour].iter().enumerate().map(|(k, &contour)| {
+                openlaser_core::features::FillRegion {
+                    contour,
+                    holes: region.holes.iter().filter_map(|&h| map[h].get(k).copied()).collect(),
+                }
+            })
+        })
+        .collect();
+    if let Some(only) = &mut features.only_contours {
+        *only = copies(only);
     }
-    draft.prepare(drawing);
-    if let Some(error) = &draft.error {
-        return Err(Error::Refused(format!("nested machining paths: {error}")));
-    }
-    Ok(draft)
 }
 
 /// Check exact prepared curves, including leads and film, against saved stock.

@@ -21,11 +21,15 @@ use sparrow::util::listener::DummySolListener;
 use sparrow::util::listener::{ReportType, SolutionListener};
 use sparrow::util::terminator::Terminator;
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-/// Most copies one search places, across every item and sheet.
-const MAX_COPIES: usize = 500;
+/// Most copies one search places on its own, across every item and sheet;
+/// a part wanted more often goes in grids.
+pub(crate) const SEARCH_COPIES: usize = 500;
+/// Most copies one multi-sheet request may ask for, across every item and
+/// sheet: several sheets' worth of small parts, laid out in grids.
+pub(crate) const MAX_COPIES: usize = 100_000;
 /// Longest search a request may ask for, and the separate bound on shape
 /// preparation before it.
 const MAX_SEARCH_TIME: Duration = Duration::from_secs(30);
@@ -129,7 +133,7 @@ pub(crate) fn run(
     cancel: &AtomicBool,
     progress: &(impl Fn(usize, usize) + Sync),
 ) -> Result<Solution, Error> {
-    let total = validate(request)?;
+    let total = validate(request, SEARCH_COPIES)?;
     let whole = request
         .items
         .iter()
@@ -169,8 +173,9 @@ fn check_cancelled(cancel: &AtomicBool) -> Result<(), Error> {
     }
 }
 
-/// Bounded first-fit placement across sheets, largest parts first. Every sheet
-/// shares the same quantity accounting and the same cancellation/deadline.
+/// Many copies of a part first fill whole sheets in grids; what is left,
+/// with every other part, is searched on the sheets still free. When that
+/// search fails for a single part, its rest is laid out in a grid too.
 pub(crate) fn run_sheets(
     request: &Request,
     sheets: &[Sheet],
@@ -181,8 +186,186 @@ pub(crate) fn run_sheets(
     if sheets.is_empty() {
         return Err(Error::new("choose at least one sheet to nest on".into()));
     }
-    let total = validate(request)?;
+    let total = validate(request, MAX_COPIES)?;
     check_cancelled(cancel)?;
+    let mut tiling = Tiling {
+        request,
+        sheets,
+        left: sheets.iter().map(|s| s.count).collect(),
+        remaining: request.items.iter().map(|i| i.quantity).collect(),
+        done: Vec::new(),
+        total,
+    };
+    let mut bulk: Vec<usize> = (0..request.items.len())
+        .filter(|&i| crate::tile::bulk(&request.items[i], request, total, SEARCH_COPIES))
+        .collect();
+    bulk.sort_by(|a, b| {
+        crate::tile::area(&request.items[*b]).total_cmp(&crate::tile::area(&request.items[*a]))
+    });
+    // Copies the search takes: every other part, then each grid's rest.
+    let mut searched: usize = (0..request.items.len())
+        .filter(|i| !bulk.contains(i))
+        .map(|i| request.items[i].quantity)
+        .sum();
+    for &id in &bulk {
+        // Rectangles wanted edge to edge stay in grids to the last copy.
+        let shared = (!crate::tile::flush(&request.items[id], request)).then_some(searched);
+        searched += tiling.fill(id, shared, cancel, progress, live)?;
+    }
+    if searched > SEARCH_COPIES {
+        return Err(if bulk.iter().any(|&id| tiling.grid(id).is_some()) {
+            Error::sheets_full(tiling.placed(), total)
+        } else {
+            Error::new(format!(
+                "more than {SEARCH_COPIES} copies need a rectangular sheet without cutouts that holds the part"
+            ))
+        });
+    }
+    if searched == 0 {
+        return Ok(tiling.done);
+    }
+    // The rest as a request of its own, its items numbered anew.
+    let ids: Vec<usize> = (0..request.items.len()).filter(|&i| tiling.remaining[i] > 0).collect();
+    let rest = Request {
+        items: ids
+            .iter()
+            .map(|&i| crate::Item { quantity: tiling.remaining[i], ..request.items[i].clone() })
+            .collect(),
+        ..request.clone()
+    };
+    let free: Vec<Sheet> = sheets
+        .iter()
+        .zip(&tiling.left)
+        .map(|(sheet, left)| Sheet { count: *left, ..sheet.clone() })
+        .collect();
+    let before = tiling.placed();
+    let reached = AtomicUsize::new(before);
+    let found = {
+        let shown = &tiling.done;
+        let outer = live.show;
+        let show = |found: &[SheetSolution], changed: usize| {
+            let mut all = shown.clone();
+            all.extend(found.iter().cloned().map(|mut s| {
+                renumber(&mut s, &ids);
+                s
+            }));
+            outer(&all, shown.len() + changed);
+        };
+        let mut inner = Live::new(&show);
+        let counted = |placed: usize, _: usize| {
+            reached.fetch_max(before + placed, Ordering::Relaxed);
+            progress(before + placed, total);
+        };
+        search_sheets(&rest, &free, cancel, &counted, &mut inner)
+    };
+    match found {
+        Ok(found) => {
+            for mut sheet in found {
+                renumber(&mut sheet, &ids);
+                tiling.done.push(sheet);
+            }
+            Ok(tiling.done)
+        }
+        Err(_) if ids.len() == 1 && bulk.contains(&ids[0]) && !cancel.load(Ordering::Relaxed) => {
+            tiling.fill(ids[0], None, cancel, progress, live)?;
+            if tiling.remaining[ids[0]] > 0 {
+                return Err(Error::sheets_full(tiling.placed(), total));
+            }
+            Ok(tiling.done)
+        }
+        Err(e) if e.sheets_full => Err(Error::sheets_full(reached.into_inner(), total)),
+        Err(e) => Err(e),
+    }
+}
+
+/// Item numbers of a rest request's own back to the original request's.
+fn renumber(sheet: &mut SheetSolution, ids: &[usize]) {
+    for placement in &mut sheet.layout.placements {
+        placement.item = ids[placement.item];
+    }
+}
+
+/// Sheets laid out in grids so far.
+struct Tiling<'a> {
+    request: &'a Request,
+    sheets: &'a [Sheet],
+    /// Sheets of each kind still free, `None` for as many as needed.
+    left: Vec<Option<usize>>,
+    /// Copies of each item still to place.
+    remaining: Vec<usize>,
+    done: Vec<SheetSolution>,
+    total: usize,
+}
+
+impl Tiling<'_> {
+    fn placed(&self) -> usize {
+        self.total - self.remaining.iter().sum::<usize>()
+    }
+
+    /// The first kind of sheet with one left that holds a grid of item
+    /// `id`, its grid and how many copies one sheet takes.
+    fn grid(&self, id: usize) -> Option<(usize, crate::tile::Grid, usize)> {
+        let item = &self.request.items[id];
+        let copy = load(item);
+        let limit = &self.request.sheet_limit;
+        let by_load = (limit.contours / copy[0].max(1)).min(limit.curves / copy[1].max(1));
+        self.sheets.iter().enumerate().filter(|(k, _)| self.left[*k] != Some(0)).find_map(
+            |(kind, sheet)| {
+                let grid = crate::tile::Grid::new(self.request, sheet, item)?;
+                let capacity = grid.capacity().min(by_load);
+                (capacity > 0).then_some((kind, grid, capacity))
+            },
+        )
+    }
+
+    /// Fills sheets with grids of item `id` and returns the copies left.
+    /// With `searched`, the copies a search already takes, a rest smaller
+    /// than one sheet stays for that search while it keeps within
+    /// [`SEARCH_COPIES`].
+    fn fill(
+        &mut self,
+        id: usize,
+        searched: Option<usize>,
+        cancel: &AtomicBool,
+        progress: &(impl Fn(usize, usize) + Sync),
+        live: &mut Live<'_>,
+    ) -> Result<usize, Error> {
+        while self.remaining[id] > 0 {
+            check_cancelled(cancel)?;
+            let Some((kind, grid, capacity)) = self.grid(id) else { break };
+            let rest = self.remaining[id];
+            if rest < capacity && searched.is_some_and(|s| s + rest <= SEARCH_COPIES) {
+                break;
+            }
+            let count = rest.min(capacity);
+            let placements = grid.place(&self.request.items[id], id, count);
+            if placements.len() != count {
+                return Err(Error::new("a grid lost a requested copy".into()));
+            }
+            self.done.push(crate::tile::sheet(self.request, &self.sheets[kind], kind, placements)?);
+            if let Some(left) = &mut self.left[kind] {
+                *left -= 1;
+            }
+            self.remaining[id] -= count;
+            progress(self.placed(), self.total);
+            if live.due() {
+                (live.show)(&self.done, self.done.len() - 1);
+            }
+        }
+        Ok(self.remaining[id])
+    }
+}
+
+/// Bounded first-fit placement across sheets, largest parts first. Every sheet
+/// shares the same quantity accounting and the same cancellation/deadline.
+fn search_sheets(
+    request: &Request,
+    sheets: &[Sheet],
+    cancel: &AtomicBool,
+    progress: &(impl Fn(usize, usize) + Sync),
+    live: &mut Live<'_>,
+) -> Result<Vec<SheetSolution>, Error> {
+    let total = validate(request, SEARCH_COPIES)?;
     let inputs: Vec<Request> = sheets
         .iter()
         .map(|sheet| Request {
@@ -609,16 +792,16 @@ fn coverage(request: &Request, items: &[(Item, usize)], counts: &[usize]) -> f64
     (area / available).clamp(0., 1.)
 }
 
-fn validate(request: &Request) -> Result<usize, Error> {
+fn validate(request: &Request, most: usize) -> Result<usize, Error> {
     request.settings.validate().map_err(Error::new)?;
-    let copies = || Error::new(format!("nest between 1 and {MAX_COPIES} complete parts at a time"));
+    let copies = || Error::new(format!("nest between 1 and {most} complete parts at a time"));
     let total = request
         .items
         .iter()
         .try_fold(0usize, |sum, item| sum.checked_add(item.quantity))
         .ok_or_else(copies)?;
     if total == 0
-        || total > MAX_COPIES
+        || total > most
         || request.items.iter().any(|i| i.quantity == 0 || i.contours.is_empty())
     {
         return Err(copies());

@@ -501,3 +501,137 @@ fn chosen_sheets_fill_in_order_within_their_counts() {
     .unwrap_err();
     assert!(error.sheets_full, "{}", error.message);
 }
+
+/// Every copy's extent after its placement.
+fn extents(sheet: &openlaser_nest::SheetSolution, item: &Item) -> Vec<[f64; 4]> {
+    sheet
+        .layout
+        .placements
+        .iter()
+        .map(|p| {
+            let b = item
+                .contours
+                .iter()
+                .filter_map(|c| p.transform.contour(c).bounds())
+                .reduce(openlaser_core::geometry::Bounds::union)
+                .unwrap();
+            [b.min.x, b.min.y, b.max.x, b.max.y]
+        })
+        .collect()
+}
+
+fn overlapping(boxes: &[[f64; 4]]) -> bool {
+    let mut sorted = boxes.to_vec();
+    sorted.sort_by(|a, b| a[0].total_cmp(&b[0]));
+    sorted.iter().enumerate().any(|(i, a)| {
+        sorted[i + 1..]
+            .iter()
+            .take_while(|b| b[0] < a[2] - 1e-9)
+            .any(|b| b[1] < a[3] - 1e-9 && a[1] < b[3] - 1e-9)
+    })
+}
+
+/// Thousands of small parts are laid out in a grid at once rather than
+/// searched copy by copy; at zero spacing they touch edge to edge.
+#[test]
+fn thousands_of_copies_touch_in_a_grid_at_zero_spacing() {
+    let mut input = request();
+    input.stock = rect(0., 0., 1250., 625.);
+    let item = Item { contours: vec![rect(30., 40., 20., 10.)], quantity: 3000 };
+    input.items = vec![item.clone()];
+    input.settings = NestSettings {
+        remnant_clearance: 0.,
+        spacing: 0.,
+        margin: 5.,
+        rotation: NestRotation::Fixed,
+    };
+    let started = std::time::Instant::now();
+    let sheets = openlaser_nest::nest_sheets(
+        &input,
+        &repeated(&input),
+        &AtomicBool::new(false),
+        |_, _| {},
+        |_, _| {},
+    )
+    .unwrap();
+    assert!(started.elapsed() < Duration::from_secs(10), "{:?}", started.elapsed());
+    // 61 columns of 20 mm and 61 rows of 10 mm fit within the 5 mm margin.
+    assert_eq!(sheets.len(), 1);
+    let boxes = extents(&sheets[0], &item);
+    assert_eq!(boxes.len(), 3000);
+    assert!(!overlapping(&boxes));
+    let touching = boxes
+        .iter()
+        .filter(|a| boxes.iter().any(|b| (b[0] - a[2]).abs() < 1e-9 && (b[1] - a[1]).abs() < 1e-9))
+        .count();
+    assert!(touching > 2500, "{touching} copies touch their right neighbour");
+    assert!(boxes.iter().all(|b| b[0] >= 5. && b[1] >= 5. && b[2] <= 1245. && b[3] <= 620.));
+    // A part-filled sheet fills columns from its start.
+    assert!(boxes.iter().all(|b| b[2] <= 5.1 + 50. * 20.), "3000 copies take 50 columns");
+}
+
+/// More copies than a sheet holds fill whole sheets with grids, and a
+/// rest small enough for a search shares its sheet with the other parts.
+#[test]
+fn grids_fill_whole_sheets_and_the_rest_is_searched_with_other_parts() {
+    let mut input = request();
+    input.stock = rect(0., 0., 211., 111.);
+    let small = Item { contours: vec![rect(0., 0., 20., 10.)], quantity: 190 };
+    let other = Item { contours: vec![rect(0., 0., 30., 30.)], quantity: 1 };
+    input.items = vec![small.clone(), other];
+    input.settings = NestSettings {
+        remnant_clearance: 0.,
+        spacing: 2.,
+        margin: 2.,
+        rotation: NestRotation::Fixed,
+    };
+    input.time_limit = Duration::from_secs(5);
+    let shown = std::sync::Mutex::new(0usize);
+    let sheets = openlaser_nest::nest_sheets(
+        &input,
+        &repeated(&input),
+        &AtomicBool::new(false),
+        |_, _| {},
+        |s, _| *shown.lock().unwrap() = s.len(),
+    )
+    .unwrap();
+    assert!(*shown.lock().unwrap() >= 1);
+    // Within the 2 mm margin, (207 + 2) / 22 = 9 columns and (107 + 2) / 12 = 9 rows.
+    let counts: Vec<_> = sheets.iter().map(|s| s.layout.placements.len()).collect();
+    assert_eq!(counts[..2], [81, 81]);
+    let rest: Vec<_> = sheets[2..].iter().flat_map(|s| &s.layout.placements).collect();
+    assert_eq!(rest.iter().filter(|p| p.item == 0).count(), 28);
+    assert_eq!(rest.iter().filter(|p| p.item == 1).count(), 1);
+    for sheet in &sheets[..2] {
+        let boxes = extents(sheet, &small);
+        assert!(!overlapping(&boxes));
+    }
+    // Two sheets only, and the rest finds none.
+    let limited = Sheet { count: Some(2), ..repeated(&input).remove(0) };
+    let error = openlaser_nest::nest_sheets(
+        &input,
+        &[limited],
+        &AtomicBool::new(false),
+        |_, _| {},
+        |_, _| {},
+    )
+    .unwrap_err();
+    assert!(error.sheets_full, "{}", error.message);
+}
+
+/// Copies beyond what a search places need a sheet a grid fits on.
+#[test]
+fn many_copies_need_a_plain_rectangular_sheet() {
+    let mut input = request();
+    input.items = vec![Item { contours: vec![rect(0., 0., 5., 5.)], quantity: 600 }];
+    input.rectangular = false;
+    let error = openlaser_nest::nest_sheets(
+        &input,
+        &repeated(&input),
+        &AtomicBool::new(false),
+        |_, _| {},
+        |_, _| {},
+    )
+    .unwrap_err();
+    assert!(error.message.contains("rectangular sheet"), "{}", error.message);
+}

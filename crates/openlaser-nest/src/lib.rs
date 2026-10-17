@@ -5,6 +5,7 @@
 
 mod polygon;
 mod search;
+mod tile;
 
 use openlaser_core::geometry::{Contour, Transform};
 use openlaser_core::nesting::NestSettings;
@@ -143,7 +144,9 @@ pub struct SheetSolution {
     pub layout: Solution,
 }
 
-/// Place all requested copies across `sheets`, largest parts first: each
+/// Place all requested copies across `sheets`. Many copies of one part
+/// first fill whole plain rectangular sheets in rows and columns, flush at
+/// zero spacing; the rest is searched, largest parts first: each
 /// copy goes on the first open sheet with room, else on a new sheet of the
 /// first kind that still has one left and can hold it, so earlier kinds (a
 /// remnant, say) fill before later ones. The last sheet is then compressed

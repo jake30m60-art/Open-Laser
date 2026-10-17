@@ -32,4 +32,9 @@ stock: Array<StockSource>,
  * Copies of other parts, each named by contours of its own; a part
  * with none here is nested once, the selected part `quantity` times.
  */
-quantities: Array<PartQuantity>, };
+quantities: Array<PartQuantity>,
+/**
+ * At zero spacing, cut the edges the parts share once: the result
+ * takes common edges over every part's outline.
+ */
+common_edges?: boolean, };

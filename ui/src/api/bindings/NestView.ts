@@ -64,4 +64,8 @@ error: string | null,
  * The chosen sheets filled up with parts still to place: `placed` of
  * `total` fit, and the operator chooses the next sheet.
  */
-needs_sheets: boolean, };
+needs_sheets: boolean,
+/**
+ * Something the complete result could not do as asked.
+ */
+notice: string | null, };

@@ -7,6 +7,8 @@ use openlaser_core::geometry::{Contour, Curve, Point};
 pub(crate) const CHORD: f64 = 0.005;
 /// Covers chord error, input continuity tolerance and f32 conversion at 100 m.
 pub(crate) const GUARD: f64 = 0.05;
+/// What the containment check adds to the edge margin for chord error.
+pub(crate) const CHECK_REACH: f64 = 2. * CHORD;
 
 /// Smallest outline area, in square millimetres, that counts as an outline
 /// rather than a degenerate sliver.
@@ -168,7 +170,7 @@ impl Containment {
         }
         let boundary = polygon(stock)?.into_iter().map(Into::into).collect();
         let margin = margin
-            + 2. * CHORD
+            + CHECK_REACH
             + match kind {
                 PathKind::Machining => 0.,
                 PathKind::Compiled => COMPILED_ROUNDING,
