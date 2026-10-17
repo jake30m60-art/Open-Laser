@@ -16,4 +16,5 @@ sparrow.workspace = true
 jagua-rs.workspace = true
 rand.workspace = true
 rayon.workspace = true
+i_overlay.workspace = true
 thiserror.workspace = true

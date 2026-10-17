@@ -18,7 +18,7 @@
   let name=$state(''),material=$state(''),thickness=$state(1),mode=$state<LaserMode>('fiber');
   let part=$state(''),busy=$state(false),error=$state(''),inspected=$state(false);
   const contours=$derived(drawing?.contours.map(c=>c.curves.flatMap(curvePoints))??[]);
-  onMount(()=>{if(id)void (async()=>{try{record=await api.sheet(id!);const template=await api.alignmentRemnant(id!);if(template.shape.kind==='special')drawing=template.shape.drawing;name=record.name;material=record.material;thickness=record.thickness_mm;mode=record.mode;}catch(e){error=explain(e);}})();});
+  onMount(()=>{if(id)void (async()=>{try{record=await api.sheet(id!);drawing=outerFirst(await api.remnantMaterial(id!));name=record.name;material=record.material;thickness=record.thickness_mm;mode=record.mode;}catch(e){error=explain(e);}})();});
   async function load(){busy=true;error='';try{drawing=outerFirst(part?(await api.partDrawing(part)).drawing:await api.alignmentSketch(toDxf(sketchStore.sketch)));inspected=false;if(!name)name=part?server.doc!.library.parts.find(p=>p.id===part)?.name??'':sketchStore.name;}catch(e){error=explain(e);}finally{busy=false;}}
   function edit(){if(!drawing)return;sketchStore.begin(fromDrawing($state.snapshot(drawing)),name||t('Remnant'),'new');ui.tab='sketch';ui.say('Edit the remnant sketch, then return to Stock and load the current sketch. No cut is created.');onclose();}
   async function save(){if(!drawing)return;busy=true;error='';try{await api.saveSketchRemnant({id,revision:record?.revision??null,name,material,thickness_mm:thickness,mode,drawing:$state.snapshot(drawing),inspected});ui.say('Remnant geometry saved. Previous measurements are invalid.');onclose();}catch(e){error=explain(e);}finally{busy=false;}}

@@ -108,6 +108,7 @@ export interface FontFace { id: string; family: string; name: string; weight: nu
 export interface TextPreview { outline: number[][][]; width: number; height: number; contours: number; warnings: string[] }
 
 export const api = {
+  remnantMaterial: (id: string) => request<import('../sketch/from-drawing').SourceDrawing>('GET', '/api/remnants/'+encodeURIComponent(id)+'/material'),
   alignmentRemnant: (id: string) => request<import('../lib/workpiece-alignment').Template>('GET', '/api/alignment/remnant/'+encodeURIComponent(id)),
   alignmentStock: () => request<import('../lib/workpiece-alignment').Template>('GET', '/api/alignment/stock'),
   alignmentSketch: (dxf: string) => post<import('../sketch/from-drawing').SourceDrawing>('/api/alignment/sketch', {dxf}),

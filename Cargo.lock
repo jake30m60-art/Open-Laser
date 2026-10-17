@@ -2559,6 +2559,7 @@ dependencies = [
 name = "openlaser-nest"
 version = "0.1.0-alpha.4.1"
 dependencies = [
+ "i_overlay",
  "jagua-rs",
  "openlaser-core",
  "rand 0.10.2",

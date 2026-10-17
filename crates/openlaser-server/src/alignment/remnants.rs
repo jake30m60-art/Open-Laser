@@ -44,6 +44,10 @@ pub(super) fn routes() -> Router<Shared> {
             post(|j| async move { sketch(j).await.map_err(crate::api::Failure::from) }),
         )
         .route(
+            "/api/remnants/{id}/material",
+            get(|s, p| async move { material(s, p).await.map_err(crate::api::Failure::from) }),
+        )
+        .route(
             "/api/remnants/sketch",
             post(|s, j| async move { save(s, j).await.map_err(crate::api::Failure::from) }),
         )
@@ -110,6 +114,18 @@ async fn load(State(shared): State<Shared>, Path(id): Path<String>) -> Result<Js
     let c = shared.lock().await;
     let d = drawing(c.sheet_store.stock(&id, Point::ORIGIN)?)?;
     Ok(Json(loaded(&c, &id, d)?))
+}
+/// The remnant as material left to edit: what was cut off its edge is gone
+/// from its outline, cuts inside it are holes.
+async fn material(State(shared): State<Shared>, Path(id): Path<String>) -> Result<Json<Drawing>> {
+    let c = shared.lock().await;
+    let NestStock::Remnant { outline, cutouts, .. } = c.sheet_store.stock(&id, Point::ORIGIN)?
+    else {
+        return Err(Error::Refused("that sheet is not a remnant".into()));
+    };
+    let contours =
+        openlaser_nest::remaining(&outline, &cutouts).map_err(|e| Error::Refused(e.to_string()))?;
+    Ok(Json(Drawing { contours }))
 }
 async fn stock(State(shared): State<Shared>) -> Result<Json<Template>> {
     let c = shared.lock().await;

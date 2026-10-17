@@ -4,6 +4,7 @@
 //! transforms of the original curves. No I/O, compiler or controller access.
 
 mod polygon;
+mod remnant;
 mod search;
 mod tile;
 
@@ -13,6 +14,7 @@ use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 pub use polygon::{check_inside, check_polylines, check_region, check_region_polylines, polygon};
+pub use remnant::remaining;
 pub use search::LIVE_INTERVAL;
 
 /// One rigid manufactured part, including its holes and interior markings.
