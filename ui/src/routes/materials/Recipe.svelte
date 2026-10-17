@@ -120,7 +120,8 @@
   const rename = () => osk.text(tr("Material"), recipe.name, (name) => { if (name.trim()) run(() => Promise.all(members().map((r) => api.updateRecipe(r.id, { name: name.trim(), attributes: {} }))), () => (ui.selectedRecipe = recipe.id)); });
   const thickness = () => osk.number(tr("Thickness"), recipe.thickness_mm, 'mm', (v) => { if (v >= 0) run(() => api.updateRecipe(recipe.id, { thickness_mm: v, attributes: {} })); });
   const note = () => osk.text(tr("Setup note"), recipe.note, (text) => run(() => api.updateRecipe(recipe.id, { note: text, attributes: {} })));
-  const star = () => run(() => Promise.all(members().map((r) => api.updateRecipe(r.id, { favourite: !recipe.favourite, attributes: {} }))));
+  // The star marks this one recipe (tested and approved), not the whole material.
+  const star = () => run(() => api.updateRecipe(recipe.id, { favourite: !recipe.favourite, attributes: {} }));
   const remove = async () => {
     if (pending || saving) { ui.say(tr("Save or discard this recipe’s edits before deleting it."), true); return; }
     const confirmed = await ui.confirm({
@@ -148,7 +149,7 @@
     <div class="recipe-use">
       <button
         class="btn btn-ghost icon-only star" class:on={recipe.favourite} onclick={star}
-        aria-label={recipe.favourite ? tr('Unstar material') : tr('Star material')} aria-pressed={recipe.favourite}
+        aria-label={recipe.favourite ? tr('Remove from my recipes') : tr('Add to my recipes')} aria-pressed={recipe.favourite}
       ><i class="ic {recipe.favourite ? 'ic-star-fill' : 'ic-star'}"></i></button>
       <button class="btn btn-primary" onclick={use} disabled={!doc.draft}>{doc.draft ? tr("Use in current job") : tr("Open a part to use it")}</button>
     </div>

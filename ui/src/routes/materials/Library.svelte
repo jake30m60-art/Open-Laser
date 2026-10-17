@@ -42,9 +42,8 @@
   let origin = $state<Origin>((() => { try { return (localStorage.getItem(ORIGIN_KEY) as Origin | null) ?? 'all'; } catch { return 'all'; } })());
   function chooseOrigin(next: Origin): void { origin = next; try { localStorage.setItem(ORIGIN_KEY, next); } catch { /* not kept */ } }
   const origins = $derived(((['gweike', 'own', 'sample'] as const)).filter((o) => recipes.some((r) => recipeOrigin(r) === o)));
-  const favourites = $derived(recipes.some((r) => r.favourite));
   const shown = $derived(
-    origin === 'favourite' ? (favourites ? recipes.filter((r) => r.favourite) : recipes)
+    origin === 'favourite' ? recipes.filter((r) => r.favourite)
     : origin === 'all' || !origins.includes(origin) ? recipes : recipes.filter((r) => recipeOrigin(r) === origin));
   const ORIGIN_NAMES = { gweike: 'Gweike', own: 'Own', sample: 'Samples' } as const;
   let open = $state<string | null>(null);
@@ -121,26 +120,24 @@
     <button class="btn" class:btn-primary={process === 'engrave'} aria-pressed={process === 'engrave'} onclick={() => switchProcess('engrave')}>{tr("Engraving")}</button>
   </div>
   <div class="search"><i class="ic ic-search"></i><input placeholder={tr("Find a material…")} bind:value={search}></div>
-  {#if origins.length > 1 || favourites}
-    <div class="origin-chips" role="group" aria-label={tr("Recipe source")}>
-      <button class="chip" class:on={origin === 'all' || (origin === 'favourite' ? !favourites : !origins.includes(origin))} onclick={() => chooseOrigin('all')}>{tr("All")}</button>
-      {#if favourites}<button class="chip" class:on={origin === 'favourite'} onclick={() => chooseOrigin('favourite')}><i class="ic ic-star-fill"></i> {tr("Favourites")}</button>{/if}
-      {#each origins as o (o)}<button class="chip" class:on={origin === o} onclick={() => chooseOrigin(o)}>{tr(ORIGIN_NAMES[o])}</button>{/each}
-    </div>
-  {/if}
+  <div class="origin-chips" role="group" aria-label={tr("Recipe source")}>
+    <button class="chip" class:on={origin === 'all' || (origin !== 'favourite' && !origins.includes(origin))} onclick={() => chooseOrigin('all')}>{tr("All")}</button>
+    <button class="chip" class:on={origin === 'favourite'} onclick={() => chooseOrigin('favourite')}><i class="ic ic-star-fill"></i> {tr("My recipes")}</button>
+    {#each origins as o (o)}<button class="chip" class:on={origin === o} onclick={() => chooseOrigin(o)}>{tr(ORIGIN_NAMES[o])}</button>{/each}
+  </div>
   <div class="tree" bind:this={tree}>
     {#if process === 'cut'}
     {#each lasers as laser (laser)}
       {#if lasers.length > 1 || engravings.length}<h3>{laserLabel(laser)}</h3>{/if}
       {#each materials.filter((m) => m.laser === laser) as m (m.key)}{@render material(m, false)}{/each}
     {:else}
-      {#if !engravings.length}<p class="muted">{search ? tr("No material matches.") : tr("No recipes yet.")}</p>{/if}
+      {#if origin === 'favourite' || !engravings.length}<p class="muted">{search ? tr("No material matches.") : origin === 'favourite' ? tr("No starred cutting recipes yet. Star a recipe to collect it here.") : tr("No recipes yet.")}</p>{/if}
     {/each}
     {:else}
     {#if engravings.length}
       <h3>{tr("Engraving")}</h3>
       {#each engravings as m (m.key)}{@render material(m, true)}{/each}
-    {:else}<p class="muted">{search ? tr("No material matches.") : tr("No engraving recipes yet. Add one with +.")}</p>{/if}
+    {:else}<p class="muted">{search ? tr("No material matches.") : origin === 'favourite' ? tr("No starred engraving recipes yet. Star a recipe to collect it here.") : tr("No engraving recipes yet. Add one with +.")}</p>{/if}
     {/if}
   </div>
   <div class="library-foot">
