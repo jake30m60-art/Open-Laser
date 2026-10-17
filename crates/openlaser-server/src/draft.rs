@@ -787,9 +787,27 @@ impl Draft {
                 "the resulting scale is outside the supported range".into(),
             ));
         }
+        // A point picked as the origin on a part moves with that part.
+        let origin = self.current.origin_point.and_then(|[x, y]| {
+            let point = Point::new(x, y);
+            let drawing = self.drawing().ok()?;
+            changed.iter().find_map(|(i, transform)| {
+                let placed = &self.current.placed[*i];
+                let bounds =
+                    placed.transform.contour(drawing.contours.get(placed.source)?).bounds()?;
+                let near = point.x >= bounds.min.x - ORIGIN_ON_PART_MM
+                    && point.x <= bounds.max.x + ORIGIN_ON_PART_MM
+                    && point.y >= bounds.min.y - ORIGIN_ON_PART_MM
+                    && point.y <= bounds.max.y + ORIGIN_ON_PART_MM;
+                near.then(|| transform.apply(placed.transform.inverse().apply(point)))
+            })
+        });
         self.remember();
         for (i, transform) in changed {
             self.current.placed[i].transform = transform;
+        }
+        if let Some(moved) = origin {
+            self.current.origin_point = Some([moved.x, moved.y]);
         }
         Ok(())
     }
@@ -1045,6 +1063,9 @@ pub(crate) fn remap_outline(nesting: &mut Option<Nesting>, moved: impl Fn(&mut u
         moved(&mut contour.source);
     }
 }
+
+/// How far outside a part's bounds a picked origin still belongs to it.
+const ORIGIN_ON_PART_MM: f64 = 1.;
 
 /// The sheet: each placed contour of the drawing under its transform.
 #[must_use]
@@ -2444,6 +2465,18 @@ mod tests {
     /// A copy is its own shape under its own transform; removing a contour
     /// takes the features on it and renumbers the rest; undo and redo walk
     /// the edits both ways, and a fresh edit drops what was undone.
+    #[test]
+    fn a_picked_origin_moves_with_its_part_only() {
+        let mut draft = Draft::of(square());
+        draft.add(&[(0, Transform::translation(Point::new(50., 0.)))]);
+        draft.current.origin_point = Some([0., 0.]);
+        draft.transform(&[1], Some(Transform::translation(Point::new(0., 7.)))).unwrap();
+        assert_eq!(draft.current.origin_point, Some([0., 0.]), "another part moved");
+        draft.transform(&[0], Some(Transform::translation(Point::new(5., 5.)))).unwrap();
+        let [x, y] = draft.current.origin_point.unwrap();
+        assert!((x - 5.).abs() < 1e-9 && (y - 5.).abs() < 1e-9, "the origin's part moved");
+    }
+
     #[test]
     fn copies_removal_undo_and_redo() {
         let drawing = square();
