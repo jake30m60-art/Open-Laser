@@ -37,10 +37,15 @@
   let search = $state('');
   // Which recipes show by where they came from; remembered on this screen.
   const ORIGIN_KEY = 'ol-recipe-origin';
-  let origin = $state<RecipeOrigin | 'all'>((() => { try { return (localStorage.getItem(ORIGIN_KEY) as RecipeOrigin | null) ?? 'all'; } catch { return 'all'; } })());
-  function chooseOrigin(next: RecipeOrigin | 'all'): void { origin = next; try { localStorage.setItem(ORIGIN_KEY, next); } catch { /* not kept */ } }
+  // 'favourite' shows only starred (tested and approved) recipes.
+  type Origin = RecipeOrigin | 'all' | 'favourite';
+  let origin = $state<Origin>((() => { try { return (localStorage.getItem(ORIGIN_KEY) as Origin | null) ?? 'all'; } catch { return 'all'; } })());
+  function chooseOrigin(next: Origin): void { origin = next; try { localStorage.setItem(ORIGIN_KEY, next); } catch { /* not kept */ } }
   const origins = $derived(((['gweike', 'own', 'sample'] as const)).filter((o) => recipes.some((r) => recipeOrigin(r) === o)));
-  const shown = $derived(origin === 'all' || !origins.includes(origin) ? recipes : recipes.filter((r) => recipeOrigin(r) === origin));
+  const favourites = $derived(recipes.some((r) => r.favourite));
+  const shown = $derived(
+    origin === 'favourite' ? (favourites ? recipes.filter((r) => r.favourite) : recipes)
+    : origin === 'all' || !origins.includes(origin) ? recipes : recipes.filter((r) => recipeOrigin(r) === origin));
   const ORIGIN_NAMES = { gweike: 'Gweike', own: 'Own', sample: 'Samples' } as const;
   let open = $state<string | null>(null);
   /** Engraving recipes are listed apart, under keys of their own. */
@@ -100,7 +105,7 @@
         {#each m.recipes.filter((r) => r.gas === gas) as r (r.id)}
           <button
             class="rec" class:on={r.id === selected?.id} aria-pressed={r.id === selected?.id} onclick={() => onselect(r)}
-          >{#if !engraving}<strong>{r.thickness_mm > 0 ? quantity(r.thickness_mm, 'mm') : tr("No thickness")}</strong>{/if}<MaterialSummary source={r} variant="line" /></button>
+          >{#if !engraving}<strong>{r.thickness_mm > 0 ? quantity(r.thickness_mm, 'mm') : tr("No thickness")}</strong>{/if}<MaterialSummary source={r} variant="line" />{#if r.favourite}<i class="ic ic-star-fill fav" aria-label={tr("Favourite")}></i>{/if}</button>
         {/each}
       {/each}
     {/if}
@@ -116,9 +121,10 @@
     <button class="btn" class:btn-primary={process === 'engrave'} aria-pressed={process === 'engrave'} onclick={() => switchProcess('engrave')}>{tr("Engraving")}</button>
   </div>
   <div class="search"><i class="ic ic-search"></i><input placeholder={tr("Find a material…")} bind:value={search}></div>
-  {#if origins.length > 1}
+  {#if origins.length > 1 || favourites}
     <div class="origin-chips" role="group" aria-label={tr("Recipe source")}>
-      <button class="chip" class:on={origin === 'all' || !origins.includes(origin)} onclick={() => chooseOrigin('all')}>{tr("All")}</button>
+      <button class="chip" class:on={origin === 'all' || (origin === 'favourite' ? !favourites : !origins.includes(origin))} onclick={() => chooseOrigin('all')}>{tr("All")}</button>
+      {#if favourites}<button class="chip" class:on={origin === 'favourite'} onclick={() => chooseOrigin('favourite')}><i class="ic ic-star-fill"></i> {tr("Favourites")}</button>{/if}
       {#each origins as o (o)}<button class="chip" class:on={origin === o} onclick={() => chooseOrigin(o)}>{tr(ORIGIN_NAMES[o])}</button>{/each}
     </div>
   {/if}
@@ -156,6 +162,7 @@
   .library .import-buttons { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
   .library .import-buttons .btn { white-space:normal; overflow-wrap:anywhere; text-align:center; padding:8px; height:auto; }
   .process-tabs { display:flex; gap:8px; padding:0 12px 10px; }
+  .rec .fav { margin-left:auto; color:var(--warning, #e0a800); flex:none; }
   .origin-chips { display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px 4px; }
   .process-tabs button { flex:1; min-width:0; }
 </style>
