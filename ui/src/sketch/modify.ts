@@ -4,7 +4,7 @@
 import {
   add, angleOf, dist, dot, intersections, len, normalize, polar, scale, shapeOf, sub, sweep, type Shape, type Vec,
 } from './geometry';
-import { addConstraint, addEntity, addPoint, clone, point, pointsOf, remove, type Arc, type Circle, type Constraint, type Entity, type Id, type Line, type Sketch } from './model';
+import { addConstraint, addEntity, addPoint, clone, constraintRefs, isDimension, merge, point, pointsOf, remove, type Arc, type Circle, type Constraint, type Entity, type Id, type Line, type Sketch } from './model';
 
 export type Outcome = { sketch: Sketch; created: Id[] } | { error: string };
 
@@ -271,6 +271,22 @@ export function extend(source: Sketch, id: Id, click: Vec): Outcome {
 
 /** The two lines that meet at a point, as Fusion's fillet and chamfer take them. */
 function corner(s: Sketch, vertex: Id): { lines: [Id, Id]; far: [Vec, Vec] } | { error: string } {
+  // Lines that end at the same place through points of their own, as two
+  // separate mirrors leave them, meet there all the same.
+  const v = point(s, vertex);
+  const twins = s.points.filter((p) => p.id !== vertex && dist(p, v) < SAME);
+  for (const other of twins) merge(s, other.id, vertex);
+  if (twins.length) {
+    // Each mirror tied its own copy; once they are one point, one tie is enough.
+    const seen = new Set<string>();
+    s.constraints = s.constraints.filter((c) => {
+      if (isDimension(c)) return true;
+      const key = `${c.kind}:${constraintRefs(c).join(',')}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
   const lines = s.entities.filter((e) => e.kind === 'line' && !e.construction && (e.a === vertex || e.b === vertex));
   if (lines.length !== 2) return { error: 'Pick a corner where exactly two lines meet.' };
   const farEnd = (l: Entity): Vec => (l.kind === 'line' ? point(s, l.a === vertex ? l.b : l.a) : point(s, vertex));
@@ -548,7 +564,12 @@ export function mirror(source: Sketch, ids: readonly Id[], line: Id): Outcome {
     const v = point(s, id);
     if (onLine(v)) return id;
     let to = map.get(id);
-    if (to === undefined) { const r = reflect(v); to = addPoint(s, r.x, r.y); map.set(id, to); }
+    if (to === undefined) {
+      const r = reflect(v);
+      // An earlier mirror may have put a point there already: share it.
+      to = s.points.find((p) => dist(p, r) < SAME)?.id ?? addPoint(s, r.x, r.y);
+      map.set(id, to);
+    }
     return to;
   };
   const created: Id[] = [];
@@ -575,7 +596,8 @@ export function mirror(source: Sketch, ids: readonly Id[], line: Id): Outcome {
   }
   const arcCentres = new Set(picked.flatMap((id) => { const e = entity(s, id); return e.kind === 'arc' ? [e.c] : []; }));
   for (const [from, to] of map) {
-    if (before.has(from) && !arcCentres.has(from)) addConstraint(s, { kind: 'symmetric', a: from, b: to, line });
+    const tied = s.constraints.some((c) => c.kind === 'symmetric' && c.line === line && ((c.a === from && c.b === to) || (c.a === to && c.b === from)));
+    if (before.has(from) && !arcCentres.has(from) && !tied) addConstraint(s, { kind: 'symmetric', a: from, b: to, line });
   }
   picked.forEach((id, i) => { if (entity(s, id).kind === 'arc') addConstraint(s, { kind: 'equal', a: id, b: created[i]! }); });
   return { sketch: s, created };

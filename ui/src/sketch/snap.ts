@@ -33,6 +33,15 @@ export interface SnapOptions {
 }
 
 export function snap(sketch: Sketch, cursor: Vec, options: SnapOptions): Snap {
+  const found = landing(sketch, cursor, options);
+  if (found.point !== undefined) return found;
+  // A grid or alignment landing right on an existing point, such as a
+  // spline's control point, shares that point as a direct hit would.
+  const at = sketch.points.find((p) => !options.ignorePoints?.has(p.id) && Math.abs(p.x - found.x) < 1e-9 && Math.abs(p.y - found.y) < 1e-9);
+  return at ? { x: at.x, y: at.y, kind: 'end', point: at.id } : found;
+}
+
+function landing(sketch: Sketch, cursor: Vec, options: SnapOptions): Snap {
   const { reach, ignorePoints, ignoreEntities } = options;
   const centers = new Set(sketch.entities.flatMap((e) => ('c' in e ? [e.c] : [])));
   const curves = sketch.entities.filter((e) => !ignoreEntities?.has(e.id));
