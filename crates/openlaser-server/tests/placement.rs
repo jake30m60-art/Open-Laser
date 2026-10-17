@@ -340,6 +340,7 @@ async fn calibration_keeps_normal_kerf_leads_and_editing_with_correction_off() {
             exit: None,
             side: Side::Auto,
             closed_only: true,
+            clearance: None,
             overrides: Vec::new(),
         }),
         ..Features::default()

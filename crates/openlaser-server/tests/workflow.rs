@@ -226,6 +226,7 @@ async fn set_up(shared: &Shared) -> Id {
             exit: None,
             side: Side::Auto,
             closed_only: true,
+            clearance: None,
             overrides: Vec::new(),
         }),
         ..Features::default()

@@ -3476,6 +3476,8 @@
   "Machine time": "Maschinenzeit",
   "Sheet handling": "Blechwechsel",
   "Setup fee": "Rüsten",
+  "Distance to the contour": "Abstand zur Kontur",
+  "In holes too small for the lead, it is shortened so its start keeps this distance from the contour.": "In Löchern, die für den Anschnitt zu klein sind, wird er gekürzt, sodass sein Anfang diesen Abstand zur Kontur hält.",
   "My recipes": "Meine Rezepte",
   "Add to my recipes": "Zu Meine Rezepte hinzufügen",
   "Remove from my recipes": "Aus Meine Rezepte entfernen",

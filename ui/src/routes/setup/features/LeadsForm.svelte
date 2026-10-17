@@ -91,6 +91,8 @@
   const setAngle = (v: number) => edit((l) => { l.angle = v; });
   const setSide = (v: string) => set((f) => { f.leads!.side = v as Leads['side']; });
   const setClosedOnly = (v: boolean) => set((f) => { f.leads!.closed_only = v; });
+  /** Inside holes, leads shorten to keep their free end this far off the contour. */
+  const setClearance = (v: number) => set((f) => { f.leads!.clearance = Math.max(0, v); });
   function useDefaultsForSelection(): void {
     set(f => { f.leads!.overrides = f.leads!.overrides.filter(edited => !selectedContours.includes(edited.location.contour)); });
   }
@@ -127,6 +129,8 @@
 {#if !local}
   <Chips label={t("Side")} options={SIDES} current={leads.side} disabled={!on} apply={setSide} />
   <Toggle label={t("Closed contours only")} value={leads.closed_only} disabled={!on} apply={setClosedOnly} />
+  <Stepper label={t("Distance to the contour")} value={leads.clearance ?? 0.5} unit="mm" step={0.1} disabled={!on} apply={setClearance} />
+  <p class="muted lead-note">{t("In holes too small for the lead, it is shortened so its start keeps this distance from the contour.")}</p>
 {/if}
 {#if tab === 1 && !local}
   <h4 class="lead-start">{t("Seam")}</h4>

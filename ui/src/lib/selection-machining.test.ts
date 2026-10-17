@@ -3,7 +3,7 @@ import type { Features, Leads } from '../api';
 import { clearSelection, offEverywhere, onAnywhere, selectionView, setSelection } from './selection-machining';
 import { toggled } from './features';
 
-const leads = (side: Leads['side']): Leads => ({ entry: { shape: 'line', length: 2, radius: 1, angle: 45 }, exit: null, side, closed_only: true, overrides: [] });
+const leads = (side: Leads['side']): Leads => ({ entry: { shape: 'line', length: 2, radius: 1, angle: 45 }, exit: null, side, closed_only: true, clearance: null, overrides: [] });
 const base = (): Features => ({
   leads: leads('auto'), joints: null, cooling: null, kerf: null, bridges: null, common: null,
   start: { position: 'automatic', direction: 'keep', spots: [{ contour: 4, fraction: 0.5 }] }, seam: 'seal',

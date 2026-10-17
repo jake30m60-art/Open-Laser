@@ -21,7 +21,7 @@ export const TOOLS: Tool[] = [
   { id: 'start', short: t("Start & seam"), name: t("Start point and seam"), desc: t("Set start points, direction, and seam treatment."), optional: false },
 ];
 
-export const defaultLeads = (): Leads => ({ entry: { shape: 'line', length: 2, radius: 1, angle: 45 }, exit: { shape: 'line', length: 1, radius: 1, angle: 45 }, side: 'auto', closed_only: true, overrides: [] });
+export const defaultLeads = (): Leads => ({ entry: { shape: 'line', length: 2, radius: 1, angle: 45 }, exit: { shape: 'line', length: 1, radius: 1, angle: 45 }, side: 'auto', closed_only: true, clearance: null, overrides: [] });
 export const defaultJoints = (): Joints => ({ placement: { count: 2 }, width: 0.4, minimum_size: 40, outer_only: true, open_start: false, behaviour: 'laser_off', slow_speed: null, repierce: false });
 export const defaultCooling = (): Cooling => ({ dwell: 300, placement: { automatic: { at_start: true, corners_below: 60 } } });
 export const defaultKerf = (): Kerf => ({ width: 0.2, side: 'auto' });

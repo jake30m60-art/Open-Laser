@@ -8,6 +8,7 @@ use crate::{Result, feature};
 use openlaser_core::features::{Lead, LeadShape, Leads, Side};
 use openlaser_core::geometry::{Curve, Point};
 use openlaser_core::toolpath::{LeadRole, PreparedSegment, SegmentProcess};
+use openlaser_core::units::Millimeters;
 use std::f64::consts::FRAC_PI_2;
 
 pub(crate) fn check(leads: &Leads) -> Result<()> {
@@ -71,17 +72,39 @@ pub(crate) fn attached(
     let side = if counterclockwise == inside { 1. } else { -1. };
     let first = segments[0].curve;
     let last = segments[segments.len() - 1].curve;
+    // Inside a closed contour a lead longer than the hole allows would cut
+    // into the part on the far side: shrink it until it fits.
+    let fit = if closed && inside { Some(outline(&segments)) } else { None };
+    let clearance = leads.clearance.map_or(LEAD_CLEARANCE_MM, |c| c.0.max(0.));
+    let fit_lead =
+        |lead: Lead, anchor: Point, tangent: Point, entry: bool, line_along: Option<Point>| {
+            let Some(polygon) = fit.as_deref() else { return lead };
+            fitted(lead, polygon, clearance, |l| match line_along {
+                Some(b) if l.shape == LeadShape::Line => {
+                    let far = anchor + b * l.length.0;
+                    vec![if entry {
+                        Curve::Line { start: far, end: anchor }
+                    } else {
+                        Curve::Line { start: anchor, end: far }
+                    }]
+                }
+                _ => shape(l, anchor, tangent, side, entry),
+            })
+        };
     // A closed contour starting in a corner: a straight lead comes in along
     // the bisector of the corner on the waste side, so it lies in a hole and
     // outside an outline whichever way the corner turns.
     let bisector = if closed { corner(last.tangent(1.), first.tangent(0.), side) } else { None };
-    let entry = leads.entry.map_or_else(Vec::new, |lead| match bisector {
+    let entry =
+        leads.entry.map(|lead| fit_lead(lead, first.start(), first.tangent(0.), true, bisector));
+    let exit = leads.exit.map(|lead| fit_lead(lead, last.end(), last.tangent(1.), false, bisector));
+    let entry = entry.map_or_else(Vec::new, |lead| match bisector {
         Some(b) if lead.shape == LeadShape::Line => {
             vec![Curve::Line { start: first.start() + b * lead.length.0, end: first.start() }]
         }
         _ => shape(lead, first.start(), first.tangent(0.), side, true),
     });
-    let exit = leads.exit.map_or_else(Vec::new, |lead| match bisector {
+    let exit = exit.map_or_else(Vec::new, |lead| match bisector {
         Some(b) if lead.shape == LeadShape::Line => {
             vec![Curve::Line { start: last.end(), end: last.end() + b * lead.length.0 }]
         }
@@ -93,6 +116,104 @@ pub(crate) fn attached(
     all.extend(segments);
     all.extend(exit.into_iter().map(|curve| PreparedSegment::new(curve, tag(LeadRole::Exit))));
     all
+}
+
+/// The closed contour as a polygon, a few points per curve.
+fn outline(segments: &[PreparedSegment]) -> Vec<Point> {
+    segments
+        .iter()
+        .flat_map(|s| {
+            // About every half millimetre, so an arc stays within a few
+            // microns of its chords.
+            let steps = if matches!(s.curve, Curve::Line { .. }) {
+                1
+            } else {
+                (16..512u32).find(|n| f64::from(*n) * 0.5 >= s.curve.length()).unwrap_or(512)
+            };
+            (0..steps).map(move |i| s.curve.point(f64::from(i) / f64::from(steps)))
+        })
+        .collect()
+}
+
+fn inside_polygon(polygon: &[Point], p: Point) -> bool {
+    let mut inside = false;
+    for (i, a) in polygon.iter().enumerate() {
+        let b = polygon[(i + 1) % polygon.len()];
+        if (a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
+fn distance_to_polygon(polygon: &[Point], p: Point) -> f64 {
+    let mut best = f64::INFINITY;
+    for (i, a) in polygon.iter().enumerate() {
+        let b = polygon[(i + 1) % polygon.len()];
+        let ab = b - *a;
+        let t = if ab.dot(ab) > 0. { ((p - *a).dot(ab) / ab.dot(ab)).clamp(0., 1.) } else { 0. };
+        best = best.min((p - (*a + ab * t)).norm());
+    }
+    best
+}
+
+/// How far a lead's free end stays off a hole's contour unless the job says.
+const LEAD_CLEARANCE_MM: f64 = 0.5;
+
+/// `lead`, scaled down until every point of it lies in `polygon` and its
+/// free end keeps clear of the contour; unchanged when it already fits.
+fn fitted(
+    lead: Lead,
+    polygon: &[Point],
+    clearance: f64,
+    curves: impl Fn(Lead) -> Vec<Curve>,
+) -> Lead {
+    if polygon.len() < 3 {
+        return lead;
+    }
+    let scaled = |k: f64| Lead {
+        length: Millimeters(lead.length.0 * k),
+        radius: Millimeters(lead.radius.0 * k),
+        ..lead
+    };
+    let fits = |k: f64| {
+        let all = curves(scaled(k));
+        let points: Vec<Point> = all
+            .iter()
+            .flat_map(|c| {
+                (1..8).map(move |i| c.point(f64::from(i) / 8.)).chain([c.start(), c.end()])
+            })
+            .collect();
+        // The free end keeps `clearance` from the contour, or as much as the
+        // lead holds off a straight edge where it is shorter: an arc lead
+        // runs alongside the contour on purpose.
+        let anchor = polygon[0];
+        // The tangent at the anchor, across it so a curve does not tilt it.
+        let along = polygon[1] - polygon[polygon.len() - 1];
+        let free = all.first().map(Curve::start).zip(all.last().map(Curve::end));
+        let clear = free.is_none_or(|(a, b)| {
+            let far = if (a - anchor).norm() > (b - anchor).norm() { a } else { b };
+            let off_edge = if along.norm() > 1e-9 {
+                (far - anchor).cross(along).abs() / along.norm()
+            } else {
+                0.
+            };
+            distance_to_polygon(polygon, far) >= clearance.min(off_edge * 0.5)
+        });
+        clear
+            && points
+                .iter()
+                .all(|p| inside_polygon(polygon, *p) || distance_to_polygon(polygon, *p) < 0.02)
+    };
+    if fits(1.) {
+        return lead;
+    }
+    let (mut lo, mut hi) = (0., 1.);
+    for _ in 0..20 {
+        let mid = f64::midpoint(lo, hi);
+        if fits(mid) { lo = mid } else { hi = mid }
+    }
+    scaled(lo)
 }
 
 /// The unit bisector into the waste of a corner where travel turns from
@@ -175,6 +296,7 @@ mod tests {
             exit: Some(lead(shape)),
             side: Side::Auto,
             closed_only: false,
+            clearance: None,
             overrides: Vec::new(),
         }
     }
@@ -269,5 +391,59 @@ mod tests {
             .is_err()
         );
         assert!(check(&leads(LeadShape::LineArc)).is_ok());
+    }
+
+    #[test]
+    fn leads_in_a_small_hole_shrink_to_fit() {
+        // A 4 mm hole, its leads asked for 5 mm: they must stay inside it.
+        let circle = Curve::Arc {
+            center: Point::new(0., 0.),
+            radius: 2.,
+            start_angle: 0.,
+            sweep: 2. * std::f64::consts::PI,
+        };
+        for shape in [LeadShape::Line, LeadShape::LineArc, LeadShape::Arc] {
+            let mut leads = leads(shape);
+            for l in [leads.entry.as_mut().unwrap(), leads.exit.as_mut().unwrap()] {
+                l.length = Millimeters(5.);
+                l.radius = Millimeters(3.);
+                l.angle = Degrees(45.);
+            }
+            let (curves, _) = attached(
+                vec![circle],
+                vec![SegmentProcess::default()],
+                Some(&leads),
+                true,
+                true,
+                true,
+            );
+            for c in &curves[..curves.len()] {
+                for i in 0..=8 {
+                    let p = c.point(f64::from(i) / 8.);
+                    assert!(p.norm() <= 2. + 1e-6, "{shape:?} lead leaves the hole at {p:?}");
+                }
+            }
+            let entry = curves.first().unwrap();
+            assert!(entry.start().norm() > 0.1, "{shape:?} lead is not collapsed to nothing");
+        }
+    }
+
+    #[test]
+    fn an_arc_lead_that_fits_a_hole_is_kept() {
+        let circle = Curve::Arc {
+            center: Point::new(20., 30.),
+            radius: 5.,
+            start_angle: 0.,
+            sweep: 2. * std::f64::consts::PI,
+        };
+        let mut leads = leads(LeadShape::Arc);
+        leads.exit = None;
+        leads.entry.as_mut().unwrap().radius = Millimeters(1.5);
+        leads.entry.as_mut().unwrap().angle = Degrees(45.);
+        let (curves, _) =
+            attached(vec![circle], vec![SegmentProcess::default()], Some(&leads), true, true, true);
+        assert_eq!(curves.len(), 2);
+        let Curve::Arc { radius, .. } = curves[0] else { panic!() };
+        assert!((radius - 1.5).abs() < 1e-9, "radius {radius}");
     }
 }

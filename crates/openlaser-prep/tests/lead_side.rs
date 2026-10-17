@@ -45,6 +45,7 @@ fn a_chosen_start_point_moves_the_pierce_with_and_without_leads() {
                 exit: None,
                 side: Side::Auto,
                 closed_only: true,
+                clearance: None,
                 overrides: Vec::new(),
             });
         }
@@ -76,6 +77,7 @@ fn side_moves_the_entry_lead_in_and_out() {
                     exit: None,
                     side: Side::Inside,
                     closed_only: true,
+                    clearance: None,
                     overrides: Vec::new(),
                 }),
                 kerf,
@@ -144,6 +146,7 @@ fn automatic_leads_go_into_holes_and_out_of_outlines_wherever_the_cut_starts() {
                         exit: None,
                         side,
                         closed_only: true,
+                        clearance: None,
                         overrides: Vec::new(),
                     }),
                     ..Features::default()

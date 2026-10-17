@@ -56,6 +56,7 @@ fn only_corresponding_right_holes_change_on_two_selected_parts() {
         exit: Some(lead(0.5)),
         side: Side::Auto,
         closed_only: true,
+        clearance: None,
         overrides: Vec::new(),
     });
     draft.prepare(&drawing);

@@ -3,7 +3,7 @@ import type { Lead, Leads, PreviewContour } from '../api';
 import { draggedLead, leadHandlesOf } from './lead-handles';
 
 const line = (length: number, angle = 90): Lead => ({ shape: 'line', length, angle, radius: 1 });
-const leads = (side: Leads['side'] = 'outside'): Leads => ({ entry: line(2), exit: line(1), closed_only: true, side, overrides: [] });
+const leads = (side: Leads['side'] = 'outside'): Leads => ({ entry: line(2), exit: line(1), closed_only: true, clearance: null, side, overrides: [] });
 // A counterclockwise square with a lead-in from (-2, 0) and a lead-out to (0, -1).
 const square = (source = 0): PreviewContour => ({
   sources: [source], lead_target: { contour: source, fraction: 0 }, matching_contour: null, depth: 0,

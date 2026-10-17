@@ -33,6 +33,7 @@ fn leads(side: Side) -> Leads {
         exit: None,
         side,
         closed_only: true,
+        clearance: None,
         overrides: Vec::new(),
     }
 }

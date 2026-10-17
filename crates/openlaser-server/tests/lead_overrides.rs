@@ -79,6 +79,7 @@ async fn local_edits_follow_copies_transforms_deletion_undo_and_saved_jobs_after
                 exit: Some(lead(1.)),
                 side: Side::Outside,
                 closed_only: true,
+                clearance: None,
                 overrides: Vec::new(),
             }),
             ..Features::default()
@@ -199,6 +200,7 @@ async fn copies_take_their_selection_machining_along() {
             exit: None,
             side: Side::Outside,
             closed_only: true,
+            clearance: None,
             overrides: Vec::new(),
         };
         let own = ContourMachining {

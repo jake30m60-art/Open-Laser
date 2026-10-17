@@ -100,6 +100,7 @@ fn kerf_and_line_leads_inner_first() {
             exit: Some(lead(LeadShape::Line)),
             side: Side::Auto,
             closed_only: true,
+            clearance: None,
             overrides: Vec::new(),
         }),
         kerf: Some(Kerf { width: Millimeters(0.2), side: Side::Auto }),
@@ -124,6 +125,7 @@ fn joints_cooling_and_arc_leads() {
             exit: None,
             side: Side::Auto,
             closed_only: false,
+            clearance: None,
             overrides: Vec::new(),
         }),
         joints: Some(Joints {
@@ -181,6 +183,7 @@ fn clockwise_manual_start_with_overcut() {
             exit: Some(lead(LeadShape::LineArc)),
             side: Side::Auto,
             closed_only: false,
+            clearance: None,
             overrides: Vec::new(),
         }),
         start: Start {

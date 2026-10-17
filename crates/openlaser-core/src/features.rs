@@ -554,6 +554,9 @@ pub struct Leads {
     pub side: Side,
     /// Leave open contours without leads.
     pub closed_only: bool,
+    /// Inside a closed contour, how far a lead's free end keeps off the
+    /// contour; longer leads are shortened to keep it. None is 0.5 mm.
+    pub clearance: Option<Millimeters>,
     /// Leads edited on the drawing. Locations name placed contours and
     /// distinguish pieces created by a bridge split.
     pub overrides: Vec<LeadOverride>,
@@ -569,6 +572,7 @@ impl Leads {
             exit: self.exit.map(|base| edited.and_then(|v| v.exit).unwrap_or(base)),
             side: self.side,
             closed_only: self.closed_only,
+            clearance: self.clearance,
             overrides: Vec::new(),
         }
     }
@@ -938,6 +942,7 @@ mod tests {
                 exit: None,
                 side: Side::Auto,
                 closed_only: true,
+                clearance: None,
                 overrides: Vec::new(),
             }),
             joints: Some(Joints {

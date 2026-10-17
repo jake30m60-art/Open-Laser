@@ -111,6 +111,8 @@ pub struct Coordinator {
     pub persistence_error: Option<String>,
     /// Operator checklist defaults, never completed checks.
     pub preflight: crate::preflight::PreflightPreferences,
+    /// The machining set last on any job, which a new job starts from.
+    pub(crate) last_features: Option<crate::last_features::Last>,
     pub(crate) postflight: Option<crate::postflight::Pending>,
     /// Preserved host process overrides.
     pub soft: crate::soft_settings::SoftSettings,
@@ -313,6 +315,7 @@ impl Coordinator {
             draft_store: draft_store.clone(),
             persistence_error: None,
             preflight,
+            last_features: crate::last_features::open(&config.data_dir),
             postflight: None,
             soft,
             pendant: None,
@@ -1519,6 +1522,12 @@ impl Coordinator {
             .library
             .last_job_on(&recipe.key())
             .map(|job| (job.id.clone(), job.name.clone(), job.updated, job.features.reusable()));
+        // What the operator set since, on any job, wins over an older saved job.
+        let last = self
+            .last_features
+            .as_ref()
+            .filter(|last| source.as_ref().is_none_or(|(_, _, at, _)| last.at > *at))
+            .map(|last| last.features.clone());
         let dxf = self.draft.as_ref().is_some_and(|d| self.any_dxf(&d.current.parts));
         let draft =
             self.draft.as_mut().ok_or_else(|| Error::Refused("open a part first".into()))?;
@@ -1540,7 +1549,10 @@ impl Coordinator {
         }
         draft.current.recipe = Some(recipe);
         draft.current.film = film;
-        if let Some((job, name, at, features)) = source {
+        if let Some(features) = last {
+            draft.current.features = features;
+            draft.current.feature_source = None;
+        } else if let Some((job, name, at, features)) = source {
             draft.current.features = features;
             draft.current.feature_source = Some(FeatureSource { job, name, at });
         }
@@ -1550,6 +1562,7 @@ impl Coordinator {
 
     /// Sets the draft's features.
     pub fn set_features(&mut self, features: Features) -> Result<()> {
+        self.last_features = Some(crate::last_features::save(&self.config.data_dir, &features));
         let draft = self.draft_mut()?;
         draft.remember();
         draft.current.features = features;

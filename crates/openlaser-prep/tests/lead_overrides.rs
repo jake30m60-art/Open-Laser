@@ -34,6 +34,7 @@ fn features() -> Features {
             exit: Some(lead(1., 60.)),
             side: Side::Outside,
             closed_only: true,
+            clearance: None,
             overrides: Vec::new(),
         }),
         ..Features::default()

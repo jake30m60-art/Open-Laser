@@ -35,6 +35,7 @@ mod imports;
 pub mod inventory;
 pub mod job_parts;
 mod lan;
+pub mod last_features;
 pub mod layers;
 pub mod machine;
 mod machine_files;

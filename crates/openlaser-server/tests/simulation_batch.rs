@@ -44,6 +44,7 @@ async fn sheet(shared: &Shared, name: &str, variant: u32, mode: LaserMode) -> us
                 exit: None,
                 side: Side::Auto,
                 closed_only: true,
+                clearance: None,
                 overrides: Vec::new(),
             }),
             cooling: Some(Cooling {

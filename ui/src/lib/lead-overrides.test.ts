@@ -3,7 +3,7 @@ import type { Lead, Leads } from '../api';
 import { copiedLeadOverrides, leadFor, leadLookup, setLeadOverride, setLeadOverrides } from './lead-overrides';
 
 const line = (length: number, angle = 90): Lead => ({ shape: 'line', length, angle, radius: 1 });
-const defaults = (): Leads => ({ entry: line(2), exit: line(1), closed_only: true, side: 'auto', overrides: [] });
+const defaults = (): Leads => ({ entry: line(2), exit: line(1), closed_only: true, side: 'auto', clearance: null, overrides: [] });
 
 it('repeated entry and exit drags preserve defaults and other contours, including split pieces', () => {
   const leads = defaults(), target = { contour: 8, fraction: .2 };
