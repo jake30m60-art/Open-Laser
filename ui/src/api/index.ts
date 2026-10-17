@@ -197,6 +197,7 @@ export type { SheetSize } from './bindings/SheetSize';
 export type { SheetState } from './bindings/SheetState';
 export type { SheetTab } from './bindings/SheetTab';
 export type { SheetView } from './bindings/SheetView';
+export type { ShopRates } from './bindings/ShopRates';
 export type { Side } from './bindings/Side';
 export type { SimplifyView } from './bindings/SimplifyView';
 export type { SizeCheck } from './bindings/SizeCheck';

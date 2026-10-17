@@ -754,6 +754,9 @@ async fn update_recipe(
     Json(change): Json<RecipeChange>,
 ) -> Reply {
     shared.lock().await.update_recipe(&Id::from(id.as_str()), change)?;
+    // An edit to the open job's recipe marks it for preparation; rebuild it
+    // now rather than at the next draft edit.
+    crate::machine::refresh(&shared).await;
     Ok(ok())
 }
 

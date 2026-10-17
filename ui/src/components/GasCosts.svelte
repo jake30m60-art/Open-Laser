@@ -57,6 +57,11 @@
       else ui.say('Use 1 to 4 characters.', true);
     });
   }
+  /** The currency is one symbol for every price; switching does not convert. */
+  const CURRENCIES = ['€', '$'];
+  function editShop(key: 'machine_per_hour' | 'setup_per_job' | 'minutes_per_sheet' | 'margin_percent', label: string, unit: string): void {
+    numberAtLeast(t(label), costs.shop[key], unit, v => change(c => { c.shop[key] = v; }));
+  }
   function editRefillPrice(gas: GasKind, source: Refill): void {
     numberAtLeast(t('{0} price per refill', t(GAS_NAMES[gas])), source.price, costs.currency,
       v => change(c => { c[gas].source = { ...source, price: v }; }));
@@ -92,7 +97,28 @@
   {#if problem}<p class="warn-text intro">{problem}</p>{/if}
   <div class="setting">
     <div class="lbl">{tl("Currency symbol")}<small>{tl("Shown before every amount")}</small></div>
-    <button class="val" onclick={editCurrency}>{costs.currency}</button>
+    <div class="seg currency" role="group" aria-label={tl("Currency symbol")}>
+      {#each CURRENCIES as symbol (symbol)}<button class:on={costs.currency === symbol} aria-pressed={costs.currency === symbol} onclick={() => change(c => { c.currency = symbol; })}>{symbol}</button>{/each}
+      <button class:on={!CURRENCIES.includes(costs.currency)} onclick={editCurrency}>{CURRENCIES.includes(costs.currency) ? tl("Other") : costs.currency}</button>
+    </div>
+  </div>
+  <h4 class="shop-head">{tl("Job costs")}</h4>
+  <p class="intro">{tl("The Costs card on the Setup screen adds these to the raw material (price in the recipe) and the gas.")}</p>
+  <div class="setting">
+    <div class="lbl">{tl("Machine hourly rate")}<small>{tl("Power, wear and depreciation, on the run time")}</small></div>
+    <button class="val" data-numpad onclick={() => editShop('machine_per_hour', 'Machine hourly rate', `${costs.currency}/h`)}>{money(costs.shop.machine_per_hour, costs.currency)}/h</button>
+  </div>
+  <div class="setting">
+    <div class="lbl">{tl("Setup per job")}<small>{tl("A fixed amount once per job")}</small></div>
+    <button class="val" data-numpad onclick={() => editShop('setup_per_job', 'Setup per job', costs.currency)}>{money(costs.shop.setup_per_job, costs.currency)}</button>
+  </div>
+  <div class="setting">
+    <div class="lbl">{tl("Handling per sheet")}<small>{tl("Loading and unloading, at the hourly rate")}</small></div>
+    <button class="val" data-numpad onclick={() => editShop('minutes_per_sheet', 'Handling per sheet', 'min')}>{costs.shop.minutes_per_sheet} min</button>
+  </div>
+  <div class="setting">
+    <div class="lbl">{tl("Markup")}<small>{tl("Added to the net cost")}</small></div>
+    <button class="val" data-numpad onclick={() => editShop('margin_percent', 'Markup', '%')}>{costs.shop.margin_percent} %</button>
   </div>
 
   <div class="supplies">
@@ -170,6 +196,9 @@
 {#if calibrating}<GasCalibration gas={calibrating} onclose={() => (calibrating = null)} />{/if}
 
 <style>
+  .currency { flex-wrap: nowrap; flex: none; }
+  .currency button { min-width: 48px; white-space: nowrap; }
+  .shop-head { margin: 8px 0 0; font-size: var(--t-base); }
   .intro { margin: 0; font-size: var(--t-sm); color: var(--ink-3); }
   .gas-costs { grid-column: 1 / -1; }
   .supplies { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }

@@ -291,6 +291,41 @@ pub struct GasCosts {
     pub oxygen: Supply,
     /// Air.
     pub air: Supply,
+    /// The shop's rates for the job cost estimate.
+    #[serde(default)]
+    pub shop: ShopRates,
+}
+
+/// Settings → Costs: what the cost estimate adds besides material and gas.
+/// Money is in the currency of [`GasCosts::currency`].
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS), ts(export))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ShopRates {
+    /// Machine hourly rate on the run time: power, wear, depreciation.
+    pub machine_per_hour: Money,
+    /// A fixed amount once per job.
+    pub setup_per_job: Money,
+    /// Minutes of handling for each sheet, charged at the machine rate.
+    pub minutes_per_sheet: f64,
+    /// Markup on the net cost, in percent.
+    pub margin_percent: f64,
+}
+
+/// The most a markup may be, in percent.
+const MAX_MARGIN_PERCENT: f64 = 1000.;
+
+impl ShopRates {
+    fn validate(&self) -> Result<()> {
+        let money = [self.machine_per_hour.0, self.setup_per_job.0];
+        if money.iter().any(|m| !m.is_finite() || *m < 0. || *m > 1e7)
+            || !(0. ..=600.).contains(&self.minutes_per_sheet)
+            || !(0. ..=MAX_MARGIN_PERCENT).contains(&self.margin_percent)
+        {
+            return Err(Error::Request("a shop rate is out of range".into()));
+        }
+        Ok(())
+    }
 }
 
 impl Default for GasCosts {
@@ -304,6 +339,7 @@ impl Default for GasCosts {
                 flow: Flow::Estimated,
                 calibration: None,
             },
+            shop: ShopRates::default(),
         }
     }
 }
@@ -336,7 +372,7 @@ impl GasCosts {
         for gas in GasKind::ALL {
             self.supply(gas).validate(gas)?;
         }
-        Ok(())
+        self.shop.validate()
     }
 
     /// `usage` in litres and money with `nozzle` fitted.
@@ -879,6 +915,25 @@ mod tests {
         let reopened = Store::open(&root);
         assert_eq!(reopened.costs().oxygen.calibration, Some(saved));
         assert!(reopened.error.is_none());
+    }
+
+    #[test]
+    fn shop_rates_are_saved_and_checked() {
+        let root = scratch("shop");
+        let mut store = Store::open(&root);
+        let before = store.costs().clone();
+        let mut rates = before.clone();
+        rates.shop = ShopRates {
+            machine_per_hour: Money(45.),
+            setup_per_job: Money(20.),
+            minutes_per_sheet: 5.,
+            margin_percent: 15.,
+        };
+        store.save(rates.clone(), &before).unwrap();
+        assert_eq!(Store::open(&root).costs().shop, rates.shop);
+        let mut wild = rates.clone();
+        wild.shop.margin_percent = -1.;
+        assert!(store.save(wild, &rates).is_err());
     }
 
     #[test]

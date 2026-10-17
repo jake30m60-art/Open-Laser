@@ -10,6 +10,9 @@
   // Everything stays staged until Save.
   import Cutting from './Cutting.svelte';
   import { airRecipeUsesNitrogen } from '../../lib/recipe-source';
+  import { PRICE_PER_KG, PRICE_PER_M2, density, materialPrice, pricePerM2 } from '../../lib/costing';
+  import { money } from '../../lib/gas';
+  import { numberAtLeast } from '../../lib/prompt';
   import Piercing from './Piercing.svelte';
   import Options from './Options.svelte';
   import Engraving from './Engraving.svelte';
@@ -121,6 +124,20 @@
   const thickness = () => osk.number(tr("Thickness"), recipe.thickness_mm, 'mm', (v) => { if (v >= 0) run(() => api.updateRecipe(recipe.id, { thickness_mm: v, attributes: {} })); });
   const note = () => osk.text(tr("Setup note"), recipe.note, (text) => run(() => api.updateRecipe(recipe.id, { note: text, attributes: {} })));
   // The star marks this one recipe (tested and approved), not the whole material.
+  // Raw material price for the job cost estimate: per kg for every
+  // thickness of the material, or per m² for this recipe alone.
+  const costs = $derived(doc.gas.costs);
+  const price = $derived(materialPrice(recipe.name, recipe.attributes));
+  const priceLine = $derived(price
+    ? `${'perM2' in price ? '' : `${money(price.perKg, costs.currency)}/kg · ${price.density} g/cm³ · `}${money(pricePerM2(price, recipe.thickness_mm), costs.currency)}/m²`
+    : '');
+  const pricePerKg = () => {
+    if (!density(recipe.name, recipe.attributes)) { ui.say(tr('No density known for this material; use a price per m² instead.'), true); return; }
+    numberAtLeast(tr('Raw material price per kg'), Number(recipe.attributes[PRICE_PER_KG]) || 0, `${costs.currency}/kg`,
+      (v) => run(() => Promise.all(members().map((r) => api.updateRecipe(r.id, { attributes: { [PRICE_PER_KG]: String(v) } })))));
+  };
+  const pricePerSquareMetre = () => numberAtLeast(tr('Price per m² for this thickness (0 = by weight)'), Number(recipe.attributes[PRICE_PER_M2]) || 0, `${costs.currency}/m²`,
+    (v) => run(() => api.updateRecipe(recipe.id, { attributes: { [PRICE_PER_M2]: String(v) } })));
   const star = () => run(() => api.updateRecipe(recipe.id, { favourite: !recipe.favourite, attributes: {} }));
   const remove = async () => {
     if (pending || saving) { ui.say(tr("Save or discard this recipe’s edits before deleting it."), true); return; }
@@ -165,6 +182,10 @@
   <div class="setup-strip">
     <span><b>{tr("Setup")}</b><span class="text">{noteLine || tr('No setup note yet')}</span></span>
     <button class="btn btn-ghost" onclick={note}>{tr("Edit setup")}</button>
+  </div>
+  <div class="setup-strip">
+    <span><b>{tr("Raw material")}</b><span class="text">{priceLine || tr('No price yet')}</span></span>
+    <span class="price-buttons"><button class="btn btn-ghost" data-numpad onclick={pricePerKg}>{tr("Price per kg")}</button><button class="btn btn-ghost" data-numpad onclick={pricePerSquareMetre}>{tr("Price per m²")}</button></span>
   </div>
   {#if airRecipeUsesNitrogen(recipe, values)}
     <p class="gas-source-warning" role="alert">{tr("Air recipe on the N₂ valve, as on the machine's own fiber layers: it cuts with whatever is connected to the N₂ inlet. Check the supply before cutting.")}</p>

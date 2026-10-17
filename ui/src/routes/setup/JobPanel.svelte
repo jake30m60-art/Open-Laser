@@ -20,6 +20,7 @@
   import AddParts from '../../components/AddParts.svelte';
   import CreateText from '../../components/CreateText.svelte';
   import GasLaserCard from '../../components/GasLaserCard.svelte';
+  import CostCard from '../../components/CostCard.svelte';
 
   const doc = $derived(server.doc!);
   const draft = $derived(doc.draft!);
@@ -137,7 +138,7 @@
   <p class="muted">{tl('{0} cooling points skipped within {1} of endpoints.', draft.compiled.plan.reduce((n, pass) => n + pass.omitted_cooling, 0), quantity(0.2, 'mm'))}</p>
 {/if}
 {#if draft.error}<div class="warn-text draft-error">{plain(draft.error).text}</div>{/if}
-{#if draft.compiled}<GasLaserCard />{/if}
+{#if draft.compiled}<GasLaserCard /><CostCard />{/if}
 </div>
 
 <div class="stack">
