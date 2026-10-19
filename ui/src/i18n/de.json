@@ -4101,5 +4101,6 @@
   "Selecting": "wird gewählt",
   "Select shapes for this layer": "Konturen für diese Ebene wählen",
   "Choose the recipe for layer {0}": "Rezept für Ebene {0} wählen",
-  "{0}: {1}": "{0}: {1}"
+  "{0}: {1}": "{0}: {1}",
+  "Plays in machine time: each layer at its recipe's speed, 1× is real time.": "Läuft in Maschinenzeit: jede Ebene mit der Geschwindigkeit ihres Rezepts, 1× ist Echtzeit."
 }

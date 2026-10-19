@@ -75,3 +75,32 @@ export function simulationSteps(preview: Preview | null, segments: readonly Prev
   }
   return steps;
 }
+
+/** Machine time along the segments: each segment's length over its speed. */
+export function segmentSeconds(segments: readonly PreviewSegment[], speed: (segment: PreviewSegment) => number): number[] {
+  return segments.map(s => s.length / Math.max(0.1, speed(s)));
+}
+/** Distance progress reached after `timeProgress` of the machine time. */
+export function distanceAtTime(segments: readonly PreviewSegment[], seconds: readonly number[], timeProgress: number): number {
+  const total = seconds.reduce((a, b) => a + b, 0), length = segments.reduce((a, s) => a + s.length, 0);
+  if (!total || !length) return 0;
+  let left = Math.max(0, Math.min(1, timeProgress)) * total, walked = 0;
+  for (let i = 0; i < segments.length; i++) {
+    const t = seconds[i]!, l = segments[i]!.length;
+    if (left <= t) return (walked + (t ? l * left / t : 0)) / length;
+    left -= t; walked += l;
+  }
+  return 1;
+}
+/** Machine-time progress at `distanceProgress` along the segments. */
+export function timeAtDistance(segments: readonly PreviewSegment[], seconds: readonly number[], distanceProgress: number): number {
+  const total = seconds.reduce((a, b) => a + b, 0), length = segments.reduce((a, s) => a + s.length, 0);
+  if (!total || !length) return 0;
+  let left = Math.max(0, Math.min(1, distanceProgress)) * length, spent = 0;
+  for (let i = 0; i < segments.length; i++) {
+    const t = seconds[i]!, l = segments[i]!.length;
+    if (left <= l) return (spent + (l ? t * left / l : 0)) / total;
+    left -= l; spent += t;
+  }
+  return 1;
+}
