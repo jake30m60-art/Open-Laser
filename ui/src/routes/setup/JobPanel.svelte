@@ -52,6 +52,9 @@
 
   let selectedLayer = $state('');
   $effect(() => { if (!draft.layers.some(l => l.name === selectedLayer)) selectedLayer = draft.layers[0]?.name ?? ''; });
+  /** The layer chosen below and the recipe it runs with: its own, else the material. */
+  const shownLayer = $derived(draft.layers.find((l) => l.name === selectedLayer) ?? null);
+  const shown = $derived(shownLayer?.recipe ?? recipe);
   let sheet = $state(false);
   let checklist = $state(false);
 
@@ -96,13 +99,18 @@
 </div>
 
 <div class="card2 compact" class:needs={layersMissing}>
+  {#if draft.layers.length > 1}
+    <label class="layer-choice">{tl("Machining scope")}
+      <select bind:value={selectedLayer}>{#each draft.layers as layer (layer.name)}<option value={layer.name}>{layer.name} · {layerHow(layer)}</option>{/each}</select>
+    </label>
+  {/if}
   <button class="mat-row" onclick={() => (sheet = true)}>
-    {#if recipe}
-      {@const art = pictureOf(recipe.name, recipe.photo)}
+    {#if shown}
+      {@const art = pictureOf(shown.name, shown.photo)}
       {#if art}<img class="swatch" src={art} alt="">{:else}<span class="swatch" style="background:var(--panel-2)"></span>{/if}
       <span class="mat-text">
-        <strong>{materialLabel(recipe.name)}</strong>
-        <small>{quantity(recipe.thickness_mm, 'mm')} · {tl(recipe.gas)} · {laserLabel(recipe.laser)}</small>
+        <strong>{materialLabel(shown.name)}</strong>
+        <small>{#if draft.layers.length > 1}{shownLayer?.name} · {shownLayer?.recipe ? t("own recipe") : t("from the material")} · {/if}{quantity(shown.thickness_mm, 'mm')} · {tl(shown.gas)} · {laserLabel(shown.laser)}</small>
       </span>
     {:else}
       <span class="swatch" style="background:var(--warn-soft)"></span>
@@ -110,11 +118,8 @@
     {/if}
     <span class="link">{t("Change")}</span>
   </button>
-  {#if recipe}<MaterialSummary source={recipe} variant="compact" />{/if}
+  {#if shown}<MaterialSummary source={shown} variant="compact" />{/if}
   {#if draft.layers.length}
-    <label class="layer-choice">{tl("Machining scope")}
-      <select bind:value={selectedLayer}>{#each draft.layers as layer (layer.name)}<option value={layer.name}>{layer.name} · {layerHow(layer)}</option>{/each}</select>
-    </label>
     <button class="btn btn-ghost" onclick={() => ui.layerSheet = selectedLayer}>{tl("Open machining settings")}</button>
   {/if}
 </div>
