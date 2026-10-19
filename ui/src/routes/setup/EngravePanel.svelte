@@ -162,6 +162,16 @@
     if(part) void editPart(part.id,placed.source-part.first);
   }
   const close = () => (ui.setupPanel = null);
+  /** Picks for another engraving layer: its shapes come back selected. */
+  function workOn(name: string): void {
+    ui.engravingLayer = name; ui.engravingSession++; ui.engravingPreview = null;
+  }
+  /** A fresh engraving layer, with its own recipe to come. */
+  function newLayer(): void {
+    const names = new Set(draft.layers.map((l) => l.name));
+    let number = 1; while (names.has('Gravur ' + number)) number++;
+    workOn('Gravur ' + number);
+  }
 </script>
 
 <div class="feat-head">
@@ -190,6 +200,7 @@
   <button class="btn btn-primary block" disabled={busy || previewBusy || refusedPreview || !ui.engravingPreview || (!selectedContours.length && !draft.layers.some(l => l.name === NAME && l.mode === 'mark'))} onclick={engraveSelection}>
     {tr("Done")} · {NAME}
   </button>
+  <button class="btn btn-ghost block" disabled={busy || previewBusy} onclick={newLayer}><i class="ic ic-plus"></i>{tr("New engraving layer")}</button>
   {#if engravingRecipe && engravingRecipe.laser === 'fiber'}
     <h3>{tr("Engraving height")}</h3>
     <div class="seg block" role="group" aria-label={tr("Engraving height mode")}>
@@ -240,6 +251,7 @@
         <span class="layer-swatch mark" style:--layer={swatchColor(draft.layers, layer.name)}></span>
         <strong>{layer.name}</strong>
         <small>{tr("On this layer: {0} contours", layer.contours)}</small>
+        {#if layer.name === NAME}<small class="editing">{tr("Selecting")}</small>{:else}<button class="btn btn-ghost" disabled={busy || previewBusy} onclick={() => workOn(layer.name)}>{tr("Select shapes for this layer")}</button>{/if}
         <button class="icon-btn" aria-label={hidden ? tr("Show on the drawing") : tr("Hide on the drawing")} onclick={() => ui.toggleDrawingLayer(layer.name)}>
           <i class="ic {hidden ? 'ic-eye-off' : 'ic-eye'}"></i>
         </button>

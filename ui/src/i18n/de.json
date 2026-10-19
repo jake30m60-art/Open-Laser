@@ -4096,5 +4096,8 @@
   "The picked places were not kept; the drawing changed. Pick them again.": "Die gewählten Stellen wurden nicht übernommen, die Zeichnung hat sich geändert. Bitte neu wählen.",
   "Engraving selection saved. Choose the recipe below; Undo restores the previous engraving.": "Gravurauswahl gespeichert. Rezept unten wählen; Rückgängig stellt die vorherige Gravur wieder her.",
   "How this layer engraves": "Wie diese Ebene graviert",
-  "Line only": "Nur Linie"
+  "Line only": "Nur Linie",
+  "New engraving layer": "Neue Gravurebene",
+  "Selecting": "wird gewählt",
+  "Select shapes for this layer": "Konturen für diese Ebene wählen"
 }
