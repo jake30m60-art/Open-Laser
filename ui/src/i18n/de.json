@@ -4099,5 +4099,7 @@
   "Line only": "Nur Linie",
   "New engraving layer": "Neue Gravurebene",
   "Selecting": "wird gewählt",
-  "Select shapes for this layer": "Konturen für diese Ebene wählen"
+  "Select shapes for this layer": "Konturen für diese Ebene wählen",
+  "Choose the recipe for layer {0}": "Rezept für Ebene {0} wählen",
+  "{0}: {1}": "{0}: {1}"
 }

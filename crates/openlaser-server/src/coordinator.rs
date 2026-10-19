@@ -1532,12 +1532,38 @@ impl Coordinator {
         let draft =
             self.draft.as_mut().ok_or_else(|| Error::Refused("open a part first".into()))?;
         draft.remember();
+        let engraves = recipe.attributes.get("OpenLaserProcess").is_some_and(|p| p == "engrave");
+        // An engraving recipe chosen for a job that cuts with another
+        // material and has engraving layers goes to those layers: the cut
+        // keeps its material, and nothing else of the job changes.
+        let cuts_with_other =
+            draft.current.recipe.as_ref().is_some_and(|r| {
+                r.attributes.get("OpenLaserProcess").is_none_or(|p| p != "engrave")
+            });
+        let marks: Vec<String> = draft
+            .current
+            .features
+            .layers
+            .iter()
+            .filter(|l| l.mode == openlaser_core::features::LayerMode::Mark)
+            .map(|l| l.name.clone())
+            .collect();
+        if engraves && cuts_with_other && !marks.is_empty() {
+            draft.current.layers.retain(|c| !marks.contains(&c.layer));
+            for layer in marks {
+                draft
+                    .current
+                    .layers
+                    .push(openlaser_library::LayerChoice { layer, recipe: Some(recipe.clone()) });
+            }
+            self.reprepare();
+            return Ok(());
+        }
         if draft.job.is_none() && !draft.calibration && dxf {
             draft.current.correction = self.correction.active(recipe.laser);
         }
         // An engraving material is what the job engraves with: every layer's
         // own engraving recipe gives way to it, as the operator chose it.
-        let engraves = recipe.attributes.get("OpenLaserProcess").is_some_and(|p| p == "engrave");
         if engraves {
             for choice in &mut draft.current.layers {
                 if choice.recipe.as_ref().is_some_and(|r| {

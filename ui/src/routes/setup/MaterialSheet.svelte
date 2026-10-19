@@ -14,12 +14,18 @@
   import { isEngraving } from '../../lib/engraving';
   import type { RecipeView } from '../../api';
 
-  let { onclose }: { onclose: () => void } = $props();
+  // `layer`: the layer chosen under the material; with more than one layer
+  // the pick is that layer's own recipe and nothing else changes.
+  let { onclose, layer = null }: { onclose: () => void; layer?: string | null } = $props();
   const doc = $derived(server.doc!);
+  const target = $derived(doc.draft?.layers.find((l) => l.name === layer) ?? null);
+  const perLayer = $derived(!!target && (doc.draft?.layers.length ?? 0) > 1 && !!doc.draft?.recipe);
   // Cutting and engraving recipes apart: each list offers only its own.
   const all = $derived(doc.library.recipes);
-  const opened = server.doc?.draft?.recipe;
-  let process = $state<'cut' | 'engrave'>(opened && isEngraving(opened) ? 'engrave' : 'cut');
+  const opened = server.doc?.draft?.layers.find((l) => l.name === layer);
+  const openedRecipe = opened?.recipe ?? server.doc?.draft?.recipe;
+  // A marked layer opens on the engraving recipes, a cut layer on the cutting ones.
+  let process = $state<'cut' | 'engrave'>(opened ? (opened.mode === 'mark' ? 'engrave' : 'cut') : openedRecipe && isEngraving(openedRecipe) ? 'engrave' : 'cut');
   const engraving = $derived(process === 'engrave');
   // Only the laser in use, as Mlaser's laser choice; both while none is known.
   const recipes = $derived(all.filter((r) => isEngraving(r) === engraving && (!doc.mode || r.laser === doc.mode)));
@@ -47,11 +53,18 @@
   const gasList = (rs: RecipeView[]): string => [...new Set(rs.map((r) => r.gas))].join(' / ');
   function use(): void {
     if (!pick) return;
+    if (perLayer && target) {
+      const chosen = pick;
+      api.changeLayers({ kind: 'recipe', layer: target.name, recipe: chosen.id })
+        .then(() => { ui.say(t('{0}: {1}', target.name, recipeLabel(chosen))); onclose(); })
+        .catch((error) => ui.say(explain(error), true));
+      return;
+    }
     api.setRecipe(pick.id).then(() => { ui.say(t('Job material: {0}', recipeLabel(pick))); onclose(); }).catch((error) => ui.say(explain(error), true));
   }
 </script>
 
-<Modal title={t("Choose material for this job")} wide {onclose}>
+<Modal title={perLayer && target ? t("Choose the recipe for layer {0}", target.name) : t("Choose material for this job")} wide {onclose}>
   <div class="sheet">
     <div class="sheet-list">
       <div class="seg block process" role="group" aria-label={t("Process")}>

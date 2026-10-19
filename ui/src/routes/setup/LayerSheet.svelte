@@ -143,12 +143,14 @@
       <h3 class:warn-text={!layer.chosen}>{tr("Recipe{0}", !layer.chosen ? ' · choose one' : '')}</h3>
       <p class="recipe-note">{layer.mode === 'cut' ? tr("Cuts run on the material unless you choose another.") : tr("The material's recipe would cut through: choose an engraving or marking recipe.")}</p>
       <div class="recipes">
+        {#if layer?.mode !== 'mark' || (draft.recipe && isEngraving(draft.recipe))}
         <button class="choice" class:on={usesJob} disabled={busy} onclick={() => use(null)}>
           <strong>{tr("Material")}</strong><small>{draft.recipe ? `${recipeLabel(draft.recipe)} · ${draft.recipe.attributes['CutSpeed'] ?? '?'} mm/s` : tr("Not chosen yet")}</small>
         </button>
+        {/if}
         {#each groups as [heading, materials] (heading)}
           {#if materials.length}
-            <span class="group-head">{heading === 'Engraving' ? tr("Engraving recipes") : tr("Cutting recipes")}</span>
+            <span class="group-head">{heading === tr("Engraving") ? tr("Engraving recipes") : tr("Cutting recipes")}</span>
             {#each materials as m (m.key)}
               <div class="material">
                 <span class="mat-name">{materialLabel(m.name)}</span>

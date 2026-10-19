@@ -149,7 +149,7 @@
   <button class="btn btn-primary xl block" onclick={() => review(false)} disabled={!doc.readiness.compile.ok} title={doc.readiness.compile.reason ?? ''}>{tl("Go to Run →")}</button>
 </div>
 
-{#if sheet}<MaterialSheet onclose={() => (sheet = false)} />{/if}
+{#if sheet}<MaterialSheet layer={selectedLayer} onclose={() => (sheet = false)} />{/if}
 {#if adding}<AddParts onclose={() => (adding = false)} />{/if}
 {#if texting}<CreateText onclose={() => (texting = false)} />{/if}
 {#if checklist}<PreflightEditor scope="job" onclose={() => (checklist = false)} />{/if}
