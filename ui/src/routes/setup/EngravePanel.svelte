@@ -245,7 +245,7 @@
     {@const fill = fillOfLayer(layer.name)}
     {@const closed = closedOn(layer.name)}
     {@const hidden = ui.drawingLayerHidden(layer.name)}
-    {@const used = layer.recipe ?? draft.recipe}
+    {@const used = layer.recipe ?? (draft.recipe && isEngraving(draft.recipe) ? draft.recipe : null)}
     <section class="layer" class:hidden>
       <header>
         <span class="layer-swatch mark" style:--layer={swatchColor(draft.layers, layer.name)}></span>
@@ -262,7 +262,7 @@
       <details class="recipe-picker">
         <summary>{tr("Recipe")}: {used ? `${materialLabel(used.name)} · ${used.attributes['CutSpeed'] ?? '?'} mm/s` : tr("Choose one")}{#if used && !layer.recipe} · {tr("from the material")}{:else if layer.recipe} · {tr("own recipe")}{/if}</summary>
       <div class="recipes" role="group" aria-label={tr("Engraving recipes")}>
-        {#if draft.recipe}
+        {#if draft.recipe && isEngraving(draft.recipe)}
           <button class="chip" class:on={!layer.recipe} disabled={busy} onclick={() => change({ kind: 'recipe', layer: layer.name, recipe: null }).catch(() => undefined)}>{tr("Material")}: {materialLabel(draft.recipe.name)} · {draft.recipe.attributes['CutSpeed'] ?? '?'} mm/s</button>
         {/if}
         {#each recipes as r (r.id)}

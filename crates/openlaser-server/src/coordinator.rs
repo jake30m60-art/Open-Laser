@@ -1550,10 +1550,10 @@ impl Coordinator {
         draft.current.recipe = Some(recipe);
         draft.current.film = film;
         if let Some(features) = last {
-            draft.current.features = features;
+            draft.current.features = with_material_defaults(&draft.current.features, features);
             draft.current.feature_source = None;
         } else if let Some((job, name, at, features)) = source {
-            draft.current.features = features;
+            draft.current.features = with_material_defaults(&draft.current.features, features);
             draft.current.feature_source = Some(FeatureSource { job, name, at });
         }
         self.reprepare();
@@ -2416,4 +2416,44 @@ fn bindings_view(bound: &vendor::Bindings) -> BindingsView {
 #[must_use]
 pub fn draft_view(coordinator: &Coordinator) -> Option<DraftView> {
     coordinator.draft_view.as_deref().cloned()
+}
+
+/// A material's remembered machining over this job: its leads, joints,
+/// cooling, kerf, start policy, seam and order come along; the job's own
+/// layers, which contour lies on which, picked places, bridges, selections
+/// and pictures stay as the operator made them.
+fn with_material_defaults(
+    job: &openlaser_core::features::Features,
+    material: openlaser_core::features::Features,
+) -> openlaser_core::features::Features {
+    use openlaser_core::features::{CoolingPlacement, Features, JointPlacement, Start};
+    let leads = material.leads.map(|mut leads| {
+        leads.overrides = job.leads.as_ref().map(|l| l.overrides.clone()).unwrap_or_default();
+        leads
+    });
+    let joints = material.joints.map(|mut joints| {
+        if let Some(manual @ JointPlacement::Manual(_)) = job.joints.as_ref().map(|j| &j.placement)
+        {
+            joints.placement = manual.clone();
+        }
+        joints
+    });
+    let cooling = material.cooling.map(|mut cooling| {
+        if let Some(manual @ CoolingPlacement::Manual(_)) =
+            job.cooling.as_ref().map(|c| &c.placement)
+        {
+            cooling.placement = manual.clone();
+        }
+        cooling
+    });
+    Features {
+        leads,
+        joints,
+        cooling,
+        kerf: material.kerf,
+        start: Start { spots: job.start.spots.clone(), ..material.start },
+        seam: material.seam,
+        order: material.order,
+        ..job.clone()
+    }
 }
