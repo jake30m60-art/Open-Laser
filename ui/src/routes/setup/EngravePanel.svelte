@@ -120,8 +120,8 @@
       if (selectedContours.length && !draft.layers.find(l => l.name === NAME)?.recipe && preferred && !jobEngraves) {
         await api.changeLayers({ kind: 'recipe', layer: NAME, recipe: preferred.id });
       }
-      ui.say(tr("Engraving selection saved. Undo restores the previous engraving."));
-      ui.setupPanel = null;
+      // The panel stays open: the layer's recipe and lines are set right here.
+      ui.say(tr("Engraving selection saved. Choose the recipe below; Undo restores the previous engraving."));
     } catch (error) { ui.say(explain(error), true); }
     finally { busy = false; }
   }
@@ -230,7 +230,7 @@
   {#if !draft.recipe}
     <p class="warn-box">{tr("No job recipe selected. Layers with their own recipe can still engrave; choose a recipe for the other layers before running.")}</p>
   {/if}
-  {#each marked.filter(l => l.name === NAME || pictures.has(l.name)) as layer (layer.name)}
+  {#each marked as layer (layer.name)}
     {@const fill = fillOfLayer(layer.name)}
     {@const closed = closedOn(layer.name)}
     {@const hidden = ui.drawingLayerHidden(layer.name)}
@@ -261,6 +261,12 @@
         <button class="link" onclick={() => (ui.layerSheet = layer.name)}>{tr("All layer settings")}</button>
       </div>
       </details>
+      {#if !pictures.has(layer.name)}
+        <div class="seg block" role="group" aria-label={tr("How this layer engraves")}>
+          <button class:on={!fill} aria-pressed={!fill} disabled={busy} onclick={() => { if (fill) writeFill(layer.name, null); }}>{tr("Line only")}</button>
+          <button class:on={!!fill} aria-pressed={!!fill} disabled={busy} onclick={() => { if (!fill) writeFill(layer.name, used ? fillOf(used.attributes) : defaultFill()); }}>{tr("Fill area")}</button>
+        </div>
+      {/if}
       {#if fill && draft.recipe && !draft.error && closed === 0}
         <p class="warn-box">{tr("No closed shape on this layer: a fill engraves inside closed outlines only. Close the outlines in the sketch, or the lines are traced as they are.")}</p>
       {/if}

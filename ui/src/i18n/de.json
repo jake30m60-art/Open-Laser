@@ -1356,8 +1356,8 @@
   "No job recipe selected. Layers with their own recipe can still engrave; choose a recipe for the other layers before running.": "Kein Auftragsrezept gewählt. Ebenen mit eigenem Rezept können trotzdem gravieren; für die anderen Ebenen vor dem Ausführen ein Rezept wählen.",
   "Clear selection": "Alles abwählen",
   "Select engraving geometry": "Gravurgeometrie wählen",
-  "Select areas": "Flächen wählen",
-  "Select contours": "Konturen wählen",
+  "Select areas": "Fläche füllen",
+  "Select contours": "Nur Linie gravieren",
   "Area: click the face to fill. A 0 ring keeps its hole clear; click the hole to fill only that inner face. Contour: trace only the clicked outline.": "Fläche: In die Fläche klicken. Der Ring einer 0 lässt das Loch frei; ein Klick ins Loch füllt nur diese Innenfläche. Kontur: Nur den angeklickten Umriss nachfahren.",
   "Click adds to the engraving preview; click again removes it. Apply saves the selection; Close cancels unsaved selection changes.": "Klick fügt eine Gravur hinzu, erneuter Klick entfernt sie aus der Vorschau. Übernehmen speichert die Auswahl; Schließen verwirft ungespeicherte Auswahländerungen.",
   "Apply engraving selection": "Gravurauswahl übernehmen",
@@ -4093,5 +4093,8 @@
   "{0} layers or selections keep their own leads without this one.": "{0} Ebenen oder Auswahlen haben eigene Einstellungen ohne diesen Anschnitt bzw. Auslauf.",
   "Add it there too": "Dort auch einschalten",
   "Clear cut parts": "Geschnittene Teile löschen",
-  "The picked places were not kept; the drawing changed. Pick them again.": "Die gewählten Stellen wurden nicht übernommen, die Zeichnung hat sich geändert. Bitte neu wählen."
+  "The picked places were not kept; the drawing changed. Pick them again.": "Die gewählten Stellen wurden nicht übernommen, die Zeichnung hat sich geändert. Bitte neu wählen.",
+  "Engraving selection saved. Choose the recipe below; Undo restores the previous engraving.": "Gravurauswahl gespeichert. Rezept unten wählen; Rückgängig stellt die vorherige Gravur wieder her.",
+  "How this layer engraves": "Wie diese Ebene graviert",
+  "Line only": "Nur Linie"
 }
