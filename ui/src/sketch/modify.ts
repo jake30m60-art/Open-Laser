@@ -313,7 +313,7 @@ export function fillet(source: Sketch, vertex: Id, r: number): Outcome {
   if (!(r > 0)) return { error: 'The radius must be above zero.' };
   const s = clone(source);
   const found = corner(s, vertex);
-  if ('error' in found) return found;
+  if ('error' in found) return curveFillet(s, vertex, r) ?? found;
   const v = point(s, vertex);
   const u1 = scale(sub(found.far[0], v), 1 / dist(found.far[0], v));
   const u2 = scale(sub(found.far[1], v), 1 / dist(found.far[1], v));
@@ -334,6 +334,87 @@ export function fillet(source: Sketch, vertex: Id, r: number): Outcome {
   addConstraint(s, { kind: 'tangent', a: found.lines[0], b: arc });
   addConstraint(s, { kind: 'tangent', a: found.lines[1], b: arc });
   // The value sits outside the corner, away from the centre.
+  const label = scale(bis, -r * 1.6);
+  addConstraint(s, { kind: 'radius', curve: arc, value: r, at: [label.x, label.y] });
+  remove(s, []);
+  return { sketch: s, created: [arc] };
+}
+
+/** One side of a corner that is not two lines: a line or an arc ending at
+ *  the corner, with the way it leaves the corner. */
+interface Side { id: Id; kind: 'line' | 'arc'; dir: Vec; far: Vec; c?: Vec; r?: number }
+
+/** Rounds a corner where a line meets an arc, or two arcs meet: the fillet's
+ *  centre is `r` off each side towards the inside of the corner, its ends
+ *  are the tangent points, and each side now ends there. */
+function curveFillet(s: Sketch, vertex: Id, r: number): Outcome | null {
+  const v = point(s, vertex);
+  const curves = s.entities.filter((e) => (e.kind === 'line' || e.kind === 'arc') && !e.construction && (e.a === vertex || e.b === vertex));
+  if (curves.length !== 2 || curves.every((e) => e.kind === 'line')) return null;
+  const sides: Side[] = curves.map((e) => {
+    if (e.kind === 'line') {
+      const far = point(s, e.a === vertex ? e.b : e.a);
+      return { id: e.id, kind: 'line', dir: scale(sub(far, v), 1 / dist(far, v)), far };
+    }
+    const arc = e as Arc;
+    const c = point(s, arc.c), radius = dist(c, v), out = sub(v, c);
+    // Leaving its start an arc turns counter-clockwise, leaving its end clockwise.
+    const dir = arc.a === vertex ? { x: -out.y / radius, y: out.x / radius } : { x: out.y / radius, y: -out.x / radius };
+    return { id: e.id, kind: 'arc', dir, far: point(s, arc.a === vertex ? arc.b : arc.a), c, r: radius };
+  });
+  const sum = add(sides[0]!.dir, sides[1]!.dir);
+  if (len(sum) < 1e-9) return { error: 'The curves run straight on there; there is no corner to round.' };
+  const bis = scale(sum, 1 / len(sum));
+  // Where the fillet's centre may lie for each side: a line moved by r, or a circle r further in or out.
+  type Locus = { kind: 'line'; p: Vec; d: Vec } | { kind: 'circle'; c: Vec; r: number };
+  const locus = (side: Side): Locus => {
+    if (side.kind === 'line') {
+      const n = { x: -side.dir.y, y: side.dir.x };
+      const towards = dot(n, bis) >= 0 ? 1 : -1;
+      return { kind: 'line', p: add(v, scale(n, r * towards)), d: side.dir };
+    }
+    const inside = dot(sub(side.c!, v), bis) > 0;
+    return { kind: 'circle', c: side.c!, r: inside ? side.r! - r : side.r! + r };
+  };
+  const meet = (a: Locus, b: Locus): Vec[] => {
+    if (a.kind === 'circle' && b.kind === 'line') return meet(b, a);
+    if (a.kind === 'line' && b.kind === 'circle') {
+      const f = sub(a.p, b.c), B = 2 * dot(f, a.d), C = dot(f, f) - b.r * b.r, D = B * B - 4 * C;
+      if (D < 0 || b.r <= 0) return [];
+      return [(-B + Math.sqrt(D)) / 2, (-B - Math.sqrt(D)) / 2].map((t) => add(a.p, scale(a.d, t)));
+    }
+    if (a.kind === 'circle' && b.kind === 'circle') {
+      const d = dist(a.c, b.c);
+      if (d < 1e-9 || d > a.r + b.r || d < Math.abs(a.r - b.r) || a.r <= 0 || b.r <= 0) return [];
+      const along = (a.r * a.r - b.r * b.r + d * d) / (2 * d), h = Math.sqrt(Math.max(0, a.r * a.r - along * along));
+      const u = scale(sub(b.c, a.c), 1 / d), m = add(a.c, scale(u, along)), n = { x: -u.y, y: u.x };
+      return [add(m, scale(n, h)), add(m, scale(n, -h))];
+    }
+    return [];
+  };
+  const guess = add(v, scale(bis, r));
+  const centre = meet(locus(sides[0]!), locus(sides[1]!)).sort((p, q) => dist(p, guess) - dist(q, guess))[0];
+  if (!centre) return { error: 'The radius does not fit between these curves.' };
+  const touch = (side: Side): Vec => side.kind === 'line'
+    ? add(v, scale(side.dir, dot(sub(centre, v), side.dir)))
+    : add(side.c!, scale(sub(centre, side.c!), side.r! / dist(centre, side.c!)));
+  const t = sides.map(touch);
+  for (const [i, side] of sides.entries()) {
+    // The tangent point must lie on the curve between the corner and its far end.
+    if (dist(t[i]!, v) >= dist(side.far, v) - SAME && side.kind === 'line') return { error: 'The radius is too large for these curves.' };
+  }
+  const p1 = addPoint(s, t[0]!.x, t[0]!.y), p2 = addPoint(s, t[1]!.x, t[1]!.y), c = addPoint(s, centre.x, centre.y);
+  freeLength(s, sides.filter((x) => x.kind === 'line').map((x) => x.id));
+  for (const [i, side] of sides.entries()) {
+    const e = entity(s, side.id);
+    if (e.kind !== 'line' && e.kind !== 'arc') continue;
+    const to = i === 0 ? p1 : p2;
+    if (e.a === vertex) e.a = to; else if (e.b === vertex) e.b = to;
+  }
+  const forward = sweep(angleOf(centre, t[0]!), angleOf(centre, t[1]!)) < Math.PI;
+  const arc = addEntity(s, { kind: 'arc', c, a: forward ? p1 : p2, b: forward ? p2 : p1 });
+  addConstraint(s, { kind: 'tangent', a: sides[0]!.id, b: arc });
+  addConstraint(s, { kind: 'tangent', a: sides[1]!.id, b: arc });
   const label = scale(bis, -r * 1.6);
   addConstraint(s, { kind: 'radius', curve: arc, value: r, at: [label.x, label.y] });
   remove(s, []);

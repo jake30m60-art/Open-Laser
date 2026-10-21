@@ -523,7 +523,7 @@
   "The constraint solver did not load: {0}": "Der Abhängigkeitenlöser konnte nicht geladen werden: {0}",
   "Sketch added as a part. Choose a material to prepare it for cutting.": "Skizze als Teil hinzugefügt. Wähle ein Material für die Schnittvorbereitung.",
   "Sketch added as a part · {0}": "Skizze als Teil hinzugefügt · {0}",
-  "Click a corner where two lines meet": "Klicke auf die gemeinsame Ecke zweier Linien",
+  "Click a corner where two lines meet": "Klicke auf die gemeinsame Ecke zweier Linien oder Bögen",
   "Click a curve to split it where others cross it": "Klicke auf eine Kurve, um sie an den Schnittpunkten zu trennen",
   "Click a curve: its connected profile is offset": "Klicke auf eine Kurve: Ihr zusammenhängendes Profil wird versetzt",
   "Click a line, circle, arc or point": "Klicke auf eine Linie, einen Kreis, Bogen oder Punkt",
@@ -540,7 +540,7 @@
   "Click a line to mirror across.": "Klicke auf die Linie, die als Spiegelachse dienen soll.",
   "Click the curves to mirror first.": "Wähle zuerst die zu spiegelnden Kurven.",
   "Click the curves to pattern first.": "Wähle zuerst die Kurven für die Anordnung.",
-  "Click the corner point where two lines meet.": "Klicke auf den gemeinsamen Eckpunkt zweier Linien.",
+  "Click the corner point where two lines meet.": "Klicke auf den gemeinsamen Eckpunkt zweier Linien oder Bögen.",
   "Select what to pattern first.": "Wähle zuerst die Geometrie für die Anordnung.",
   "Set the count and angle · Enter to apply": "Stelle Anzahl und Winkel ein · Enter zum Anwenden",
   "Place the dimension, type its value · Enter or click": "Platziere das Maß und gib den Wert ein · Enter oder klicken",
@@ -2107,7 +2107,7 @@
   "Loading the constraint solver…": "Lade den Abhängigkeitenlöser…",
   "Nothing crosses this curve there to break it at.": "Dort kreuzt nichts diese Kurve, an dem sie getrennt werden könnte.",
   "Nothing lies ahead of that end to extend to.": "Vor diesem Ende liegt nichts, bis zu dem verlängert werden könnte.",
-  "Pick a corner where exactly two lines meet.": "Eine Ecke wählen, an der genau zwei Linien zusammentreffen.",
+  "Pick a corner where exactly two lines meet.": "Eine Ecke wählen, an der genau zwei Linien oder Bögen enden. Einen vollen Kreis zuerst mit „Trennen“ oder „Stutzen“ an der Ecke öffnen.",
   "The radius must be above zero.": "Der Radius muss größer als null sein.",
   "The lines run straight on there; there is no corner to round.": "Die Linien laufen dort gerade weiter; es gibt keine Ecke zum Abrunden.",
   "The radius is too large for these lines.": "Der Radius ist für diese Linien zu groß.",
@@ -4102,5 +4102,8 @@
   "Select shapes for this layer": "Konturen für diese Ebene wählen",
   "Choose the recipe for layer {0}": "Rezept für Ebene {0} wählen",
   "{0}: {1}": "{0}: {1}",
-  "Plays in machine time: each layer at its recipe's speed, 1× is real time.": "Läuft in Maschinenzeit: jede Ebene mit der Geschwindigkeit ihres Rezepts, 1× ist Echtzeit."
+  "Plays in machine time: each layer at its recipe's speed, 1× is real time.": "Läuft in Maschinenzeit: jede Ebene mit der Geschwindigkeit ihres Rezepts, 1× ist Echtzeit.",
+  "The radius does not fit between these curves.": "Der Radius passt nicht zwischen diese Kurven.",
+  "The curves run straight on there; there is no corner to round.": "Die Kurven gehen dort glatt ineinander über; da ist keine Ecke zum Abrunden.",
+  "The radius is too large for these curves.": "Der Radius ist für diese Kurven zu groß."
 }
