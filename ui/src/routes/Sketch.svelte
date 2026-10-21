@@ -1,5 +1,6 @@
 <script lang="ts">
   import CreateText from '../components/CreateText.svelte';
+  import SheetSketchBar from '../components/SheetSketchBar.svelte';
   import { appendDrawing, appendSketch } from '../sketch/append-drawing';
   import { fromSource } from '../sketch/from-source';
   import { beginProject } from '../lib/sketch-workflow';
@@ -746,6 +747,7 @@
 <svelte:window onkeydown={key} onkeyup={keyUp} />
 
 <section class="panel main sketch-main">
+  {#if ui.sheetSketch}<SheetSketchBar />{/if}
   <div class="sketch-bar" role="toolbar" aria-label={t("Sketch tools")}>
     <div class="sk-group">
       <span class="sk-title">{t("Create")}</span>

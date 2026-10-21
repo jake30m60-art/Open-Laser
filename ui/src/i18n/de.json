@@ -4105,5 +4105,11 @@
   "Plays in machine time: each layer at its recipe's speed, 1× is real time.": "Läuft in Maschinenzeit: jede Ebene mit der Geschwindigkeit ihres Rezepts, 1× ist Echtzeit.",
   "The radius does not fit between these curves.": "Der Radius passt nicht zwischen diese Kurven.",
   "The curves run straight on there; there is no corner to round.": "Die Kurven gehen dort glatt ineinander über; da ist keine Ecke zum Abrunden.",
-  "The radius is too large for these curves.": "Der Radius ist für diese Kurven zu groß."
+  "The radius is too large for these curves.": "Der Radius ist für diese Kurven zu groß.",
+  "Special sheet": "Sonderblech",
+  "Sketch a special sheet": "Sonderblech skizzieren",
+  "Use as sheet": "Als Blech übernehmen",
+  "Draw the outline of the sheet and any holes, then take it as the job's sheet.": "Außenkontur des Blechs und Löcher zeichnen, dann als Blech für diesen Auftrag übernehmen.",
+  "Draw the outline of the sheet first.": "Zuerst die Außenkontur des Blechs zeichnen.",
+  "Special sheet saved and used for this job.": "Sonderblech gespeichert und für diesen Auftrag übernommen."
 }

@@ -393,15 +393,17 @@ impl Coordinator {
     /// An inspected remnant at the bed minimum, when it suits the recipe.
     fn remnant(&self, draft: &Draft, id: &str) -> Result<NestStock> {
         let sheet = self.sheet_store.view(id)?;
+        // An engraving material marks whatever sheet lies there.
         if draft.current.recipe.as_ref().is_some_and(|r| {
-            !crate::inventory::suits(
-                sheet.mode,
-                &sheet.material,
-                sheet.thickness_mm,
-                r.laser,
-                &r.name,
-                r.thickness_mm,
-            )
+            r.attributes.get("OpenLaserProcess").is_none_or(|p| p != "engrave")
+                && !crate::inventory::suits(
+                    sheet.mode,
+                    &sheet.material,
+                    sheet.thickness_mm,
+                    r.laser,
+                    &r.name,
+                    r.thickness_mm,
+                )
         }) {
             return Err(Error::Refused(
                 "choose a recipe matching this remnant's laser, material and thickness".into(),

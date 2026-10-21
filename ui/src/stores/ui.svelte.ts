@@ -113,6 +113,8 @@ class Ui {
   selectionEpoch = $state(0);
   engravingLayer = $state<string | null>(null);
   engravingSession = $state(0);
+  /** A special sheet is being sketched for the open job. */
+  sheetSketch = $state(false);
   jobOverviewOpen = $state(false);
   engravingPreview = $state.raw<{ preview: Preview; features: Features; error: string | null; revision: number } | null>(null);
   picking = $state.raw<Picking | null>(null);

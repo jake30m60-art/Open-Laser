@@ -10,6 +10,8 @@
   import { ui } from '../../stores/ui.svelte';
   import { explain } from '../../lib/format';
   import { distance, unitLabel } from '../../lib/units.svelte';
+  import { sketchStore } from '../../sketch/store.svelte';
+  import { emptySketch } from '../../sketch/model';
 
   const draft = $derived(server.doc!.draft!);
   const stock = $derived(draft.nesting?.stock);
@@ -47,6 +49,12 @@
     catch (e) { ui.say(explain(e), true); }
     finally { busy = false; }
   }
+  /** A blank sketch for a sheet of any shape; the sketch takes it back as this job's sheet. */
+  function sketchSheet(): void {
+    sketchStore.begin(emptySketch(), t('Special sheet'), 'new');
+    ui.sheetSketch = true;
+    ui.tab = 'sketch';
+  }
   async function remove(): Promise<void> {
     busy = true;
     try { await api.setStock({ kind: 'clear' }); ui.say(t('Sheet removed · Undo brings it back')); }
@@ -68,6 +76,7 @@
 {/if}
 
 <div class="stack">
+  <button class="btn btn-ghost block" disabled={busy} onclick={sketchSheet}><i class="ic ic-plus"></i>{t("Sketch a special sheet")}</button>
   <SheetSizePicker bind:width bind:height disabled={busy} />
   <button class="btn btn-primary lg block" disabled={busy || width <= 0 || height <= 0} onclick={place}>
     {rect ? t("Change sheet size") : t("Add sheet")}
