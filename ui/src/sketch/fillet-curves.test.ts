@@ -32,3 +32,43 @@ it('rounds a corner where a line meets an arc, tangent to both', () => {
   const d = Math.hypot(c.x, c.y);
   expect(Math.min(Math.abs(d - 25), Math.abs(d - 15))).toBeLessThan(1e-3);
 });
+
+import { chamfer } from './modify';
+
+it('chamfers a corner where a line meets an arc, the same distance back along each', () => {
+  const { s, top } = slot();
+  const out = chamfer(s, top, 4);
+  if ('error' in out) throw new Error(out.error);
+  const solved = solve(out.sketch, [], new Map());
+  expect(solved.ok).toBe(true);
+  const cut = solved.sketch.entities.find((e) => e.id === out.created[0])!;
+  if (cut.kind !== 'line') throw new Error('not a line');
+  const [p, q] = [point(solved.sketch, cut.a), point(solved.sketch, cut.b)];
+  const onLine = [p, q].find((x) => Math.abs(x.y - 20) < 1e-6 && x.x > 1)!;
+  const onArc = [p, q].find((x) => x !== onLine)!;
+  expect(onLine.x).toBeCloseTo(4, 3);
+  expect(Math.hypot(onArc.x, onArc.y)).toBeCloseTo(20, 3);
+  // 4 mm along the arc from the top: an angle of 4/20 rad.
+  expect(Math.atan2(onArc.x, onArc.y)).toBeCloseTo(4 / 20, 3);
+});
+
+/** Two quarter arcs meeting at a pointed tip, as an ogive. */
+function tip() {
+  const s = emptySketch();
+  const t = addPoint(s, 0, 50);
+  const c1 = addPoint(s, 30, 0), l = addPoint(s, -28.3, 0);
+  const c2 = addPoint(s, -30, 0), rr = addPoint(s, 28.3, 0);
+  // Left side: centre right of the axis, from the tip round to the left foot.
+  addEntity(s, { kind: 'arc', c: c1, a: t, b: l });
+  addEntity(s, { kind: 'arc', c: c2, a: rr, b: t });
+  return { s, t };
+}
+
+it('rounds and chamfers where two arcs meet', () => {
+  for (const tool of [fillet, chamfer]) {
+    const { s, t } = tip();
+    const out = tool(s, t, 3);
+    if ('error' in out) throw new Error(out.error);
+    expect(solve(out.sketch, [], new Map()).ok).toBe(true);
+  }
+});

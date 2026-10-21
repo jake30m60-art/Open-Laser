@@ -347,11 +347,11 @@ interface Side { id: Id; kind: 'line' | 'arc'; dir: Vec; far: Vec; c?: Vec; r?: 
 /** Rounds a corner where a line meets an arc, or two arcs meet: the fillet's
  *  centre is `r` off each side towards the inside of the corner, its ends
  *  are the tangent points, and each side now ends there. */
-function curveFillet(s: Sketch, vertex: Id, r: number): Outcome | null {
+function curveSides(s: Sketch, vertex: Id): Side[] | null {
   const v = point(s, vertex);
   const curves = s.entities.filter((e) => (e.kind === 'line' || e.kind === 'arc') && !e.construction && (e.a === vertex || e.b === vertex));
   if (curves.length !== 2 || curves.every((e) => e.kind === 'line')) return null;
-  const sides: Side[] = curves.map((e) => {
+  return curves.map((e): Side => {
     if (e.kind === 'line') {
       const far = point(s, e.a === vertex ? e.b : e.a);
       return { id: e.id, kind: 'line', dir: scale(sub(far, v), 1 / dist(far, v)), far };
@@ -362,6 +362,32 @@ function curveFillet(s: Sketch, vertex: Id, r: number): Outcome | null {
     const dir = arc.a === vertex ? { x: -out.y / radius, y: out.x / radius } : { x: out.y / radius, y: -out.x / radius };
     return { id: e.id, kind: 'arc', dir, far: point(s, arc.a === vertex ? arc.b : arc.a), c, r: radius };
   });
+}
+
+/** Moves the corner end of each side to its new point. */
+function reendSides(s: Sketch, sides: Side[], vertex: Id, to: [Id, Id]): void {
+  freeLength(s, sides.filter((x) => x.kind === 'line').map((x) => x.id));
+  for (const [i, side] of sides.entries()) {
+    const e = entity(s, side.id);
+    if (e.kind !== 'line' && e.kind !== 'arc') continue;
+    if (e.a === vertex) e.a = to[i]!; else if (e.b === vertex) e.b = to[i]!;
+  }
+}
+
+/** How far along a side a distance from the corner reaches, or null past its far end. */
+function along(side: Side, v: Vec, d: number): Vec | null {
+  if (side.kind === 'line') return d < dist(side.far, v) - SAME ? add(v, scale(side.dir, d)) : null;
+  const c = side.c!, r = side.r!;
+  const turn = d / r, sense = side.dir.x * (v.y - c.y) - side.dir.y * (v.x - c.x) < 0 ? 1 : -1;
+  const span = sweep(angleOf(c, sense > 0 ? v : side.far), angleOf(c, sense > 0 ? side.far : v));
+  if (turn >= span - 1e-9) return null;
+  return polar(c, r, angleOf(c, v) + sense * turn);
+}
+
+function curveFillet(s: Sketch, vertex: Id, r: number): Outcome | null {
+  const v = point(s, vertex);
+  const sides = curveSides(s, vertex);
+  if (!sides) return null;
   const sum = add(sides[0]!.dir, sides[1]!.dir);
   if (len(sum) < 1e-9) return { error: 'The curves run straight on there; there is no corner to round.' };
   const bis = scale(sum, 1 / len(sum));
@@ -404,13 +430,7 @@ function curveFillet(s: Sketch, vertex: Id, r: number): Outcome | null {
     if (dist(t[i]!, v) >= dist(side.far, v) - SAME && side.kind === 'line') return { error: 'The radius is too large for these curves.' };
   }
   const p1 = addPoint(s, t[0]!.x, t[0]!.y), p2 = addPoint(s, t[1]!.x, t[1]!.y), c = addPoint(s, centre.x, centre.y);
-  freeLength(s, sides.filter((x) => x.kind === 'line').map((x) => x.id));
-  for (const [i, side] of sides.entries()) {
-    const e = entity(s, side.id);
-    if (e.kind !== 'line' && e.kind !== 'arc') continue;
-    const to = i === 0 ? p1 : p2;
-    if (e.a === vertex) e.a = to; else if (e.b === vertex) e.b = to;
-  }
+  reendSides(s, sides, vertex, [p1, p2]);
   const forward = sweep(angleOf(centre, t[0]!), angleOf(centre, t[1]!)) < Math.PI;
   const arc = addEntity(s, { kind: 'arc', c, a: forward ? p1 : p2, b: forward ? p2 : p1 });
   addConstraint(s, { kind: 'tangent', a: sides[0]!.id, b: arc });
@@ -421,12 +441,27 @@ function curveFillet(s: Sketch, vertex: Id, r: number): Outcome | null {
   return { sketch: s, created: [arc] };
 }
 
+/** Cuts a corner where a line meets an arc, or two arcs meet: `d` back
+ *  along each curve, a line between. */
+function curveChamfer(s: Sketch, vertex: Id, d: number): Outcome | null {
+  const v = point(s, vertex);
+  const sides = curveSides(s, vertex);
+  if (!sides) return null;
+  const q = sides.map((side) => along(side, v, d));
+  if (!q[0] || !q[1]) return { error: 'The distance is too large for these curves.' };
+  const p1 = addPoint(s, q[0].x, q[0].y), p2 = addPoint(s, q[1].x, q[1].y);
+  reendSides(s, sides, vertex, [p1, p2]);
+  const cut = addEntity(s, { kind: 'line', a: p1, b: p2 });
+  remove(s, []);
+  return { sketch: s, created: [cut] };
+}
+
 /** Cuts the corner at `vertex` with a line `d` back along each side. */
 export function chamfer(source: Sketch, vertex: Id, d: number): Outcome {
   if (!(d > 0)) return { error: 'The distance must be above zero.' };
   const s = clone(source);
   const found = corner(s, vertex);
-  if ('error' in found) return found;
+  if ('error' in found) return curveChamfer(s, vertex, d) ?? found;
   const v = point(s, vertex);
   if (d >= dist(found.far[0], v) - SAME || d >= dist(found.far[1], v) - SAME) return { error: 'The distance is too large for these lines.' };
   const q1 = add(v, scale(sub(found.far[0], v), d / dist(found.far[0], v)));
