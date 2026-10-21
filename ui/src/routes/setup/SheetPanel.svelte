@@ -72,11 +72,20 @@
 {#if rect}
   <p class="sheet-now"><strong>{distance(rect.max.x - rect.min.x)} × {distance(rect.max.y - rect.min.y)} {unitLabel('mm')}</strong></p>
 {:else if stock}
-  <p class="muted">{t("The job uses a remnant or an outline as its sheet.")}</p>
+  <div class="special">
+    <p><strong>{t("Special sheet in use")}</strong> · {t("The dashed outline on the drawing is the sheet; nothing more to confirm.")}</p>
+    <p class="muted">{t("Parts must keep the edge margin inside it: nest them onto the sheet, or move them in.")}</p>
+    <button class="btn btn-primary block" onclick={() => (ui.setupPanel = 'nest')}>{t("Nest parts onto this sheet")}</button>
+    <div class="row">
+      <button class="btn btn-ghost" disabled={busy} onclick={sketchSheet}><i class="ic ic-plus"></i>{t("Sketch another special sheet")}</button>
+      <button class="btn btn-ghost" disabled={busy} onclick={remove}><i class="ic ic-trash"></i>{t("Remove sheet")}</button>
+    </div>
+  </div>
 {/if}
 
 <div class="stack">
-  <button class="btn btn-ghost block" disabled={busy} onclick={sketchSheet}><i class="ic ic-plus"></i>{t("Sketch a special sheet")}</button>
+  {#if stock && !rect}<h3 class="other">{t("Use a rectangular sheet instead")}</h3>{:else}
+  <button class="btn btn-ghost block" disabled={busy} onclick={sketchSheet}><i class="ic ic-plus"></i>{t("Sketch a special sheet")}</button>{/if}
   <SheetSizePicker bind:width bind:height disabled={busy} />
   <button class="btn btn-primary lg block" disabled={busy || width <= 0 || height <= 0} onclick={place}>
     {rect ? t("Change sheet size") : t("Add sheet")}
@@ -105,5 +114,8 @@
   .stack { display:grid; gap:10px; }
   .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   .sheet-origin { display:grid; gap:6px; padding:8px 10px; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); font-size:var(--t-sm); }
+  .special { display:grid; gap:8px; padding:10px 12px; margin-bottom:12px; border:1px solid var(--accent); border-radius:12px; background:var(--panel-2); }
+  .special p { margin:0; }
+  .other { margin:6px 0 0; font-size:var(--t-sm); color:var(--ink-3); }
   .sheet-now { margin:4px 0 10px; font-size:var(--t-lg); font-variant-numeric:tabular-nums; }
 </style>

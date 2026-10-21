@@ -4111,5 +4111,11 @@
   "Use as sheet": "Als Blech übernehmen",
   "Draw the outline of the sheet and any holes, then take it as the job's sheet.": "Außenkontur des Blechs und Löcher zeichnen, dann als Blech für diesen Auftrag übernehmen.",
   "Draw the outline of the sheet first.": "Zuerst die Außenkontur des Blechs zeichnen.",
-  "Special sheet saved and used for this job.": "Sonderblech gespeichert und für diesen Auftrag übernommen."
+  "Special sheet saved and used for this job.": "Sonderblech gespeichert und für diesen Auftrag übernommen.",
+  "Special sheet in use": "Sonderblech aktiv",
+  "The dashed outline on the drawing is the sheet; nothing more to confirm.": "Die gestrichelte Kontur in der Zeichnung ist das Blech; bestätigen musst du nichts mehr.",
+  "Parts must keep the edge margin inside it: nest them onto the sheet, or move them in.": "Teile müssen den Randabstand einhalten: auf das Blech nesten oder hineinschieben.",
+  "Nest parts onto this sheet": "Teile auf dieses Blech nesten",
+  "Sketch another special sheet": "Anderes Sonderblech skizzieren",
+  "Use a rectangular sheet instead": "Stattdessen ein rechteckiges Blech"
 }
