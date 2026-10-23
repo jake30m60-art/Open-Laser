@@ -362,7 +362,7 @@ impl Monitor {
                         || matches!(
                             (up, key),
                             (false, Key::Head(0 | 2))
-                                | (true, Key::Head(1 | 3 | 5 | 8 | 9 | 13 | 14))
+                                | (true, Key::Head(1 | 3..=11 | 13..=15))
                         )
                         || (*key == Key::Group1(SPECIAL_GROUP1_BIT) && accompanied)
                 }
