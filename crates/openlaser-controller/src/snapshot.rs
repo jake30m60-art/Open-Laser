@@ -28,6 +28,10 @@ const HEAD_TOP_LIMITS: u32 = 0b0101;
 /// its bottom travel limit, or the nozzle touching the sheet. Moving up
 /// leaves them.
 const HEAD_BOTTOM_LIMITS: u32 = 0b10_1010;
+/// Head alarm bits 8, 9, 13 and 14: the sensor lost the sheet, its signal is
+/// too weak, missing or unstable, as a nozzle brought down onto a jig gives.
+/// Moving up is how the operator gets clear of them.
+const HEAD_SENSOR_FAULTS: u32 = (1 << 8) | (1 << 9) | (1 << 13) | (1 << 14);
 /// The four limit bits, hardware and software, upper and lower, of the head
 /// alarm word and of an axis record's status.
 const LIMIT_BITS: u32 = 0xf;
@@ -189,7 +193,7 @@ impl Snapshot {
     pub const fn head_jog_alarms_clear(&self, up: bool) -> bool {
         let head = self.head.alarm_word();
         // Up also moves away from a nozzle touching the plate, head bit 5.
-        let limits = if up { HEAD_BOTTOM_LIMITS } else { HEAD_TOP_LIMITS };
+        let limits = if up { HEAD_BOTTOM_LIMITS | HEAD_SENSOR_FAULTS } else { HEAD_TOP_LIMITS };
         let accompanied = !self.head.referenced() || head & (HEAD_NEEDS_HOMING | limits) != 0;
         head & !(HEAD_NEEDS_HOMING | limits) == 0
             && self.status.alarm_group_1()
