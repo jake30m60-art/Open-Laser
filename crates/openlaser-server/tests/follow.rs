@@ -58,7 +58,23 @@ async fn follow_lowers_the_head_and_raise_takes_it_up() {
         "the Follow button sends the head's follow command"
     );
     let with_recipe = control.writes().into_iter().find(|w| w.words.first() == Some(&104)).unwrap();
-    assert_eq!(without_recipe, with_recipe, "a selected recipe must not change manual Follow");
+    // As Mlaser: with a job, Follow holds its cut height; without one, the
+    // machine's edge-seek follow height, so the beam can be centred anyway.
+    assert_eq!(
+        without_recipe.words[2], 1000,
+        "no job: the edge-seek follow height, 1 mm without one in the files"
+    );
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "a small positive cut height"
+    )]
+    let cut_um = {
+        let c = shared.lock().await;
+        let recipe = c.draft.as_ref().unwrap().current.recipe.clone().unwrap();
+        (recipe.attributes["CutHeight"].parse::<f64>().unwrap() * 1000.).round() as u32
+    };
+    assert_eq!(with_recipe.words[2], cut_um, "a job: its cut height");
     let following = |d: &openlaser_server::document::Document| {
         d.machine.feedback.as_ref().is_some_and(|f| f.head.command == 104 || f.head.height_mm > 1.)
     };

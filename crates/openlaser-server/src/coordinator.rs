@@ -2128,8 +2128,8 @@ impl Coordinator {
         self.manual_follow()
     }
 
-    /// Following at the machine's edge-seek follow height (`EdgeSeekFollowHeight`)
-    /// and its follow speed (`ZFFollowSpeed`), with no recipe.
+    /// Following at the job recipe's cut height, else the machine's edge-seek
+    /// follow height (`EdgeSeekFollowHeight`), at its follow speed (`ZFFollowSpeed`).
     fn manual_follow(&self) -> Result<openlaser_controller::operations::head::HeadAction> {
         let bundle =
             self.bundle.as_ref().ok_or_else(|| Error::Refused("no machine files".into()))?;
@@ -2142,13 +2142,25 @@ impl Coordinator {
                 .and_then(|v| v.trim().parse::<f64>().ok())
                 .filter(|v| v.is_finite() && *v > 0.)
         };
-        let height =
-            read("GraphParam", "GRP", "EdgeSeekFollowHeight").unwrap_or(1.).clamp(0.5, 10.);
+        // As Mlaser's Follow key: at the open job's cut height, so the nozzle
+        // comes as close as it cuts (a beam-centring jig needs that); with no
+        // job, at the edge-seek follow height.
+        let cut = self
+            .draft
+            .as_ref()
+            .and_then(|d| d.current.recipe.as_ref())
+            .and_then(|r| r.attributes.get("CutHeight"))
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .filter(|v| v.is_finite() && *v > 0.);
+        let height = cut
+            .or_else(|| read("GraphParam", "GRP", "EdgeSeekFollowHeight"))
+            .unwrap_or(1.)
+            .clamp(0.3, 10.);
         let speed = read("ZFParam", "ZF", "ZFFollowSpeed").unwrap_or(50.).min(1000.);
         #[allow(
             clippy::cast_possible_truncation,
             clippy::cast_sign_loss,
-            reason = "0.5 to 10 mm and a follow speed, both small and positive"
+            reason = "0.3 to 10 mm and a follow speed, both small and positive"
         )]
         Ok(openlaser_controller::operations::head::HeadAction::Follow {
             speed_tenths: (speed * 10.).round().max(1.) as u32,
