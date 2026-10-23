@@ -927,7 +927,7 @@ impl Task {
     }
 
     fn prepare_head(&self, action: HeadAction) -> Result<Head> {
-        let (snapshot, bindings) = self.ready()?;
+        let (_, bindings) = self.ready()?;
         if !bindings.head_enabled {
             return Err(Error::Refused("no head controller is configured".into()));
         }
@@ -936,15 +936,9 @@ impl Task {
                 let raise = bindings.shutdown.raise.ok_or_else(|| {
                     Error::Refused("this machine does not raise the head on its own".into())
                 })?;
-                // The safe height is a fixed height below the head's origin.
-                // A head already above it, following something taller than a
-                // sheet, would go down to it: it goes up to its origin instead.
-                let below = snapshot.head.referenced()
-                    && i64::from(snapshot.head.height()) > i64::from(raise.height_thousandths);
-                HeadAction::Retract {
-                    speed_tenths: raise.speed_tenths,
-                    height_thousandths: if below { raise.height_thousandths } else { 0 },
-                }
+                // Follow off: the head always goes up to its origin, as the
+                // operator wants it, however high it followed.
+                HeadAction::Retract { speed_tenths: raise.speed_tenths, height_thousandths: 0 }
             }
             action => action,
         };
