@@ -28,6 +28,7 @@ pub mod defaults;
 mod display_path;
 pub mod document;
 pub mod draft;
+pub mod edge_search;
 mod envelope;
 mod font_store;
 pub mod gas;

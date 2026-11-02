@@ -820,6 +820,20 @@ pub async fn go_bed_point(shared: &Shared, point: openlaser_library::Anchor) -> 
     go_position(shared, Position::Bed(point), false).await
 }
 
+/// Moves to machine XY coordinates and waits until it is there.
+pub(crate) async fn move_to(shared: &Shared, target: [f64; 2]) -> Result<()> {
+    shared.ensure_running()?;
+    let completed = {
+        let coordinator = shared.lock().await;
+        let Some(motion) = positioning_request(&coordinator, Position::Xy(target), true)? else {
+            return Ok(());
+        };
+        coordinator.machine.start_positioning(motion, Instant::now()).await?
+    };
+    completed.finished().await?;
+    Ok(())
+}
+
 /// Moves to machine XY coordinates through the normal admitted travel path.
 pub async fn go_xy(shared: &Shared, target: [f64; 2]) -> Result<()> {
     go_position(shared, Position::Xy(target), false).await

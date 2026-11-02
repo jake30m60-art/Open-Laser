@@ -27,6 +27,8 @@ struct MachineRequest {
     alarm: Option<u32>,
     /// Machine X and Y in millimetres for Go to X/Y.
     xy: Option<[f64; 2]>,
+    /// A sheet measurement by its edges.
+    measure: Option<crate::edge_search::MeasureRequest>,
     #[serde(default)]
     fast: bool,
 }
@@ -76,6 +78,7 @@ pub(super) fn routes() -> Router<Shared> {
         .route("/api/machine/gas-calibration", post(gas_calibration))
         .route("/api/machine/go-origin", post(go_origin))
         .route("/api/machine/go-xy", post(go_xy))
+        .route("/api/machine/measure-sheet", post(measure_sheet))
         .route("/api/machine/release", post(release))
         .route("/api/machine/heartbeat", post(heartbeat))
         .route("/api/machine/outputs", post(outputs))
@@ -188,6 +191,14 @@ async fn go_xy(State(shared): State<Shared>, body: Body) -> Reply {
     let xy = request.xy.ok_or_else(|| Error::Request("Go to X/Y needs a target".into()))?;
     machine::go_xy(&shared, xy).await?;
     Ok(ok())
+}
+
+async fn measure_sheet(State(shared): State<Shared>, body: Body) -> Reply {
+    let request = input(&shared, body)?;
+    let measure =
+        request.measure.ok_or_else(|| Error::Request("a measurement needs its shape".into()))?;
+    let measured = crate::edge_search::measure(&shared, measure).await?;
+    Ok(Json(serde_json::json!({ "ok": true, "measured": measured })))
 }
 
 async fn release(State(shared): State<Shared>, body: Body) -> Reply {
