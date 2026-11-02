@@ -180,6 +180,10 @@ pub struct Snapshot {
     /// bed minimum.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sheet_corner: Option<[f64; 2]>,
+    /// The sheet's angle on the bed as measured, degrees counter-clockwise;
+    /// the machine paths turn by it about the sheet corner.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sheet_angle_deg: Option<f64>,
     /// Operator checklist policy, saved with the job.
     pub preflight: openlaser_library::preflight::JobPreflight,
     /// Where the features came from.
@@ -359,6 +363,7 @@ impl Draft {
                 placed: Placed::all(contours),
                 origin_point: None,
                 sheet_corner: None,
+                sheet_angle_deg: None,
                 grouping: Grouping::default(),
                 features: Features::default(),
                 recipe: None,
@@ -472,13 +477,31 @@ impl Draft {
     #[must_use]
     pub fn origin(&self) -> Option<[f64; 2]> {
         let (zero, dock) = (self.current.sheet_offset?, self.anchor_point()?);
-        Some([zero[0] + dock[0], zero[1] + dock[1]])
+        let at = [zero[0] + dock[0], zero[1] + dock[1]];
+        // On a sheet measured at an angle the origin turns with the paths,
+        // about the sheet's corner.
+        Some(self.turned(at, 1.))
+    }
+
+    /// A machine point turned with a sheet measured at an angle, about its
+    /// corner; `sense` −1 turns it back.
+    fn turned(&self, at: [f64; 2], sense: f64) -> [f64; 2] {
+        match (self.current.sheet_angle_deg, self.current.sheet_corner) {
+            (Some(angle), Some(corner)) if angle != 0. => {
+                let (sin, cos) = (sense * angle).to_radians().sin_cos();
+                let (x, y) = (at[0] - corner[0], at[1] - corner[1]);
+                [corner[0] + cos * x - sin * y, corner[1] + sin * x + cos * y]
+            }
+            _ => at,
+        }
     }
 
     /// Puts the anchor point at `origin`, in machine coordinates.
     pub fn place_anchor_at(&mut self, origin: [f64; 2]) -> Result<()> {
         let dock =
             self.anchor_point().ok_or_else(|| crate::Error::Refused("nothing prepared".into()))?;
+        // The inverse of `origin`, so the origin lands exactly where asked.
+        let origin = self.turned(origin, -1.);
         self.current.sheet_offset = Some([origin[0] - dock[0], origin[1] - dock[1]]);
         Ok(())
     }
@@ -568,6 +591,7 @@ impl Draft {
                     || self.current.anchor != base.anchor
                     || self.current.origin_point != base.origin_point
                     || self.current.sheet_corner != base.sheet_corner
+                    || self.current.sheet_angle_deg != base.sheet_angle_deg
                     || self.current.preflight != base.preflight
                     || self.current.placed
                         != if base.placed.is_empty() {
@@ -1018,6 +1042,7 @@ impl Draft {
             anchor: self.current.anchor,
             origin_point: self.current.origin_point,
             sheet_corner: self.current.sheet_corner,
+            sheet_angle_deg: self.current.sheet_angle_deg,
             dock: self.anchor_point(),
             past: self.past.len(),
             future: self.future.len(),

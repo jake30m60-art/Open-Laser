@@ -876,6 +876,9 @@ pub struct DraftView {
     pub origin_point: Option<[f64; 2]>,
     /// Where the sheet's front-left corner lies on the bed, if set.
     pub sheet_corner: Option<[f64; 2]>,
+    /// The sheet's angle on the bed as measured, degrees counter-clockwise;
+    /// the machine paths turn by it about the sheet corner.
+    pub sheet_angle_deg: Option<f64>,
     /// The anchor point in drawing coordinates, once prepared.
     pub dock: Option<[f64; 2]>,
     /// How many edits can be undone.

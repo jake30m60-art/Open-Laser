@@ -457,6 +457,7 @@ impl Draft {
             anchor: self.current.anchor,
             origin_point: self.current.origin_point,
             sheet_corner: self.current.sheet_corner,
+            sheet_angle_deg: self.current.sheet_angle_deg,
             favourite: false,
             created: 0,
             updated: 0,
@@ -475,6 +476,7 @@ impl Draft {
         job.anchor = self.current.anchor;
         job.origin_point = self.current.origin_point;
         job.sheet_corner = self.current.sheet_corner;
+        job.sheet_angle_deg = self.current.sheet_angle_deg;
         job.preflight.clone_from(&self.current.preflight);
         job.nesting.clone_from(&self.current.nesting);
         job.correction.clone_from(&self.current.correction);
@@ -504,6 +506,7 @@ impl Draft {
         self.current.anchor = job.anchor;
         self.current.origin_point = job.origin_point;
         self.current.sheet_corner = job.sheet_corner;
+        self.current.sheet_angle_deg = job.sheet_angle_deg;
         self.current.preflight.clone_from(&job.preflight);
         self.current.nesting.clone_from(&job.nesting);
         self.current.correction.clone_from(&job.correction);
@@ -679,4 +682,5 @@ fn preparation_changed(draft: &Draft, saved: &Job) -> bool {
         || draft.current.anchor != saved.anchor
         || draft.current.origin_point != saved.origin_point
         || draft.current.sheet_corner != saved.sheet_corner
+        || draft.current.sheet_angle_deg != saved.sheet_angle_deg
 }

@@ -276,7 +276,7 @@ async fn the_sheet_origin_and_the_job_origin_are_apart() {
     // The sheet origin at the head: the sheet's corner lies there.
     machine::go_xy(&shared, [20., 30.]).await.unwrap();
     settled().await;
-    shared.lock().await.set_sheet_corner(None, false).unwrap();
+    shared.lock().await.set_sheet_corner(None, false, None).unwrap();
     machine::prepare(&shared).await.unwrap();
     // The job origin floats elsewhere: the parts move, the sheet stays.
     machine::go_xy(&shared, [300., 200.]).await.unwrap();

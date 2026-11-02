@@ -91,7 +91,7 @@ async fn offline_head_jobs_save_intent_and_fixed_jobs_save_homed_xy() {
     assert!(c.draft.as_ref().unwrap().current.sheet_offset.is_none());
     c.set_stock(StockChoice::Rectangle { width: 250., height: 200., min: None }).unwrap();
     // The sheet has its own origin; the job origin places the parts on it.
-    c.set_sheet_corner(Some([290., 190.]), false).unwrap();
+    c.set_sheet_corner(Some([290., 190.]), false, None).unwrap();
     drop(c);
     machine::prepare(&shared).await.unwrap();
     let control = simulator.control();
@@ -415,4 +415,52 @@ async fn a_dry_run_and_a_real_run_both_keep_a_set_origin() {
         "a real run keeps an absolute origin"
     );
     openlaser_server::shutdown(&shared).await.unwrap();
+}
+
+/// A sheet measured at an angle: the machine paths turn by it about the
+/// sheet's corner, the drawing itself stays square.
+#[tokio::test]
+async fn a_measured_sheet_angle_turns_the_machine_paths_about_its_corner() {
+    let (_simulator, shared) = start("turned-sheet").await;
+    setup(&shared).await;
+    let points = |c: &mut openlaser_server::Coordinator| -> Vec<[f64; 2]> {
+        let inputs = c.compile_inputs(false).unwrap();
+        inputs
+            .prepared
+            .preview
+            .contours
+            .iter()
+            .flat_map(|k| k.paths.iter())
+            .flat_map(|p| p.points.clone())
+            .collect()
+    };
+    let mut c = shared.lock().await;
+    c.set_sheet_corner(Some([30., 20.]), false, None).unwrap();
+    drop(c);
+    machine::prepare(&shared).await.unwrap();
+    let mut c = shared.lock().await;
+    let square = points(&mut c);
+    c.set_sheet_corner(Some([30., 20.]), false, Some(10.)).unwrap();
+    drop(c);
+    machine::prepare(&shared).await.unwrap();
+    let mut c = shared.lock().await;
+    let turned = points(&mut c);
+    let offset = c.draft.as_ref().unwrap().current.sheet_offset.unwrap_or([0., 0.]);
+    let pivot = [30. - offset[0], 20. - offset[1]];
+    let (sin, cos) = 10f64.to_radians().sin_cos();
+    assert_eq!(square.len(), turned.len());
+    assert!(!square.is_empty());
+    for (q, t) in square.iter().zip(&turned) {
+        let (x, y) = (q[0] - pivot[0], q[1] - pivot[1]);
+        near(*t, [pivot[0] + cos * x - sin * y, pivot[1] + sin * x + cos * y]);
+    }
+    // The drawing the operator sees stays as it was.
+    let shown = c.draft.as_ref().unwrap().preview.as_ref().unwrap().contours[0].paths[0].points[0];
+    near(shown, square[0]);
+    // An origin set on the turned sheet lands exactly there, every time.
+    let draft = c.draft.as_mut().unwrap();
+    draft.place_anchor_at([200., 150.]).unwrap();
+    near(draft.origin().unwrap(), [200., 150.]);
+    draft.place_anchor_at(draft.origin().unwrap()).unwrap();
+    near(draft.origin().unwrap(), [200., 150.]);
 }

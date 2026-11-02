@@ -438,6 +438,10 @@ pub struct Job {
     /// Where the sheet's front-left corner lies on the bed, if set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sheet_corner: Option<[f64; 2]>,
+    /// The sheet's angle on the bed as measured, degrees counter-clockwise;
+    /// the machine paths turn by it about the sheet corner.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sheet_angle_deg: Option<f64>,
     /// Whether it is starred.
     #[serde(default)]
     pub favourite: bool,
@@ -1108,6 +1112,7 @@ mod tests {
             anchor: Anchor::default(),
             origin_point: None,
             sheet_corner: None,
+            sheet_angle_deg: None,
             favourite: false,
             created: 0,
             updated: 0,
@@ -1174,6 +1179,7 @@ mod tests {
                     anchor: Anchor::default(),
                     origin_point: None,
                     sheet_corner: None,
+                    sheet_angle_deg: None,
                     favourite: true,
                     created: 0,
                     updated: 0,
@@ -1238,6 +1244,7 @@ mod tests {
                 anchor: Anchor::default(),
                 origin_point: None,
                 sheet_corner: None,
+                sheet_angle_deg: None,
                 favourite: false,
                 created: 0,
                 updated: 0,

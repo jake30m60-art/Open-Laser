@@ -47,6 +47,10 @@ pub struct SheetLayout {
     /// See `Snapshot::sheet_corner`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sheet_corner: Option<[f64; 2]>,
+    /// The sheet's angle on the bed as measured, degrees counter-clockwise;
+    /// the machine paths turn by it about the sheet corner.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sheet_angle_deg: Option<f64>,
     /// How many parts (contour groups) the sheet holds.
     parts: usize,
 }
@@ -65,6 +69,7 @@ impl SheetLayout {
             anchor: current.anchor,
             origin_point: current.origin_point,
             sheet_corner: current.sheet_corner,
+            sheet_angle_deg: current.sheet_angle_deg,
             parts: draft.groups.len(),
         }
     }
@@ -81,6 +86,7 @@ impl SheetLayout {
         current.anchor = self.anchor;
         current.origin_point = self.origin_point;
         current.sheet_corner = self.sheet_corner;
+        current.sheet_angle_deg = self.sheet_angle_deg;
         crate::placement::forget_capture(draft);
     }
 

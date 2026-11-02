@@ -235,7 +235,7 @@ async fn rectangle_keeps_the_fixture_position_after_nesting() {
         let mut c = shared.lock().await;
         // The sheet has its own origin on the bed, apart from the job origin.
         c.set_origin([146., 673.]).unwrap();
-        c.set_sheet_corner(Some([146., 673.]), false).unwrap();
+        c.set_sheet_corner(Some([146., 673.]), false, None).unwrap();
         c.set_stock(StockChoice::Rectangle { width: 240., height: 160., min: None }).unwrap();
     }
     machine::prepare(&shared).await.unwrap();

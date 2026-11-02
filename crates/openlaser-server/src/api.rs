@@ -1194,6 +1194,9 @@ struct SheetOriginRequest {
     /// Back to the bed minimum.
     #[serde(default)]
     clear: bool,
+    /// The sheet's measured angle, degrees counter-clockwise.
+    #[serde(default)]
+    angle_deg: Option<f64>,
 }
 
 async fn set_sheet_origin(
@@ -1202,7 +1205,7 @@ async fn set_sheet_origin(
     Json(request): Json<SheetOriginRequest>,
 ) -> Reply {
     edit(&shared, Some(v.revision), |c| {
-        c.set_sheet_corner(request.at, request.clear)?;
+        c.set_sheet_corner(request.at, request.clear, request.angle_deg)?;
         Ok(Value::Null)
     })
     .await

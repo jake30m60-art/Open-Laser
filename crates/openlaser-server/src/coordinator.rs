@@ -1499,6 +1499,7 @@ impl Coordinator {
         draft.current.anchor = job.anchor;
         draft.current.origin_point = job.origin_point;
         draft.current.sheet_corner = job.sheet_corner;
+        draft.current.sheet_angle_deg = job.sheet_angle_deg;
         draft.current.preflight = job.preflight.clone();
         draft.current.nesting.clone_from(&job.nesting);
         draft.current.correction.clone_from(&job.correction);
@@ -1847,7 +1848,15 @@ impl Coordinator {
     /// Puts the sheet's front-left corner at `corner` on the bed, or at the
     /// head with `None` as `at`; `clear` lets it lie at the bed minimum
     /// again. The sheet only: the job origin and its parts stay.
-    pub fn set_sheet_corner(&mut self, at: Option<[f64; 2]>, clear: bool) -> Result<()> {
+    pub fn set_sheet_corner(
+        &mut self,
+        at: Option<[f64; 2]>,
+        clear: bool,
+        angle_deg: Option<f64>,
+    ) -> Result<()> {
+        if angle_deg.is_some_and(|a| !a.is_finite() || a.abs() > 45.) {
+            return Err(Error::Request("the sheet angle must be within ±45°".into()));
+        }
         let corner = if clear {
             None
         } else if let Some(at) = at {
@@ -1873,6 +1882,8 @@ impl Coordinator {
         let draft = self.draft_mut()?;
         draft.remember();
         draft.current.sheet_corner = corner;
+        // A corner set by hand lies square; a measured one brings its angle.
+        draft.current.sheet_angle_deg = if clear { None } else { angle_deg.filter(|a| *a != 0.) };
         // A sheet laid anew has nothing cut from it yet.
         self.set_sheet_cuts(Vec::new());
         self.reprepare();
@@ -1978,6 +1989,7 @@ impl Coordinator {
         let prepared = draft.prepared.clone().ok_or_else(|| {
             Error::Refused(draft.error.clone().unwrap_or_else(|| "nothing prepared".into()))
         })?;
+        let prepared = turned_with_sheet(&draft.current, prepared);
         let recipe = draft
             .current
             .recipe
@@ -2494,4 +2506,32 @@ fn with_material_defaults(
         order: material.order,
         ..job.clone()
     }
+}
+
+/// A sheet measured lying at an angle: the machine paths turn by it about the
+/// sheet's corner, so the parts land on the sheet as they lie on it in the
+/// drawing, and engraving lines run along its edge. The drawing stays square.
+fn turned_with_sheet(
+    current: &draft::Snapshot,
+    prepared: Arc<draft::Prepared>,
+) -> Arc<draft::Prepared> {
+    let (Some(angle), Some(corner)) = (current.sheet_angle_deg, current.sheet_corner) else {
+        return prepared;
+    };
+    if angle == 0. {
+        return prepared;
+    }
+    // The corner in drawing coordinates: the machine adds the sheet offset.
+    let offset = current.sheet_offset.unwrap_or([0., 0.]);
+    let pivot = [corner[0] - offset[0], corner[1] - offset[1]];
+    let radians = angle.to_radians();
+    let (sin, cos) = radians.sin_cos();
+    let pose = crate::alignment::geometry::Pose {
+        translation: [
+            pivot[0] - (cos * pivot[0] - sin * pivot[1]),
+            pivot[1] - (sin * pivot[0] + cos * pivot[1]),
+        ],
+        angle: radians,
+    };
+    Arc::new(crate::alignment::geometry::prepare(&prepared, pose))
 }
