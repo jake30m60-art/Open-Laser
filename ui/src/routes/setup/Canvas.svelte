@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { quantity } from '../../lib/units.svelte';
+  import { distance, quantity, unitLabel } from '../../lib/units.svelte';
   // The part on the bed, shape by shape: an outline with what it encloses
   // is one shape. A tap selects the part whose line is nearest, a second tap
   // takes one of its shapes, a shift-tap adds a part, a marquee takes every
@@ -190,6 +190,15 @@
   /** Half a fingertip, in pixels: how far outside every shape a tap still takes a line. */
   const HALO = 20;
   const selectedSet = $derived(new Set(selected));
+  /** The size shown under the drawing: the selection's, else all parts'. */
+  const sizeShown = $derived.by(() => {
+    const chosen = new Set(selectedContours);
+    const contours = (preview?.contours ?? []).filter((c) => !chosen.size || c.sources.some((s) => chosen.has(s)));
+    const points = contours.flatMap((c) => c.paths.filter((p) => p.kind !== 'travel').flatMap((p) => p.points));
+    if (!points.length) return null;
+    const xs = points.map((p) => p[0]!), ys = points.map((p) => p[1]!);
+    return { x: Math.max(...xs) - Math.min(...xs), y: Math.max(...ys) - Math.min(...ys), selection: chosen.size > 0 };
+  });
   $effect(() => {
     const inside = new Set(contoursOf(selected));
     if (picks.some((c) => !inside.has(c))) picks = picks.filter((c) => inside.has(c));
@@ -888,7 +897,8 @@
   </g>
 {/snippet}
 
-<div class="canvas-wrap">
+<div class="canvas-wrap size-anchor">
+  {#if sizeShown}<div class="size-readout" aria-label={t("Size")}>{sizeShown.selection ? t("Selection") : t("Parts")} · X {distance(sizeShown.x)} × Y {distance(sizeShown.y)} {unitLabel('mm')}</div>{/if}
 
   <Stage {view} bed={frame.bed} head={frame.head} origin={ui.nestShown ? null : frame.origin ?? (draft?.dock ? [draft.dock[0] + zero[0], draft.dock[1] + zero[1]] : null)} onhover={bridgeHover} {grab} {ondrag} {ondragend} {ontap} {onmarquee}
     lift={lifting && local ? [local.m[4], local.m[5]] : null} lifted={liftedShapes}>
@@ -1008,6 +1018,8 @@
 {#if repairing}{@const old = repairing.id}<RepairPart part={repairing} onclose={() => (repairing = null)} onsaved={(repaired) => swapRepaired(old, repaired)} />{/if}
 
 <style>
+  .size-anchor { position:relative; }
+  .size-readout { position:absolute; left:10px; bottom:8px; z-index:3; pointer-events:none; padding:3px 8px; border-radius:8px; background:color-mix(in srgb, var(--panel) 85%, transparent); color:var(--ink-2); font-size:var(--t-sm); font-variant-numeric:tabular-nums; }
   .origin-snap { fill:var(--panel); stroke:var(--accent); stroke-width:1.5; pointer-events:none; }
   .origin-snap.centre, .origin-snap.shape, .origin-snap.part { fill:var(--accent); }
 .output-excluded { stroke:#94a3b8 !important; opacity:.25; }
