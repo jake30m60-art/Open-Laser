@@ -182,6 +182,15 @@ pub fn head_follow(speed_tenths: u32, height_thousandths: u32) -> Write {
     Write::command(vec![104, speed_tenths, height_thousandths])
 }
 
+/// The head's edge-search mode as the vendor software sends it: down to 2 mm
+/// over the sheet, then status 3 while it watches for the edge and 6 on
+/// finding one. The words are the capture's, unchanged in all 19 probes of
+/// 2026-10-14.
+#[must_use]
+pub fn head_edge_search() -> Write {
+    Write::command(vec![117, 1000, 2000, 30000, 20, 1, 400, 500, 0])
+}
+
 /// Retract to `height` thousandths of a millimetre at `speed` tenths.
 #[must_use]
 pub fn head_retract(speed_tenths: u32, height_thousandths: u32) -> Write {

@@ -185,6 +185,8 @@ pub enum OperationKind {
     Parameters,
     /// The head following the sheet or retracting, from the Follow button.
     Head,
+    /// One touch of the edge search.
+    EdgeSearch,
 }
 
 impl OperationKind {
@@ -201,6 +203,7 @@ impl OperationKind {
             Self::Program => "a program",
             Self::Parameters => "the parameter operation",
             Self::Head => "the head command",
+            Self::EdgeSearch => "the edge search",
         }
     }
 }

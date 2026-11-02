@@ -8,6 +8,7 @@
 //! the task's job, so nothing here touches a socket.
 
 pub mod calibrate;
+pub mod edge;
 pub mod head;
 pub mod home;
 pub mod mode;

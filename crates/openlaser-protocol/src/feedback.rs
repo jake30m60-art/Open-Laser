@@ -150,6 +150,9 @@ pub struct AxisFeedback {
     pub encoder: i32,
     /// The pulse position captured at the last stop.
     pub stop_pulse: i32,
+    /// Where the head last reported a sheet edge on this axis, latched by
+    /// the controller (record word 7; edge-search capture of 2026-10-14).
+    pub edge: i32,
 }
 
 impl AxisFeedback {
@@ -160,6 +163,7 @@ impl AxisFeedback {
             position: record[2].cast_signed(),
             encoder: record[3].cast_signed(),
             stop_pulse: record[5].cast_signed(),
+            edge: record[7].cast_signed(),
         }
     }
 
@@ -226,7 +230,7 @@ impl Axes {
 
     fn from_words(words: &[u32]) -> Self {
         let mut records =
-            [AxisFeedback { status: 0, speed: 0, position: 0, encoder: 0, stop_pulse: 0 };
+            [AxisFeedback { status: 0, speed: 0, position: 0, encoder: 0, stop_pulse: 0, edge: 0 };
                 AXIS_COUNT];
         for (record, chunk) in records.iter_mut().zip(words.chunks_exact(10)) {
             *record = AxisFeedback::from_record(chunk);

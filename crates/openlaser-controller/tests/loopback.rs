@@ -1352,3 +1352,46 @@ async fn a_calibration_that_hits_the_bottom_limit_stays_connected() {
     assert!(state.session.calibration.is_none());
     machine.shutdown().await.unwrap();
 }
+
+/// A touch of the edge search over a sheet: the head settles, XY run to the
+/// edge, and the answer is where the controller latched it, the head lifted.
+#[tokio::test]
+async fn an_edge_touch_finds_the_sheet_edge_and_lifts_the_head() {
+    let (_simulator, control, machine) = homed().await;
+    // The head stands at the origin over a sheet whose right edge is at 50 mm.
+    control.sheet_bounds([-100., -100.], [50., 50.]);
+    let touch = openlaser_controller::operations::edge::Touch {
+        axis: 0,
+        travel: 200_000,
+        speed: 50_000,
+        acceleration: 500_000,
+        lift_thousandths: 15_000,
+        lift_speed_tenths: 1000,
+    };
+    let edge = machine.probe_edge(touch).await.expect("an edge");
+    assert_eq!(edge[0], 50_000, "the latched X edge");
+    assert!(edge[1].abs() < 10, "Y stays where it was");
+    let writes = control.take_writes();
+    assert!(writes.iter().any(|w| w.words.first() == Some(&117)), "edge-search mode");
+    assert!(writes.iter().any(|w| w.words.first() == Some(&103)), "the head lifts");
+}
+
+/// No sheet under the head: it reaches its bottom limit, the touch fails and
+/// the head lifts off the limit again.
+#[tokio::test]
+async fn an_edge_touch_without_a_sheet_fails_and_lifts_the_head() {
+    let (_simulator, control, machine) = homed().await;
+    control.sheet_bounds([300., 300.], [400., 400.]);
+    let touch = openlaser_controller::operations::edge::Touch {
+        axis: 1,
+        travel: 100_000,
+        speed: 50_000,
+        acceleration: 500_000,
+        lift_thousandths: 15_000,
+        lift_speed_tenths: 1000,
+    };
+    let error = machine.probe_edge(touch).await.expect_err("no sheet");
+    assert!(error.to_string().contains("no sheet"), "{error}");
+    let lifted = control.take_writes();
+    assert!(lifted.iter().any(|w| w.words.first() == Some(&103)), "the head lifts again");
+}

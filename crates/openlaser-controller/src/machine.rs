@@ -15,6 +15,7 @@ use crate::config::Config;
 use crate::lease::{Lease, Leases};
 use crate::link::{Link, LinkError};
 use crate::operations::calibrate::Calibrate;
+use crate::operations::edge;
 use crate::operations::head::{Head, HeadAction};
 use crate::operations::home::{self, Home};
 use crate::operations::mode::Switch;
@@ -71,6 +72,7 @@ enum Command {
     Home { head_only: bool, reply: Reply<()> },
     Calibrate(Reply<Quality>),
     Head(HeadAction, Reply<()>),
+    Edge(edge::Touch, Reply<[i32; 2]>),
     Travel(motion::Request, Travel, Option<Lease>, Reply<()>, Reply<()>),
     Run(Box<Program>, Reply<Ending>, Reply<()>),
     SwitchMode(Reply<()>),
@@ -93,6 +95,7 @@ impl Command {
             self,
             Command::Home { .. }
                 | Command::Calibrate(..)
+                | Command::Edge(..)
                 | Command::Head(..)
                 | Command::Travel(..)
                 | Command::Run(..)
@@ -135,6 +138,7 @@ impl Command {
             | Self::Shutdown(reply) => drop(reply.send(Err(error))),
             Self::Calibrate(reply) => drop(reply.send(Err(error))),
             Self::Head(_, reply) => drop(reply.send(Err(error))),
+            Self::Edge(_, reply) => drop(reply.send(Err(error))),
             Self::Travel(_, _, _, reply, admitted) | Self::Outputs(_, _, reply, admitted) => {
                 drop(admitted.send(Err(error.clone())));
                 drop(reply.send(Err(error)));
@@ -247,6 +251,12 @@ impl Machine {
     /// Calibrates the head; answers with the quality it reports.
     pub async fn calibrate(&self) -> Result<Quality> {
         self.ask(Command::Calibrate).await
+    }
+
+    /// One touch of the edge search; answers with the edge, X and Y in
+    /// controller units, the head lifted again.
+    pub async fn probe_edge(&self, touch: edge::Touch) -> Result<[i32; 2]> {
+        self.ask(|reply| Command::Edge(touch, reply)).await
     }
 
     /// Lowers the head to follow the sheet, or retracts it: the Follow
@@ -438,6 +448,7 @@ enum Job {
     Home(Home, Reply<()>),
     Calibrate(Calibrate, Reply<Quality>),
     Head(Head, Reply<()>),
+    Edge(Box<edge::EdgeProbe>, Reply<[i32; 2]>),
     Motion(Box<Motion>, Reply<()>),
     Mode(Switch, Reply<()>),
     Relief(Relief, Option<u32>, Reply<()>),
@@ -452,6 +463,7 @@ impl Job {
             Self::Home(op, _) => op,
             Self::Calibrate(op, _) => op,
             Self::Head(op, _) => op,
+            Self::Edge(op, _) => op.as_mut(),
             Self::Motion(op, _) => op.as_mut(),
             Self::Mode(op, _) => op,
             Self::Relief(op, _, _) => op,
@@ -466,6 +478,7 @@ impl Job {
             Self::Home(op, _) => op,
             Self::Calibrate(op, _) => op,
             Self::Head(op, _) => op,
+            Self::Edge(op, _) => op.as_ref(),
             Self::Motion(op, _) => op.as_ref(),
             Self::Mode(op, _) => op,
             Self::Relief(op, _, _) => op,
@@ -487,7 +500,7 @@ impl Job {
                 }
             }
             Self::Motion(motion, _) => motion.concession(snapshot),
-            Self::Calibrate(..) => Concession::ProcessOnly,
+            Self::Calibrate(..) | Self::Edge(..) => Concession::ProcessOnly,
             Self::Outputs(outputs, _) => outputs
                 .head_jog()
                 .map_or(Concession::None, |up| outputs::head_concession(snapshot, up)),
@@ -505,6 +518,7 @@ impl Job {
             | Self::Outputs(_, reply)
             | Self::Head(_, reply) => drop(reply.send(Err(error))),
             Self::Calibrate(_, reply) => drop(reply.send(Err(error))),
+            Self::Edge(_, reply) => drop(reply.send(Err(error))),
             Self::Run(_, reply) => drop(reply.send(Err(error))),
             Self::Parameters(_, _, reply) => drop(reply.send(Err(error))),
         }
@@ -710,6 +724,7 @@ impl Task {
             Command::Home { head_only, reply } => {
                 self.launch(self.prepare_home(head_only), reply, Job::Home);
             }
+            Command::Edge(touch, reply) => self.launch(self.prepare_edge(touch), reply, Job::Edge),
             Command::Calibrate(reply) => {
                 let prepared = self.prepare_calibrate();
                 if prepared.is_ok() {
@@ -916,6 +931,14 @@ impl Task {
             return Err(Error::Refused("no head controller is configured".into()));
         }
         Ok(Home::new(bindings, head_only))
+    }
+
+    fn prepare_edge(&self, touch: edge::Touch) -> Result<Box<edge::EdgeProbe>> {
+        let (_, bindings) = self.ready()?;
+        if !bindings.head_enabled {
+            return Err(Error::Refused("no head controller is configured".into()));
+        }
+        Ok(Box::new(edge::EdgeProbe::new(touch, Instant::now())))
     }
 
     fn prepare_calibrate(&self) -> Result<Calibrate> {
@@ -1644,8 +1667,10 @@ impl Task {
             // ends them the same way.
             // A held table move ended by its limit switch, likewise.
             let table = matches!(&active.job, Job::Motion(motion, _) if motion.is_table());
-            let head_only =
-                matches!(active.job, Job::Calibrate(..) | Job::Head(..) | Job::Outputs(..));
+            let head_only = matches!(
+                active.job,
+                Job::Calibrate(..) | Job::Edge(..) | Job::Head(..) | Job::Outputs(..)
+            );
             if stopped && table && matches!(error, Error::Failed(_)) {
                 if !ending_failed {
                     self.last_error = Some(error.to_string());
@@ -1712,6 +1737,10 @@ impl Task {
             Job::Motion(_, reply) | Job::Outputs(_, reply) | Job::Head(_, reply) => {
                 self.answer(reply, Ok(()));
             }
+            Job::Edge(probe, reply) => match probe.edge() {
+                Some(at) => self.answer(reply, Ok(at)),
+                None => self.answer(reply, Err(Error::Failed("no edge was found".into()))),
+            },
             Job::Mode(switch, reply) => {
                 self.session.mode_applied(switch.mode());
                 if !self.xy_referenced() {

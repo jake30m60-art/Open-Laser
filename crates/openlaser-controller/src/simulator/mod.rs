@@ -316,6 +316,14 @@ impl Control {
         self.with(|plant| plant.surface = millimetres.clamp(1., 500.) * SCALE);
     }
 
+    /// Lays a sheet on the bed from `min` to `max` millimetres for the edge
+    /// search; without one the head finds sheet everywhere.
+    pub fn sheet_bounds(&self, min: [f64; 2], max: [f64; 2]) {
+        self.with(|plant| {
+            plant.sheet = Some([min[0] * SCALE, min[1] * SCALE, max[0] * SCALE, max[1] * SCALE]);
+        });
+    }
+
     /// How much faster than real time the FIFO executes, 0.1 to 100.
     pub fn time_scale(&self, scale: f64) {
         self.with(|plant| plant.time_scale = scale.clamp(0.1, 100.));

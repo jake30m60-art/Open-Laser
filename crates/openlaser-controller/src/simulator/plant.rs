@@ -107,6 +107,11 @@ pub(super) struct Plant {
     calibration_return: bool,
     head_sequence: VecDeque<(f64, f64, f64)>,
     head_hold: f64,
+    /// A sheet's XY extent in pulses, `[min x, min y, max x, max y]`, for the
+    /// edge search: without one the bed is covered everywhere.
+    pub(super) sheet: Option<[f64; 4]>,
+    /// The edge position the head latched on each of X and Y, axis word 7.
+    edge_latch: [f64; 2],
     cycle_us: u32,
     pwm_sync_port: u32,
     primary_pwm_sync: u32,
@@ -172,6 +177,8 @@ impl Plant {
             calibration_return: false,
             head_sequence: VecDeque::new(),
             head_hold: 0.,
+            sheet: None,
+            edge_latch: [0.; 2],
             cycle_us: 250,
             pwm_sync_port: 9,
             primary_pwm_sync: 0,
@@ -448,6 +455,9 @@ impl Plant {
             }
             words[base + 3] = words[base + 2];
             words[base + 5] = words[base + 2];
+            if axis < 2 {
+                words[base + 7] = (self.edge_latch[axis].trunc() as i32).cast_unsigned();
+            }
             words[base] |= self.axis_faults(axis);
             if address == 60_001 {
                 let config = 50 + axis * PARAMETER_BANK_WORDS;
@@ -586,6 +596,21 @@ impl Plant {
                 self.head_sequence.clear();
                 self.head_command = 0;
                 self.head_hold = 0.;
+                if self.head_status == 3 || self.head_status == 6 {
+                    self.head_status = 0x10;
+                }
+            }
+            [117, speed, height, ..] => {
+                // The edge search: down to `height` over the sheet, then the
+                // head reports 3 and watches for the edge. With no sheet under
+                // it, it goes on down to its bottom limit, as on the machine.
+                self.head_sequence.clear();
+                let target = if self.over_sheet() {
+                    self.surface - f64::from(height & 0xffff)
+                } else {
+                    self.surface + 100_000.
+                };
+                self.head_move(117, *speed, target, false);
             }
             [109, speed, travel] => {
                 self.head_sequence.clear();
@@ -722,7 +747,9 @@ impl Plant {
     fn head_move(&mut self, command: u32, speed: u32, target: f64, home: bool) {
         let limits = self.alarm_words()[2] & 0xf;
         if limits != 0
-            && !(command == 109
+            // A relative jog or an absolute retract may leave the limit, as
+            // the vendor lifts a head that found no sheet with 103.
+            && !((command == 109 || command == 103)
                 && ((target > self.position[3] && limits & 0b1010 == 0)
                     || (target < self.position[3] && limits & 0b0101 == 0)))
         {
@@ -781,6 +808,7 @@ impl Plant {
     pub(super) fn advance(&mut self, real_seconds: f64) {
         let dt = real_seconds * self.time_scale;
         self.advance_axes(real_seconds, dt);
+        self.watch_edge();
         self.advance_head_sequence(dt);
         if !self.running || self.faults.contains(&Fault::AxisStall) {
             self.fractional_cycle = 0.;
@@ -858,9 +886,32 @@ impl Plant {
                 1
             }
             107 => self.calibration_quality,
+            117 => {
+                // Following at the search height until cancelled.
+                self.head_status = 3;
+                return;
+            }
             _ => 0x10,
         };
         self.head_command = 0;
+    }
+
+    /// Whether the head is above the sheet.
+    fn over_sheet(&self) -> bool {
+        self.sheet.is_none_or(|[x0, y0, x1, y1]| {
+            (x0..=x1).contains(&self.position[0]) && (y0..=y1).contains(&self.position[1])
+        })
+    }
+
+    /// While searching, the head reports 6 once it leaves the sheet and the
+    /// controller latches where on each axis that happened.
+    fn watch_edge(&mut self) {
+        let Some([x0, y0, x1, y1]) = self.sheet else { return };
+        if self.head_command != 117 || self.head_status != 3 || self.over_sheet() {
+            return;
+        }
+        self.edge_latch = [self.position[0].clamp(x0, x1), self.position[1].clamp(y0, y1)];
+        self.head_status = 6;
     }
 
     fn advance_head_sequence(&mut self, dt: f64) {
