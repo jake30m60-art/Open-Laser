@@ -1367,6 +1367,9 @@ async fn an_edge_touch_finds_the_sheet_edge_and_lifts_the_head() {
         acceleration: 500_000,
         lift_thousandths: 15_000,
         lift_speed_tenths: 1000,
+        from: None,
+        travel_speed: 500_000,
+        lift: true,
     };
     let edge = machine.probe_edge(touch).await.expect("an edge");
     assert_eq!(edge[0], 50_000, "the latched X edge");
@@ -1389,6 +1392,9 @@ async fn an_edge_touch_without_a_sheet_fails_and_lifts_the_head() {
         acceleration: 500_000,
         lift_thousandths: 15_000,
         lift_speed_tenths: 1000,
+        from: None,
+        travel_speed: 500_000,
+        lift: true,
     };
     let error = machine.probe_edge(touch).await.expect_err("no sheet");
     assert!(error.to_string().contains("no sheet"), "{error}");

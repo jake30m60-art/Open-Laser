@@ -564,6 +564,15 @@ impl Plant {
                     self.axis_move(axis, self.banks[axis][5].max(1000), 0, true)?;
                 }
             }
+            // The short stop of the vendor's edge search: the axes only, the
+            // head keeps its command and height.
+            [1, mask] => {
+                for axis in 0..2 {
+                    if mask & (1 << axis) != 0 {
+                        self.travel[axis] = None;
+                    }
+                }
+            }
             [1, mask, 2, _, _] => {
                 for axis in 0..AXIS_COUNT {
                     if mask & (1 << axis) != 0 {

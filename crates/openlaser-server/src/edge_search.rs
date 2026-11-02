@@ -2,7 +2,7 @@
 
 //! Measuring a sheet by its edges, as the vendor's capacitive edge search
 //! (capture of 2026-10-14): from where the head stands, one touch per point,
-//! the head lifting between them, then the sheet's corner and angle, or a
+//! the head staying low between them and travelling on at 500 mm/s, then the sheet's corner and angle, or a
 //! disc's centre and diameter, worked out from the edges found.
 //!
 //! - A rectangle, four points: two on the front edge (searching −Y) from the
@@ -21,6 +21,8 @@ use serde::{Deserialize, Serialize};
 
 /// The search speed of the capture, in millimetres per second.
 const SEARCH_MM_S: f64 = 50.;
+/// The travel between touches in the capture, millimetres per second.
+const TRAVEL_MM_S: f64 = 500.;
 /// How far the found edges may lean before the measurement is refused.
 const MAX_ANGLE_DEG: f64 = 15.;
 /// How far from square the two measured edges of a rectangle may be.
@@ -87,25 +89,28 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
     let at = |dx: f64, dy: f64| [start[0] + dx, start[1] + dy];
     let measured = match request.shape {
         SheetShape::Rectangle | SheetShape::TwoEdges => {
-            points.push(touch(shared, epoch, 1, false, request.search_mm).await?);
-            go(shared, epoch, at(spacing, 0.)).await?;
-            points.push(touch(shared, epoch, 1, false, request.search_mm).await?);
-            go(shared, epoch, at(0., 0.)).await?;
-            points.push(touch(shared, epoch, 0, false, request.search_mm).await?);
-            if request.shape == SheetShape::Rectangle {
-                go(shared, epoch, at(0., spacing)).await?;
-                points.push(touch(shared, epoch, 0, false, request.search_mm).await?);
+            let four = request.shape == SheetShape::Rectangle;
+            let search = request.search_mm;
+            points.push(touch(shared, epoch, 1, false, search, None, false).await?);
+            points
+                .push(touch(shared, epoch, 1, false, search, Some(at(spacing, 0.)), false).await?);
+            points.push(touch(shared, epoch, 0, false, search, Some(at(0., 0.)), !four).await?);
+            if four {
+                points.push(
+                    touch(shared, epoch, 0, false, search, Some(at(0., spacing)), true).await?,
+                );
             }
             go(shared, epoch, at(0., 0.)).await?;
             rectangle(request.shape, points)?
         }
         SheetShape::Disc => {
-            points.push(touch(shared, epoch, 0, false, request.search_mm).await?);
-            go(shared, epoch, at(0., 0.)).await?;
-            points.push(touch(shared, epoch, 0, true, request.search_mm).await?);
+            let search = request.search_mm;
+            points.push(touch(shared, epoch, 0, false, search, None, false).await?);
+            points.push(touch(shared, epoch, 0, true, search, Some(at(0., 0.)), false).await?);
             let middle = f64::midpoint(points[0][0], points[1][0]);
-            go(shared, epoch, [middle, start[1]]).await?;
-            points.push(touch(shared, epoch, 1, false, request.search_mm).await?);
+            points.push(
+                touch(shared, epoch, 1, false, search, Some([middle, start[1]]), true).await?,
+            );
             disc(points)?
         }
     };
@@ -154,13 +159,17 @@ async fn go(shared: &Shared, epoch: u64, target: [f64; 2]) -> Result<()> {
     crate::machine::move_to(shared, target).await
 }
 
-/// One touch along `axis`, the positive or negative way; the edge in mm.
+/// One touch along `axis`, the positive or negative way, starting `from`
+/// (mm, or where the head stands); the edge in mm. Only the last one lifts.
+#[allow(clippy::too_many_arguments, reason = "the plan of one touch")]
 async fn touch(
     shared: &Shared,
     epoch: u64,
     axis: usize,
     positive: bool,
     search_mm: f64,
+    from: Option<[f64; 2]>,
+    lift: bool,
 ) -> Result<[f64; 2]> {
     still_running(shared, epoch)?;
     let (touch, scale) = {
@@ -171,7 +180,14 @@ async fn touch(
         let raise = bound.shutdown.raise.ok_or_else(|| {
             Error::Refused("this machine has no head controller to search with".into())
         })?;
-        let position = head_xy_locked(&c)?[axis];
+        if let Some(at) = from {
+            let extent = bound.jog.extent;
+            if !(0..2).all(|i| at[i].is_finite() && at[i] >= extent[i][0] && at[i] <= extent[i][1])
+            {
+                return Err(Error::Refused("a measuring point lies outside the bed".into()));
+            }
+        }
+        let position = from.unwrap_or(head_xy_locked(&c)?)[axis];
         // Never past the bed: the search ends at its edge at the latest.
         let [min, max] = bound.jog.extent[axis];
         let room = if positive { max - position } else { position - min };
@@ -187,9 +203,19 @@ async fn touch(
             axis,
             travel,
             speed: bound.jog.speed_word(SEARCH_MM_S, scale)?,
-            acceleration: bound.jog.position_acceleration[0],
+            acceleration: bound.jog.position_acceleration[1],
             lift_thousandths: raise.height_thousandths,
             lift_speed_tenths: raise.speed_tenths,
+            from: from
+                .map(|at| -> Result<[i32; 2]> {
+                    Ok([
+                        openlaser_xml::bindings::coordinate(at[0], scale)?,
+                        openlaser_xml::bindings::coordinate(at[1], scale)?,
+                    ])
+                })
+                .transpose()?,
+            travel_speed: bound.jog.speed_word(TRAVEL_MM_S.min(bound.jog.speed[1]), scale)?,
+            lift,
         };
         (touch, scale)
     };
