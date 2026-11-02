@@ -127,6 +127,11 @@ origin_point: [number, number] | null,
  */
 sheet_corner: [number, number] | null,
 /**
+ * The sheet's angle on the bed as measured, degrees counter-clockwise;
+ * the machine paths turn by it about the sheet corner.
+ */
+sheet_angle_deg: number | null,
+/**
  * The anchor point in drawing coordinates, once prepared.
  */
 dock: [number, number] | null,

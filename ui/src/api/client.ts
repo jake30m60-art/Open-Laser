@@ -80,6 +80,20 @@ export type MachineAction =
   | 'pulse' | 'gas-test' | 'gas-calibration' | 'table' | 'connect' | 'cancel' | 'disconnect' | 'home' | 'calibrate' | 'follow' | 'raise-head' | 'jog' | 'go-origin'
   | 'go-xy' | 'frame' | 'release' | 'heartbeat' | 'outputs' | 'mode' | 'relieve' | 'run' | 'resume' | 'hold' | 'stop';
 
+/** What a sheet measurement by its edges asks for. */
+export type SheetShape = 'rectangle' | 'two_edges' | 'disc';
+export interface MeasureRequest { shape: SheetShape; spacing_mm: number; search_mm: number }
+/** What it found, in machine millimetres. */
+export interface Measured {
+  shape: SheetShape;
+  points: [number, number][];
+  corner: [number, number] | null;
+  angle_deg: number | null;
+  squareness_deg: number | null;
+  center: [number, number] | null;
+  diameter_mm: number | null;
+}
+
 /** What a machine action may carry. */
 type MachineBody = {
   pulse?: { duration_ms: number; power: number };
@@ -282,7 +296,7 @@ export const api = {
   /** Forgets what was cut on the sheet now on the bed. */
   clearSheetCuts: () => post('/api/sheet-cuts/clear', {}),
   /** Puts the sheet's corner at the head (no argument), at machine XY, or back on the bed minimum. */
-  setSheetOrigin: (at?: [number, number] | 'clear') => draftPost('/api/draft/sheet-origin', at === 'clear' ? { clear: true } : { at }),
+  setSheetOrigin: (at?: [number, number] | 'clear', angleDeg?: number) => draftPost('/api/draft/sheet-origin', at === 'clear' ? { clear: true } : { at, angle_deg: angleDeg ?? null }),
   /** Puts the part's anchor point at machine coordinates, or where the head is. */
   setOrigin: (origin: [number, number] | 'head', anchor?: Anchor) => draftPost('/api/draft/origin', origin === 'head' ? { anchor } : { origin, anchor }),
   compile: (dryRun: boolean) => draftPost('/api/draft/compile', { dry_run: dryRun }),
@@ -291,6 +305,8 @@ export const api = {
   /** The adapter, controller address or computer address the next Connect uses. */
   setRoute: (change: RouteChange) => post('/api/machine/route', change),
   machine: (action: MachineAction, body: MachineBody = {}) => post(`/api/machine/${action}`, body),
+  /** Measures the sheet by its edges from where the head stands. */
+  measureSheet: (measure: MeasureRequest) => post<{ ok: true; measured: Measured }>('/api/machine/measure-sheet', { measure }),
 };
 
 /**

@@ -94,7 +94,7 @@
   // A finished job keeps its recovery record for a restart; only an open
   // recovery, not the record alone, holds the view where it was cut.
   /** A rectangular sheet where it lies on the bed, apart from the job origin. */
-  const sheetBed = $derived(sheetOnBed(draft, frameOf(doc).bed));
+  const sheetBed = $derived(sheetOnBed(draft, frameOf(doc).bed, true));
   const live = $derived(['running', 'finishing', 'held'].includes(program?.state ?? '') || recovering);
   const frame = $derived.by(() => {
     const frame = frameOf(doc);
