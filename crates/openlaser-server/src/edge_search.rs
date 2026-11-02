@@ -51,6 +51,11 @@ pub struct MeasureRequest {
     pub spacing_mm: f64,
     /// How far each touch searches, in millimetres.
     pub search_mm: f64,
+    /// The edge correction X/Y, millimetres: the capacitive head reports an
+    /// edge only once it is past it, so each found point moves back by this
+    /// much, against its search direction (the vendor's 5/5).
+    #[serde(default)]
+    pub correction_mm: [f64; 2],
 }
 
 /// What a measurement found, in machine millimetres.
@@ -82,6 +87,10 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
     if !(request.search_mm.is_finite() && (5. ..=3000.).contains(&request.search_mm)) {
         return Err(Error::Request("the search travel must be 5 to 3000 mm".into()));
     }
+    if !request.correction_mm.iter().all(|v| v.is_finite() && (-20. ..=20.).contains(v)) {
+        return Err(Error::Request("the edge correction must be within ±20 mm".into()));
+    }
+    let [cx, cy] = request.correction_mm;
     let epoch = shared.ensure_running()?;
     let start = head_xy(shared).await?;
     let spacing = request.spacing_mm;
@@ -101,6 +110,9 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
                 );
             }
             go(shared, epoch, at(0., 0.)).await?;
+            for (i, p) in points.iter_mut().enumerate() {
+                p[usize::from(i >= 2)] += if i >= 2 { cx } else { cy };
+            }
             rectangle(request.shape, points)?
         }
         SheetShape::Disc => {
@@ -111,6 +123,9 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
             points.push(
                 touch(shared, epoch, 1, false, search, Some([middle, start[1]]), true).await?,
             );
+            points[0][0] += cx;
+            points[1][0] -= cx;
+            points[2][1] += cy;
             disc(points)?
         }
     };

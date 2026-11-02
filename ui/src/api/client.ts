@@ -82,7 +82,7 @@ export type MachineAction =
 
 /** What a sheet measurement by its edges asks for. */
 export type SheetShape = 'rectangle' | 'two_edges' | 'disc';
-export interface MeasureRequest { shape: SheetShape; spacing_mm: number; search_mm: number }
+export interface MeasureRequest { shape: SheetShape; spacing_mm: number; search_mm: number; correction_mm: [number, number] }
 /** What it found, in machine millimetres. */
 export interface Measured {
   shape: SheetShape;

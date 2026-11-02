@@ -30,6 +30,7 @@
   let search = $state(remember('search', 200));
   let offsetX = $state(remember('offset-x', 5));
   let offsetY = $state(remember('offset-y', 5));
+  let correction = $state(remember('correction', 5));
   /** Where the job origin goes once taken. */
   let origin = $state<'corner' | 'offset' | 'keep'>('corner');
   let busy = $state(false);
@@ -43,7 +44,7 @@
     });
     if (!confirmed) return;
     busy = true; kept.result = null;
-    try { kept.result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search })).measured; }
+    try { kept.result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search, correction_mm: [correction, correction] })).measured; }
     catch (e) { ui.say(explain(e), true); }
     finally { busy = false; }
   }
@@ -81,6 +82,7 @@
   {#if shape !== 'disc'}
     <Stepper label={t('Point spacing')} value={spacing} unit="mm" step={10} disabled={busy} apply={(v) => { spacing = Math.max(5, v); keep('spacing', spacing); }} />
   {/if}
+  <Stepper label={t('Edge correction')} value={correction} unit="mm" step={0.5} disabled={busy} apply={(v) => { correction = Math.min(20, Math.max(0, v)); keep('correction', correction); }} />
   <Stepper label={t('Search travel')} value={search} unit="mm" step={10} disabled={busy} apply={(v) => { search = Math.max(5, v); keep('search', search); }} />
   <button class="btn btn-primary block" disabled={busy || !connected} onclick={measure}>
     {busy ? t('Measuring…') : t('Start measuring')}

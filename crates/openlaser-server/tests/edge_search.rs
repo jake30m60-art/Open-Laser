@@ -31,8 +31,12 @@ async fn ready(name: &str, at: [f64; 2]) -> (Simulator, openlaser_server::coordi
 async fn four_touches_measure_the_sheet_corner() {
     let (simulator, shared) = ready("edge-rect", [60., 60.]).await;
     simulator.control().sheet_bounds([20., 20.], [700., 500.]);
-    let request =
-        MeasureRequest { shape: SheetShape::Rectangle, spacing_mm: 100., search_mm: 200. };
+    let request = MeasureRequest {
+        shape: SheetShape::Rectangle,
+        spacing_mm: 100.,
+        search_mm: 200.,
+        correction_mm: [0., 0.],
+    };
     let measured = measure(&shared, request).await.expect("a measurement");
     assert_eq!(measured.points.len(), 4);
     let corner = measured.corner.unwrap();
@@ -47,7 +51,12 @@ async fn three_touches_measure_a_disc() {
     // The simulator's sheets are rectangles: a square stands in for the disc
     // here, so the circle through the three points is the square's.
     simulator.control().sheet_bounds([150., 150.], [250., 250.]);
-    let request = MeasureRequest { shape: SheetShape::Disc, spacing_mm: 100., search_mm: 200. };
+    let request = MeasureRequest {
+        shape: SheetShape::Disc,
+        spacing_mm: 100.,
+        search_mm: 200.,
+        correction_mm: [0., 0.],
+    };
     let measured = measure(&shared, request).await.expect("a measurement");
     assert_eq!(measured.points.len(), 3);
     let centre = measured.center.unwrap();
