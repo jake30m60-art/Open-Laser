@@ -25,8 +25,11 @@ const BOTTOM_LIMIT: u32 = 1 << 1;
 const SETTLE: Duration = Duration::from_secs(20);
 /// How long a search move may take to show motion before rest means it ended.
 const START_GRACE: Duration = Duration::from_millis(800);
-/// The deceleration of the stop, as the capture's stop words.
-const STOP_DECELERATION: u32 = 200_000;
+/// The stop of the capture, `[1, 31, 2, 5999, 200000]`: all axes. The
+/// controller refuses `[1, 3, 2, 200000, …]` (machine test 2026-11-02), so
+/// the axes ran on past the edge and the head sank over it.
+const STOP_MASK: u32 = 0b1_1111;
+const STOP_DECELERATION: u32 = 5_999;
 
 /// What one touch searches.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,7 +95,8 @@ impl EdgeProbe {
 
     fn ending(&self) -> Vec<Write> {
         vec![
-            requests::stop_axes(0b11, STOP_DECELERATION),
+            requests::stop_axes(STOP_MASK, STOP_DECELERATION),
+            requests::stop_axes(STOP_MASK, STOP_DECELERATION),
             requests::head_cancel(),
             requests::head_retract(self.touch.lift_speed_tenths, self.touch.lift_thousandths),
         ]
@@ -148,7 +152,8 @@ impl Operation for EdgeProbe {
             Phase::Lowering => {
                 if head.status_byte() != SEARCHING {
                     if now.duration_since(self.started) > SETTLE {
-                        return Ok(self.give_up("the head did not settle over a sheet: no sheet under it?"));
+                        return Ok(self
+                            .give_up("the head did not settle over a sheet: no sheet under it?"));
                     }
                     return Ok(Step::Wait);
                 }

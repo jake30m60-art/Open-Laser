@@ -1884,6 +1884,12 @@ impl Coordinator {
         draft.current.sheet_corner = corner;
         // A corner set by hand lies square; a measured one brings its angle.
         draft.current.sheet_angle_deg = if clear { None } else { angle_deg.filter(|a| *a != 0.) };
+        if let (Some([x, y]), Some(a)) = (corner, angle_deg) {
+            self.note(
+                format!("Sheet measurement taken: corner X {x:.2} · Y {y:.2} mm, angle {a:.3}°"),
+                false,
+            );
+        }
         // A sheet laid anew has nothing cut from it yet.
         self.set_sheet_cuts(Vec::new());
         self.reprepare();

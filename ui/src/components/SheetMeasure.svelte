@@ -1,3 +1,9 @@
+<script lang="ts" module>
+  import type { Measured as Kept } from '../api/client';
+  /** The last measurement until taken or discarded: it outlives the panel. */
+  let kept = $state<{ result: Kept | null }>({ result: null });
+</script>
+
 <script lang="ts">
   // Measuring the sheet by its edges, as the vendor's capacitive edge
   // search: from where the head stands, the head goes down and finds each
@@ -27,7 +33,7 @@
   /** Where the job origin goes once taken. */
   let origin = $state<'corner' | 'offset' | 'keep'>('corner');
   let busy = $state(false);
-  let result = $state<Measured | null>(null);
+  let result = $derived(kept.result);
 
   async function measure(): Promise<void> {
     const confirmed = await ui.confirm({
@@ -36,8 +42,8 @@
       confirm: t('Start measuring'),
     });
     if (!confirmed) return;
-    busy = true; result = null;
-    try { result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search })).measured; }
+    busy = true; kept.result = null;
+    try { kept.result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search })).measured; }
     catch (e) { ui.say(explain(e), true); }
     finally { busy = false; }
   }
@@ -58,7 +64,7 @@
       const at = m.center ?? (origin === 'offset' ? offsetCorner(m) : m.corner);
       if (at && (m.center || origin !== 'keep')) await api.placement({ kind: 'fixed', origin: at });
       ui.say(t('Measurement taken'));
-      result = null;
+      kept.result = null;
     } catch (e) { ui.say(explain(e), true); }
     finally { busy = false; }
   }
@@ -85,6 +91,7 @@
     <div class="result">
       {#if result.corner}
         <p><strong>{t('Corner')}</strong> X {distance(result.corner[0])} · Y {distance(result.corner[1])} {unitLabel('mm')}</p>
+        {#if !server.doc?.draft?.nesting?.stock}<p class="warn">{t('No sheet in this job yet: add one above so it shows turned on the bed.')}</p>{/if}
         <p><strong>{t('Angle')}</strong> {(result.angle_deg ?? 0).toFixed(3)}°{#if result.squareness_deg !== null} · {t('square within {0}°', Math.abs(result.squareness_deg).toFixed(2))}{/if}</p>
         <div class="seg block" role="group" aria-label={t('Job origin')}>
           <button class:on={origin === 'corner'} onclick={() => (origin = 'corner')}>{t('Origin at the corner')}</button>
@@ -100,7 +107,7 @@
         <p><strong>Ø</strong> {distance(result.diameter_mm ?? 0)} {unitLabel('mm')} · {t('the job origin goes to the centre')}</p>
       {/if}
       <div class="row">
-        <button class="btn btn-ghost" disabled={busy} onclick={() => (result = null)}>{t('Discard')}</button>
+        <button class="btn btn-ghost" disabled={busy} onclick={() => (kept.result = null)}>{t('Discard')}</button>
         <button class="btn btn-primary" disabled={busy} onclick={take}>{t('Take measurement')}</button>
       </div>
     </div>
@@ -111,6 +118,7 @@
   .measure { display:grid; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); }
   .measure h3 { margin:0; }
   .result { display:grid; gap:6px; padding-top:8px; border-top:1px solid var(--line); }
+  .warn { color:var(--warn, #c80); }
   .result p { margin:0; font-variant-numeric:tabular-nums; }
   .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 </style>
