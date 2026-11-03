@@ -25,6 +25,8 @@ const FOUND: u8 = 6;
 const BOTTOM_LIMIT: u32 = 1 << 1;
 /// How long the head may take to settle over the sheet.
 const SETTLE: Duration = Duration::from_secs(20);
+/// How long the controller gets to lift the head by itself after the edge.
+const OWN_LIFT: Duration = Duration::from_secs(2);
 /// How long a search move may take to show motion before rest means it ended.
 const START_GRACE: Duration = Duration::from_millis(800);
 
@@ -107,6 +109,30 @@ impl EdgeProbe {
             requests::head_cancel(),
             requests::head_retract(self.touch.lift_speed_tenths, self.touch.lift_thousandths),
         ]
+    }
+
+    /// After the edge or a failure: the axes at rest and the head up.
+    fn lifting(&mut self, snapshot: &Snapshot, now: Instant) -> Result<Step, String> {
+        let head = &snapshot.head;
+        // Should the controller not lift by itself, the last touch
+        // lifts the head as a failure does.
+        if self.touch.lift
+            && head.command() == 117
+            && self.searching.is_some_and(|t| now.duration_since(t) > OWN_LIFT)
+        {
+            self.searching = None;
+            return Ok(Step::Send(self.ending()));
+        }
+        let still = [0, 1, 3].iter().all(|&a| snapshot.axes.axis(a).speed == 0);
+        let lifted = head.command() != 117 || (!self.touch.lift && self.failure.is_none());
+        if still && lifted {
+            self.phase = Phase::Done;
+            return match self.failure.take() {
+                Some(reason) => Err(reason),
+                None => Ok(Step::Finish(Vec::new())),
+            };
+        }
+        Ok(Step::Wait)
     }
 
     /// Lowers the head into its search mode where it stands.
@@ -218,12 +244,11 @@ impl Operation for EdgeProbe {
                     at[axis] = snapshot.axes.axis(axis).edge;
                     self.edge = Some(at);
                     self.phase = Phase::Lifting;
-                    if !self.touch.lift {
-                        // The head holds its height at the edge (status 6)
-                        // and travels on low, as the vendor does.
-                        return Ok(Step::Send(vec![requests::stop_all_axes()]));
-                    }
-                    return Ok(Step::Send(self.ending()));
+                    // On the edge the controller lifts the head by itself
+                    // (capture: up within half a second, then command 0);
+                    // a head cancel would cut that short and let it sink.
+                    self.searching = Some(now);
+                    return Ok(Step::Send(vec![requests::stop_all_axes()]));
                 }
                 if blocked.is_some() {
                     return Ok(self.give_up("an alarm interrupted the edge search"));
@@ -236,18 +261,7 @@ impl Operation for EdgeProbe {
                 }
                 Ok(Step::Wait)
             }
-            Phase::Lifting => {
-                let still = [0, 1, 3].iter().all(|&a| snapshot.axes.axis(a).speed == 0);
-                let lifted = head.command() != 117 || (!self.touch.lift && self.failure.is_none());
-                if still && lifted {
-                    self.phase = Phase::Done;
-                    return match self.failure.take() {
-                        Some(reason) => Err(reason),
-                        None => Ok(Step::Finish(Vec::new())),
-                    };
-                }
-                Ok(Step::Wait)
-            }
+            Phase::Lifting => self.lifting(snapshot, now),
             Phase::Done => Ok(Step::Finish(Vec::new())),
         }
     }
