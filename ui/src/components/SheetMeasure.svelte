@@ -17,6 +17,7 @@
   import { ui } from '../stores/ui.svelte';
   import { explain } from '../lib/format';
   import { distance, unitLabel } from '../lib/units.svelte';
+  import { circleThrough, type Point } from '../lib/circle';
 
   const doc = $derived(server.doc!);
   const connected = $derived(doc.machine.connection.state === 'connected' && doc.machine.session.homed);
@@ -36,6 +37,24 @@
   let origin = $state<'corner' | 'offset' | 'keep'>('corner');
   let busy = $state(false);
   let result = $derived(kept.result);
+  /** A bore found by hand: the edge points the operator took with the pointer. */
+  let byHand = $state(true);
+  let handPoints = $state<Point[]>([]);
+  const head = $derived(doc.machine.feedback?.position_mm);
+
+  function takePoint(): void {
+    if (!head) return;
+    const points = [...handPoints, [head[0], head[1]] as Point];
+    if (points.length < 3) { handPoints = points; return; }
+    handPoints = [];
+    const circle = circleThrough(points as [Point, Point, Point]);
+    if (!circle) { ui.say(t('The three points lie on a line: take them spread around the bore.'), true); return; }
+    if (Math.abs(circle.diameter - bore) > bore * 0.1 + 2) {
+      ui.say(t('The bore measured Ø {0} mm, not Ø {1} mm; check the diameter and the points', circle.diameter.toFixed(1), bore.toFixed(1)), true);
+      return;
+    }
+    kept.result = { shape: 'bore', points, corner: null, angle_deg: null, squareness_deg: null, center: circle.center, diameter_mm: circle.diameter };
+  }
 
   async function measure(): Promise<void> {
     const confirmed = await ui.confirm({
@@ -82,16 +101,28 @@
     <button class:on={shape === 'bore'} onclick={() => (shape = 'bore')}>{t('Bore')}</button>
   </div>
   {#if shape === 'bore'}
-    <p class="muted">{t('Put the head roughly over the middle of the bore: the touches start on the material beside it and search toward its middle.')}</p>
     <Stepper label={t('Bore diameter')} value={bore} unit="mm" step={1} disabled={busy} apply={(v) => { bore = Math.min(1000, Math.max(5, v)); keep('bore', bore); }} />
+    <div class="seg block" role="group" aria-label={t('How to find the bore')}>
+      <button class:on={byHand} onclick={() => (byHand = true)}>{t('By hand')}</button>
+      <button class:on={!byHand} onclick={() => { byHand = false; handPoints = []; }}>{t('Sensor')}</button>
+    </div>
+    {#if byHand}
+      <p class="muted">{t('Lower the head with Z down (not Follow), then move the pointer onto the bore edge and take the point; three points spread around the edge.')}</p>
+      <button class="btn btn-primary block" disabled={busy || !head} onclick={takePoint}>
+        {t('Take edge point {0} of 3', handPoints.length + 1)}{#if head} · X {distance(head[0])} · Y {distance(head[1])}{/if}
+      </button>
+      {#if handPoints.length}<button class="btn btn-ghost block" onclick={() => (handPoints = [])}>{t('Start the points again')}</button>{/if}
+    {:else}
+      <p class="muted">{t('Put the head roughly over the middle of the bore: the touches start on the material beside it and search toward its middle.')}</p>
+    {/if}
   {:else if shape !== 'disc'}
     <Stepper label={t('Point spacing')} value={spacing} unit="mm" step={10} disabled={busy} apply={(v) => { spacing = Math.max(5, v); keep('spacing', spacing); }} />
   {/if}
-  <Stepper label={t('Edge correction')} value={correction} unit="mm" step={0.5} disabled={busy} apply={(v) => { correction = Math.min(20, Math.max(0, v)); keep('correction', correction); }} />
+  {#if !(shape === 'bore' && byHand)}<Stepper label={t('Edge correction')} value={correction} unit="mm" step={0.5} disabled={busy} apply={(v) => { correction = Math.min(20, Math.max(0, v)); keep('correction', correction); }} />{/if}
   {#if shape !== 'bore'}<Stepper label={t('Search travel')} value={search} unit="mm" step={10} disabled={busy} apply={(v) => { search = Math.max(5, v); keep('search', search); }} />{/if}
-  <button class="btn btn-primary block" disabled={busy || !connected} onclick={measure}>
+  {#if !(shape === 'bore' && byHand)}<button class="btn btn-primary block" disabled={busy || !connected} onclick={measure}>
     {busy ? t('Measuring…') : t('Start measuring')}
-  </button>
+  </button>{/if}
   {#if !connected}<p class="muted">{t('Connect and home the machine to measure.')}</p>{/if}
 
   {#if result}

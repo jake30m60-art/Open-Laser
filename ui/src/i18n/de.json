@@ -4146,5 +4146,13 @@
   "Put the head roughly over the middle of the bore: the touches start on the material beside it and search toward its middle.": "Kopf ungefähr über die Bohrungsmitte stellen: die Antastungen starten neben der Bohrung auf dem Material und suchen zur Mitte hin.",
   "Bore measured: centre X {0} · Y {1} mm, Ø {2} mm": "Bohrung gemessen: Mitte X {0} · Y {1} mm, Ø {2} mm",
   "Sheet measurement taken: corner X {0} · Y {1} mm, angle {2}°": "Messung übernommen: Ecke X {0} · Y {1} mm, Winkel {2}°",
-  "Disc measured: centre X {0} · Y {1} mm, Ø {2} mm": "Scheibe gemessen: Mitte X {0} · Y {1} mm, Ø {2} mm"
+  "Disc measured: centre X {0} · Y {1} mm, Ø {2} mm": "Scheibe gemessen: Mitte X {0} · Y {1} mm, Ø {2} mm",
+  "The three points lie on a line: take them spread around the bore.": "Die drei Punkte liegen auf einer Linie: über den Bohrungsrand verteilt nehmen.",
+  "The bore measured Ø {0} mm, not Ø {1} mm; check the diameter and the points": "Gemessen Ø {0} mm statt Ø {1} mm: Durchmesser und Punkte prüfen",
+  "How to find the bore": "Wie die Bohrung gefunden wird",
+  "By hand": "Von Hand",
+  "Sensor": "Sensor",
+  "Lower the head with Z down (not Follow), then move the pointer onto the bore edge and take the point; three points spread around the edge.": "Kopf mit „Z down“ absenken (nicht Folgen), dann den Pointer auf den Bohrungsrand fahren und den Punkt übernehmen; drei Punkte über den Rand verteilt.",
+  "Take edge point {0} of 3": "Randpunkt {0} von 3 übernehmen",
+  "Start the points again": "Punkte neu beginnen"
 }
