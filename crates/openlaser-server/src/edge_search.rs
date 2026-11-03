@@ -26,6 +26,8 @@ use serde::{Deserialize, Serialize};
 const SEARCH_MM_S: f64 = 50.;
 /// How far outside a bore's nominal edge its touches start, millimetres.
 const BORE_MARGIN: f64 = 10.;
+/// The farthest a bore's start may lie outside its edge, millimetres.
+const MAX_BORE_MARGIN: f64 = 100.;
 /// The travel between touches in the capture, millimetres per second.
 const TRAVEL_MM_S: f64 = 500.;
 /// How far the found edges may lean before the measurement is refused.
@@ -66,6 +68,10 @@ pub struct MeasureRequest {
     /// A bore's nominal diameter, millimetres.
     #[serde(default)]
     pub bore_mm: Option<f64>,
+    /// How far outside a bore's edge each touch starts, millimetres; 10 by
+    /// default.
+    #[serde(default)]
+    pub bore_margin_mm: Option<f64>,
 }
 
 /// What a measurement found, in machine millimetres.
@@ -145,10 +151,14 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
                     .bore_mm
                     .filter(|d| d.is_finite() && (5. ..=1000.).contains(d))
                     .ok_or_else(|| Error::Request("give the bore diameter, 5 to 1000 mm".into()))?;
-            // Each start lies BORE_MARGIN outside the nominal edge, on the
-            // material; the search reaches past the middle at most.
-            let out = diameter / 2. + BORE_MARGIN;
-            let reach = out + BORE_MARGIN;
+            let margin = request.bore_margin_mm.unwrap_or(BORE_MARGIN);
+            if !(margin.is_finite() && (1. ..=MAX_BORE_MARGIN).contains(&margin)) {
+                return Err(Error::Request("the start beside the bore must be 1 to 100 mm".into()));
+            }
+            // Each start lies the margin outside the nominal edge, on the
+            // material; the search reaches no farther past the edge.
+            let out = diameter / 2. + margin;
+            let reach = out + margin;
             points.push(touch(shared, epoch, 0, true, reach, Some(at(-out, 0.)), false).await?);
             points.push(touch(shared, epoch, 0, false, reach, Some(at(out, 0.)), false).await?);
             points.push(touch(shared, epoch, 1, true, reach, Some(at(0., -out)), true).await?);

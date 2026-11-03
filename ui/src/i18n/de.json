@@ -4154,5 +4154,6 @@
   "Sensor": "Sensor",
   "Lower the head with Z down (not Follow), then move the pointer onto the bore edge and take the point; three points spread around the edge.": "Kopf mit „Z down“ absenken (nicht Folgen), dann den Pointer auf den Bohrungsrand fahren und den Punkt übernehmen; drei Punkte über den Rand verteilt.",
   "Take edge point {0} of 3": "Randpunkt {0} von 3 übernehmen",
-  "Start the points again": "Punkte neu beginnen"
+  "Start the points again": "Punkte neu beginnen",
+  "Start beside the bore": "Start neben der Bohrung"
 }

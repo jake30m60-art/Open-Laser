@@ -33,6 +33,7 @@
   let offsetY = $state(remember('offset-y', 5));
   let correction = $state(remember('correction', 2));
   let bore = $state(remember('bore', 30));
+  let margin = $state(remember('bore-margin', 10));
   /** Where the job origin goes once taken. */
   let origin = $state<'corner' | 'offset' | 'keep'>('corner');
   let busy = $state(false);
@@ -64,7 +65,7 @@
     });
     if (!confirmed) return;
     busy = true; kept.result = null;
-    try { kept.result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search, correction_mm: [correction, correction], bore_mm: shape === 'bore' ? bore : null })).measured; }
+    try { kept.result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search, correction_mm: [correction, correction], bore_mm: shape === 'bore' ? bore : null, bore_margin_mm: shape === 'bore' ? margin : null })).measured; }
     catch (e) { ui.say(explain(e), true); }
     finally { busy = false; }
   }
@@ -114,6 +115,7 @@
       {#if handPoints.length}<button class="btn btn-ghost block" onclick={() => (handPoints = [])}>{t('Start the points again')}</button>{/if}
     {:else}
       <p class="muted">{t('Put the head roughly over the middle of the bore: the touches start on the material beside it and search toward its middle.')}</p>
+      <Stepper label={t('Start beside the bore')} value={margin} unit="mm" step={1} disabled={busy} apply={(v) => { margin = Math.min(100, Math.max(1, v)); keep('bore-margin', margin); }} />
     {/if}
   {:else if shape !== 'disc'}
     <Stepper label={t('Point spacing')} value={spacing} unit="mm" step={10} disabled={busy} apply={(v) => { spacing = Math.max(5, v); keep('spacing', spacing); }} />

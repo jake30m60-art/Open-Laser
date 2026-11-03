@@ -37,6 +37,7 @@ async fn four_touches_measure_the_sheet_corner() {
         search_mm: 200.,
         correction_mm: [0., 0.],
         bore_mm: None,
+        bore_margin_mm: None,
     };
     let measured = measure(&shared, request).await.expect("a measurement");
     assert_eq!(measured.points.len(), 4);
@@ -56,6 +57,7 @@ async fn the_edge_correction_moves_the_corner_onto_the_sheet() {
         search_mm: 200.,
         correction_mm: [2., 3.],
         bore_mm: None,
+        bore_margin_mm: None,
     };
     let corner = measure(&shared, request).await.expect("a measurement").corner.unwrap();
     assert!((corner[0] - 22.).abs() < 0.01 && (corner[1] - 23.).abs() < 0.01, "{corner:?}");
@@ -74,6 +76,7 @@ async fn three_touches_measure_a_disc() {
         search_mm: 200.,
         correction_mm: [0., 0.],
         bore_mm: None,
+        bore_margin_mm: None,
     };
     let measured = measure(&shared, request).await.expect("a measurement");
     assert_eq!(measured.points.len(), 3);
