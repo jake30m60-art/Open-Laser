@@ -1011,9 +1011,9 @@ impl Task {
                 Motion::new(request, &verified, bindings.head_enabled, requested)
                     .map(|motion| motion.retracting_first(bindings))
             }
-            Travel::Jog | Travel::JogLow => {
-                Motion::new(request, &verified, bindings.head_enabled, requested)
-            }
+            Travel::Jog => Motion::new(request, &verified, bindings.head_enabled, requested),
+            Travel::JogLow => Motion::new(request, &verified, bindings.head_enabled, requested)
+                .map(Motion::keeping_the_head_low),
             Travel::Position => Motion::positioning(request, &verified, bindings, requested),
         }
         .map_err(Error::Refused)?;

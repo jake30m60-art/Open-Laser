@@ -77,6 +77,8 @@ pub struct Motion {
     watchdog: Duration,
     axes: [usize; 2],
     retraction: Option<Home>,
+    /// Moves with the head low where the operator put it.
+    head_low: bool,
     jog: Option<(usize, bool)>,
     /// The other axis of a held jog, added while it runs: each axis keeps
     /// its own direction and is stopped on its own, as Mlaser's jog keys.
@@ -138,6 +140,7 @@ impl Motion {
             watchdog,
             axes: [0, 1],
             retraction: None,
+            head_low: false,
             jog,
             joined: None,
             parameters: *verified,
@@ -170,6 +173,13 @@ impl Motion {
     #[must_use]
     pub fn retracting_first(mut self, bindings: &Bindings) -> Self {
         self.retraction = bindings.head_enabled.then(|| Home::new(bindings, true));
+        self
+    }
+
+    /// The same move with the head left low, where the operator put it.
+    #[must_use]
+    pub const fn keeping_the_head_low(mut self) -> Self {
+        self.head_low = true;
         self
     }
 
@@ -431,7 +441,11 @@ impl Motion {
             admit_positioning(snapshot, blocked)?;
         }
         self.target = self.target(snapshot)?;
-        if self.head_enabled && snapshot.head.referenced() && !snapshot.head.at_upper_reference() {
+        if self.head_enabled
+            && !self.head_low
+            && snapshot.head.referenced()
+            && !snapshot.head.at_upper_reference()
+        {
             if self.retraction.is_some() {
                 self.phase = Phase::Retracting;
                 return self.retract(snapshot, blocked, now);
