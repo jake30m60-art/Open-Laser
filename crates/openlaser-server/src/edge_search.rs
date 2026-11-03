@@ -166,6 +166,7 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
             measured
         }
     };
+    tracing::info!(correction = ?request.correction_mm, points = ?measured.points, "edge search measured");
     shared.lock().await.note(
         match &measured {
             Measured { corner: Some(c), angle_deg: Some(a), .. } => {
