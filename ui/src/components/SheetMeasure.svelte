@@ -30,7 +30,7 @@
   let search = $state(remember('search', 200));
   let offsetX = $state(remember('offset-x', 5));
   let offsetY = $state(remember('offset-y', 5));
-  let correction = $state(remember('correction', 5));
+  let correction = $state(remember('correction', 2.5));
   let bore = $state(remember('bore', 30));
   /** Where the job origin goes once taken. */
   let origin = $state<'corner' | 'offset' | 'keep'>('corner');
