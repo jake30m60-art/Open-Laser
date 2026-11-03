@@ -149,6 +149,9 @@ pub struct Coordinator {
     pub accepted: Option<Configuration>,
     /// Successful head calibration, scoped to its material and connection.
     pub(crate) calibration: Option<crate::setup::Calibration>,
+    /// Whether the operator last placed the head, by the Z keys or Follow;
+    /// see `machine::head_moved`.
+    pub(crate) head_by_operator: bool,
     /// Why the most recent parameter read could not match the machine files.
     pub(crate) parameter_problem: Option<String>,
     /// The job being set up.
@@ -299,6 +302,7 @@ impl Coordinator {
             alignment: crate::alignment::Session::open(&config.data_dir)
                 .map_err(|e| e.to_string())?,
             calibration: None,
+            head_by_operator: false,
             sheet_store,
             sheet_persistence_error: None,
             completed_sheet: None,

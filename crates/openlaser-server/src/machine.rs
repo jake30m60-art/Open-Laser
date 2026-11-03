@@ -370,6 +370,7 @@ use std::sync::Arc;
 /// machine initialization first if an alarm prevented it at connection, and
 /// drops a captured head position, which homing makes stale.
 pub async fn home(shared: &Shared) -> Result<()> {
+    head_moved(shared).await;
     let requested = Instant::now();
     let epoch = shared.ensure_running()?;
     select_setup_mode(shared).await?;
@@ -410,6 +411,7 @@ pub async fn home(shared: &Shared) -> Result<()> {
 /// Calibrates the cutting head's height sensor against the sheet; the
 /// result applies to the current material and connection only.
 pub async fn calibrate(shared: &Shared) -> Result<()> {
+    head_moved(shared).await;
     shared.ensure_running()?;
     select_setup_mode(shared).await?;
     let context = {
@@ -443,6 +445,7 @@ pub async fn calibrate(shared: &Shared) -> Result<()> {
 /// follows the sheet, as a cut's follow record sends it. The head
 /// controller keeps following until the head is raised or stopped.
 pub async fn follow(shared: &Shared) -> Result<()> {
+    head_moved(shared).await;
     shared.ensure_running()?;
     let action = {
         let c = shared.lock().await;
@@ -451,6 +454,7 @@ pub async fn follow(shared: &Shared) -> Result<()> {
     };
     shared.machine.head(action).await?;
     MANUAL_FOLLOW.store(true, std::sync::atomic::Ordering::SeqCst);
+    shared.lock().await.head_by_operator = true;
     Ok(())
 }
 
@@ -458,9 +462,18 @@ pub async fn follow(shared: &Shared) -> Result<()> {
 /// head's command word alone does not show it once the head has settled.
 pub static MANUAL_FOLLOW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// The head is no longer where the operator left it with the Z keys or
+/// Follow: a jog takes a low head up to its reference first again. While the
+/// operator placed it, a jog leaves it there (still following, after
+/// Follow), for taking points by hand close over the sheet.
+pub async fn head_moved(shared: &Shared) {
+    shared.lock().await.head_by_operator = false;
+}
+
 /// The Follow button again: the head retracts to the safe height the stop
 /// raises it to.
 pub async fn raise_head(shared: &Shared) -> Result<()> {
+    head_moved(shared).await;
     shared.ensure_running()?;
     shared.lock().await.idle()?;
     MANUAL_FOLLOW.store(false, std::sync::atomic::Ordering::SeqCst);
@@ -760,7 +773,12 @@ pub async fn jog(shared: &Shared, request: JogRequest, lease: Option<Lease>) -> 
         };
         (coordinator.machine.clone(), motion)
     };
-    let completed = machine.start_travel(motion, lease, requested).await?;
+    let low = shared.lock().await.head_by_operator;
+    let completed = if low {
+        machine.start_travel_low(motion, lease, requested).await?
+    } else {
+        machine.start_travel(motion, lease, requested).await?
+    };
     spawn(shared, "Jog", completed.finished());
     Ok(())
 }
@@ -1024,7 +1042,7 @@ pub async fn outputs(shared: &Shared, request: OutputRequest, lease: Lease) -> R
     shared.ensure_running()?;
     let requested = Instant::now();
     let (machine, plan) = {
-        let coordinator = shared.lock().await;
+        let mut coordinator = shared.lock().await;
         coordinator.idle()?;
         let outputs = &coordinator.bound()?.outputs;
         let (name, manual): (&str, Manual) = match request {
@@ -1032,7 +1050,9 @@ pub async fn outputs(shared: &Shared, request: OutputRequest, lease: Lease) -> R
             OutputRequest::Shutter => ("shutter", outputs.shutter()?),
             OutputRequest::Gas { selector, pressure } => ("gas", outputs.gas(selector, pressure)?),
             OutputRequest::HeadJog { up, fast } => {
-                ("head", outputs.head_jog(up, fast, head_jog_travel(&coordinator, up)?)?)
+                let manual = outputs.head_jog(up, fast, head_jog_travel(&coordinator, up)?)?;
+                coordinator.head_by_operator = true;
+                ("head", manual)
             }
         };
         let plan = Plan {
@@ -1248,6 +1268,9 @@ pub async fn stop(shared: &Shared) -> Result<()> {
     let machine = shared.machine.clone();
     let program = machine.state().program.as_ref().map(|p| p.state);
     machine.stop().await?;
+    // Apart from the stop: it never waits for the coordinator's lock.
+    let moved = Arc::clone(shared);
+    tokio::spawn(async move { head_moved(&moved).await });
     // Stopping a job ends it: once the machine has settled, the job starts
     // again from the beginning and the head returns to its upper reference,
     // so jogging and Start work at once.
@@ -1299,6 +1322,7 @@ async fn reset_after_stop(shared: &Shared) {
 
 /// Pauses the running program.
 pub async fn hold(shared: &Shared) -> Result<()> {
+    head_moved(shared).await;
     if flying_now(shared).await {
         // An engraving line is finished first: the pause lands in its
         // laser-off run-out, so resuming leaves no seam in the marks.
@@ -1388,6 +1412,7 @@ async fn hold_after_line(shared: &Shared, epoch: u64) {
 
 /// Runs the exact artifact accepted by the latest compile.
 pub async fn run(shared: &Shared) -> Result<()> {
+    head_moved(shared).await;
     run_reviewed(shared, None).await
 }
 
@@ -1462,6 +1487,7 @@ pub async fn run_reviewed(
 
 /// Resumes only the immutable remainder belonging to the settled held run.
 pub async fn resume(shared: &Shared) -> Result<()> {
+    head_moved(shared).await;
     resume_reviewed(shared, None).await
 }
 
@@ -1534,6 +1560,7 @@ pub async fn resume_reviewed(
 
 /// Move to the chosen restart point with the laser off and the head retracted.
 pub async fn move_restart(shared: &Shared, revision: u64) -> Result<()> {
+    head_moved(shared).await;
     shared.ensure_running()?;
     let requested = Instant::now();
     let motion = {
@@ -1849,6 +1876,7 @@ impl crate::Coordinator {
 /// Frames the compiled process envelope (including leads and cleaning), with
 /// the laser off. Initial approach and return are checked separately too.
 pub async fn frame(shared: &Shared) -> Result<()> {
+    head_moved(shared).await;
     shared.lock().await.not_held()?;
     crate::placement::prepare(shared).await?;
     let epoch = shared.ensure_running()?;

@@ -107,6 +107,7 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
         return Err(Error::Request("the edge correction must be within ±20 mm".into()));
     }
     let [cx, cy] = request.correction_mm;
+    crate::machine::head_moved(shared).await;
     let epoch = shared.ensure_running()?;
     let start = head_xy(shared).await?;
     let spacing = request.spacing_mm;

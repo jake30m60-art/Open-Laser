@@ -62,6 +62,8 @@ type Reply<T> = oneshot::Sender<Result<T>>;
 #[derive(Clone, Copy)]
 enum Travel {
     Jog,
+    /// A jog that leaves the head where the Z keys put it.
+    JogLow,
     Position,
     Table([i32; 2]),
 }
@@ -357,6 +359,17 @@ impl Machine {
         requested: Instant,
     ) -> Result<Completion<()>> {
         self.start_move(request, Travel::Jog, lease, requested).await
+    }
+
+    /// A jog that keeps the head at the height the Z keys left it, for
+    /// taking points by hand close over the sheet.
+    pub async fn start_travel_low(
+        &self,
+        request: motion::Request,
+        lease: Option<Lease>,
+        requested: Instant,
+    ) -> Result<Completion<()>> {
+        self.start_move(request, Travel::JogLow, lease, requested).await
     }
 
     /// Positions XY, first returning a lowered head to its upper reference.
@@ -978,7 +991,8 @@ impl Task {
         // An initial limit can prevent settings initialization. A recovery
         // pulse uses the measured axis units without accepting them for jobs.
         let table_limit = snapshot.table_limit_alarms();
-        let verified = if (matches!(travel, Travel::Jog) && snapshot.xy_limit_alarms())
+        let verified = if (matches!(travel, Travel::Jog | Travel::JogLow)
+            && snapshot.xy_limit_alarms())
             || (matches!(travel, Travel::Table(_)) && table_limit)
         {
             snapshot.parameters().map_err(|error| Error::Refused(error.to_string()))?
@@ -997,7 +1011,9 @@ impl Task {
                 Motion::new(request, &verified, bindings.head_enabled, requested)
                     .map(|motion| motion.retracting_first(bindings))
             }
-            Travel::Jog => Motion::new(request, &verified, bindings.head_enabled, requested),
+            Travel::Jog | Travel::JogLow => {
+                Motion::new(request, &verified, bindings.head_enabled, requested)
+            }
             Travel::Position => Motion::positioning(request, &verified, bindings, requested),
         }
         .map_err(Error::Refused)?;
