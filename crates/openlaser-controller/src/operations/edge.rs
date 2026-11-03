@@ -243,6 +243,14 @@ impl Operation for EdgeProbe {
                     let mut at = [snapshot.axes.axis(0).position, snapshot.axes.axis(1).position];
                     at[axis] = snapshot.axes.axis(axis).edge;
                     self.edge = Some(at);
+                    tracing::info!(
+                        axis,
+                        edge = ?at,
+                        position = snapshot.axes.axis(axis).position,
+                        speed = snapshot.axes.axis(axis).speed,
+                        head_status = head.status_byte(),
+                        "edge found"
+                    );
                     self.phase = Phase::Lifting;
                     // On the edge the controller lifts the head by itself
                     // (capture: up within half a second, then command 0);
