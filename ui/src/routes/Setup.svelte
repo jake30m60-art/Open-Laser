@@ -13,6 +13,7 @@
   import ClipboardPanel from './setup/ClipboardPanel.svelte';
   import NestPanel from './setup/NestPanel.svelte';
   import SheetPanel from './setup/SheetPanel.svelte';
+  import SheetMeasure from '../components/SheetMeasure.svelte';
   import EngravePanel from './setup/EngravePanel.svelte';
   import SimulationPanel from './setup/SimulationPanel.svelte';
   import CreateText from '../components/CreateText.svelte';
@@ -39,7 +40,7 @@
   const doc = $derived(server.doc!);
   const draft = $derived(doc.draft);
 
-  const EXTRA = [{ id: 'sheet', short: t("Sheet") }, { id: 'simulation', short: t("Simulation") }, { id: 'engrave', short: t("Engrave") }, { id: 'nest', short: t("Nest parts") }, { id: 'copy', short: t("Copy job") }];
+  const EXTRA = [{ id: 'sheet', short: t("Sheet") }, { id: 'measure', short: t("Measure") }, { id: 'simulation', short: t("Simulation") }, { id: 'engrave', short: t("Engrave") }, { id: 'nest', short: t("Nest parts") }, { id: 'copy', short: t("Copy job") }];
   let texting = $state(false);
   let manualCutOpen=$state(false);
   let selectedContours = $state<number[]>([]);
@@ -115,7 +116,7 @@
       on: () => ui.setupPanel === 'leadout', set: () => !!draft && toolbarOn(featureEdits.value(draft), 'leads'), disabled: () => false, run: () => runTool('leadout'),
     }] as [string, Tool],
     ...EXTRA.map((t): [string, Tool] => [t.id, {
-      label: t.short, when: 'always', icon: t.id === 'sheet' ? 'ic-frame' : t.id === 'simulation' ? 'ic-tool-order' : t.id === 'nest' ? 'ic-tool-nest' : t.id === 'engrave' ? 'ic-tool-engrave' : 'ic-copy', on: () => ui.setupPanel === t.id, disabled: () => false, run: () => runTool(t.id),
+      label: t.short, when: 'always', icon: t.id === 'sheet' ? 'ic-frame' : t.id === 'measure' ? 'ic-target' : t.id === 'simulation' ? 'ic-tool-order' : t.id === 'nest' ? 'ic-tool-nest' : t.id === 'engrave' ? 'ic-tool-engrave' : 'ic-copy', on: () => ui.setupPanel === t.id, disabled: () => false, run: () => runTool(t.id),
     }]),
   ]));
 
@@ -153,6 +154,12 @@
     <SimulationPanel bind:progress={simulationProgress} bind:mode={simulationMode} />
   {:else if ui.setupPanel === 'sheet'}
     <SheetPanel />
+  {:else if ui.setupPanel === 'measure'}
+    <div class="feat-head">
+      <h2 class="feat-title">{t("Measure")}</h2>
+      <button class="btn btn-ghost" onclick={() => (ui.setupPanel = null)}>{t("Close")}</button>
+    </div>
+    <SheetMeasure />
   {:else if ui.setupPanel === 'nest'}
     <NestPanel {selectedContours} onselectall={() => canvas?.selectAll()} />
   {:else if ui.setupPanel}

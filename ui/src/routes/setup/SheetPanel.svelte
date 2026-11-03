@@ -5,7 +5,6 @@
   import { t } from '../../i18n/index';
   import SheetSizePicker from '../../components/SheetSizePicker.svelte';
   import HoldButton from '../../components/HoldButton.svelte';
-  import SheetMeasure from '../../components/SheetMeasure.svelte';
   import { api } from '../../api/client';
   import { server } from '../../stores/server.svelte';
   import { ui } from '../../stores/ui.svelte';
@@ -104,7 +103,6 @@
       <button class="btn btn-ghost" disabled={busy} onclick={remove}><i class="ic ic-trash"></i>{t("Remove sheet")}</button>
     </div>
   {/if}
-  <SheetMeasure />
   {#if cuts}
     <button class="btn btn-ghost block" disabled={busy} onclick={clearCuts}>
       <i class="ic ic-trash"></i>{t("Clear cut parts")} · {t('{0} cut paths on this sheet', cuts)}

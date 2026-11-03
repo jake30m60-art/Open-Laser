@@ -98,7 +98,6 @@
     <div class="result">
       {#if result.corner}
         <p><strong>{t('Corner')}</strong> X {distance(result.corner[0])} · Y {distance(result.corner[1])} {unitLabel('mm')}</p>
-        {#if !server.doc?.draft?.nesting?.stock}<p class="warn">{t('No sheet in this job yet: add one above so it shows turned on the bed.')}</p>{/if}
         <p><strong>{t('Angle')}</strong> {(result.angle_deg ?? 0).toFixed(3)}°{#if result.squareness_deg !== null} · {t('square within {0}°', Math.abs(result.squareness_deg).toFixed(2))}{/if}</p>
         <div class="seg block" role="group" aria-label={t('Job origin')}>
           <button class:on={origin === 'corner'} onclick={() => (origin = 'corner')}>{t('Origin at the corner')}</button>
@@ -125,7 +124,6 @@
   .measure { display:grid; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); }
   .measure h3 { margin:0; }
   .result { display:grid; gap:6px; padding-top:8px; border-top:1px solid var(--line); }
-  .warn { color:var(--warn, #c80); }
   .result p { margin:0; font-variant-numeric:tabular-nums; }
   .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 </style>

@@ -95,7 +95,7 @@ class Ui {
    *  the library is not picking. */
   partPicks = $state<string[] | null>(null);
   selectedRecipe = $state<string | null>(null);
-  setupPanel = $state<FeatureId | 'leadout' | 'copy' | 'clipboard' | 'nest' | 'engrave' | 'simulation' | 'sheet' | null>(null);
+  setupPanel = $state<FeatureId | 'leadout' | 'copy' | 'clipboard' | 'nest' | 'engrave' | 'simulation' | 'sheet' | 'measure' | null>(null);
   /** The layer the machining panels edit; none edits the job's own. */
   machiningLayer = $state<string | null>(null);
   /** The layer whose settings sheet is open. */
