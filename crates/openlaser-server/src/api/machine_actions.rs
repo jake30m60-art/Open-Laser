@@ -197,7 +197,10 @@ async fn measure_sheet(State(shared): State<Shared>, body: Body) -> Reply {
     let request = input(&shared, body)?;
     let measure =
         request.measure.ok_or_else(|| Error::Request("a measurement needs its shape".into()))?;
-    let measured = crate::edge_search::measure(&shared, measure).await?;
+    tracing::info!(?measure, "edge search started");
+    let measured = crate::edge_search::measure(&shared, measure)
+        .await
+        .inspect_err(|e| tracing::warn!(error = %e, "edge search ended without a result"))?;
     Ok(Json(serde_json::json!({ "ok": true, "measured": measured })))
 }
 
