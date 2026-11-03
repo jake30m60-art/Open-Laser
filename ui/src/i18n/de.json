@@ -4141,6 +4141,10 @@
   "Measurement taken": "Messung übernommen",
   "Sheet measured: corner X {0} · Y {1} mm, angle {2}°": "Blech gemessen: Ecke X {0} · Y {1} mm, Winkel {2}°",
   "Edge correction": "Kantenkorrektur",
+  "Bore": "Bohrung",
+  "Bore diameter": "Bohrungsdurchmesser",
+  "Put the head roughly over the middle of the bore: the touches start on the material beside it and search toward its middle.": "Kopf ungefähr über die Bohrungsmitte stellen: die Antastungen starten neben der Bohrung auf dem Material und suchen zur Mitte hin.",
+  "Bore measured: centre X {0} · Y {1} mm, Ø {2} mm": "Bohrung gemessen: Mitte X {0} · Y {1} mm, Ø {2} mm",
   "Sheet measurement taken: corner X {0} · Y {1} mm, angle {2}°": "Messung übernommen: Ecke X {0} · Y {1} mm, Winkel {2}°",
   "No sheet in this job yet: add one above so it shows turned on the bed.": "Noch kein Blech im Auftrag: oben eines anlegen, damit es schräg auf dem Tisch erscheint.",
   "Disc measured: centre X {0} · Y {1} mm, Ø {2} mm": "Scheibe gemessen: Mitte X {0} · Y {1} mm, Ø {2} mm"

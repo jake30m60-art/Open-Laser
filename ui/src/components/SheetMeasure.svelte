@@ -31,6 +31,7 @@
   let offsetX = $state(remember('offset-x', 5));
   let offsetY = $state(remember('offset-y', 5));
   let correction = $state(remember('correction', 5));
+  let bore = $state(remember('bore', 30));
   /** Where the job origin goes once taken. */
   let origin = $state<'corner' | 'offset' | 'keep'>('corner');
   let busy = $state(false);
@@ -44,7 +45,7 @@
     });
     if (!confirmed) return;
     busy = true; kept.result = null;
-    try { kept.result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search, correction_mm: [correction, correction] })).measured; }
+    try { kept.result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search, correction_mm: [correction, correction], bore_mm: shape === 'bore' ? bore : null })).measured; }
     catch (e) { ui.say(explain(e), true); }
     finally { busy = false; }
   }
@@ -78,12 +79,16 @@
     <button class:on={shape === 'rectangle'} onclick={() => (shape = 'rectangle')}>{t('Sheet · 4 points')}</button>
     <button class:on={shape === 'two_edges'} onclick={() => (shape = 'two_edges')}>{t('Sheet · 2 edges')}</button>
     <button class:on={shape === 'disc'} onclick={() => (shape = 'disc')}>{t('Disc')}</button>
+    <button class:on={shape === 'bore'} onclick={() => (shape = 'bore')}>{t('Bore')}</button>
   </div>
-  {#if shape !== 'disc'}
+  {#if shape === 'bore'}
+    <p class="muted">{t('Put the head roughly over the middle of the bore: the touches start on the material beside it and search toward its middle.')}</p>
+    <Stepper label={t('Bore diameter')} value={bore} unit="mm" step={1} disabled={busy} apply={(v) => { bore = Math.min(1000, Math.max(5, v)); keep('bore', bore); }} />
+  {:else if shape !== 'disc'}
     <Stepper label={t('Point spacing')} value={spacing} unit="mm" step={10} disabled={busy} apply={(v) => { spacing = Math.max(5, v); keep('spacing', spacing); }} />
   {/if}
   <Stepper label={t('Edge correction')} value={correction} unit="mm" step={0.5} disabled={busy} apply={(v) => { correction = Math.min(20, Math.max(0, v)); keep('correction', correction); }} />
-  <Stepper label={t('Search travel')} value={search} unit="mm" step={10} disabled={busy} apply={(v) => { search = Math.max(5, v); keep('search', search); }} />
+  {#if shape !== 'bore'}<Stepper label={t('Search travel')} value={search} unit="mm" step={10} disabled={busy} apply={(v) => { search = Math.max(5, v); keep('search', search); }} />{/if}
   <button class="btn btn-primary block" disabled={busy || !connected} onclick={measure}>
     {busy ? t('Measuring…') : t('Start measuring')}
   </button>

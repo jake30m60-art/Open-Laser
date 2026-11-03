@@ -36,6 +36,7 @@ async fn four_touches_measure_the_sheet_corner() {
         spacing_mm: 100.,
         search_mm: 200.,
         correction_mm: [0., 0.],
+        bore_mm: None,
     };
     let measured = measure(&shared, request).await.expect("a measurement");
     assert_eq!(measured.points.len(), 4);
@@ -56,6 +57,7 @@ async fn three_touches_measure_a_disc() {
         spacing_mm: 100.,
         search_mm: 200.,
         correction_mm: [0., 0.],
+        bore_mm: None,
     };
     let measured = measure(&shared, request).await.expect("a measurement");
     assert_eq!(measured.points.len(), 3);

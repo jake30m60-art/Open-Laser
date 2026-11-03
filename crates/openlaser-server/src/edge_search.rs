@@ -13,6 +13,9 @@
 //!   sheet that reaches past the bed.
 //! - A disc, three points: −X and +X from the start, then −Y from the middle
 //!   of that chord; the circle through them.
+//! - A bore of a given diameter, three points: the head stands roughly over
+//!   its middle; each touch starts on the material beside the bore (left,
+//!   right, front) and searches toward its middle; the circle through them.
 
 use crate::coordinator::Shared;
 use crate::{Error, Result};
@@ -21,6 +24,8 @@ use serde::{Deserialize, Serialize};
 
 /// The search speed of the capture, in millimetres per second.
 const SEARCH_MM_S: f64 = 50.;
+/// How far outside a bore's nominal edge its touches start, millimetres.
+const BORE_MARGIN: f64 = 10.;
 /// The travel between touches in the capture, millimetres per second.
 const TRAVEL_MM_S: f64 = 500.;
 /// How far the found edges may lean before the measurement is refused.
@@ -39,6 +44,8 @@ pub enum SheetShape {
     TwoEdges,
     /// A disc, three points.
     Disc,
+    /// A bore from outside, three points; its diameter is given.
+    Bore,
 }
 
 /// A measurement as the operator asks for it.
@@ -56,6 +63,9 @@ pub struct MeasureRequest {
     /// much, against its search direction (the vendor's 5/5).
     #[serde(default)]
     pub correction_mm: [f64; 2],
+    /// A bore's nominal diameter, millimetres.
+    #[serde(default)]
+    pub bore_mm: Option<f64>,
 }
 
 /// What a measurement found, in machine millimetres.
@@ -128,11 +138,41 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
             points[2][1] += cy;
             disc(points)?
         }
+        SheetShape::Bore => {
+            let diameter =
+                request
+                    .bore_mm
+                    .filter(|d| d.is_finite() && (5. ..=1000.).contains(d))
+                    .ok_or_else(|| Error::Request("give the bore diameter, 5 to 1000 mm".into()))?;
+            // Each start lies BORE_MARGIN outside the nominal edge, on the
+            // material; the search reaches past the middle at most.
+            let out = diameter / 2. + BORE_MARGIN;
+            let reach = out + BORE_MARGIN;
+            points.push(touch(shared, epoch, 0, true, reach, Some(at(-out, 0.)), false).await?);
+            points.push(touch(shared, epoch, 0, false, reach, Some(at(out, 0.)), false).await?);
+            points.push(touch(shared, epoch, 1, true, reach, Some(at(0., -out)), true).await?);
+            points[0][0] -= cx;
+            points[1][0] += cx;
+            points[2][1] -= cy;
+            let mut measured = disc(points)?;
+            measured.shape = SheetShape::Bore;
+            let found = measured.diameter_mm.unwrap_or(0.);
+            if (found - diameter).abs() > diameter.mul_add(0.1, 2.) {
+                return Err(Error::Refused(format!(
+                    "the bore measured Ø {found:.1} mm, not Ø {diameter:.1} mm; check the diameter and where the head stood"
+                )));
+            }
+            go(shared, epoch, measured.center.unwrap_or(start)).await?;
+            measured
+        }
     };
     shared.lock().await.note(
         match &measured {
             Measured { corner: Some(c), angle_deg: Some(a), .. } => {
                 format!("Sheet measured: corner X {:.2} · Y {:.2} mm, angle {a:.3}°", c[0], c[1])
+            }
+            Measured { shape: SheetShape::Bore, center: Some(c), diameter_mm: Some(d), .. } => {
+                format!("Bore measured: centre X {:.2} · Y {:.2} mm, Ø {d:.2} mm", c[0], c[1])
             }
             Measured { center: Some(c), diameter_mm: Some(d), .. } => {
                 format!("Disc measured: centre X {:.2} · Y {:.2} mm, Ø {d:.2} mm", c[0], c[1])

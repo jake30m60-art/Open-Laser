@@ -81,8 +81,8 @@ export type MachineAction =
   | 'go-xy' | 'frame' | 'release' | 'heartbeat' | 'outputs' | 'mode' | 'relieve' | 'run' | 'resume' | 'hold' | 'stop';
 
 /** What a sheet measurement by its edges asks for. */
-export type SheetShape = 'rectangle' | 'two_edges' | 'disc';
-export interface MeasureRequest { shape: SheetShape; spacing_mm: number; search_mm: number; correction_mm: [number, number] }
+export type SheetShape = 'rectangle' | 'two_edges' | 'disc' | 'bore';
+export interface MeasureRequest { shape: SheetShape; spacing_mm: number; search_mm: number; correction_mm: [number, number]; bore_mm?: number | null }
 /** What it found, in machine millimetres. */
 export interface Measured {
   shape: SheetShape;
