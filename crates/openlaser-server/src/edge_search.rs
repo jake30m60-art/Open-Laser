@@ -121,7 +121,8 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
             }
             go(shared, epoch, at(0., 0.)).await?;
             for (i, p) in points.iter_mut().enumerate() {
-                p[usize::from(i >= 2)] += if i >= 2 { cx } else { cy };
+                // Across each edge: the front points in Y, the left ones in X.
+                p[usize::from(i < 2)] += if i >= 2 { cx } else { cy };
             }
             rectangle(request.shape, points)?
         }

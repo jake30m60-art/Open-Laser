@@ -47,6 +47,22 @@ async fn four_touches_measure_the_sheet_corner() {
 }
 
 #[tokio::test]
+async fn the_edge_correction_moves_the_corner_onto_the_sheet() {
+    let (simulator, shared) = ready("edge-correction", [60., 60.]).await;
+    simulator.control().sheet_bounds([20., 20.], [700., 500.]);
+    let request = MeasureRequest {
+        shape: SheetShape::Rectangle,
+        spacing_mm: 100.,
+        search_mm: 200.,
+        correction_mm: [2., 3.],
+        bore_mm: None,
+    };
+    let corner = measure(&shared, request).await.expect("a measurement").corner.unwrap();
+    assert!((corner[0] - 22.).abs() < 0.01 && (corner[1] - 23.).abs() < 0.01, "{corner:?}");
+    openlaser_server::shutdown(&shared).await.unwrap();
+}
+
+#[tokio::test]
 async fn three_touches_measure_a_disc() {
     let (simulator, shared) = ready("edge-disc", [200., 200.]).await;
     // The simulator's sheets are rectangles: a square stands in for the disc
