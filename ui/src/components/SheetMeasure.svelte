@@ -41,15 +41,21 @@
   /** A bore found by hand: the edge points the operator took with the pointer. */
   let byHand = $state(true);
   let handPoints = $state<Point[]>([]);
+  /** A disc or bore by three points, or four for a check that they lie on one circle. */
+  let count = $state(remember('circle-points', 3) === 4 ? 4 : 3);
   const head = $derived(doc.machine.feedback?.position_mm);
 
   function takePoint(): void {
     if (!head) return;
     const points = [...handPoints, [head[0], head[1]] as Point];
-    if (points.length < 3) { handPoints = points; return; }
+    if (points.length < count) { handPoints = points; return; }
     handPoints = [];
-    const circle = circleThrough(points as [Point, Point, Point]);
-    if (!circle) { ui.say(t('The three points lie on a line: take them spread around the bore.'), true); return; }
+    const circle = circleThrough(points);
+    if (!circle) { ui.say(t('The points lie on a line: take them spread around the bore.'), true); return; }
+    if (circle.off > 1) {
+      ui.say(t('The points lie up to {0} mm off one circle; take them again', circle.off.toFixed(1)), true);
+      return;
+    }
     if (Math.abs(circle.diameter - bore) > bore * 0.1 + 2) {
       ui.say(t('The bore measured Ø {0} mm, not Ø {1} mm; check the diameter and the points', circle.diameter.toFixed(1), bore.toFixed(1)), true);
       return;
@@ -65,7 +71,7 @@
     });
     if (!confirmed) return;
     busy = true; kept.result = null;
-    try { kept.result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search, correction_mm: [correction, correction], bore_mm: shape === 'bore' ? bore : null, bore_margin_mm: shape === 'bore' ? margin : null })).measured; }
+    try { kept.result = (await api.measureSheet({ shape, spacing_mm: spacing, search_mm: search, correction_mm: [correction, correction], bore_mm: shape === 'bore' ? bore : null, bore_margin_mm: shape === 'bore' ? margin : null, four_points: count === 4 })).measured; }
     catch (e) { ui.say(explain(e), true); }
     finally { busy = false; }
   }
@@ -101,6 +107,12 @@
     <button class:on={shape === 'disc'} onclick={() => (shape = 'disc')}>{t('Disc')}</button>
     <button class:on={shape === 'bore'} onclick={() => (shape = 'bore')}>{t('Bore')}</button>
   </div>
+  {#if shape === 'disc' || shape === 'bore'}
+    <div class="seg block" role="group" aria-label={t('Points on the circle')}>
+      <button class:on={count === 3} onclick={() => { count = 3; keep('circle-points', 3); handPoints = []; }}>{t('3 points')}</button>
+      <button class:on={count === 4} onclick={() => { count = 4; keep('circle-points', 4); handPoints = []; }}>{t('4 points')}</button>
+    </div>
+  {/if}
   {#if shape === 'bore'}
     <Stepper label={t('Bore diameter')} value={bore} unit="mm" step={1} disabled={busy} apply={(v) => { bore = Math.min(1000, Math.max(5, v)); keep('bore', bore); }} />
     <div class="seg block" role="group" aria-label={t('How to find the bore')}>
@@ -108,9 +120,9 @@
       <button class:on={!byHand} onclick={() => { byHand = false; handPoints = []; }}>{t('Sensor')}</button>
     </div>
     {#if byHand}
-      <p class="muted">{t('Lower the head with Z down (not Follow), then move the pointer onto the bore edge and take the point; three points spread around the edge.')}</p>
+      <p class="muted">{t('Lower the head with Z down (not Follow), then move the pointer onto the bore edge and take the point; the points spread around the edge.')}</p>
       <button class="btn btn-primary block" disabled={busy || !head} onclick={takePoint}>
-        {t('Take edge point {0} of 3', handPoints.length + 1)}{#if head} · X {distance(head[0])} · Y {distance(head[1])}{/if}
+        {t('Take edge point {0} of {1}', handPoints.length + 1, count)}{#if head} · X {distance(head[0])} · Y {distance(head[1])}{/if}
       </button>
       {#if handPoints.length}<button class="btn btn-ghost block" onclick={() => (handPoints = [])}>{t('Start the points again')}</button>{/if}
     {:else}

@@ -26,6 +26,8 @@ use serde::{Deserialize, Serialize};
 const SEARCH_MM_S: f64 = 50.;
 /// How far outside a bore's nominal edge its touches start, millimetres.
 const BORE_MARGIN: f64 = 10.;
+/// How far one of four points may lie off the circle through them, mm.
+const MAX_ROUND_MM: f64 = 1.;
 /// The farthest a bore's start may lie outside its edge, millimetres.
 const MAX_BORE_MARGIN: f64 = 100.;
 /// The travel between touches in the capture, millimetres per second.
@@ -72,6 +74,10 @@ pub struct MeasureRequest {
     /// default.
     #[serde(default)]
     pub bore_margin_mm: Option<f64>,
+    /// A disc or bore by four points instead of three: the fourth opposite
+    /// the third, and the circle fitted through all four.
+    #[serde(default)]
+    pub four_points: bool,
 }
 
 /// What a measurement found, in machine millimetres.
@@ -138,45 +144,24 @@ pub async fn measure(shared: &Shared, request: MeasureRequest) -> Result<Measure
             points.push(touch(shared, epoch, 0, false, search, None, false).await?);
             points.push(touch(shared, epoch, 0, true, search, Some(at(0., 0.)), false).await?);
             let middle = f64::midpoint(points[0][0], points[1][0]);
+            let four = request.four_points;
             points.push(
-                touch(shared, epoch, 1, false, search, Some([middle, start[1]]), true).await?,
+                touch(shared, epoch, 1, false, search, Some([middle, start[1]]), !four).await?,
             );
+            if four {
+                points.push(
+                    touch(shared, epoch, 1, true, search, Some([middle, start[1]]), true).await?,
+                );
+            }
             points[0][0] += cx;
             points[1][0] -= cx;
             points[2][1] += cy;
+            if four {
+                points[3][1] -= cy;
+            }
             disc(points)?
         }
-        SheetShape::Bore => {
-            let diameter =
-                request
-                    .bore_mm
-                    .filter(|d| d.is_finite() && (5. ..=1000.).contains(d))
-                    .ok_or_else(|| Error::Request("give the bore diameter, 5 to 1000 mm".into()))?;
-            let margin = request.bore_margin_mm.unwrap_or(BORE_MARGIN);
-            if !(margin.is_finite() && (1. ..=MAX_BORE_MARGIN).contains(&margin)) {
-                return Err(Error::Request("the start beside the bore must be 1 to 100 mm".into()));
-            }
-            // Each start lies the margin outside the nominal edge, on the
-            // material; the search reaches no farther past the edge.
-            let out = diameter / 2. + margin;
-            let reach = out + margin;
-            points.push(touch(shared, epoch, 0, true, reach, Some(at(-out, 0.)), false).await?);
-            points.push(touch(shared, epoch, 0, false, reach, Some(at(out, 0.)), false).await?);
-            points.push(touch(shared, epoch, 1, true, reach, Some(at(0., -out)), true).await?);
-            points[0][0] -= cx;
-            points[1][0] += cx;
-            points[2][1] -= cy;
-            let mut measured = disc(points)?;
-            measured.shape = SheetShape::Bore;
-            let found = measured.diameter_mm.unwrap_or(0.);
-            if (found - diameter).abs() > diameter.mul_add(0.1, 2.) {
-                return Err(Error::Refused(format!(
-                    "the bore measured Ø {found:.1} mm, not Ø {diameter:.1} mm; check the diameter and where the head stood"
-                )));
-            }
-            go(shared, epoch, measured.center.unwrap_or(start)).await?;
-            measured
-        }
+        SheetShape::Bore => bore(shared, epoch, &request, start, [cx, cy]).await?,
     };
     tracing::info!(correction = ?request.correction_mm, points = ?measured.points, "edge search measured");
     shared.lock().await.note(
@@ -210,6 +195,54 @@ async fn head_xy(shared: &Shared) -> Result<[f64; 2]> {
         .filter(|f| f.age_ms <= crate::coordinator::FRESH_FEEDBACK_MS)
         .ok_or_else(|| Error::Refused("no machine feedback".into()))?;
     Ok([feedback.position_mm[0], feedback.position_mm[1]])
+}
+
+/// A bore from outside: three or four touches from the material beside its
+/// nominal edge toward its middle; the head then goes to the centre.
+async fn bore(
+    shared: &Shared,
+    epoch: u64,
+    request: &MeasureRequest,
+    start: [f64; 2],
+    [cx, cy]: [f64; 2],
+) -> Result<Measured> {
+    let at = |dx: f64, dy: f64| [start[0] + dx, start[1] + dy];
+    let mut points = Vec::new();
+    let diameter = request
+        .bore_mm
+        .filter(|d| d.is_finite() && (5. ..=1000.).contains(d))
+        .ok_or_else(|| Error::Request("give the bore diameter, 5 to 1000 mm".into()))?;
+    let margin = request.bore_margin_mm.unwrap_or(BORE_MARGIN);
+    if !(margin.is_finite() && (1. ..=MAX_BORE_MARGIN).contains(&margin)) {
+        return Err(Error::Request("the start beside the bore must be 1 to 100 mm".into()));
+    }
+    // Each start lies the margin outside the nominal edge, on the
+    // material; the search reaches no farther past the edge.
+    let out = diameter / 2. + margin;
+    let reach = out + margin;
+    points.push(touch(shared, epoch, 0, true, reach, Some(at(-out, 0.)), false).await?);
+    points.push(touch(shared, epoch, 0, false, reach, Some(at(out, 0.)), false).await?);
+    let four = request.four_points;
+    points.push(touch(shared, epoch, 1, true, reach, Some(at(0., -out)), !four).await?);
+    if four {
+        points.push(touch(shared, epoch, 1, false, reach, Some(at(0., out)), true).await?);
+    }
+    points[0][0] -= cx;
+    points[1][0] += cx;
+    points[2][1] -= cy;
+    if four {
+        points[3][1] += cy;
+    }
+    let mut measured = disc(points)?;
+    measured.shape = SheetShape::Bore;
+    let found = measured.diameter_mm.unwrap_or(0.);
+    if (found - diameter).abs() > diameter.mul_add(0.1, 2.) {
+        return Err(Error::Refused(format!(
+            "the bore measured Ø {found:.1} mm, not Ø {diameter:.1} mm; check the diameter and where the head stood"
+        )));
+    }
+    go(shared, epoch, measured.center.unwrap_or(start)).await?;
+    Ok(measured)
 }
 
 /// Stop ends the measurement between its steps.
@@ -337,15 +370,16 @@ fn rectangle(shape: SheetShape, points: Vec<[f64; 2]>) -> Result<Measured> {
 
 /// The centre and diameter of the circle through three edge points.
 fn disc(points: Vec<[f64; 2]>) -> Result<Measured> {
-    let [p1, p2, p3] = [points[0], points[1], points[2]];
-    let det = 2. * (p1[0] * (p2[1] - p3[1]) + p2[0] * (p3[1] - p1[1]) + p3[0] * (p1[1] - p2[1]));
-    if det.abs() < 1e-9 {
-        return Err(Error::Refused("the three points lie on a line; no disc there".into()));
+    let ([cx, cy], radius) = circle(&points)
+        .ok_or_else(|| Error::Refused("the points lie on a line; no circle there".into()))?;
+    // Four points over-determine the circle: one far off it is a bad touch.
+    let off =
+        points.iter().map(|p| ((p[0] - cx).hypot(p[1] - cy) - radius).abs()).fold(0., f64::max);
+    if off > MAX_ROUND_MM {
+        return Err(Error::Refused(format!(
+            "the points lie up to {off:.1} mm off one circle; check the part and the touches"
+        )));
     }
-    let sq = |p: [f64; 2]| p[0] * p[0] + p[1] * p[1];
-    let cx = (sq(p1) * (p2[1] - p3[1]) + sq(p2) * (p3[1] - p1[1]) + sq(p3) * (p1[1] - p2[1])) / det;
-    let cy = (sq(p1) * (p3[0] - p2[0]) + sq(p2) * (p1[0] - p3[0]) + sq(p3) * (p2[0] - p1[0])) / det;
-    let radius = (p1[0] - cx).hypot(p1[1] - cy);
     Ok(Measured {
         shape: SheetShape::Disc,
         points,
@@ -355,6 +389,50 @@ fn disc(points: Vec<[f64; 2]>) -> Result<Measured> {
         center: Some([cx, cy]),
         diameter_mm: Some(2. * radius),
     })
+}
+
+/// The circle best through three or more points, least squares in
+/// x² + y² + Dx + Ey + F = 0 (through three it is exact): its centre and
+/// radius.
+fn circle(points: &[[f64; 2]]) -> Option<([f64; 2], f64)> {
+    // About their mean, so the sums stay well conditioned on the bed.
+    #[allow(clippy::cast_precision_loss, reason = "a handful of points")]
+    let n = points.len() as f64;
+    let mean = [
+        points.iter().map(|p| p[0]).sum::<f64>() / n,
+        points.iter().map(|p| p[1]).sum::<f64>() / n,
+    ];
+    let (mut normal, mut rhs_sum) = ([[0.; 3]; 3], [0.; 3]);
+    for p in points {
+        let (x, y) = (p[0] - mean[0], p[1] - mean[1]);
+        let row = [x, y, 1.];
+        let rhs = -(x * x + y * y);
+        for i in 0..3 {
+            for j in 0..3 {
+                normal[i][j] += row[i] * row[j];
+            }
+            rhs_sum[i] += row[i] * rhs;
+        }
+    }
+    let det3 = |a: [[f64; 3]; 3]| {
+        a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1])
+            - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
+            + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0])
+    };
+    let det = det3(normal);
+    if det.abs() < 1e-9 {
+        return None;
+    }
+    let solve = |k: usize| {
+        let mut swapped = normal;
+        for (row, value) in swapped.iter_mut().zip(rhs_sum) {
+            row[k] = value;
+        }
+        det3(swapped) / det
+    };
+    let centre = [-solve(0) / 2., -solve(1) / 2.];
+    let squared = centre[0].mul_add(centre[0], centre[1] * centre[1]) - solve(2);
+    (squared > 0.).then(|| ([centre[0] + mean[0], centre[1] + mean[1]], squared.sqrt()))
 }
 
 fn sub(a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
@@ -411,6 +489,16 @@ mod tests {
         let c = m.center.unwrap();
         assert!(c[0].abs() < 1e-9 && c[1].abs() < 1e-9);
         assert!((m.diameter_mm.unwrap() - 60.).abs() < 1e-9);
+    }
+
+    /// Four points fit the circle through them; one far off is refused.
+    #[test]
+    fn four_points_give_a_disc_and_catch_a_bad_touch() {
+        let m = disc(vec![[70., 100.], [130., 100.], [100., 70.], [100., 130.]]).unwrap();
+        let c = m.center.unwrap();
+        assert!((c[0] - 100.).abs() < 1e-9 && (c[1] - 100.).abs() < 1e-9);
+        assert!((m.diameter_mm.unwrap() - 60.).abs() < 1e-9);
+        assert!(disc(vec![[70., 100.], [130., 100.], [100., 70.], [100., 136.]]).is_err());
     }
 
     /// Edges far off square are refused rather than trusted.
